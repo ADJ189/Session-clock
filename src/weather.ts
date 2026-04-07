@@ -55,7 +55,24 @@ export function getCircadianWarmth(sunTimes: { rise: number; set: number; noon: 
 
 // Stored for external access
 let sunTimes: { rise: number; set: number; noon: number } | null = null;
+let _currentWeatherCode: number | null = null;
 export function getSunTimes() { return sunTimes; }
+export function getWeatherCode() { return _currentWeatherCode; }
+export function isRaining(): boolean {
+  if (_currentWeatherCode === null) return false;
+  // WMO codes 51–67 = drizzle/rain, 80–82 = showers, 95–99 = thunderstorm
+  return (_currentWeatherCode >= 51 && _currentWeatherCode <= 67)
+      || (_currentWeatherCode >= 80 && _currentWeatherCode <= 82)
+      || (_currentWeatherCode >= 95 && _currentWeatherCode <= 99);
+}
+export function isSnowing(): boolean {
+  if (_currentWeatherCode === null) return false;
+  return (_currentWeatherCode >= 71 && _currentWeatherCode <= 77) || _currentWeatherCode === 85 || _currentWeatherCode === 86;
+}
+export function isClear(): boolean {
+  if (_currentWeatherCode === null) return false;
+  return _currentWeatherCode <= 3;
+}
 
 export async function initWeather(
   iconEl: HTMLElement,
@@ -90,6 +107,7 @@ export async function initWeather(
           const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
           const data = await res.json();
           const cur = data.current;
+          _currentWeatherCode = cur.weathercode as number;
           const [icon, desc] = WMO[cur.weathercode as number] ?? ['🌡', 'Unknown'];
           const temp = Math.round(cur.temperature_2m);
           const feels = Math.round(cur.apparent_temperature);

@@ -3,7 +3,7 @@ import { THEMES, THEME_BY_ID, THEMES_BY_CAT, NAT_QUOTES } from './themes';
 import { LIT_CLOCK } from './litclock';
 import { p2, p3, fmtSession, DAYS, MONTHS, GREETS } from './utils';
 import { clockOffset, synced, syncTime, setSyncHandler } from './timesync';
-import { initWeather, stopWeather } from './weather';
+import { initWeather, stopWeather, isRaining, isSnowing, isClear } from './weather';
 import * as Sound from './sound';
 import * as Pom from './pomodoro';
 import * as Log from './focuslog';
@@ -154,12 +154,18 @@ function resetTimer() {
     const milestone = Intel.getStreakMilestone(streak.current);
     if (milestone) showToast(milestone);
     Intel.onBreakTaken();
+
+    // Smart break recommendation
+    const sessionMins = Math.floor(dur / 60000);
+    const distractionCount = parseInt(localStorage.getItem('sc_distraction_today') ?? '0');
+    const smartBreak = Features.calcSmartBreak(sessionMins, distractionCount, Intel.getVelocityScore(), Pom.isActive());
+    setTimeout(() => showToast(`☕ ${smartBreak.activity}`, 7000), 1200);
+
     // Session completion rating
     const todaySessions = JSON.parse(localStorage.getItem('sc_focus_log') || '[]').length;
     Features.setStatusState('complete', { todaySessions });
     Features.showCompletionRating(dur / 1000, DOM.focusInput.value.trim(), (rating) => {
       if (rating > 0) {
-        // Save rating to last log entry
         try {
           const log = JSON.parse(localStorage.getItem('sc_focus_log') || '[]');
           if (log.length) log[log.length - 1].rating = rating;
@@ -899,7 +905,8 @@ function buildPanel() {
   const featDefs: [string, string, string, () => void][] = [
     // [id, emoji, label, action]
     ['btnSound',   '🎵', 'Sound',    () => { buildSoundUI(); openModal('soundOverlay'); }],
-    ['btnLog',     '📋', 'Log',      openLog],
+    ['btnLog',     '📊', 'Log',      openLog],
+    ['btnZen',     '🧘', 'Zen',      toggleZen],
     ['btnShare',   '🖼', 'Share',    () => { openShareCard(); }],
     ['btnShop',    '🛒', 'Shop',     openShop],
     ['btnSettings','⚙️', 'Settings', openSettings],
@@ -947,9 +954,13 @@ const SHORTCUTS: [string, string, () => void][] = [
   ['M',     'Open ambient sound mixer',     () => { buildSoundUI(); openModal('soundOverlay'); }],
   ['L',     'Open session focus log',       () => { Log.render($('logEntries')); openModal('logOverlay'); }],
   ['K',     'Collapse / expand panel',      () => { DOM.themePanel.classList.toggle('collapsed'); updateRevealBtn(); }],
+  ['Z',     'Zen Mode — distraction-free study', () => toggleZen()],
   ['G',     'Open custom theme builder',    openThemeBuilder],
   ['?',     'Show shortcuts',               () => openModal('kbOverlay')],
-  ['Escape','Close any open panel',         () => document.querySelectorAll<HTMLElement>('.sc-overlay.open').forEach(el => el.classList.remove('open'))],
+  ['Escape','Close any open panel',         () => {
+    if (zenOn) { toggleZen(); return; }
+    document.querySelectorAll<HTMLElement>('.sc-overlay.open').forEach(el => el.classList.remove('open'));
+  }],
 ];
 
 // Build keyboard grid
@@ -1006,6 +1017,37 @@ function togglePresent() {
   presentOn = !presentOn;
   document.body.classList.toggle('present', presentOn);
   updateRevealBtn();
+}
+
+// ── Zen Mode — distraction-free study environment ─────────────────────
+let zenOn = false;
+let zenHintTimer: number | null = null;
+let zenMouseTimer: number | null = null;
+
+function toggleZen() {
+  zenOn = !zenOn;
+  document.body.classList.toggle('zen-mode', zenOn);
+  if (zenOn) {
+    showToast('🧘 Zen Mode — Press Esc to exit', 3000);
+    // Hide cursor until mouse moves
+    zenMouseTimer = window.setTimeout(() => {}, 0);
+    // Wake on mouse move
+    const onMove = () => {
+      document.body.classList.add('zen-hinting');
+      if (zenHintTimer) clearTimeout(zenHintTimer);
+      zenHintTimer = window.setTimeout(() => {
+        document.body.classList.remove('zen-hinting');
+      }, 2500);
+    };
+    (window as any).__zenMoveHandler = onMove;
+    window.addEventListener('mousemove', onMove, { passive: true });
+  } else {
+    document.body.classList.remove('zen-hinting');
+    if (zenHintTimer) clearTimeout(zenHintTimer);
+    const h = (window as any).__zenMoveHandler;
+    if (h) window.removeEventListener('mousemove', h);
+    delete (window as any).__zenMoveHandler;
+  }
 }
 
 // ── Focus Lock Delay ──────────────────────────────────────────────────
@@ -3072,13 +3114,31 @@ function init() {
       });
     }, 800);
   } else {
-    // Day/night theme suggestion (non-intrusive, once per 3h)
+    // Weather-aware + day/night theme suggestion (once per 3h)
     setTimeout(() => {
+      // Weather takes priority over time-of-day
+      const weatherSug = Features.getWeatherThemeSuggestion(isRaining(), isSnowing(), isClear());
+      if (weatherSug && weatherSug.themeId !== currentTheme.id) {
+        showToast(`💡 ${weatherSug.reason} — try ${weatherSug.themeId}?`, 8000);
+        return;
+      }
       if (Features.shouldSuggestDayNightTheme(currentTheme.id)) {
         const s = Features.getDayNightThemeSuggestion();
         if (s) showToast(`💡 ${s.reason} — or ignore!`, 8000);
       }
     }, 3000);
+
+    // Lunar phase in UTC pill tooltip
+    setTimeout(() => {
+      const lunar = Features.getLunarPhase();
+      const utcPill = $('utcPill');
+      if (utcPill) {
+        const existing = utcPill.title;
+        if (!existing.includes(lunar.emoji)) {
+          utcPill.title = `${existing ? existing + ' · ' : ''}${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
+        }
+      }
+    }, 2000);
   }
 
   // Trust indicator — update when sync completes
@@ -3088,6 +3148,63 @@ function init() {
   (window as any).__onSyncFail = () => {
     Features.setSyncTrust('offline');
   };
+
+  // Voice timer — initialise if browser supports it
+  const voiceSupported = Features.initVoiceTimer(
+    (cmd) => {
+      switch (cmd.type) {
+        case 'start':
+          if (cmd.minutes) Pom.setWorkMins(cmd.minutes);
+          if (!sessionRunning) startTimer();
+          showToast(`🎙 ${cmd.minutes ? cmd.minutes + ' min session' : 'Session'} started`);
+          break;
+        case 'pause':
+          if (sessionRunning) pauseTimer(); else if (sessionElapsed > 0) startTimer();
+          showToast('🎙 ' + (sessionRunning ? 'Paused' : 'Resumed'));
+          break;
+        case 'reset':
+          resetTimer(); showToast('🎙 Timer reset');
+          break;
+        case 'zen':
+          toggleZen(); showToast('🎙 Zen Mode ' + (zenOn ? 'on' : 'off'));
+          break;
+        case 'theme': {
+          const name = cmd.themeName?.toLowerCase() ?? '';
+          const match = THEMES.find(t => t.name.toLowerCase().includes(name) || t.id.includes(name));
+          if (match) { applyTheme(match); showToast(`🎙 Switched to ${match.name}`); }
+          else showToast('🎙 Theme not found — try the command palette');
+          break;
+        }
+        default:
+          showToast(`🎙 Didn't catch that — try "start 25 minute session"`);
+      }
+    },
+    (active) => {
+      const btn = document.getElementById('voiceBtn');
+      if (btn) btn.classList.toggle('active', active);
+    }
+  );
+
+  // Add voice mic button to topbar if supported
+  if (voiceSupported) {
+    const voiceBtn = document.createElement('button');
+    voiceBtn.id = 'voiceBtn';
+    voiceBtn.className = 'topbar-icon-btn';
+    voiceBtn.title = 'Voice command (🎙 say "start 25 minute session")';
+    voiceBtn.setAttribute('aria-label', 'Voice timer');
+    const micSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    micSvg.setAttribute('viewBox', '0 0 20 20'); micSvg.setAttribute('width', '15'); micSvg.setAttribute('height', '15');
+    micSvg.setAttribute('fill', 'currentColor');
+    micSvg.innerHTML = '<path d="M10 12a3 3 0 003-3V5a3 3 0 00-6 0v4a3 3 0 003 3zm5-3a5 5 0 01-10 0H3a7 7 0 0014 0h-2zm-5 7v2m0 0H8m2 0h2"/>';
+    voiceBtn.appendChild(micSvg);
+    voiceBtn.addEventListener('click', () => {
+      if (Features.isVoiceActive()) Features.stopVoiceListening();
+      else { Features.startVoiceListening(); showToast('🎙 Listening… say "start 25 minute session"', 3000); }
+    });
+    // Insert before the cmd palette button
+    const cmdBtn = document.getElementById('btnCmdPalette');
+    if (cmdBtn?.parentNode) cmdBtn.parentNode.insertBefore(voiceBtn, cmdBtn);
+  }
 }
 
 function openIntegrations() {
@@ -3434,6 +3551,7 @@ function buildCommandPalette() {
     ['qr',           '📱', 'QR Handoff',                 'Resume session on another device',          () => openQRHandoff()],
     ['animedoro',    '🎬', 'Animedoro Mode',             '50 min focus / 20 min theater break',      () => { startAnimedoro(); openModal('pomOverlay'); }],
     ['kiosk',        '⛶', 'Kiosk / Fullscreen',         'Hide all UI, clock only',                  () => toggleKiosk()],
+    ['zen',          '🧘', 'Zen Mode',                   'Distraction-free — clock + task only',      () => toggleZen()],
     ['present',      '📺', 'Presentation Mode',          'Ultra-minimal display',                     () => togglePresent()],
     ['pip',          '⧉', 'Picture-in-Picture Clock',   'Float clock above other apps',              () => APIs.enterPiP(document.getElementById('clock-block-wrap')!,{accent:currentTheme.accent,text:currentTheme.text,baseBg:currentTheme.baseBg}).then(()=>showToast('Clock in PiP'))],
     ['data',         '🛡', 'My Data',                    'View, export, or delete your data',         () => openDataPanel()],

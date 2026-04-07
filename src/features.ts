@@ -550,6 +550,18 @@ export function getDayNightThemeSuggestion(): { themeId: string; reason: string 
   return { themeId: match[2], reason: match[3] };
 }
 
+// Weather-aware suggestion — overrides time suggestion when conditions are strong
+export function getWeatherThemeSuggestion(
+  isRaining: boolean, isSnowing: boolean, isClear: boolean
+): { themeId: string; reason: string } | null {
+  if (isRaining) return { themeId: 'commonroom', reason: '🌧 Raining outside — warm and cosy inside' };
+  if (isSnowing) return { themeId: 'nordic',     reason: '❄️ Snowing — clean Nordic light' };
+  const h = new Date().getHours();
+  if (isClear && h >= 6 && h < 10) return { themeId: 'sunrise', reason: '☀️ Clear morning — golden hour' };
+  if (isClear && h >= 20) return { themeId: 'midnight',reason: '🌙 Clear night — perfect for midnight' };
+  return null;
+}
+
 const SHOWN_SUGGESTION_KEY = 'sc_daynight_suggested';
 
 export function shouldSuggestDayNightTheme(currentThemeId: string): boolean {
@@ -809,4 +821,160 @@ export function tickWorldClock() {
   const display = document.getElementById('worldClockDisplay');
   if (!display || !document.getElementById('worldClockOverlay')?.classList.contains('open')) return;
   updateWorldClockDisplay(display, getWorldClocks());
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// LUNAR PHASE — pure math, no API needed
+// ─────────────────────────────────────────────────────────────────────
+// Returns 0–1 where 0 = new moon, 0.5 = full moon
+export function getLunarPhase(): { phase: number; name: string; emoji: string; illumination: number } {
+  // Known new moon: 2000-01-06 18:14 UTC (J2000 epoch reference)
+  const KNOWN_NEW_MOON_MS = 947182440000;
+  const SYNODIC_PERIOD_MS = 29.53058867 * 24 * 60 * 60 * 1000;
+  const elapsed = Date.now() - KNOWN_NEW_MOON_MS;
+  const phase = ((elapsed % SYNODIC_PERIOD_MS) / SYNODIC_PERIOD_MS + 1) % 1;
+
+  const illumination = Math.round((1 - Math.cos(phase * 2 * Math.PI)) / 2 * 100);
+
+  let name: string, emoji: string;
+  if      (phase < 0.0625) { name = 'New Moon';        emoji = '🌑'; }
+  else if (phase < 0.1875) { name = 'Waxing Crescent'; emoji = '🌒'; }
+  else if (phase < 0.3125) { name = 'First Quarter';   emoji = '🌓'; }
+  else if (phase < 0.4375) { name = 'Waxing Gibbous';  emoji = '🌔'; }
+  else if (phase < 0.5625) { name = 'Full Moon';        emoji = '🌕'; }
+  else if (phase < 0.6875) { name = 'Waning Gibbous';  emoji = '🌖'; }
+  else if (phase < 0.8125) { name = 'Last Quarter';    emoji = '🌗'; }
+  else if (phase < 0.9375) { name = 'Waning Crescent'; emoji = '🌘'; }
+  else                     { name = 'New Moon';         emoji = '🌑'; }
+
+  return { phase, name, emoji, illumination };
+}
+
+export function getDaysToNextFullMoon(): number {
+  const SYNODIC_PERIOD = 29.53058867;
+  const KNOWN_NEW_MOON_MS = 947182440000;
+  const elapsed = Date.now() - KNOWN_NEW_MOON_MS;
+  const SYNODIC_MS = SYNODIC_PERIOD * 24 * 60 * 60 * 1000;
+  const phase = ((elapsed % SYNODIC_MS) / SYNODIC_MS + 1) % 1;
+  const daysToFull = phase < 0.5
+    ? (0.5 - phase) * SYNODIC_PERIOD
+    : (1.5 - phase) * SYNODIC_PERIOD;
+  return Math.round(daysToFull);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// VOICE TIMER — Web Speech API
+// Recognises: "start [N] minute session", "stop", "pause", "zen mode"
+// ─────────────────────────────────────────────────────────────────────
+export interface VoiceCommand {
+  type: 'start' | 'pause' | 'reset' | 'zen' | 'theme' | 'unknown';
+  minutes?: number;
+  themeName?: string;
+  raw: string;
+}
+
+let _voiceActive = false;
+let _voiceRecog: any = null;
+
+export function isVoiceActive() { return _voiceActive; }
+
+export function parseVoiceCommand(transcript: string): VoiceCommand {
+  const s = transcript.toLowerCase().trim();
+
+  // "start [N] minute[s]" | "start session" | "begin"
+  const startMatch = s.match(/(?:start|begin|go)(?:\s+(?:a\s+)?(\d+)(?:\s*-?\s*minute|\s*min))?/);
+  if (startMatch) {
+    return { type: 'start', minutes: startMatch[1] ? parseInt(startMatch[1]) : undefined, raw: s };
+  }
+  if (/(?:stop|pause|hold|wait)/.test(s)) return { type: 'pause', raw: s };
+  if (/(?:reset|restart|cancel)/.test(s)) return { type: 'reset', raw: s };
+  if (/zen/.test(s)) return { type: 'zen', raw: s };
+
+  // "switch to [theme]" | "use [theme] theme"
+  const themeMatch = s.match(/(?:switch to|use|activate|show)\s+(.+?)(?:\s+theme)?$/);
+  if (themeMatch) return { type: 'theme', themeName: themeMatch[1].trim(), raw: s };
+
+  return { type: 'unknown', raw: s };
+}
+
+export function initVoiceTimer(onCommand: (cmd: VoiceCommand) => void, onStateChange: (active: boolean) => void) {
+  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  if (!SR) return false;
+
+  _voiceRecog = new SR();
+  _voiceRecog.continuous = false;
+  _voiceRecog.interimResults = false;
+  _voiceRecog.lang = 'en-US';
+
+  _voiceRecog.onresult = (e: any) => {
+    const transcript = e.results[0]?.[0]?.transcript ?? '';
+    if (transcript) onCommand(parseVoiceCommand(transcript));
+  };
+  _voiceRecog.onerror = () => { _voiceActive = false; onStateChange(false); };
+  _voiceRecog.onend   = () => { _voiceActive = false; onStateChange(false); };
+  return true;
+}
+
+export function startVoiceListening() {
+  if (!_voiceRecog || _voiceActive) return;
+  try { _voiceRecog.start(); _voiceActive = true; } catch { _voiceActive = false; }
+}
+
+export function stopVoiceListening() {
+  if (!_voiceRecog || !_voiceActive) return;
+  try { _voiceRecog.stop(); } catch {}
+  _voiceActive = false;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SMART BREAK CALCULATOR
+// Uses: session duration, distraction count, velocity score, pomodoro phase
+// Outputs: recommended break minutes with reasoning
+// ─────────────────────────────────────────────────────────────────────
+export interface SmartBreakResult {
+  minutes: number;
+  reason: string;
+  activity: string;
+}
+
+const BREAK_ACTIVITIES_SHORT = [
+  'Look 20 feet away for 20 seconds', 'Drink a glass of water', 'Stand and stretch your neck',
+  'Roll your shoulders 5 times each direction', 'Take 5 deep breaths', 'Walk to another room and back',
+];
+const BREAK_ACTIVITIES_LONG = [
+  'Go for a 10-minute walk outside', 'Make tea or coffee mindfully', 'Do 10 minutes of light stretching',
+  'Step outside for fresh air', 'Eat a snack away from your desk', 'Do a short meditation or breathing exercise',
+];
+
+export function calcSmartBreak(
+  sessionMinutes: number,
+  distractionCount: number,
+  velocityScore: number, // 0-100
+  isPomodoroMode: boolean
+): SmartBreakResult {
+  // Base break from session length
+  let base = sessionMinutes >= 90 ? 20
+           : sessionMinutes >= 50 ? 10
+           : sessionMinutes >= 25 ? 5
+           : 3;
+
+  // Distraction penalty — more distractions = slightly longer recovery
+  const distractionBonus = Math.min(5, Math.floor(distractionCount / 2));
+
+  // Velocity adjustment — low focus = slightly longer, high focus = shorter
+  const velocityAdj = velocityScore >= 80 ? -2 : velocityScore <= 30 ? 3 : 0;
+
+  let minutes = Math.max(3, base + distractionBonus + velocityAdj);
+  if (isPomodoroMode) minutes = minutes > 10 ? 15 : 5; // snap to Pom defaults
+
+  let reason: string;
+  if (distractionCount > 4) reason = `You had ${distractionCount} distractions — take a proper break`;
+  else if (velocityScore >= 80) reason = 'Excellent focus — a short reset keeps you sharp';
+  else if (sessionMinutes >= 90) reason = 'Long session — your brain needs a proper rest';
+  else reason = `${sessionMinutes} minutes done — recharge for ${minutes} minutes`;
+
+  const activities = minutes >= 10 ? BREAK_ACTIVITIES_LONG : BREAK_ACTIVITIES_SHORT;
+  const activity = activities[Math.floor(Date.now() / 60000) % activities.length]!;
+
+  return { minutes, reason, activity };
 }
