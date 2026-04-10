@@ -1195,11 +1195,6 @@ body:has([data-theme="terminal"]) .btn,
 .media-logo svg { width: 100%; height: 100%; display: block; }
 .media-name { font-size: .6rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255,255,255,.82); line-height: 1.2; }
 .media-sub  { font-size: .46rem; font-weight: 500; letter-spacing: .07em; opacity: .42; text-transform: uppercase; line-height: 1.2; }
-.shop-badge {
-  display: inline-block; font-size: .44rem; font-weight: 800; letter-spacing: .06em;
-  background: var(--clr-accent); color: #000; border-radius: 99px;
-  padding: 1px 5px; margin-top: 2px; opacity: .85; white-space: nowrap;
-}
 
 /* Feat bar tokens */
 .feat-tokens { opacity: .55; font-size: .56rem; margin-left: 2px; }
@@ -1207,136 +1202,31 @@ body:has([data-theme="terminal"]) .btn,
 /* ════════════════════════════════════════════════════════════
    TOKEN SHOP MODAL
 ════════════════════════════════════════════════════════════ */
-.sc-modal--shop { width: min(640px, 96vw); max-height: 85vh; }
 
-.shop-header-tokens {
-  font-size: .9rem; font-weight: 700; color: var(--clr-accent);
-  margin-left: auto; margin-right: 12px;
-}
 
-.shop-tabs {
-  display: flex; gap: 4px; padding: 10px 16px 0;
-  border-bottom: 1px solid rgba(255,255,255,.07);
-}
-.shop-tab-btn {
-  background: none; border: none; cursor: pointer; font-family: inherit;
-  font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--clr-text); opacity: .38; padding: 6px 12px;
-  border-radius: 6px 6px 0 0; transition: opacity .18s, background .18s;
-  position: relative;
-}
-.shop-tab-btn:hover { opacity: .7; }
-.shop-tab-btn.active { opacity: 1; color: var(--clr-accent); }
-.shop-tab-btn.active::after {
-  content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
-  height: 2px; background: var(--clr-accent); border-radius: 2px 2px 0 0;
-}
 
-#shopGrid { padding: 12px 16px 20px; }
-.shop-empty { text-align: center; opacity: .3; padding: 30px 0; font-size: .78rem; }
 
-.shop-section { margin-bottom: 18px; }
-.shop-section-header {
-  border-bottom: 1px solid rgba(255,255,255,.08);
-  padding-bottom: 6px; margin-bottom: 8px;
-}
-.shop-section-name {
-  font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
-}
 
-.shop-items-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-}
-@media (min-width: 500px) { .shop-items-grid { grid-template-columns: repeat(3, 1fr); } }
 
-.shop-item {
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
-  padding: 10px 8px; border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.07);
-  background: rgba(255,255,255,.03);
-  transition: background .15s, border-color .15s, transform .12s;
-  text-align: center;
-}
-.shop-item:hover { background: rgba(255,255,255,.07); transform: translateY(-1px); }
-.shop-item.owned { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.06); }
-.shop-item.equipped { border-color: var(--clr-accent); box-shadow: 0 0 10px var(--clr-accent)33; }
-.shop-item.shake { animation: shopShake .4s ease; }
 @keyframes shopShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
 
-.shop-item-icon { font-size: 1.8rem; line-height: 1; }
-.shop-item-name { font-size: .6rem; font-weight: 700; color: var(--clr-text); line-height: 1.3; }
-.shop-item-desc { font-size: .52rem; color: var(--clr-text); opacity: .38; line-height: 1.4; }
-.shop-item-action { margin-top: 4px; }
 
-.shop-buy-btn {
-  border: 1px solid var(--clr-accent); background: var(--clr-btn-bg);
-  color: var(--clr-accent); border-radius: 99px;
-  padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: .6rem; font-weight: 700;
-  transition: background .15s, transform .1s;
-}
-.shop-buy-btn:hover:not(:disabled) { background: var(--clr-accent); color: #000; transform: scale(1.05); }
-.shop-buy-btn:disabled { opacity: .3; cursor: not-allowed; }
-.shop-cost { font-size: .6rem; }
 
-.shop-equip-btn {
-  border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06);
-  color: var(--clr-text); border-radius: 99px;
-  padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: .6rem; font-weight: 700;
-  transition: background .15s;
-}
-.shop-equip-btn.on { background: var(--clr-accent); border-color: var(--clr-accent); color: #000; }
 
 /* ════════════════════════════════════════════════════════════
    APPLE-STYLE TOKEN COIN
 ════════════════════════════════════════════════════════════ */
-.token-coin {
-  width: 16px; height: 16px; display: inline-block;
-  vertical-align: middle; margin-right: 2px;
-  filter: drop-shadow(0 1px 3px rgba(200,140,0,.5));
-  transition: transform .25s cubic-bezier(.34,1.56,.64,1);
-}
-.feat-btn:hover .token-coin { transform: rotate(20deg) scale(1.15); }
 
-.token-count {
-  font-size: .62rem; font-weight: 700; vertical-align: middle;
-  color: var(--clr-text); opacity: .7;
-}
 
 /* Token earn pop animation */
-.token-pop {
-  position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
-  font-size: .65rem; font-weight: 800; color: #f0c020;
-  text-shadow: 0 0 8px rgba(240,192,0,.7);
-  animation: tokenPop .9s cubic-bezier(.16,1,.3,1) forwards;
-  pointer-events: none; white-space: nowrap;
-  font-family: inherit;
-}
 @keyframes tokenPop {
   0%   { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1.2); }
   60%  { opacity: 1; transform: translateX(-50%) translateY(-16px) scale(1); }
   100% { opacity: 0; transform: translateX(-50%) translateY(-28px) scale(.8); }
 }
 
-#btnShop { position: relative; }
 
-/* Shop header coin display */
-.shop-header-tokens {
-  display: flex; align-items: center; gap: 4px;
-  margin-left: auto; margin-right: 12px;
-  font-weight: 700; font-size: .9rem;
-}
-.shop-header-tokens .token-coin { width: 22px; height: 22px; }
-.shop-header-tokens .token-count { font-size: .85rem; color: var(--clr-text); opacity: 1; }
 
-/* Shop item SVG icons */
-.shop-item-icon svg {
-  width: 36px; height: 36px; display: block; margin: 0 auto;
-}
-.shop-item-icon {
-  font-size: 2rem; line-height: 1;
-  display: flex; align-items: center; justify-content: center;
-  height: 40px;
-}
 
 /* ════════════════════════════════════════════════════════════
    FLOW STATE
@@ -2362,14 +2252,6 @@ body.clock-center #panelToggle:hover { opacity: .8; }
    SHOP TOGGLE — hidden until enabled in settings
 ════════════════════════════════════════════════════════════ */
 
-/* Shop button hidden by default */
-.feat-btn#btnShop {
-  display: none;
-}
-/* Shown when body has shop-enabled class */
-body.shop-enabled .feat-btn#btnShop {
-  display: flex;
-}
 
 /* ════════════════════════════════════════════════════════════
    APPLE-STYLE REFINEMENTS
@@ -3716,3 +3598,74 @@ body.zen-mode.zen-hinting #zenExitHint { opacity: .22; }
 body.zen-mode.zen-hinting { cursor: default; }
 body.zen-mode.zen-hinting * { cursor: default !important; }
 body.reduced-motion .zen-ring { animation: none; }
+
+/* ════════════════════════════════════════════════════════════
+   GPU / PERFORMANCE LAYER HINTS
+   Promotes key elements to their own compositor layers,
+   enabling GPU-accelerated compositing with minimal overhead.
+════════════════════════════════════════════════════════════ */
+
+/* Canvas — own compositor layer, GPU compositing */
+#bgCanvas, #transCanvas {
+  transform: translateZ(0);
+  will-change: contents;
+  contain: strict;
+  image-rendering: optimizeSpeed;
+}
+
+/* Main UI — layout isolation so repaints don't propagate */
+#mainUI {
+  contain: layout style;
+  will-change: auto;
+}
+
+/* Theme panel — own layer so sliding doesn't repaint main */
+#themePanel {
+  will-change: transform;
+  contain: layout style;
+}
+
+/* Animated elements — GPU layers only when actively animating */
+.sc-modal        { will-change: transform, opacity; }
+.sc-overlay      { contain: layout style paint; }
+.btn-primary     { will-change: transform, box-shadow; }
+.feat-btn        { will-change: transform, opacity; }
+.nat-btn         { will-change: transform; }
+.media-card      { will-change: transform, box-shadow; }
+.sc-toast        { will-change: transform, opacity; }
+.zen-ring        { will-change: transform, opacity; contain: strict; }
+#voiceBtn        { will-change: transform, color, background; }
+.clock-pos-pill  { will-change: transform, background, color; }
+
+/* Once animations finish, release layers to avoid memory waste */
+.sc-modal:not(.sc-overlay.open *)     { will-change: auto; }
+
+/* Topbar — own layer, never repaints body */
+.topbar {
+  contain: layout style;
+  will-change: auto;
+}
+
+/* Digit elements — GPU text rendering */
+.digit-pair {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+/* Reduce paint area — session card isolated */
+.session-card {
+  contain: layout style;
+  isolation: isolate;
+}
+
+/* Command palette — its own stacking context */
+.cmd-modal {
+  contain: layout style paint;
+  isolation: isolate;
+}
+
+/* Reduce motion — no will-change to save memory */
+body.reduced-motion * {
+  will-change: auto !important;
+}
