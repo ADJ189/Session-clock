@@ -256,7 +256,14 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   deathnote(dt,t)   { drawDeathNote(dt, t); },
   hailmary(dt,t)    { drawHailMary(dt, t); },
   evangelion(dt,t)  { drawEvangelion(dt, t); },
-  akira(dt,t)       { drawAkira(dt, t); },
+  akira(dt,t)            { drawAkira(dt, t); },
+  bettercallsaul(dt,t)  { drawBetterCallSaul(dt, t); },
+  peakyblinders(dt,t)   { drawPeakyBlinders(dt, t); },
+  thewire(dt,t)         { drawTheWire(dt, t); },
+  succession(dt,t)      { drawSuccession(dt, t); },
+  lost(dt,t)            { drawLost(dt, t); },
+  shogun(dt,t)          { drawShogun(dt, t); },
+  fallout(dt,t)         { drawFallout(dt, t); },
 };
 
 // ── Background animations ─────────────────────────────────────────────
@@ -1902,6 +1909,210 @@ function drawAkira(dt: number, t: Theme) {
   }
 }
 
+// ── BETTER CALL SAUL — desert heat shimmer + golden hour dust ────────
+let bcsInit = false; const bcsDust = new Float32Array(120 * 4); // x,y,vx,alpha
+function drawBetterCallSaul(dt: number, t: Theme) {
+  if (!bcsInit) {
+    bcsInit = true;
+    for (let i = 0; i < 120; i++) {
+      const o = i*4;
+      bcsDust[o]=rnd(W); bcsDust[o+1]=rnd(H);
+      bcsDust[o+2]=rnd(0.3)-0.15; bcsDust[o+3]=rnd(0.4)+0.1;
+    }
+  }
+  // Heat shimmer distortion lines at horizon
+  if (shouldDrawGlow()) {
+    const horizon = H * 0.62;
+    c.strokeStyle = `rgba(200,160,0,0.04)`; c.lineWidth = 1;
+    for (let i = 0; i < 8; i++) {
+      const y = horizon + Math.sin(tick * 0.8 + i * 0.7) * 8;
+      c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+    }
+    // Golden gradient at horizon
+    const hg = c.createLinearGradient(0, horizon - 40, 0, horizon + 40);
+    hg.addColorStop(0, 'transparent');
+    hg.addColorStop(0.5, `rgba(200,155,0,0.07)`);
+    hg.addColorStop(1, 'transparent');
+    c.fillStyle = hg; c.fillRect(0, 0, W, H);
+  }
+  // Floating desert dust motes
+  c.fillStyle = `rgba(210,170,40,0.55)`;
+  for (let i = 0; i < 120; i++) {
+    const o = i*4;
+    bcsDust[o] += bcsDust[o+2]; bcsDust[o+1] -= dt * 8;
+    if (bcsDust[o+1] < -4) { bcsDust[o+1] = H+4; bcsDust[o] = rnd(W); }
+    c.globalAlpha = bcsDust[o+3]! * 0.5;
+    c.fillRect(bcsDust[o]!, bcsDust[o+1]!, 1.5, 1.5);
+  }
+  c.globalAlpha = 1;
+}
+
+// ── PEAKY BLINDERS — industrial Birmingham smoke + razor light ────────
+let pbSmoke = 0;
+function drawPeakyBlinders(dt: number, t: Theme) {
+  pbSmoke += dt * 0.4;
+  if (shouldDrawGlow()) {
+    // Industrial smoke columns rising
+    for (let i = 0; i < 4; i++) {
+      const sx = W * (0.2 + i * 0.22);
+      const sg = c.createRadialGradient(sx, H, 0, sx, H * 0.3, W * 0.18);
+      sg.addColorStop(0, `rgba(40,28,0,${0.12 + Math.sin(pbSmoke + i) * 0.04})`);
+      sg.addColorStop(1, 'transparent');
+      c.fillStyle = sg; c.fillRect(0, 0, W, H);
+    }
+    // Razor blade glint — occasional flash
+    if (Math.sin(pbSmoke * 3.1) > 0.92) {
+      const gx = W * 0.5, gy = H * 0.4;
+      const rg = c.createRadialGradient(gx, gy, 0, gx, gy, 80);
+      rg.addColorStop(0, `rgba(255,200,80,0.22)`);
+      rg.addColorStop(1, 'transparent');
+      c.fillStyle = rg; c.fillRect(0, 0, W, H);
+    }
+  }
+  // Ground-level amber light
+  const ag = c.createLinearGradient(0, H * 0.8, 0, H);
+  ag.addColorStop(0, 'transparent');
+  ag.addColorStop(1, `rgba(180,95,0,0.1)`);
+  c.fillStyle = ag; c.fillRect(0, 0, W, H);
+}
+
+// ── THE WIRE — Baltimore streetlight + rain ───────────────────────────
+const wireRain = new Float32Array(60 * 3); // x,y,speed
+let wireInit = false;
+function drawTheWire(dt: number, t: Theme) {
+  if (!wireInit) {
+    wireInit = true;
+    for (let i = 0; i < 60; i++) {
+      const o = i*3;
+      wireRain[o]=rnd(W); wireRain[o+1]=rnd(H); wireRain[o+2]=4+rnd(8);
+    }
+  }
+  // Light drizzle
+  if (shouldRenderFull()) {
+    c.strokeStyle = 'rgba(136,153,68,0.15)'; c.lineWidth = 0.8;
+    for (let i = 0; i < 60; i++) {
+      const o = i*3;
+      wireRain[o+1] += wireRain[o+2]!;
+      if (wireRain[o+1] > H) { wireRain[o+1] = -10; wireRain[o] = rnd(W); }
+      c.beginPath(); c.moveTo(wireRain[o]!, wireRain[o+1]!);
+      c.lineTo(wireRain[o]! + 1, wireRain[o+1]! + 8); c.stroke();
+    }
+  }
+  // Distant orange streetlight glow
+  if (shouldDrawGlow()) {
+    const slg = c.createRadialGradient(W*0.7, H*0.3, 0, W*0.7, H*0.3, W*0.25);
+    slg.addColorStop(0, 'rgba(180,170,80,0.06)');
+    slg.addColorStop(1, 'transparent');
+    c.fillStyle = slg; c.fillRect(0,0,W,H);
+  }
+}
+
+// ── SUCCESSION — corporate marble + subtle light ──────────────────────
+let succTick = 0;
+function drawSuccession(dt: number, t: Theme) {
+  succTick += dt;
+  if (!shouldDrawGlow()) return;
+  // Very subtle marble vein — two slow diagonal lines
+  for (let i = 0; i < 3; i++) {
+    const x0 = W * (0.2 + i * 0.3) + Math.sin(succTick * 0.1 + i) * 20;
+    const ag = c.createLinearGradient(x0, 0, x0 + W * 0.08, H);
+    ag.addColorStop(0, 'transparent');
+    ag.addColorStop(0.5, `rgba(180,155,90,0.025)`);
+    ag.addColorStop(1, 'transparent');
+    c.fillStyle = ag; c.fillRect(0,0,W,H);
+  }
+  // Top-right window light
+  const wg = c.createRadialGradient(W*0.85, 0, 0, W*0.85, 0, H*0.5);
+  wg.addColorStop(0, 'rgba(200,180,110,0.06)');
+  wg.addColorStop(1, 'transparent');
+  c.fillStyle = wg; c.fillRect(0,0,W,H);
+}
+
+// ── LOST — ocean depth + jungle light shafts ─────────────────────────
+let lostTick = 0;
+const lostShafts = [0.2, 0.4, 0.6, 0.75, 0.88];
+function drawLost(dt: number, t: Theme) {
+  lostTick += dt;
+  if (!shouldDrawGlow()) return;
+  // Underwater light shafts
+  lostShafts.forEach((xPct, i) => {
+    const x = W * xPct;
+    const alpha = 0.04 + Math.sin(lostTick * 0.6 + i * 1.2) * 0.025;
+    const sg = c.createLinearGradient(x - 30, 0, x + 30, H);
+    sg.addColorStop(0, `rgba(34,136,204,${alpha})`);
+    sg.addColorStop(0.5, `rgba(34,136,204,${alpha * 0.5})`);
+    sg.addColorStop(1, 'transparent');
+    c.fillStyle = sg; c.fillRect(0,0,W,H);
+  });
+  // Deep ocean vignette pulse
+  const oa = 0.06 + Math.sin(lostTick * 0.3) * 0.02;
+  const og = c.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,H*0.8);
+  og.addColorStop(0,'transparent');
+  og.addColorStop(1,`rgba(0,30,80,${oa})`);
+  c.fillStyle = og; c.fillRect(0,0,W,H);
+}
+
+// ── SHŌGUN — Japanese ink wash + sakura petals ────────────────────────
+interface SakuraPetal { x:number; y:number; vx:number; vy:number; r:number; rot:number; vrot:number; }
+const sakuraPetals: SakuraPetal[] = [];
+let shogunInit = false;
+function drawShogun(dt: number, t: Theme) {
+  if (!shogunInit) {
+    shogunInit = true;
+    for (let i = 0; i < 18; i++) {
+      sakuraPetals.push({ x:rnd(W), y:rnd(H), vx:rnd(0.6)-0.3, vy:0.4+rnd(0.8),
+        r:3+rnd(5), rot:rnd(Math.PI*2), vrot:(rnd(1)-0.5)*0.04 });
+    }
+  }
+  if (shouldDrawGlow()) {
+    // Red sun glow top-right
+    const sg = c.createRadialGradient(W*0.78, H*0.18, 0, W*0.78, H*0.18, W*0.2);
+    sg.addColorStop(0, 'rgba(200,30,0,0.12)');
+    sg.addColorStop(1, 'transparent');
+    c.fillStyle = sg; c.fillRect(0,0,W,H);
+  }
+  // Sakura petals
+  c.fillStyle = 'rgba(240,150,160,0.55)';
+  sakuraPetals.forEach(p => {
+    p.x += p.vx + Math.sin(tick * 0.4 + p.rot) * 0.3;
+    p.y += p.vy; p.rot += p.vrot;
+    if (p.y > H + 10) { p.y = -10; p.x = rnd(W); }
+    c.save(); c.translate(p.x, p.y); c.rotate(p.rot);
+    c.globalAlpha = 0.5;
+    c.beginPath(); c.ellipse(0, 0, p.r, p.r * 0.6, 0, 0, Math.PI*2); c.fill();
+    c.restore();
+  });
+  c.globalAlpha = 1;
+}
+
+// ── FALLOUT — wasteland green phosphor + radiation pulse ──────────────
+let falloutTick = 0;
+function drawFallout(dt: number, t: Theme) {
+  falloutTick += dt;
+  if (shouldDrawGlow()) {
+    // Pip-Boy green scan line
+    const scanY = ((falloutTick * 60) % (H + 40)) - 20;
+    const sl = c.createLinearGradient(0, scanY - 15, 0, scanY + 15);
+    sl.addColorStop(0, 'transparent');
+    sl.addColorStop(0.5, 'rgba(136,200,0,0.08)');
+    sl.addColorStop(1, 'transparent');
+    c.fillStyle = sl; c.fillRect(0, 0, W, H);
+    // Radiation pulse rings from centre
+    const pulseR = ((falloutTick * 0.4) % 1) * Math.min(W,H) * 0.5;
+    const pa = Math.max(0, 0.1 * (1 - pulseR / (Math.min(W,H)*0.5)));
+    c.strokeStyle = `rgba(136,200,0,${pa})`;
+    c.lineWidth = 1.5;
+    c.beginPath(); c.arc(W/2, H/2, pulseR, 0, Math.PI*2); c.stroke();
+  }
+  // Static noise on LOW
+  if (!shouldRenderFull()) return;
+  c.fillStyle = 'rgba(136,200,0,0.015)';
+  for (let i = 0; i < 20; i++) {
+    const nx = rnd(W), ny = rnd(H);
+    c.fillRect(nx, ny, rnd(4)+1, 1);
+  }
+}
+
 // ── Transitions ───────────────────────────────────────────────────────
 export function runTransition(type: string, cb: () => void) {
   if (transitioning) { cb(); return; }
@@ -2041,8 +2252,28 @@ const TRANS: Record<string, (cb: () => void) => void> = {
     const go=()=>{p+=.02;flash=Math.sin(p*Math.PI*8)>.3?1:0;tc.fillStyle=flash&&p<.6?`rgba(200,0,0,${.15*Math.min(1,p*3)})`:`rgba(6,2,0,${Math.min(.94,p*1.4)})`;tc.fillRect(0,0,W,H);if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
   akira_blast(cb) {
-    // Psychic ring explosion outward
     let p=0,called=false;
     const go=()=>{p+=.02;tc.fillStyle=`rgba(0,0,8,${Math.min(.94,p*1.4)})`;tc.fillRect(0,0,W,H);for(let i=0;i<3;i++){const r=p*Math.min(W,H)*(0.4+i*.25);const a=Math.max(0,.5-p*.6);tc.strokeStyle=i%2===0?`rgba(238,0,68,${a})`:`rgba(0,68,238,${a*.5})`;tc.lineWidth=1.5;tc.beginPath();tc.arc(W/2,H*.45,r,0,Math.PI*2);tc.stroke();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  dust(cb) {
+    // BCS: sandy dust sweep left to right
+    let p=0,called=false;
+    const go=()=>{p+=.018;tc.fillStyle=`rgba(12,9,0,${Math.min(.92,p*1.3)})`;tc.fillRect(0,0,W,H);if(shouldDrawGlow()){const dg=tc.createLinearGradient(p*W*1.4-W*.3,0,p*W*1.4,H);dg.addColorStop(0,'transparent');dg.addColorStop(0.5,`rgba(200,160,40,${0.12*(1-p)})`);dg.addColorStop(1,'transparent');tc.fillStyle=dg;tc.fillRect(0,0,W,H);}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  oceanic(cb) {
+    // Lost: ocean wave wipe
+    let p=0,called=false;
+    const go=()=>{p+=.016;tc.fillStyle=`rgba(0,4,10,${Math.min(.93,p*1.35)})`;tc.fillRect(0,0,W,H);for(let i=0;i<3;i++){const waveY=H*(1.1-p*1.2)+Math.sin(p*8+i*2)*12;const wg=tc.createLinearGradient(0,waveY-20,0,waveY+20);wg.addColorStop(0,'transparent');wg.addColorStop(0.5,`rgba(30,100,180,${0.18*(1-p)})`);wg.addColorStop(1,'transparent');tc.fillStyle=wg;tc.fillRect(0,0,W,H);}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  sakura(cb) {
+    // Shōgun: sakura petals fall across
+    let p=0,called=false;
+    const petals=[...Array(20)].map(()=>({x:rnd(W),y:-20-rnd(H),vx:rnd(2)-1,vy:3+rnd(3)}));
+    const go=()=>{p+=.016;tc.fillStyle=`rgba(6,2,0,${Math.min(.93,p*1.35)})`;tc.fillRect(0,0,W,H);petals.forEach(pt=>{pt.x+=pt.vx;pt.y+=pt.vy;tc.fillStyle=`rgba(240,150,160,${0.5*(1-p*.7)})`;tc.beginPath();tc.ellipse(pt.x,pt.y,4,2.5,p*4,0,Math.PI*2);tc.fill();});if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  vault(cb) {
+    // Fallout: vault door iris-close
+    let p=0,called=false;
+    const go=()=>{p+=.02;tc.fillStyle=`rgba(6,8,0,${Math.min(.94,p*1.3)})`;tc.fillRect(0,0,W,H);const r=Math.max(0,Math.min(W,H)*0.6*(1-p*1.4));if(r>0){tc.save();tc.globalCompositeOperation='destination-out';tc.beginPath();tc.arc(W/2,H/2,r,0,Math.PI*2);tc.fill();tc.restore();}if(shouldDrawGlow()){tc.strokeStyle=`rgba(136,200,0,${0.3*(1-p)})`;tc.lineWidth=3;tc.beginPath();tc.arc(W/2,H/2,r+4,0,Math.PI*2);tc.stroke();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
 };

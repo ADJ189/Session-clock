@@ -9,10 +9,9 @@ import * as Pom from './pomodoro';
 import * as Log from './focuslog';
 import { resize, buildParticles, drawBg, runTransition, setBreathing, setParallax, invalidateCache } from './renderer';
 import { drawQR } from './qr';
-import * as Shop from './shop';
 import * as Intel from './intelligence';
 import { generateShareCard } from './share';
-import { initPerf, getTier, setTier, tickFps, getFps, type QualityTier } from './perf';
+import { initPerf, getTier, setTier, tickFps, getFps, isTabVisible, type QualityTier } from './perf';
 import * as APIs from './apis';
 import * as Privacy from './privacy';
 import * as Easter from './easter';
@@ -70,10 +69,17 @@ const LOGOS: Record<string, string> = {
   moonknight:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#04060e"/><circle cx="21" cy="8" r="5.5" fill="#c8d8ff" opacity=".85"/><circle cx="24" cy="7" r="4.5" fill="#04060e"/><line x1="16" y1="14" x2="16" y2="20" stroke="#c8d8ff" stroke-width="1" opacity=".4"/><line x1="13" y1="16" x2="19" y2="16" stroke="#c8d8ff" stroke-width="1" opacity=".4"/><circle cx="16" cy="14" r="1.5" fill="none" stroke="#c8d8ff" stroke-width=".8" opacity=".4"/></svg>`,
   onepiece:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000d1a"/><circle cx="16" cy="8" r="4" fill="#ffcc00" opacity=".9"/><path d="M4 16 Q8 12 16 14 Q24 12 28 16 L28 22 L4 22 Z" fill="#003d8f" opacity=".8"/><circle cx="8" cy="6" r="1.5" fill="#ffcc00" opacity=".5"/><circle cx="24" cy="6" r="1.5" fill="#ffcc00" opacity=".5"/></svg>`,
   attackontitan:`<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0800"/><path d="M22 22 L26 8 L28 22" fill="#1a1400" stroke="#c8a000" stroke-width=".8"/><path d="M22 22 L20 14 L24 14 Z" fill="#c8a000" opacity=".6"/><path d="M24 14 L28 14 L26 8 Z" fill="#884400" opacity=".5"/><line x1="4" y1="10" x2="18" y2="10" stroke="#c8a000" stroke-width=".5" opacity=".3" stroke-dasharray="2 2"/></svg>`,
-  deathnote:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060006"/><rect x="8" y="3" width="16" height="16" rx="2" fill="#0c000c" stroke="#cc00cc" stroke-width=".8"/><text x="16" y="11" text-anchor="middle" font-size="5" fill="#cc00cc" font-family="serif" opacity=".8">死</text><text x="16" y="17" text-anchor="middle" font-size="3.5" fill="#880088" font-family="serif" opacity=".6">神</text></svg>`,
-  hailmary:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000a0f"/><circle cx="26" cy="4" r="3" fill="rgba(255,240,180,.7)"/><circle cx="16" cy="11" r="2" fill="#00e8a8" opacity=".8"/><circle cx="8"  cy="14" r="1.5" fill="#00e8a8" opacity=".5"/><circle cx="22" cy="15" r="1" fill="#00b8ff" opacity=".6"/><circle cx="12" cy="7"  r="1" fill="#00e8a8" opacity=".4"/><path d="M14 10 Q16 9 18 10 Q20 12 18 14 Q16 15 14 14 Q12 12 14 10Z" fill="rgba(0,230,160,.2)" stroke="#00e8a8" stroke-width=".5"/></svg>`,
-  evangelion:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0400"/><path d="M8 18 L16 3 L24 18 L20 18 L16 9 L12 18 Z" fill="#ff4400" opacity=".7"/><rect x="14" y="12" width="4" height="6" fill="#00cc44" opacity=".6"/><rect x="2" y="9" width="28" height="1" fill="#ff4400" opacity=".2"/></svg>`,
-  akira:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000008"/><circle cx="16" cy="11" r="8" fill="none" stroke="#ee0044" stroke-width=".8" opacity=".8"/><circle cx="16" cy="11" r="5" fill="none" stroke="#0044ff" stroke-width=".5" opacity=".5"/><circle cx="16" cy="11" r="2" fill="#ee0044" opacity=".8"/><text x="16" y="20" text-anchor="middle" font-size="3.5" fill="#ee0044" opacity=".6" font-family="sans-serif" letter-spacing="1">AKIRA</text></svg>`,
+  deathnote:       `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060006"/><rect x="8" y="3" width="16" height="16" rx="2" fill="#0c000c" stroke="#cc00cc" stroke-width=".8"/><text x="16" y="11" text-anchor="middle" font-size="5" fill="#cc00cc" font-family="serif" opacity=".8">死</text><text x="16" y="17" text-anchor="middle" font-size="3.5" fill="#880088" font-family="serif" opacity=".6">神</text></svg>`,
+  hailmary:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000a0f"/><circle cx="26" cy="4" r="3" fill="rgba(255,240,180,.7)"/><circle cx="16" cy="11" r="2" fill="#00e8a8" opacity=".8"/><circle cx="8" cy="14" r="1.5" fill="#00e8a8" opacity=".5"/><circle cx="22" cy="15" r="1" fill="#00b8ff" opacity=".6"/><circle cx="12" cy="7" r="1" fill="#00e8a8" opacity=".4"/><path d="M14 10 Q16 9 18 10 Q20 12 18 14 Q16 15 14 14 Q12 12 14 10Z" fill="rgba(0,230,160,.2)" stroke="#00e8a8" stroke-width=".5"/></svg>`,
+  evangelion:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0400"/><path d="M8 18 L16 3 L24 18 L20 18 L16 9 L12 18 Z" fill="#ff4400" opacity=".7"/><rect x="14" y="12" width="4" height="6" fill="#00cc44" opacity=".6"/><rect x="2" y="9" width="28" height="1" fill="#ff4400" opacity=".2"/></svg>`,
+  akira:           `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000008"/><circle cx="16" cy="11" r="8" fill="none" stroke="#ee0044" stroke-width=".8" opacity=".8"/><circle cx="16" cy="11" r="5" fill="none" stroke="#0044ff" stroke-width=".5" opacity=".5"/><circle cx="16" cy="11" r="2" fill="#ee0044" opacity=".8"/><text x="16" y="20" text-anchor="middle" font-size="3.5" fill="#ee0044" opacity=".6" font-family="sans-serif" letter-spacing="1">AKIRA</text></svg>`,
+  bettercallsaul:  `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0c0a00"/><rect x="4" y="6" width="24" height="12" rx="1.5" fill="none" stroke="#c8a800" stroke-width=".7" opacity=".7"/><text x="16" y="14" text-anchor="middle" font-size="5" fill="#c8a800" font-family="serif" font-weight="bold" opacity=".9">BCS</text><line x1="4" y1="11" x2="28" y2="11" stroke="#c8a800" stroke-width=".3" opacity=".3"/></svg>`,
+  peakyblinders:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#080400"/><path d="M8 18 Q16 4 24 18" fill="none" stroke="#c87000" stroke-width="1.2" opacity=".8"/><line x1="6" y1="12" x2="26" y2="12" stroke="#c87000" stroke-width=".4" opacity=".4"/><circle cx="16" cy="10" r="3" fill="none" stroke="#f0a030" stroke-width=".6" opacity=".6"/><rect x="14" y="9" width="4" height="2" rx=".3" fill="#c87000" opacity=".5"/></svg>`,
+  thewire:         `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#050505"/><line x1="4" y1="11" x2="28" y2="11" stroke="#889944" stroke-width="1" opacity=".8"/><circle cx="8" cy="11" r="2" fill="#889944" opacity=".7"/><circle cx="16" cy="11" r="2" fill="#889944" opacity=".7"/><circle cx="24" cy="11" r="2" fill="#889944" opacity=".7"/><text x="16" y="19" text-anchor="middle" font-size="3.5" fill="#889944" opacity=".5" font-family="sans-serif" letter-spacing=".5">THE WIRE</text></svg>`,
+  succession:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060606"/><rect x="6" y="5" width="20" height="14" rx="1" fill="none" stroke="#b09060" stroke-width=".6" opacity=".6"/><text x="16" y="14" text-anchor="middle" font-size="4.5" fill="#b09060" font-family="serif" font-weight="bold" opacity=".8">ROY</text><line x1="6" y1="8" x2="26" y2="8" stroke="#b09060" stroke-width=".3" opacity=".3"/></svg>`,
+  lost:            `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#010810"/><circle cx="16" cy="9" r="6" fill="none" stroke="#2288cc" stroke-width=".7" opacity=".7"/><text x="16" y="12" text-anchor="middle" font-size="5" fill="#2288cc" font-family="sans-serif" font-weight="bold" opacity=".8">4</text><text x="7" y="19" text-anchor="middle" font-size="3" fill="#2288cc" opacity=".5" font-family="monospace">8 15 16 23 42</text></svg>`,
+  shogun:          `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060200"/><circle cx="24" cy="5" r="4" fill="none" stroke="#cc2200" stroke-width=".8" opacity=".8"/><circle cx="24" cy="5" r="2" fill="#cc2200" opacity=".6"/><line x1="4" y1="18" x2="20" y2="18" stroke="#cc2200" stroke-width=".5" opacity=".4"/><text x="12" y="14" text-anchor="middle" font-size="5" fill="#cc2200" font-family="serif" opacity=".7">将</text></svg>`,
+  fallout:         `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#080a00"/><circle cx="16" cy="11" r="7" fill="none" stroke="#88cc00" stroke-width=".7" opacity=".8"/><circle cx="16" cy="11" r="4" fill="none" stroke="#88cc00" stroke-width=".5" opacity=".5"/><circle cx="16" cy="11" r="1.5" fill="#88cc00" opacity=".8"/><text x="16" y="20" text-anchor="middle" font-size="3" fill="#88cc00" opacity=".6" font-family="monospace" letter-spacing=".5">VAULT</text></svg>`,
 };
 
 // ── Cached DOM refs ────────────────────────────────────────────────────
@@ -148,7 +154,6 @@ function resetTimer() {
   Features.updateDistractionUI(false);
   if (dur > 60_000) {
     (window as any).__uiSounds?.sessionEnd();
-    awardTokens(Math.floor(dur / 60000));
     Intel.recordCompleted();
     const streak = Intel.updateStreak();
     const milestone = Intel.getStreakMilestone(streak.current);
@@ -210,14 +215,6 @@ function applyClockPosition(pos: 'top' | 'center') {
   });
 }
 
-// Shop visibility
-let shopEnabled = localStorage.getItem('sc_shop_enabled') === '1';
-function applyShopPref(enabled: boolean) {
-  shopEnabled = enabled;
-  localStorage.setItem('sc_shop_enabled', enabled ? '1' : '0');
-  document.body.classList.toggle('shop-enabled', enabled);
-  buildPanel(); // rebuild feat dock
-}
 function isPrivacyMode() { return privacyMode; }
 function togglePrivacy() {
   privacyMode = !privacyMode;
@@ -451,7 +448,7 @@ function updateSyncDisplay(state: 'syncing' | 'ok' | 'failed', rtt?: number) {
 setSyncHandler(updateSyncDisplay);
 
 // ── Render loop ────────────────────────────────────────────────────────
-let lastTs = 0, lastSec = -1, lastQKey = '';
+let lastTs = 0, lastSec = -1, lastQKey = '', _rafSkip = 0;
 
 function tickDigit(el: HTMLElement, val: string) {
   if (el.textContent === val) return;
@@ -462,6 +459,16 @@ function tickDigit(el: HTMLElement, val: string) {
 }
 
 function renderFrame(ts: number) {
+  // Tab hidden — full skip (handled in renderer but also skip UI work)
+  if (!isTabVisible()) { requestAnimationFrame(renderFrame); return; }
+
+  // LOW tier: throttle to ~20fps by skipping every 2nd frame
+  const tier = getTier();
+  if (tier === 'low') {
+    _rafSkip = (_rafSkip + 1) % 3;
+    if (_rafSkip !== 0) { requestAnimationFrame(renderFrame); return; }
+  }
+
   requestAnimationFrame(renderFrame);
   const dt = Math.min((ts - lastTs) / 1000, 0.05); lastTs = ts;
 
@@ -469,7 +476,6 @@ function renderFrame(ts: number) {
   tickFps(ts);
 
   // Parallax — skip on LOW tier, reduce-motion, or user disabled
-  const tier = getTier();
   const parallaxEnabled = localStorage.getItem('sc_parallax') !== '0' &&
     !document.body.classList.contains('reduced-motion');
   if (tier !== 'low' && parallaxEnabled) {
@@ -853,17 +859,6 @@ function buildPanel() {
     const sb = document.createElement('div'); sb.className = 'media-sub'; sb.style.color = t.accent; sb.textContent = t.sub ?? '';
     const txt = document.createElement('div'); txt.className = 'media-card-text'; txt.append(nm, sb);
 
-    // Shop badge — show item count for this theme
-    const shopItems = Shop.getItemsForTheme(t.id);
-    if (shopItems.length > 0) {
-      const owned = Shop.getOwned();
-      const ownedCount = shopItems.filter(i => owned.has(i.id)).length;
-      const badge = document.createElement('span');
-      badge.className = 'shop-badge';
-      badge.textContent = ownedCount > 0 ? `${ownedCount}/${shopItems.length}` : `${shopItems.length}`;
-      badge.title = 'Shop items';
-      txt.appendChild(badge);
-    }
 
     card.append(logo, txt); return card;
   };
@@ -907,8 +902,6 @@ function buildPanel() {
     ['btnSound',   '🎵', 'Sound',    () => { buildSoundUI(); openModal('soundOverlay'); }],
     ['btnLog',     '📊', 'Log',      openLog],
     ['btnZen',     '🧘', 'Zen',      toggleZen],
-    ['btnShare',   '🖼', 'Share',    () => { openShareCard(); }],
-    ['btnShop',    '🛒', 'Shop',     openShop],
     ['btnSettings','⚙️', 'Settings', openSettings],
   ];
   featDefs.forEach(([id, emoji, label, action]) => {
@@ -916,12 +909,7 @@ function buildPanel() {
     b.className = 'feat-btn'; b.id = id;
     const iconEl = document.createElement('span'); iconEl.className = 'feat-icon'; iconEl.textContent = emoji;
     const lblEl  = document.createElement('span'); lblEl.className  = 'feat-label';
-    if (id === 'btnShop') {
-      lblEl.textContent = 'Shop ';
-      lblEl.appendChild(createCoinEl(Shop.getTokens()));
-    } else {
-      lblEl.textContent = label;
-    }
+    lblEl.textContent = label;
     b.append(iconEl, lblEl);
     b.addEventListener('click', action);
     featBar.appendChild(b);
@@ -953,7 +941,7 @@ const SHORTCUTS: [string, string, () => void][] = [
   ['P',     'Toggle Pomodoro mode',         () => $('btnPomToggle').click()],
   ['M',     'Open ambient sound mixer',     () => { buildSoundUI(); openModal('soundOverlay'); }],
   ['L',     'Open session focus log',       () => { Log.render($('logEntries')); openModal('logOverlay'); }],
-  ['K',     'Collapse / expand panel',      () => { DOM.themePanel.classList.toggle('collapsed'); updateRevealBtn(); }],
+  ['K',     'Collapse / expand panel',      () => { DOM.themePanel.classList.toggle('collapsed'); }],
   ['Z',     'Zen Mode — distraction-free study', () => toggleZen()],
   ['G',     'Open custom theme builder',    openThemeBuilder],
   ['?',     'Show shortcuts',               () => openModal('kbOverlay')],
@@ -990,33 +978,23 @@ document.addEventListener('keydown', e => {
 // ── Display modes ──────────────────────────────────────────────────────
 let kioskOn = false, presentOn = false;
 
-function updateRevealBtn() {
-  const btn = $('themesRevealBtn');
-  const hidden = kioskOn || presentOn || DOM.themePanel.classList.contains('collapsed');
-  btn.style.opacity = hidden ? '1' : '0';
-  btn.style.transform = hidden ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(80px)';
-  (btn as HTMLButtonElement).disabled = !hidden;
-}
 
 function toggleKiosk() {
   kioskOn = !kioskOn;
   document.body.classList.toggle('kiosk', kioskOn);
   if (kioskOn) document.documentElement.requestFullscreen?.().catch(() => {});
   else document.exitFullscreen?.().catch(() => {});
-  updateRevealBtn();
 }
 // Sync kioskOn if user exits fullscreen via browser Escape (bypasses toggleKiosk)
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement && kioskOn) {
     kioskOn = false;
     document.body.classList.remove('kiosk');
-    updateRevealBtn();
   }
 });
 function togglePresent() {
   presentOn = !presentOn;
   document.body.classList.toggle('present', presentOn);
-  updateRevealBtn();
 }
 
 // ── Zen Mode — distraction-free study environment ─────────────────────
@@ -1093,21 +1071,10 @@ function focusLockIntercept(action: () => void): void {
   }, 3000);
 }
 
-// THEMES reveal button
-$('themesRevealBtn').addEventListener('click', () => {
-  if (kioskOn) { toggleKiosk(); return; }
-  if (presentOn) { togglePresent(); return; }
-  focusLockIntercept(() => {
-    DOM.themePanel.classList.remove('collapsed');
-    updateRevealBtn();
-  });
-});
 
-// Hook panel toggle to also update reveal button
 $('panelToggle').onclick = () => {
   focusLockIntercept(() => {
     DOM.themePanel.classList.toggle('collapsed');
-    updateRevealBtn();
   });
 };
 
@@ -1130,7 +1097,6 @@ Pom.init({
       APIs.sendNotification('🍅 Work Session Started', 'Stay focused. You\'ve got this.', 'pom-work');
     } else {
       // Work phase just ended → award tokens
-      awardTokens(Pom.getSettings().workMins);
       Sound.adaptOnBreak();
       // Release wake lock on break
       APIs.releaseWakeLock();
@@ -1844,9 +1810,6 @@ function buildSettingsUI(activeTab = 'general') {
     clockPosRow.append(cpInfo, cpSeg);
     layoutSec.appendChild(clockPosRow);
 
-    // Shop visibility
-    const shopRow = makeRow('Show Shop in Dock', 'Adds the token shop button to the bottom tab bar', 'toggleShopVisible', shopEnabled);
-    layoutSec.appendChild(shopRow);
     paneWrap.appendChild(layoutSec);
 
     const animSec = makeSection('Motion & Animations');
@@ -1894,7 +1857,6 @@ function buildSettingsUI(activeTab = 'general') {
       localStorage.setItem('sc_parallax', on ? '1' : '0');
       showToast(on ? 'Parallax on' : 'Parallax off');
     });
-    wireToggle('toggleShopVisible', (on) => { applyShopPref(on); showToast(on ? '🛒 Shop added to dock' : 'Shop hidden'); });
   }
 
   // ══ PRIVACY ══════════════════════════════════════════════════════════
@@ -1934,246 +1896,8 @@ function buildSettingsUI(activeTab = 'general') {
 }
 
 
-// ── Shop SVG art (developer-authored, safe for innerHTML) ─────────────
-const SHOP_SVG: Record<string, string> = {
-  // Supernatural
-  sn_colt: `<svg viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="14" width="34" height="6" rx="1.5" fill="#8B6914"/><rect x="34" y="13" width="12" height="8" rx="1" fill="#7a5c10"/><rect x="2" y="16" width="30" height="2" rx="1" fill="#c8a850" opacity=".4"/><rect x="8" y="20" width="20" height="9" rx="2" fill="#6b4d0e"/><circle cx="40" cy="17" r="2.5" fill="#3d2c06"/><rect x="35" y="8" width="3" height="5" rx="1" fill="#6b4d0e"/><rect x="1" y="15" width="5" height="4" rx="1" fill="#5a3e09"/></svg>`,
-  sn_impala: `<svg viewBox="0 0 48 28" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="12" width="44" height="10" rx="2" fill="#111"/><path d="M8 12 Q12 5 20 5 L32 5 Q38 5 42 12Z" fill="#111"/><rect x="4" y="19" width="8" height="4" rx="2" fill="#222"/><rect x="36" y="19" width="8" height="4" rx="2" fill="#222"/><rect x="12" y="7" width="10" height="5" rx="1" fill="#1a3a5c" opacity=".8"/><rect x="26" y="7" width="10" height="5" rx="1" fill="#1a3a5c" opacity=".8"/><rect x="2" y="14" width="6" height="4" rx="1" fill="#e8b800" opacity=".9"/><rect x="40" y="14" width="6" height="4" rx="1" fill="#e8b800" opacity=".9"/><rect x="6" y="21" width="3" height="1" rx=".5" fill="#c0c0c0"/><rect x="39" y="21" width="3" height="1" rx=".5" fill="#c0c0c0"/></svg>`,
-  sn_pentagram: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="14" stroke="#c84000" stroke-width="1.5" fill="none"/><polygon points="16,3 19.5,13 30,13 21.5,19 24.5,30 16,23.5 7.5,30 10.5,19 2,13 12.5,13" fill="none" stroke="#e05500" stroke-width="1.2" stroke-linejoin="round"/><circle cx="16" cy="16" r="3" fill="#e05500" opacity=".6"/></svg>`,
 
-  // Mentalist
-  mn_redj: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="13" fill="#8b0000"/><circle cx="10" cy="12" r="2.5" fill="#ff2200"/><circle cx="22" cy="12" r="2.5" fill="#ff2200"/><path d="M8 22 Q16 28 24 22" stroke="#ff2200" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
-  mn_card: `<svg viewBox="0 0 32 44" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="30" height="42" rx="3" fill="#f8f0e0" stroke="#ccc" stroke-width="1"/><text x="16" y="26" text-anchor="middle" font-size="20" fill="#cc1100">♠</text><text x="5" y="10" font-size="7" fill="#cc1100">A</text><text x="27" y="44" font-size="7" fill="#cc1100" transform="rotate(180,27,44)">A</text></svg>`,
 
-  // Breaking Bad
-  bb_hat: `<svg viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="24" cy="24" rx="22" ry="5" fill="#1a1a1a"/><path d="M6 24 Q6 8 24 8 Q42 8 42 24" fill="#0a0a0a"/><ellipse cx="24" cy="24" rx="22" ry="5" fill="none" stroke="#333" stroke-width="1"/></svg>`,
-  bb_crystal: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="16,2 26,10 26,22 16,30 6,22 6,10" fill="#88ccff" opacity=".7" stroke="#5599ff" stroke-width="1"/><polygon points="16,2 26,10 16,14" fill="#aaddff" opacity=".5"/><polygon points="16,14 26,22 16,30 6,22" fill="#66aaee" opacity=".6"/><line x1="16" y1="2" x2="16" y2="30" stroke="white" stroke-width=".5" opacity=".4"/></svg>`,
-  bb_pizza: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 3 L30 28 Q16 30 2 28 Z" fill="#e8a820"/><path d="M16 3 L30 28 Q16 30 2 28 Z" fill="none" stroke="#c88010" stroke-width="1"/><circle cx="12" cy="20" r="2" fill="#cc2200"/><circle cx="20" cy="16" r="1.5" fill="#cc2200"/><circle cx="16" cy="24" r="1.5" fill="#cc2200"/><path d="M16 3 L30 28" stroke="#c88010" stroke-width=".8"/><path d="M16 3 L2 28" stroke="#c88010" stroke-width=".8"/></svg>`,
-
-  // Dark
-  dk_knot: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 4 C24 4 28 10 26 16 C24 22 18 24 16 24 C14 24 8 22 6 16 C4 10 8 4 16 4 Z" fill="none" stroke="#8888ff" stroke-width="2"/><path d="M10 16 C10 20 13 24 16 24 C19 24 22 20 22 16 C22 12 19 8 16 8 C13 8 10 12 10 16 Z" fill="none" stroke="#6666cc" stroke-width="1.5"/><circle cx="16" cy="16" r="2" fill="#aaaaff"/></svg>`,
-  dk_clock: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="13" stroke="#8888aa" stroke-width="1.5" fill="#0a0a14"/><circle cx="16" cy="16" r="1.5" fill="#aaaacc"/><line x1="16" y1="6" x2="16" y2="12" stroke="#aaaacc" stroke-width="1.5" stroke-linecap="round"/><line x1="16" y1="16" x2="22" y2="18" stroke="#888899" stroke-width="1.2" stroke-linecap="round"/><text x="16" y="26" text-anchor="middle" font-size="4.5" fill="#666688">33 YEARS</text></svg>`,
-
-  // Stranger Things
-  st_lights: `<svg viewBox="0 0 48 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10 Q12 4 24 10 Q36 16 44 10" stroke="#555" stroke-width="1" fill="none"/>${[4,12,20,28,36,44].map((x,i)=>`<circle cx="${x}" cy="${i%2===0?8:12}" r="2.5" fill="${['#ff2200','#00cc00','#ffee00','#0088ff','#ff4400','#cc00cc'][i]}" opacity=".9"/>`).join('')}</svg>`,
-  st_eggo: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="26" height="26" rx="4" fill="#c8a020"/><line x1="16" y1="3" x2="16" y2="29" stroke="#a88010" stroke-width="1"/><line x1="3" y1="16" x2="29" y2="16" stroke="#a88010" stroke-width="1"/><rect x="5" y="5" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="17" y="5" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="5" y="17" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="17" y="17" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/></svg>`,
-
-  // Movies — Interstellar
-  in_watch: `<svg viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="1" width="12" height="6" rx="2" fill="#333"/><rect x="8" y="33" width="12" height="6" rx="2" fill="#333"/><rect x="2" y="7" width="24" height="26" rx="5" fill="#222" stroke="#555" stroke-width="1"/><circle cx="14" cy="20" r="9" fill="#111" stroke="#444" stroke-width="1"/><line x1="14" y1="13" x2="14" y2="20" stroke="#888" stroke-width="1.2" stroke-linecap="round"/><line x1="14" y1="20" x2="19" y2="22" stroke="#666" stroke-width="1" stroke-linecap="round"/></svg>`,
-
-  // Dune
-  du_crysknife: `<svg viewBox="0 0 12 44" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 2 L9 20 L9 34 L6 42 L3 34 L3 20 Z" fill="#e8d8b0" stroke="#c8b880" stroke-width=".8"/><rect x="3" y="32" width="6" height="10" rx="1.5" fill="#8B6914"/><line x1="6" y1="4" x2="6" y2="32" stroke="white" stroke-width=".5" opacity=".3"/></svg>`,
-  du_spice: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="16" cy="20" rx="12" ry="8" fill="#c86420"/><ellipse cx="16" cy="18" rx="12" ry="8" fill="#d47830"/><ellipse cx="16" cy="16" rx="12" ry="8" fill="#e08840"/><ellipse cx="16" cy="14" rx="10" ry="5" fill="#e89040" opacity=".8"/><ellipse cx="16" cy="13" rx="6" ry="2.5" fill="#f0a050" opacity=".5"/></svg>`,
-
-  // Matrix
-  mx_pill: `<svg viewBox="0 0 32 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="14" height="14" rx="7" fill="#cc0000"/><rect x="17" y="1" width="14" height="14" rx="7" fill="#1a1a1a" stroke="#444" stroke-width="1"/><rect x="15" y="5" width="2" height="6" fill="#888"/></svg>`,
-
-  // Blade Runner
-  br_origami: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="16,3 28,20 22,20 28,29 4,29 10,20 4,20" fill="#e8e0d0" stroke="#c8c0b0" stroke-width="1"/><line x1="16" y1="3" x2="16" y2="29" stroke="#c8c0b0" stroke-width=".8"/><line x1="4" y1="20" x2="28" y2="20" stroke="#c8c0b0" stroke-width=".8"/></svg>`,
-
-  // Inception
-  ic_totem: `<svg viewBox="0 0 20 36" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="10" cy="28" rx="8" ry="4" fill="#888" opacity=".3"/><path d="M4 28 L10 4 L16 28 Z" fill="#aaa" stroke="#888" stroke-width="1"/><ellipse cx="10" cy="28" rx="6" ry="3" fill="#999"/><line x1="10" y1="6" x2="10" y2="28" stroke="white" stroke-width=".6" opacity=".25"/></svg>`,
-
-  // Godfather
-  gf_offer: `<svg viewBox="0 0 32 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14 C4 8 10 4 16 6 C22 4 28 8 28 14 C28 20 22 24 16 24 C10 24 4 20 4 14Z" fill="#1a0a00" stroke="#4a2000" stroke-width="1"/><path d="M10 14 L14 18 L22 10" stroke="#c8a060" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-
-  // F1
-  f1rb_trophy: `<svg viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="32" width="12" height="4" rx="1" fill="#c8a820"/><rect x="6" y="36" width="20" height="3" rx="1" fill="#a88810"/><path d="M8 4 L8 24 Q8 32 16 32 Q24 32 24 24 L24 4 Z" fill="#f0c020"/><path d="M8 12 L4 14 L4 20 Q4 24 8 24" fill="#e0b018" stroke="#c89010" stroke-width=".8"/><path d="M24 12 L28 14 L28 20 Q28 24 24 24" fill="#e0b018" stroke="#c89010" stroke-width=".8"/><ellipse cx="16" cy="4" rx="8" ry="2" fill="#f8d030"/></svg>`,
-  f1fe_horse: `<svg viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 28 C14 28 6 22 6 14 C6 8 10 4 14 4 C18 4 22 8 22 14 C22 22 14 28 14 28Z" fill="#ff2800"/><path d="M14 6 C14 6 10 10 10 14 L14 13 L18 14 C18 10 14 6 14 6Z" fill="#1a1a1a"/><path d="M12 14 L12 22 L14 24 L16 22 L16 14" fill="#1a1a1a" stroke="#ff2800" stroke-width=".5"/></svg>`,
-
-  // Cyberpunk 2077
-  cp_shard:    `<svg viewBox="0 0 24 32" fill="none"><rect x="2" y="1" width="20" height="30" rx="3" fill="#0a0020" stroke="#ff0090" stroke-width=".8"/><rect x="5" y="6" width="14" height="2" rx="1" fill="#ff0090" opacity=".7"/><rect x="5" y="10" width="10" height="2" rx="1" fill="#00eeff" opacity=".6"/><rect x="5" y="14" width="12" height="2" rx="1" fill="#ff0090" opacity=".5"/><circle cx="12" cy="26" r="2" fill="#ff0090" opacity=".8"/></svg>`,
-  cp_katana:   `<svg viewBox="0 0 8 44" fill="none"><rect x="2" y="2" width="4" height="32" rx="2" fill="#c0c0c0"/><rect x="1" y="32" width="6" height="2" rx="1" fill="#ff0090" opacity=".9"/><rect x="1.5" y="34" width="5" height="9" rx="1.5" fill="#1a0030"/></svg>`,
-  cp_ripperdoc:`<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" fill="#0a0020" stroke="#ff0090" stroke-width="1"/><path d="M10 16 L13 10 L16 16 L19 12 L22 16" stroke="#00eeff" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="16" cy="16" r="2" fill="#ff0090"/></svg>`,
-  // 2001
-  hal_eye:     `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" fill="#000"/><circle cx="16" cy="16" r="10" fill="#880000"/><circle cx="16" cy="16" r="6" fill="#cc0000"/><circle cx="16" cy="16" r="2" fill="#ff0000"/><circle cx="11" cy="11" r="2.5" fill="rgba(255,150,150,.1)"/></svg>`,
-  hal_mono:    `<svg viewBox="0 0 12 28" fill="none"><rect x="1" y="1" width="10" height="26" rx="1" fill="#050505" stroke="rgba(255,220,100,.2)" stroke-width=".5"/></svg>`,
-  hal_pod:     `<svg viewBox="0 0 32 24" fill="none"><ellipse cx="16" cy="12" rx="14" ry="10" fill="#111" stroke="#444" stroke-width="1"/><circle cx="16" cy="12" r="5" fill="#222"/><circle cx="16" cy="12" r="1.5" fill="#cc0000" opacity=".7"/></svg>`,
-  // Tenet
-  tn_invert:   `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" fill="#040408" stroke="#8888ff" stroke-width=".8"/><path d="M10 12 L22 12 L16 8 Z" fill="#8888ff" opacity=".7"/><path d="M10 20 L22 20 L16 24 Z" fill="#ff8800" opacity=".7"/></svg>`,
-  tn_alg:      `<svg viewBox="0 0 28 28" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" fill="#040408" stroke="#8888ff" stroke-width=".8"/><rect x="15" y="1" width="12" height="12" rx="2" fill="#040408" stroke="#ff8800" stroke-width=".8"/><rect x="1" y="15" width="12" height="12" rx="2" fill="#040408" stroke="#ff8800" stroke-width=".8"/><rect x="15" y="15" width="12" height="12" rx="2" fill="#040408" stroke="#8888ff" stroke-width=".8"/></svg>`,
-  // House of the Dragon
-  hd_egg:      `<svg viewBox="0 0 20 28" fill="none"><ellipse cx="10" cy="15" rx="8" ry="12" fill="#1a0800" stroke="#e84000" stroke-width=".8"/><ellipse cx="10" cy="15" rx="5" ry="8" fill="none" stroke="#ffa020" stroke-width=".5" opacity=".4"/></svg>`,
-  hd_crown:    `<svg viewBox="0 0 32 20" fill="none"><path d="M2 18 L2 8 L8 14 L16 4 L24 14 L30 8 L30 18 Z" fill="#1a0800" stroke="#e84000" stroke-width="1"/><rect x="2" y="16" width="28" height="3" rx="1" fill="#e84000" opacity=".8"/><circle cx="16" cy="5" r="2" fill="#ffa020"/></svg>`,
-  hd_scale:    `<svg viewBox="0 0 24 20" fill="none"><path d="M12 2 L20 8 L20 14 L12 18 L4 14 L4 8 Z" fill="#e84000" opacity=".6" stroke="#ffa020" stroke-width=".8"/></svg>`,
-  // Moon Knight
-  mk_scarab:   `<svg viewBox="0 0 28 20" fill="none"><ellipse cx="14" cy="12" rx="7" ry="6" fill="#ffd080" opacity=".8"/><ellipse cx="14" cy="10" rx="4" ry="3" fill="#c8a000" opacity=".6"/><path d="M7 12 Q4 8 6 6 Q8 10 14 12" fill="#ffd080" opacity=".5"/><path d="M21 12 Q24 8 22 6 Q20 10 14 12" fill="#ffd080" opacity=".5"/></svg>`,
-  mk_ankh:     `<svg viewBox="0 0 16 28" fill="none"><circle cx="8" cy="7" r="4.5" fill="none" stroke="#c8d8ff" stroke-width="1.5"/><line x1="8" y1="11.5" x2="8" y2="26" stroke="#c8d8ff" stroke-width="1.5"/><line x1="3" y1="18" x2="13" y2="18" stroke="#c8d8ff" stroke-width="1.5"/></svg>`,
-  mk_crescent: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#c8d8ff" opacity=".8"/><circle cx="15.5" cy="10.5" r="8" fill="#04060e"/></svg>`,
-  
-    f1mc_papaya: `<svg viewBox="0 0 32 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="4" width="30" height="12" rx="3" fill="#ff8000"/><path d="M1 10 L8 4 L8 16 Z" fill="#1a1a1a"/><text x="16" y="13" text-anchor="middle" font-size="7" font-weight="bold" fill="white">McLAREN</text></svg>`,
-};
-
-// ── Token Shop UI ─────────────────────────────────────────────────────
-let shopTab = 'tv';
-
-function openShop() { buildShopUI(); openModal('shopOverlay'); }
-
-function buildShopUI(tab?: string) {
-  if (tab) shopTab = tab;
-  const grid    = $('shopGrid');
-  const tabsEl  = $('shopTabs');
-  const tokenEl = $('shopTokenDisplay');
-  if (!grid || !tabsEl) return;
-  if (tokenEl) tokenEl.innerHTML = coinHTML(Shop.getTokens());
-
-  // Shop tab bar
-  const shopTabDefs: [string, string][] = [
-    ['tv','📺 TV'], ['movie','🎬 Movies'], ['f1','🏎 F1'], ['nat','🌿 Special'],
-  ];
-  tabsEl.innerHTML = '';
-  shopTabDefs.forEach(([id, label]) => {
-    const b = document.createElement('button');
-    b.className = 'shop-tab-btn' + (shopTab === id ? ' active' : '');
-    b.textContent = label; b.dataset.tab = id;
-    b.addEventListener('click', () => buildShopUI(id));
-    tabsEl.appendChild(b);
-  });
-
-  const catThemes = shopTab === 'nat'
-    ? THEMES_BY_CAT.nat.map(t => t.id)
-    : THEMES_BY_CAT[shopTab as 'tv'|'movie'|'f1'].map(t => t.id);
-
-  const items = Shop.SHOP_ITEMS.filter(i => catThemes.includes(i.themeId));
-  const owned    = Shop.getOwned();
-  const equipped = Shop.getEquipped();
-
-  grid.innerHTML = '';
-  if (items.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'shop-empty';
-    empty.textContent = 'No items in this category yet.';
-    grid.appendChild(empty); return;
-  }
-
-  // Group by theme
-  const byTheme = new Map<string, typeof items>();
-  items.forEach(item => {
-    if (!byTheme.has(item.themeId)) byTheme.set(item.themeId, []);
-    byTheme.get(item.themeId)!.push(item);
-  });
-
-  byTheme.forEach((themeItems, themeId) => {
-    const theme = THEME_BY_ID[themeId];
-    if (!theme) return;
-
-    const section = document.createElement('div'); section.className = 'shop-section';
-    const header  = document.createElement('div'); header.className = 'shop-section-header';
-    header.style.borderColor = theme.accent + '44';
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'shop-section-name';
-    nameSpan.style.color = theme.accent;
-    nameSpan.textContent = theme.name;
-    header.appendChild(nameSpan);
-    section.appendChild(header);
-
-    const itemsGrid = document.createElement('div'); itemsGrid.className = 'shop-items-grid';
-    themeItems.forEach(item => {
-      const isOwned    = owned.has(item.id);
-      const isEquipped = equipped.has(item.id);
-      const card = document.createElement('div');
-      card.className = ['shop-item', isOwned ? 'owned' : '', isEquipped ? 'equipped' : ''].filter(Boolean).join(' ');
-
-      // Icon — use SVG art if available, else emoji
-      const iconEl = document.createElement('div'); iconEl.className = 'shop-item-icon';
-      const svgArt = SHOP_SVG[item.id];
-      if (svgArt) iconEl.innerHTML = svgArt;        // SVG strings are developer-authored, safe
-      else        iconEl.textContent = item.icon;   // emoji fallback
-
-      const info = document.createElement('div'); info.className = 'shop-item-info';
-      const nameEl = document.createElement('div'); nameEl.className = 'shop-item-name';
-      nameEl.textContent = item.name;
-      const descEl = document.createElement('div'); descEl.className = 'shop-item-desc';
-      descEl.textContent = item.desc;
-      info.append(nameEl, descEl);
-
-      const action = document.createElement('div'); action.className = 'shop-item-action';
-
-      if (isOwned) {
-        const equipBtn = document.createElement('button');
-        equipBtn.className = 'shop-equip-btn' + (isEquipped ? ' on' : '');
-        equipBtn.textContent = isEquipped ? '✓ On' : 'Equip';
-        equipBtn.addEventListener('click', () => { Shop.toggleEquip(item.id); buildShopUI(); });
-        action.appendChild(equipBtn);
-      } else {
-        const buyBtn = document.createElement('button');
-        buyBtn.className = 'shop-buy-btn';
-        buyBtn.disabled = Shop.getTokens() < item.cost;
-        const costSpan = document.createElement('span');
-        costSpan.className = 'shop-cost';
-        costSpan.textContent = `🪙 ${item.cost}`;
-        buyBtn.appendChild(costSpan);
-        buyBtn.addEventListener('click', () => {
-          const result = Shop.buyItem(item.id);
-          if (result === 'ok') { buildShopUI(); buildPanel(); }
-          else if (result === 'poor') {
-            card.classList.add('shake'); setTimeout(() => card.classList.remove('shake'), 500);
-          }
-        });
-        action.appendChild(buyBtn);
-      }
-
-      card.append(iconEl, info, action);
-      itemsGrid.appendChild(card);
-    });
-    section.appendChild(itemsGrid);
-    grid.appendChild(section);
-  });
-}
-
-// ── Coin SVG — Apple-style gold coin ────────────────────────────────
-const COIN_SVG = `<svg class="token-coin" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <radialGradient id="coinGrad" cx="38%" cy="32%" r="65%">
-      <stop offset="0%"   stop-color="#ffe566"/>
-      <stop offset="45%"  stop-color="#f0b800"/>
-      <stop offset="100%" stop-color="#c88000"/>
-    </radialGradient>
-    <radialGradient id="coinShine" cx="35%" cy="28%" r="50%">
-      <stop offset="0%"   stop-color="white" stop-opacity=".45"/>
-      <stop offset="100%" stop-color="white" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <circle cx="10" cy="10" r="9.5" fill="#c88000"/>
-  <circle cx="10" cy="10" r="9"   fill="url(#coinGrad)"/>
-  <circle cx="10" cy="10" r="9"   fill="url(#coinShine)"/>
-  <circle cx="10" cy="10" r="7.2" fill="none" stroke="#c88000" stroke-width=".6" opacity=".4"/>
-  <text x="10" y="13.5" text-anchor="middle" font-size="8" font-weight="700"
-        fill="#8b5500" font-family="system-ui,sans-serif" opacity=".9">S</text>
-</svg>`;
-
-function createCoinEl(count: number): HTMLElement {
-  const wrap = document.createElement('span'); wrap.className = 'feat-tokens';
-  wrap.innerHTML = COIN_SVG; // developer-authored SVG constant — safe
-  const cnt = document.createElement('span'); cnt.className = 'token-count';
-  cnt.textContent = String(count);
-  wrap.appendChild(cnt);
-  return wrap;
-}
-
-function coinHTML(count: number): string {
-  return `${COIN_SVG}<span class="token-count">${count}</span>`;
-}
-
-// Award tokens on session events
-function awardTokens(minutes: number) {
-  const tokens = Math.max(1, Math.floor(minutes / 5));
-  Shop.addTokens(tokens);
-
-  // Animate +N tokens above the shop button
-  const shopBtn = $('btnShop');
-  if (shopBtn) {
-    shopBtn.innerHTML = `🛒 Shop ${coinHTML(Shop.getTokens())}`;
-    const pop = document.createElement('div');
-    pop.className = 'token-pop';
-    pop.textContent = `+${tokens}`;
-    shopBtn.appendChild(pop);
-    setTimeout(() => pop.remove(), 1200);
-  }
-  // Update open shop if visible
-  const tokenEl = $('shopTokenDisplay');
-  if (tokenEl) tokenEl.innerHTML = coinHTML(Shop.getTokens());
-}
 
 // ── QR Handoff ────────────────────────────────────────────────────────
 function openQRHandoff() {
@@ -2454,7 +2178,6 @@ function updateFlowState() {
   if (isFlow) {
     // Collapse panel, deepen vignette
     DOM.themePanel.classList.add('collapsed');
-    updateRevealBtn();
     document.body.classList.add('flow-state');
     // Show flow badge
     let badge = document.getElementById(FLOW_BADGE_ID);
@@ -2726,7 +2449,6 @@ function buildPaletteCommands() {
 
   cmds.push(
     { id:'open_log',       icon:'📋', label:'Focus Log',          hint:'L',  group:'Navigation', action: () => { renderLogView(); openModal('logOverlay'); } },
-    { id:'open_shop',      icon:'🛒', label:'Token Shop',                    group:'Navigation', action: openShop },
     { id:'open_settings',  icon:'⚙️', label:'Settings',                      group:'Navigation', action: openSettings },
     { id:'open_data',      icon:'🛡', label:'My Data & Privacy',             group:'Navigation', action: openDataPanel },
     { id:'open_custom',    icon:'🎨', label:'Custom Theme Builder', hint:'G', group:'Navigation', action: openThemeBuilder },
@@ -2815,7 +2537,6 @@ function init() {
   resize();
   window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
   applyClockPosition(clockPosition);
-  applyShopPref(shopEnabled);
   buildPanel();
   updatePanelHeight();
   updateClockCanvas();
@@ -3009,7 +2730,6 @@ function init() {
     topbarThemesBtn.addEventListener('click', () => {
       focusLockIntercept(() => {
         DOM.themePanel.classList.toggle('collapsed');
-        updateRevealBtn();
       });
     });
   }
@@ -3545,7 +3265,6 @@ function buildCommandPalette() {
     ['worldclock',   '🌍', 'World Clock',                'Compare times across timezones',             () => openModal('worldClockOverlay')],
     ['log',          '📊', 'Focus Log',                  'View session history & heatmap',            () => openLog()],
     ['share',        '🖼', 'Share Focus Card',           'Download PNG of today\'s focus',             () => { openShareCard(); }],
-    ['shop',         '🛒', 'Token Shop',                 'Spend your session coins',                  () => openShop()],
     ['settings',     '⚙️', 'Settings',                  'Clock, sound, focus, privacy',              () => openSettings()],
     ['theme-builder','🎨', 'Custom Theme Builder',       'Build your own colour theme',               () => openThemeBuilder()],
     ['qr',           '📱', 'QR Handoff',                 'Resume session on another device',          () => openQRHandoff()],
