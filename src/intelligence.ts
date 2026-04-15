@@ -169,6 +169,46 @@ export function getFlowDuration(): number {
   return flowActive ? Math.floor((Date.now() - flowStartTs) / 60000) : 0;
 }
 
+// ── Flow Intensity (0–1) ──────────────────────────────────────────────
+// Grows continuously from 0 during a session. 0 = just started,
+// 1 = 45+ uninterrupted minutes. Tab switches and pauses decay it.
+// Used by renderer to evolve theme visuals in real time.
+let _flowIntensity = 0;
+let _lastVisibleTs = Date.now();
+let _tabHiddenAt = 0;
+
+export function getFlowIntensity(): number { return _flowIntensity; }
+
+export function tickFlowIntensity(sessionRunning: boolean, dt: number): void {
+  if (!sessionRunning) {
+    // Decay quickly when not in a session
+    _flowIntensity = Math.max(0, _flowIntensity - dt * 0.08);
+    return;
+  }
+  // Build toward 1.0 over 45 minutes of uninterrupted focus
+  // Rate: reaches 0.5 at ~22 min, 1.0 at ~45 min
+  const buildRate = dt / (45 * 60);
+  _flowIntensity = Math.min(1, _flowIntensity + buildRate);
+}
+
+export function onTabHidden(): void {
+  _tabHiddenAt = Date.now();
+}
+
+export function onTabVisible(): void {
+  if (_tabHiddenAt > 0) {
+    const hiddenMs = Date.now() - _tabHiddenAt;
+    // More than 30s away = significant decay (switched to another app)
+    if (hiddenMs > 30_000) {
+      const decayFactor = Math.min(1, hiddenMs / (5 * 60_000)); // full decay after 5 min away
+      _flowIntensity = Math.max(0, _flowIntensity * (1 - decayFactor * 0.7));
+      onFlowInterrupt();
+    }
+    _tabHiddenAt = 0;
+  }
+  _lastVisibleTs = Date.now();
+}
+
 // ── Info strip intelligence items ─────────────────────────────────────
 export function getIntelligenceInsights(): Array<() => string> {
   const items: Array<() => string> = [];

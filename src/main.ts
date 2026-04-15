@@ -486,7 +486,10 @@ function renderFrame(ts: number) {
     setParallax(0, 0);
   }
 
-  drawBg(dt, currentTheme);
+  drawBg(dt, currentTheme, Intel.getFlowIntensity());
+
+  // Tick flow intensity
+  Intel.tickFlowIntensity(sessionRunning, dt);
 
   // Spatial audio tick — throttle on LOW
   if (tier !== 'low') Sound.tickSpatial(ts / 1000);
@@ -556,6 +559,10 @@ function renderFrame(ts: number) {
 
     // World clock tick
     Features.tickWorldClock();
+
+    // Flow state + intensity UI update
+    updateFlowState();
+    updateFlowIntensityUI(Intel.getFlowIntensity());
     DOM.dateDis.textContent = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
     DOM.greeting.textContent = GREETS.find(([s, e]) => hr >= s && hr < e)?.[2] ?? '';
     DOM.dayPct.textContent = dp.toFixed(1) + '%';
@@ -2170,16 +2177,44 @@ if (bc) {
 let flowUIActive = false;
 const FLOW_BADGE_ID = 'flowBadge';
 
+// Create the flow bar element once
+let _flowBar: HTMLElement | null = null;
+function getFlowBar(): HTMLElement {
+  if (!_flowBar) {
+    _flowBar = document.createElement('div');
+    _flowBar.id = 'flowBar';
+    document.body.appendChild(_flowBar);
+  }
+  return _flowBar;
+}
+
+// Called every second from the render loop tick
+function updateFlowIntensityUI(intensity: number) {
+  const bar = getFlowBar();
+  bar.style.width = `${(intensity * 100).toFixed(1)}%`;
+
+  // Body class tiers: flow-deep at 60%, flow-peak at 90%
+  document.body.classList.toggle('flow-deep', intensity >= 0.6);
+  document.body.classList.toggle('flow-peak', intensity >= 0.9);
+
+  // Update flow badge text with intensity milestone
+  const badge = document.getElementById(FLOW_BADGE_ID);
+  if (badge && badge.classList.contains('visible')) {
+    const mins = Intel.getFlowDuration();
+    if (intensity >= 0.9)      badge.textContent = `⚡ Peak Flow · ${mins}m`;
+    else if (intensity >= 0.6) badge.textContent = `⚡ Deep Flow · ${mins}m`;
+    else                        badge.textContent = `⚡ Flow State · ${mins}m`;
+  }
+}
+
 function updateFlowState() {
   const isFlow = Intel.checkFlowState(sessionRunning);
   if (isFlow === flowUIActive) return;
   flowUIActive = isFlow;
 
   if (isFlow) {
-    // Collapse panel, deepen vignette
     DOM.themePanel.classList.add('collapsed');
     document.body.classList.add('flow-state');
-    // Show flow badge
     let badge = document.getElementById(FLOW_BADGE_ID);
     if (!badge) {
       badge = document.createElement('div');
@@ -2189,8 +2224,9 @@ function updateFlowState() {
     }
     badge.textContent = '⚡ Flow State';
     badge.classList.add('visible');
+    showToast('⚡ Flow State — you\'re in the zone', 4000);
   } else {
-    document.body.classList.remove('flow-state');
+    document.body.classList.remove('flow-state', 'flow-deep', 'flow-peak');
     const badge = document.getElementById(FLOW_BADGE_ID);
     if (badge) badge.classList.remove('visible');
   }
@@ -2738,9 +2774,14 @@ function init() {
   applyTheme(lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0], true);
   applyHandoffState();
 
-  // Smart break + flow state tick every 60s
+  // Tab visibility for flow intensity
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) Intel.onTabHidden();
+    else Intel.onTabVisible();
+  });
+
+  // Smart break tick every 60s
   setInterval(() => {
-    updateFlowState();
     checkSmartBreak();
   }, 60_000);
 

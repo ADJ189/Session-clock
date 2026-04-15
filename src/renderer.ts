@@ -140,7 +140,12 @@ let _lastCircadianSec = -1;
 let _cachedWarmth = 0;
 
 // ── Main draw dispatcher ──────────────────────────────────────────────
-export function drawBg(dt: number, theme: Theme) {
+// Current flow intensity — 0 (just started) to 1 (deep focus, 45+ min)
+let _flowIntensity = 0;
+export function getRendererFlowIntensity() { return _flowIntensity; }
+
+export function drawBg(dt: number, theme: Theme, flowIntensity = 0) {
+  _flowIntensity = flowIntensity;
   // Tab hidden — skip all rendering
   if (!isTabVisible()) return;
 
@@ -174,6 +179,27 @@ export function drawBg(dt: number, theme: Theme) {
   if (_cachedWarmth > 0.01) {
     c.fillStyle = `rgba(200,100,20,${(_cachedWarmth * 0.18).toFixed(3)})`;
     c.fillRect(0, 0, W, H);
+  }
+
+  // ── Flow Intensity overlay — universal, all themes ───────────────────
+  // As focus deepens the theme quietly intensifies: accent vignette grows,
+  // corners deepen, the world contracts around the clock.
+  if (_flowIntensity > 0.05 && shouldDrawGlow()) {
+    // Subtle accent bloom at centre that grows with focus
+    const fr = Math.min(W, H) * (0.3 + _flowIntensity * 0.5);
+    const fg = c.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, fr);
+    const fa = (_flowIntensity * 0.06).toFixed(3);
+    fg.addColorStop(0, `${theme.accent}${Math.round(_flowIntensity * 22).toString(16).padStart(2,'0')}`);
+    fg.addColorStop(1, 'transparent');
+    c.fillStyle = fg; c.fillRect(0, 0, W, H);
+
+    // Corner vignette deepens — world closes in
+    if (_flowIntensity > 0.3) {
+      const vg = c.createRadialGradient(W/2, H/2, H * 0.2, W/2, H/2, Math.max(W,H));
+      vg.addColorStop(0, 'transparent');
+      vg.addColorStop(1, `rgba(0,0,0,${((_flowIntensity - 0.3) * 0.35).toFixed(3)})`);
+      c.fillStyle = vg; c.fillRect(0, 0, W, H);
+    }
   }
 
   // ── Audio-reactive bloom — skip frames on LOW tier ───────────────────
@@ -730,17 +756,21 @@ function drawMediaBg(t: Theme) {
 }
 
 function drawMatrix(t: Theme) {
-  c.fillStyle = 'rgba(0,10,0,0.06)';
+  // Flow: rain fades trail less (faster, denser) and brightens
+  const trailAlpha = Math.max(0.025, 0.06 - _flowIntensity * 0.03);
+  c.fillStyle = `rgba(0,10,0,${trailAlpha})`;
   c.fillRect(0, 0, W, H);
   const cols = (W / 14) | 0;
   c.font = '13px monospace';
+  const speedBoost = 1 + _flowIntensity * 1.5; // up to 2.5× faster at full flow
   for (let i = 0; i < poolN; i++) {
     const o = i * PSTRIDE;
-    pool[o+1] += 3 + pool[o+4];
+    pool[o+1] += (3 + pool[o+4]!) * speedBoost;
     if (pool[o+1] > H + 200) pool[o+1] = 0;
-    const a = pool[o+5] * Math.min(1, tick);
-    c.fillStyle = `rgba(0,230,0,${a})`; c.globalAlpha = a;
-    c.fillText(MAT_CHARS[(Math.random() * MAT_CHARS.length) | 0], (i % cols) * 14, pool[o+1]);
+    const brightness = Math.round((230 + _flowIntensity * 25)); // 230→255
+    const a = pool[o+5]! * Math.min(1, tick);
+    c.fillStyle = `rgba(0,${brightness},0,${a})`; c.globalAlpha = a;
+    c.fillText(MAT_CHARS[(Math.random() * MAT_CHARS.length) | 0], (i % cols) * 14, pool[o+1]!);
   }
   c.globalAlpha = 1;
 }
@@ -1211,20 +1241,23 @@ function drawCyberpunk(dt: number, t: Theme) {
   }
   c.lineTo(W, H); c.closePath(); c.fill();
 
-  // Neon window lights on buildings — only on HIGH tier, seeded not random
+  // Neon window lights on buildings — intensity scales with flow
   if (shouldDrawGlow()) {
-    const t60 = Math.floor(tick * 0.5); // changes twice per second
-    for (let i = 0; i < 28; i++) {
-      // Deterministic pseudo-random from index + time slot
+    const t60 = Math.floor(tick * 0.5);
+    // Flow intensity: more windows lit up, brighter, more flicker
+    const flowLights = Math.round(28 + _flowIntensity * 40); // 28→68 lights
+    const flowBrightness = (0x88 + Math.round(_flowIntensity * 0x55)).toString(16).padStart(2,'0');
+    for (let i = 0; i < flowLights; i++) {
       const wx = ((i * 137 + t60 * 31) % W);
       const wy = H * 0.73 + ((i * 73 + t60 * 17) % (H * 0.22));
       const colIdx = (i + t60) % CYBER_COLS.length;
-      c.fillStyle = (CYBER_COLS[colIdx] ?? '#ff0090') + '88';
+      c.fillStyle = (CYBER_COLS[colIdx] ?? '#ff0090') + flowBrightness;
       c.fillRect(wx, wy, 3 + (i % 5), 2 + (i % 3));
     }
 
-    // HUD grid overlay — horizontal + vertical faint lines
-    c.strokeStyle = `rgba(0,238,255,${0.04 + Math.sin(tick * 0.4) * 0.01})`;
+    // HUD grid — becomes more visible at high flow
+    const gridAlpha = 0.04 + _flowIntensity * 0.06 + Math.sin(tick * 0.4) * 0.01;
+    c.strokeStyle = `rgba(0,238,255,${gridAlpha})`;
     c.lineWidth = 0.5;
     const gridSz = Math.floor(H / 14);
     for (let y = 0; y < H; y += gridSz) {
@@ -1234,11 +1267,21 @@ function drawCyberpunk(dt: number, t: Theme) {
       c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke();
     }
 
-    // RGB colour aberration lines at random y positions
-    if (Math.random() < 0.04) {
+    // RGB aberration — more frequent at high flow intensity
+    const aberChance = 0.04 + _flowIntensity * 0.12;
+    if (Math.random() < aberChance) {
       const ay = rnd(H * 0.6);
-      c.fillStyle = 'rgba(255,0,144,.06)'; c.fillRect(2, ay, W, 2);
-      c.fillStyle = 'rgba(0,238,255,.06)'; c.fillRect(-2, ay + 1, W, 2);
+      const ab = 0.06 + _flowIntensity * 0.1;
+      c.fillStyle = `rgba(255,0,144,${ab})`; c.fillRect(2, ay, W, 2);
+      c.fillStyle = `rgba(0,238,255,${ab})`; c.fillRect(-2, ay + 1, W, 2);
+    }
+
+    // At high flow: neon bloom across entire skyline
+    if (_flowIntensity > 0.6) {
+      const bloom = c.createLinearGradient(0, H * 0.65, 0, H);
+      bloom.addColorStop(0, `rgba(255,0,144,${(_flowIntensity - 0.6) * 0.15})`);
+      bloom.addColorStop(1, 'transparent');
+      c.fillStyle = bloom; c.fillRect(0, 0, W, H);
     }
   }
 }
