@@ -26,7 +26,8 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 | **Themes** | 45+ animated — TV, film, anime, F1, natural |
 | **Audio** | Ambient · Binaural beats · True spatial ILD/ITD |
 | **Modes** | Pomodoro · **Zen** · Kiosk · PiP · Voice |
-| **Intelligence** | Streaks · Velocity · Flow state · Smart breaks |
+| **Intelligence** | Streaks · Velocity · **Flow Intensity** · Smart breaks |
+| **Always on Top** | Document PiP — theme floats over other apps |
 | **Languages** | EN ES FR DE JA KO PT HI |
 | **Privacy** | Zero backend · localStorage only · No tracking |
 
@@ -71,7 +72,7 @@ Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The incl
 ---
 
 <div align="center">
-<sub>26 modules · 0 runtime deps · 45+ themes · 20+ easter eggs · 8 languages</sub>
+<sub>25 modules · 0 runtime deps · 55+ themes · 20+ easter eggs · 8 languages · Flow Intensity system</sub>
 
 ---
 
