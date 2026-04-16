@@ -86,22 +86,29 @@ const tc = tCanvas.getContext('2d')!;
 let offBg: OffscreenCanvas | null = null;
 let offBgCtx: OffscreenCanvasRenderingContext2D | null = null;
 let offBgTheme = '';
+let offBgSupported = typeof OffscreenCanvas !== 'undefined';
 
 function getOffscreenBg(theme: Theme): OffscreenCanvas | null {
-  if (!('OffscreenCanvas' in window)) return null;
+  if (!offBgSupported) return null;
   const key = theme.id + W + H;
   if (offBgTheme === key && offBg) return offBg;
   try {
     offBg = new OffscreenCanvas(W, H);
-    offBgCtx = offBg.getContext('2d') as OffscreenCanvasRenderingContext2D;
+    offBgCtx = offBg.getContext('2d') as OffscreenCanvasRenderingContext2D | null;
+    if (!offBgCtx) { offBgSupported = false; return null; } // Firefox in some contexts
     offBgTheme = key;
-    // Paint the solid base gradient once
     const bg = theme.baseBg;
     const gr = offBgCtx.createLinearGradient(0, 0, W * 0.4, H);
-    gr.addColorStop(0, bg[0]!); gr.addColorStop(0.5, bg[1] ?? bg[0]!); gr.addColorStop(1, bg[2] ?? bg[0]!);
-    offBgCtx.fillStyle = gr; offBgCtx.fillRect(0, 0, W, H);
+    gr.addColorStop(0, bg[0]!);
+    gr.addColorStop(0.5, bg[1] ?? bg[0]!);
+    gr.addColorStop(1, bg[2] ?? bg[0]!);
+    offBgCtx.fillStyle = gr;
+    offBgCtx.fillRect(0, 0, W, H);
     return offBg;
-  } catch { return null; }
+  } catch {
+    offBgSupported = false; // disable permanently on this browser/device
+    return null;
+  }
 }
 
 // ── Breathing mode ────────────────────────────────────────────────────

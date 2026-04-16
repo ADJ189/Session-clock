@@ -1,3 +1,11 @@
+// Polyfill AbortSignal.timeout for Safari < 16.4 and Firefox < 100
+function abortAfter(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
 const WMO: Record<number, [string, string]> = {
   0:['☀️','Clear'], 1:['🌤','Mostly clear'], 2:['⛅','Partly cloudy'], 3:['☁️','Overcast'],
   45:['🌫','Foggy'], 48:['🌫','Icy fog'],
@@ -104,7 +112,7 @@ export async function initWeather(
             + `?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`
             + `&current=temperature_2m,apparent_temperature,weathercode,windspeed_10m`
             + `&temperature_unit=celsius&windspeed_unit=kmh&timezone=auto`;
-          const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+          const res = await fetch(url, { signal: abortAfter(10000) });
           const data = await res.json();
           const cur = data.current;
           _currentWeatherCode = cur.weathercode as number;

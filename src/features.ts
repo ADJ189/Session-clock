@@ -154,7 +154,13 @@ export function updateButtonLabels(
     }
   }
 
-  btnStart.innerHTML = icon + ' ' + label;
+  // Build using DOM to avoid any innerHTML risk
+  while (btnStart.firstChild) btnStart.removeChild(btnStart.firstChild);
+  const parser = new DOMParser();
+  const svgDoc = parser.parseFromString(icon, 'image/svg+xml');
+  const svgEl = svgDoc.documentElement;
+  if (svgEl && svgEl.tagName === 'svg') btnStart.appendChild(svgEl);
+  btnStart.appendChild(document.createTextNode(' ' + label));
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -174,7 +174,6 @@ export function getFlowDuration(): number {
 // 1 = 45+ uninterrupted minutes. Tab switches and pauses decay it.
 // Used by renderer to evolve theme visuals in real time.
 let _flowIntensity = 0;
-let _lastVisibleTs = Date.now();
 let _tabHiddenAt = 0;
 
 export function getFlowIntensity(): number { return _flowIntensity; }
@@ -206,7 +205,6 @@ export function onTabVisible(): void {
     }
     _tabHiddenAt = 0;
   }
-  _lastVisibleTs = Date.now();
 }
 
 // ── Info strip intelligence items ─────────────────────────────────────

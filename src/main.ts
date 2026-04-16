@@ -2099,7 +2099,9 @@ function updateClockCanvas() {
       if (i > 0) { const sep = document.createElement('span'); sep.className = 'flip-sep'; sep.textContent = ':'; wrap.appendChild(sep); }
       const card = document.createElement('div');
       card.id = `flip${part}`; card.className = 'flip-card';
-      card.innerHTML = `<div class="flip-top">00</div><div class="flip-bot">00</div><div class="flip-top-back">00</div>`;
+      ['flip-top','flip-bot','flip-top-back'].forEach(cls => {
+        const d = document.createElement('div'); d.className = cls; d.textContent = '00'; card.appendChild(d);
+      });
       wrap.appendChild(card);
     });
     block.appendChild(wrap);
@@ -2108,12 +2110,14 @@ function updateClockCanvas() {
     const grid = document.createElement('div');
     grid.id = 'wordClockGrid'; grid.className = 'word-clock-grid';
     block.appendChild(grid);
-    wordPrevKey = ''; // force redraw
+    wordPrevKey = '';
 
   } else if (clockMode === 'minimal') {
     const wrap = document.createElement('div');
     wrap.id = 'minimalClockWrap'; wrap.className = 'minimal-clock-wrap';
-    wrap.innerHTML = `<span id="minimalHr" class="minimal-hr">--</span><span id="minimalAP" class="minimal-ap">AM</span>`;
+    const hrSpan = document.createElement('span'); hrSpan.id = 'minimalHr'; hrSpan.className = 'minimal-hr'; hrSpan.textContent = '--';
+    const apSpan = document.createElement('span'); apSpan.id = 'minimalAP'; apSpan.className = 'minimal-ap'; apSpan.textContent = 'AM';
+    wrap.append(hrSpan, apSpan);
     block.appendChild(wrap);
 
   } else if (clockMode === 'segment') {
@@ -2956,7 +2960,9 @@ function init() {
     const micSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     micSvg.setAttribute('viewBox', '0 0 20 20'); micSvg.setAttribute('width', '15'); micSvg.setAttribute('height', '15');
     micSvg.setAttribute('fill', 'currentColor');
-    micSvg.innerHTML = '<path d="M10 12a3 3 0 003-3V5a3 3 0 00-6 0v4a3 3 0 003 3zm5-3a5 5 0 01-10 0H3a7 7 0 0014 0h-2zm-5 7v2m0 0H8m2 0h2"/>';
+    const micPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    micPath.setAttribute('d', 'M10 12a3 3 0 003-3V5a3 3 0 00-6 0v4a3 3 0 003 3zm5-3a5 5 0 01-10 0H3a7 7 0 0014 0h-2zm-5 7v2m0 0H8m2 0h2');
+    micSvg.appendChild(micPath);
     voiceBtn.appendChild(micSvg);
     voiceBtn.addEventListener('click', () => {
       if (Features.isVoiceActive()) Features.stopVoiceListening();
