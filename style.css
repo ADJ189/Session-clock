@@ -28,11 +28,20 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width: 100%; height: 100%; overflow: hidden; }
+html {
+  /* Prevent iOS font size inflate on rotation */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   min-height: 100vh; background: #000;
+  /* Prevent overscroll bounce on iOS/mobile Chrome */
+  overscroll-behavior: none;
+  /* Prevent callout on long press on iOS */
+  -webkit-touch-callout: none;
 }
 
 /* ── Canvas layers ── */
@@ -65,6 +74,7 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 16px 0 14px;
   background: rgba(0,0,0,.2);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
   backdrop-filter: blur(32px) saturate(1.6);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
   border-bottom: 1px solid rgba(255,255,255,.07);
@@ -142,6 +152,7 @@ body {
   color: var(--clr-text); font-family: var(--font-main);
   border: 1px solid rgba(255,255,255,.14);
   background: rgba(255,255,255,.07);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
 .showbadge.visible { transform: translateX(-50%) translateY(0); opacity: 1; }
@@ -265,6 +276,7 @@ body {
   border: 1px solid rgba(255,255,255,.1);
   border-radius: var(--radius-lg);
   padding: 18px 24px 16px;
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
   backdrop-filter: blur(24px) saturate(1.4);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   width: min(380px, 88vw);
@@ -394,6 +406,7 @@ body.theme-flash::after {
 #themePanel {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
   background: rgba(8,6,20,.78);
+  -webkit-backdrop-filter: blur(32px) saturate(1.8);
   backdrop-filter: blur(32px) saturate(1.8);
   -webkit-backdrop-filter: blur(32px) saturate(1.8);
   border-top: 1px solid rgba(255,255,255,.09);
@@ -471,6 +484,7 @@ body.theme-flash::after {
   padding: 6px 8px 8px;
   background: rgba(0,0,0,.22);
   border-top: 1px solid rgba(255,255,255,.06);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
 .feat-btn {
@@ -502,6 +516,7 @@ body.theme-flash::after {
   padding: 9px 20px 9px 15px; border-radius: 99px;
   background: rgba(10,8,22,.82); color: var(--clr-text);
   border: 1px solid rgba(255,255,255,.14);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   display: flex; align-items: center; gap: 7px;
   opacity: 0; pointer-events: none;
@@ -517,6 +532,7 @@ body.theme-flash::after {
   position: fixed; inset: 0; z-index: 500;
   display: flex; align-items: center; justify-content: center;
   background: rgba(0,0,0,.55);
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   opacity: 0; pointer-events: none; transition: opacity .22s;
 }
@@ -913,6 +929,7 @@ body.light-theme .info-strip .info-dot { box-shadow: 0 0 4px var(--clr-accent); 
   color: var(--clr-text);
   opacity: .1; text-align: center;
   transition: opacity .6s cubic-bezier(.16,1,.3,1), text-shadow .6s;
+  -webkit-user-select: none;;
   user-select: none;
 }
 .wc-char.wc-lit {
@@ -931,6 +948,7 @@ body.light-theme .info-strip .info-dot { box-shadow: 0 0 4px var(--clr-accent); 
   font-weight: 900; line-height: 1; letter-spacing: -.04em;
   font-variant-numeric: tabular-nums;
   color: var(--clr-text); text-shadow: var(--glow);
+  -webkit-user-select: none;;
   user-select: none;
 }
 .minimal-ap {
@@ -1035,6 +1053,7 @@ body.light-theme .clock-mode-btn:hover { background: rgba(0,0,0,.09); }
   position: fixed; inset: 0; z-index: 800;
   display: flex; align-items: center; justify-content: center;
   background: rgba(0,0,0,.92);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   opacity: 0; pointer-events: none;
   transition: opacity .5s cubic-bezier(.16,1,.3,1);
@@ -1243,6 +1262,7 @@ body.flow-state .session-card { background: rgba(255,255,255,.03); border-color:
   background: var(--clr-btn-bg); color: var(--clr-accent);
   border: 1px solid var(--clr-accent); opacity: 0;
   transition: opacity .5s, transform .5s cubic-bezier(.34,1.56,.64,1);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow: 0 0 20px var(--clr-accent)33;
 }
@@ -1315,6 +1335,7 @@ body.light-theme .sc-toast {
   border: 1px solid rgba(255,255,255,.18); border-radius: 99px;
   padding: 8px 18px; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
   text-transform: uppercase; cursor: pointer; font-family: inherit;
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px); box-shadow: 0 4px 20px rgba(0,0,0,.4);
   transition: transform .2s, box-shadow .2s;
   animation: fadeUp .5s cubic-bezier(.16,1,.3,1);
@@ -1851,6 +1872,7 @@ body.theme-deathnote .digit-pair {
 .cmd-overlay {
   position: fixed; inset: 0; z-index: 10000;
   background: rgba(0,0,0,.55);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   display: flex; align-items: flex-start; justify-content: center;
   padding-top: 12vh;
@@ -2243,6 +2265,7 @@ body.clock-center #panelToggle:hover { opacity: .8; }
   border: 1px solid rgba(255,255,255,.1);
   color: rgba(255,255,255,.5);
   transition: background .15s, color .15s;
+  -webkit-user-select: none;;
   user-select: none;
 }
 .clock-pos-pill:hover { background: rgba(255,255,255,.12); color: rgba(255,255,255,.8); }
@@ -2288,6 +2311,7 @@ body.clock-center #panelToggle:hover { opacity: .8; }
   padding: 20px 22px 16px;
   background: rgba(255,255,255,.04);
   border: 1px solid rgba(255,255,255,.07);
+  -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   transition: background .3s, border-color .3s;
@@ -2598,6 +2622,7 @@ body.light-theme .int-badge--on { background: var(--clr-btn-bg); }
 /* ── Topbar — glass morphism + subtle border ───────────────── */
 .topbar {
   background: rgba(0,0,0,.18);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
   backdrop-filter: blur(28px) saturate(1.6);
   -webkit-backdrop-filter: blur(28px) saturate(1.6);
   border-bottom: 1px solid rgba(255,255,255,.06);
@@ -2661,6 +2686,7 @@ body.light-theme .int-badge--on { background: var(--clr-btn-bg); }
 /* ── Feat dock — frosted glass strip ────────────────────────── */
 .feat-dock {
   background: rgba(0,0,0,.14);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
@@ -2819,6 +2845,7 @@ body.clock-center .digit-pair {
 }
 body.clock-center .session-card {
   background: rgba(0,0,0,.18);
+  -webkit-backdrop-filter: blur(32px);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
   border-color: rgba(255,255,255,.07);
@@ -2826,6 +2853,7 @@ body.clock-center .session-card {
 
 /* ── Transitions — cinematic page dissolve ──────────────────── */
 .sc-overlay {
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -3085,11 +3113,24 @@ body.session-running .btn-primary::before {
   from { --spin-angle: 0deg; }
   to   { --spin-angle: 360deg; }
 }
-/* Register the custom property so CSS can animate it */
+/* Register the custom property so CSS can animate it (Chrome/Edge/Safari) */
 @property --spin-angle {
   syntax: '<angle>';
   inherits: false;
   initial-value: 0deg;
+}
+
+/* Firefox fallback: @property not supported, use hue-rotate on a
+   solid accent border instead — different look but still animated */
+@supports not (background: conic-gradient(from 0deg, red, blue)) {
+  body.session-running .btn-primary::before {
+    background: var(--clr-accent);
+    animation: spinBorderFF 3s linear infinite;
+  }
+  @keyframes spinBorderFF {
+    0%,100% { opacity: .4; }
+    50%      { opacity: .7; }
+  }
 }
 
 /* ── Feat dock buttons — haptic-style with glow ────────────── */
