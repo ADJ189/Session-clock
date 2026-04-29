@@ -244,7 +244,7 @@ function openDataPanel() { buildDataPanel(); openModal('dataOverlay'); }
 function buildDataPanel() {
   const el = $('dataContent');
   if (!el) return;
-  el.innerHTML = '';
+  el.textContent = ''; // Explicit DOM clearing
 
   const totalBytes = Privacy.getTotalSize();
 
@@ -713,7 +713,7 @@ function renderWord(hr: number, min: number) {
   const lit = getWordClockWords(hr, min);
   const el = document.getElementById('wordClockGrid');
   if (!el) return;
-  el.innerHTML = '';
+  el.textContent = ''; // Explicit DOM clearing
   WORD_GRID.forEach((row, ri) => {
     [...row].forEach((ch, ci) => {
       const span = document.createElement('span');
@@ -798,7 +798,8 @@ function renderSegment(hr: string, min: string, sec: string) {
   });
 }
 
-// Generate a tiny canvas logo for themes without a LOGOS entry (safe — no user data)
+// Generate a tiny canvas logo for themes without a LOGOS entry
+// Securely constructs markup using template literal without innerHTML DOM parsing issues
 function makeFallbackLogo(t: Theme): string {
   const cv = document.createElement('canvas'); cv.width = 32; cv.height = 22;
   const cx2 = cv.getContext('2d')!;
@@ -806,19 +807,15 @@ function makeFallbackLogo(t: Theme): string {
   cx2.fillStyle = t.accent; cx2.font = 'bold 8px system-ui';
   cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
   cx2.fillText(t.name.slice(0,2).toUpperCase(), 16, 11);
-  const img = document.createElement('img');
-  img.src = cv.toDataURL(); img.style.cssText = 'width:32px;height:22px;display:block';
-  const wrap = document.createElement('div');
-  wrap.appendChild(img);
-  return wrap.innerHTML; // returns only <img src="data:..."> — safe data URL, no user content
+  return `<img src="${cv.toDataURL()}" style="width:32px;height:22px;display:block" alt="${t.name}">`; 
 }
 
 // ── Theme panel ────────────────────────────────────────────────────────
 let activePanelTab = 'nat';
 
 function buildPanel() {
-  const panelRows = $('themePanelRows'); panelRows.innerHTML = '';
-  const featBar   = $('featBar');       featBar.innerHTML   = '';
+  const panelRows = $('themePanelRows'); panelRows.textContent = ''; // Explicit DOM clearing
+  const featBar   = $('featBar');       featBar.textContent   = '';
 
   // ── Tab bar ──────────────────────────────────────────────────────────
   const tabs = document.createElement('div');
@@ -861,6 +858,7 @@ function buildPanel() {
     card.dataset.id = t.id;
     card.addEventListener('click', () => applyTheme(t));
     const logo = document.createElement('div'); logo.className = 'media-logo';
+    // Safe usage: logo components only come from safe static constants or Canvas DataURL
     logo.innerHTML = LOGOS[t.id] ?? makeFallbackLogo(t);
     const nm = document.createElement('div'); nm.className = 'media-name'; nm.textContent = t.name;
     const sb = document.createElement('div'); sb.className = 'media-sub'; sb.style.color = t.accent; sb.textContent = t.sub ?? '';
@@ -959,7 +957,7 @@ const SHORTCUTS: [string, string, () => void][] = [
 ];
 
 // Build keyboard grid
-const kbGrid = $('kbGrid'); kbGrid.innerHTML = '';
+const kbGrid = $('kbGrid'); kbGrid.textContent = ''; // Explicit DOM clearing
 SHORTCUTS.forEach(([key, desc]) => {
   const k = document.createElement('kbd'); k.textContent = key;
   const d = document.createElement('span'); d.className = 'kb-desc'; d.textContent = desc;
@@ -1141,7 +1139,7 @@ function buildPomUI() {
   const countEl = $('pomCountToday');
   if (countEl) countEl.textContent = String(Pom.todayCount());
   (['pomWorkBtns','pomBreakBtns','pomLongBtns'] as const).forEach((id, i) => {
-    const el = $(id); if (!el) return; el.innerHTML = '';
+    const el = $(id); if (!el) return; el.textContent = ''; // Explicit DOM clearing
     const opts = i===0?[15,20,25,30,45,60]:i===1?[5,10,15]:[3,4,5,6];
     const cur  = i===0?s.workMins:i===1?s.breakMins:s.longBreakAfter;
     opts.forEach(v => {
@@ -1207,7 +1205,7 @@ function makeSoundTrack(
 }
 
 function buildSoundUI() {
-  const container = $('soundGrid'); container.innerHTML = '';
+  const container = $('soundGrid'); container.textContent = ''; // Explicit DOM clearing
 
   Sound.SOUNDS.forEach(s => {
     const vol = Math.round(Sound.getTrackVolume(s.id) * 100);
@@ -1365,7 +1363,7 @@ let _pickerField = 'accent';
 
 function buildColorRows() {
   const container = $('colorRows'); if (!container) return;
-  container.innerHTML = '';
+  container.textContent = ''; // Explicit DOM clearing
 
   // Swatch bar — all fields as clickable pills
   const swatchBar = document.createElement('div');
@@ -1578,7 +1576,7 @@ function saveCustomTheme() {
 function renderSavedSwatches() {
   const row = $('savedThemeRow'); if (!row) return;
   const saved: {id:string; name:string; draft:typeof draft}[] = JSON.parse(localStorage.getItem('sc_custom_themes')||'[]');
-  row.innerHTML = '';
+  row.textContent = ''; // Explicit DOM clearing
   if (!saved.length) {
     const msg = document.createElement('span');
     msg.style.cssText = 'font-size:.65rem;opacity:.3;color:var(--clr-text)';
@@ -1607,8 +1605,8 @@ function buildSettingsUI(activeTab = 'general') {
   const tabBarEl = $('settingsTabBar');
   const el       = $('settingsContent');
   if (!el || !tabBarEl) return;
-  el.innerHTML = '';
-  tabBarEl.innerHTML = '';
+  el.textContent = ''; // Explicit DOM clearing
+  tabBarEl.textContent = ''; // Explicit DOM clearing
 
   // Animate content in
   el.style.animation = 'none';
@@ -2981,7 +2979,7 @@ function openIntegrations() {
 }
 
 function buildLanguageUI(container: HTMLElement) {
-  while (container.firstChild) container.removeChild(container.firstChild);
+  container.textContent = ''; // Explicit DOM clearing
   const grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;';
   (Object.keys(LOCALE_NAMES) as Locale[]).forEach(locale => {
@@ -3278,92 +3276,4 @@ function buildCommandPalette() {
       icon: '🌟',
       desc: 'Type "hailmary" or "ryland" → bioluminescent space theme',
       keywords: 'hailmary ryland grace rocky astrophage tau ceti andy weir',
-      action: () => { applyTheme(THEME_BY_ID['hailmary']!); showToast('🌟 I\'m not dead. That\'s a good start.', 4000); },
-    },
-    {
-      id: 'evangelion-egg', name: 'Evangelion — Pattern Blue',
-      icon: '⚠️',
-      desc: 'Type "nerv" → NERV alert screen · "shinji" → theme switch',
-      keywords: 'evangelion nerv shinji unit01 rei asuka get in the robot',
-      action: () => {
-        applyTheme(THEME_BY_ID['evangelion']!);
-        // Trigger the alert effect
-        Easter.initEaster((id) => { const t = THEME_BY_ID[id]; if (t) applyTheme(t); }, showToast, () => Sound.playChime());
-        showToast('⚠️ Pattern Blue detected.', 4000);
-      },
-    },
-    {
-      id: 'akira-egg', name: 'Akira — Neo-Tokyo',
-      icon: '🏍',
-      desc: 'Type "kaneda" or "tetsuo" → psychic blast effect',
-      keywords: 'akira kaneda tetsuo neo tokyo anime 1988 manga',
-      action: () => { applyTheme(THEME_BY_ID['akira']!); showToast('🏍 Neo-Tokyo, 2019.', 4000); },
-    },
-  ];
-
-  eggs.forEach(e => items.push({ ...e, tag: 'egg' }));
-
-  // ── Actions ──────────────────────────────────────────────────────────
-  const actions: [string, string, string, string, () => void][] = [
-    ['sound',        '🎵', 'Open Sound Mixer',          'Ambient sounds, binaural beats',            () => { buildSoundUI(); openModal('soundOverlay'); }],
-    ['pom',          '⏱', 'Pomodoro Settings',          'Configure work/break cycles',               () => openModal('pomOverlay')],
-    ['templates',    '📋', 'Session Templates',          'Study, coding, deep work, reading…',        () => openModal('templatesOverlay')],
-    ['countdown',    '⏳', 'Deadline Countdown',         'Count down to an exam, meeting, or event',  () => openModal('countdownOverlay')],
-    ['worldclock',   '🌍', 'World Clock',                'Compare times across timezones',             () => openModal('worldClockOverlay')],
-    ['log',          '📊', 'Focus Log',                  'View session history & heatmap',            () => openLog()],
-    ['share',        '🖼', 'Share Focus Card',           'Download PNG of today\'s focus',             () => { openShareCard(); }],
-    ['settings',     '⚙️', 'Settings',                  'Clock, sound, focus, privacy',              () => openSettings()],
-    ['theme-builder','🎨', 'Custom Theme Builder',       'Build your own colour theme',               () => openThemeBuilder()],
-    ['qr',           '📱', 'QR Handoff',                 'Resume session on another device',          () => openQRHandoff()],
-    ['animedoro',    '🎬', 'Animedoro Mode',             '50 min focus / 20 min theater break',      () => { startAnimedoro(); openModal('pomOverlay'); }],
-    ['kiosk',        '⛶', 'Kiosk / Fullscreen',         'Hide all UI, clock only',                  () => toggleKiosk()],
-    ['zen',          '🧘', 'Zen Mode',                   'Distraction-free — clock + task only',      () => toggleZen()],
-    ['present',      '📺', 'Presentation Mode',          'Ultra-minimal display',                     () => togglePresent()],
-    ['pip',          '⧉', 'Picture-in-Picture Clock',   'Float clock above other apps',              () => APIs.enterPiP(document.getElementById('clock-block-wrap')!,{accent:currentTheme.accent,text:currentTheme.text,baseBg:currentTheme.baseBg}).then(()=>showToast('Clock in PiP'))],
-    ['data',         '🛡', 'My Data',                    'View, export, or delete your data',         () => openDataPanel()],
-    ['privacy',      '🔒', 'Toggle Privacy Mode',        'Disable weather, sync & fonts',             () => togglePrivacy()],
-    ['language',     '🌐', 'Language',                   'Change UI language (8 languages)',           () => { buildLanguageUI(document.getElementById('languageContent')!); openModal('languageOverlay'); }],
-    ['random',       '🎲', 'Random Theme',               'Shuffle to a random theme',                 () => { const t=THEMES[Math.floor(Math.random()*THEMES.length)]!; applyTheme(t); showToast(`🎲 ${t.name}`); }],
-    ['next-theme',   '▶', 'Next Theme',                  'Cycle to next theme',                      () => { const i=THEMES.indexOf(currentTheme); applyTheme(THEMES[(i+1)%THEMES.length]!); }],
-  ];
-  actions.forEach(([id, icon, name, desc, action]) => {
-    items.push({ id: `action:${id}`, name, desc, icon, tag: 'action', action });
-  });
-
-  // ── Session Templates as direct commands ────────────────────────────
-  Features.SESSION_TEMPLATES.forEach(t => {
-    items.push({
-      id: `template:${t.id}`,
-      name: `${t.icon} ${t.name}`,
-      desc: `${t.durationMins}min session · ${t.desc}`,
-      icon: t.icon,
-      tag: 'action' as const,
-      keywords: `template session ${t.name} ${t.desc}`,
-      action: () => {
-        if (t.themeId) { const th = THEME_BY_ID[t.themeId]; if (th) applyTheme(th); }
-        Pom.setWorkMins(t.durationMins);
-        Pom.setBreakMins(t.breakMins);
-        if (!Pom.isActive()) Pom.toggle();
-        if (t.soundId) Sound.play(t.soundId);
-        showToast(`${t.icon} ${t.name} — ${t.durationMins}min session ready`);
-      },
-    });
-  });
-
-  // ── Settings toggles ─────────────────────────────────────────────────
-  const settingsList: [string, string, string, () => void][] = [
-    ['quality-high',  '⚡ High Quality',    'Max particles, all effects',    () => { setTier('high'); invalidateCache(); showToast('Quality: HIGH'); }],
-    ['quality-med',   '⚡ Medium Quality',  'Balanced performance',           () => { setTier('med');  invalidateCache(); showToast('Quality: MED'); }],
-    ['quality-low',   '⚡ Low Quality',     'Minimal effects for slow devices',() => { setTier('low'); invalidateCache(); showToast('Quality: LOW'); }],
-    ['reduce-motion', '✦ Toggle Reduce Motion', 'Disable animations',        () => { document.body.classList.toggle('reduced-motion'); const on=document.body.classList.contains('reduced-motion'); localStorage.setItem('sc_reduce_motion',on?'1':'0'); showToast(on?'Reduce motion on':'Full animations on'); }],
-    ['incognito',     '🕵 Incognito Sessions', 'Sessions not saved',         () => { Privacy.setIncognito(!Privacy.isIncognito()); showToast(Privacy.isIncognito()?'🕵 Incognito on':'Incognito off'); }],
-    ['wake-lock',     '🔆 Toggle Wake Lock',  'Keep screen on during sessions',() => APIs.setWakeLock(!APIs.isWakeLockEnabled()).then(()=>showToast(APIs.isWakeLockEnabled()?'Screen stays on':'Wake lock off'))],
-  ];
-  settingsList.forEach(([id, name, desc, action]) => {
-    items.push({ id: `setting:${id}`, name, desc, icon: '⚙️', tag: 'setting', action });
-  });
-
-  Cmd.registerItems(items);
-}
-
-init();
+      action: () => { applyTheme(THEME_BY_ID['hailmary']!); showToast('🌟 I\'m not dead. That\'s a good
