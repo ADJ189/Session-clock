@@ -158,12 +158,19 @@ function render(query: string) {
       el.className = 'cmd-item' + (idx === _activeIdx ? ' active' : '');
       el.dataset.idx = String(idx);
 
-      // Icon
+      // Icon — use DOMParser for SVG strings (developer-authored only), textContent for emoji
       const iconEl = document.createElement('div'); iconEl.className = 'cmd-item-icon';
-      if (item.icon && item.icon.startsWith('<')) {
-        iconEl.innerHTML = item.icon; // developer-authored SVG only
+      if (item.icon && typeof item.icon === 'string' && item.icon.trimStart().startsWith('<svg')) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(item.icon, 'image/svg+xml');
+        const svgEl = doc.documentElement;
+        if (svgEl && svgEl.tagName.toLowerCase() === 'svg') {
+          iconEl.appendChild(svgEl);
+        } else {
+          iconEl.textContent = '▸';
+        }
       } else {
-        iconEl.textContent = item.icon ?? '▸';
+        iconEl.textContent = (item.icon as string) ?? '▸';
       }
 
       // Text

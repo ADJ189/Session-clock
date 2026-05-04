@@ -799,18 +799,32 @@ function renderSegment(hr: string, min: string, sec: string) {
 }
 
 // Generate a tiny canvas logo for themes without a LOGOS entry (safe — no user data)
-function makeFallbackLogo(t: Theme): string {
+function makeFallbackLogo(t: Theme): SVGElement | HTMLElement {
   const cv = document.createElement('canvas'); cv.width = 32; cv.height = 22;
   const cx2 = cv.getContext('2d')!;
-  cx2.fillStyle = t.baseBg[0]; cx2.fillRect(0,0,32,22);
+  cx2.fillStyle = t.baseBg[0]!; cx2.fillRect(0,0,32,22);
   cx2.fillStyle = t.accent; cx2.font = 'bold 8px system-ui';
   cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
   cx2.fillText(t.name.slice(0,2).toUpperCase(), 16, 11);
   const img = document.createElement('img');
   img.src = cv.toDataURL(); img.style.cssText = 'width:32px;height:22px;display:block';
-  const wrap = document.createElement('div');
-  wrap.appendChild(img);
-  return wrap.innerHTML; // returns only <img src="data:..."> — safe data URL, no user content
+  return img;
+}
+
+function setLogoContent(logo: HTMLElement, svgStr: string | undefined, fallback: () => SVGElement | HTMLElement) {
+  // Use DOMParser to safely parse developer-authored SVG strings.
+  // This is never user-supplied content — all strings are compile-time constants in LOGOS.
+  while (logo.firstChild) logo.removeChild(logo.firstChild);
+  if (svgStr) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgStr, 'image/svg+xml');
+    const el = doc.documentElement;
+    if (el && el.tagName.toLowerCase() === 'svg') {
+      logo.appendChild(el);
+      return;
+    }
+  }
+  logo.appendChild(fallback());
 }
 
 // ── Theme panel ────────────────────────────────────────────────────────
@@ -861,7 +875,7 @@ function buildPanel() {
     card.dataset.id = t.id;
     card.addEventListener('click', () => applyTheme(t));
     const logo = document.createElement('div'); logo.className = 'media-logo';
-    logo.innerHTML = LOGOS[t.id] ?? makeFallbackLogo(t);
+    setLogoContent(logo, LOGOS[t.id], () => makeFallbackLogo(t));
     const nm = document.createElement('div'); nm.className = 'media-name'; nm.textContent = t.name;
     const sb = document.createElement('div'); sb.className = 'media-sub'; sb.style.color = t.accent; sb.textContent = t.sub ?? '';
     const txt = document.createElement('div'); txt.className = 'media-card-text'; txt.append(nm, sb);
@@ -3022,7 +3036,7 @@ function buildCommandPalette() {
       id:   `theme:${t.id}`,
       name: t.name,
       desc: t.tagline ?? t.sub ?? '',
-      icon: LOGOS[t.id] ?? makeFallbackLogo(t),
+      icon: LOGOS[t.id] ?? '',  // fallback logo SVG or empty string
       tag:  'theme',
       keywords: t.cat + ' ' + (t.sub ?? '') + ' ' + (t.quotes?.join(' ') ?? ''),
       action: () => applyTheme(t),
