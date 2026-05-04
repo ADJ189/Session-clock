@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # 1. Updates your Svelte/TS libraries
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly" # Keep it monthly to avoid distraction from exams
+    open-pull-requests-limit: 3
+    groups:
+      deps:
+        patterns:
+          - "*"
+
+  # 2. Updates your GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

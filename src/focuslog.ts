@@ -10,8 +10,14 @@ function save(d: LogEntry[]) { localStorage.setItem(KEY, JSON.stringify(d)); }
 
 export function record(task: string, durMs: number) {
   if (durMs < 5000) return;
+  const entry = { time: Date.now(), task: task || 'Untitled session', dur: Math.round(durMs), date: new Date().toDateString() };
+  // Check incognito — import avoided via dynamic check on window
+  const isIncognito = typeof (window as any).__scIncognito === 'function'
+    ? (window as any).__scIncognito()
+    : false;
+  if (isIncognito) return; // don't persist
   const entries = load();
-  entries.unshift({ time: Date.now(), task: task || 'Untitled session', dur: Math.round(durMs), date: new Date().toDateString() });
+  entries.unshift(entry);
   if (entries.length > 500) entries.pop();
   save(entries);
 }
@@ -19,8 +25,9 @@ export function record(task: string, durMs: number) {
 export function render(container: HTMLElement) {
   const entries = load();
   if (!entries.length) {
-    container.innerHTML = '<div class="log-empty">No sessions recorded yet. Start the timer to begin logging.</div>';
-    return;
+    const msg = document.createElement('div'); msg.className = 'log-empty';
+    msg.textContent = 'No sessions recorded yet. Start the timer to begin logging.';
+    container.appendChild(msg); return;
   }
   const today = new Date().toDateString();
   const groups: Record<string, LogEntry[]> = {};
@@ -33,9 +40,14 @@ export function render(container: HTMLElement) {
     container.appendChild(hdr);
     items.forEach(e => {
       const d = new Date(e.time);
-      const row = document.createElement('div');
-      row.className = 'log-entry';
-      row.innerHTML = `<span class="log-time">${p2(d.getHours())}:${p2(d.getMinutes())}</span><span class="log-task">${e.task}</span><span class="log-dur">${fmtSession(e.dur)}</span>`;
+      const row = document.createElement('div'); row.className = 'log-entry';
+      const timeEl = document.createElement('span'); timeEl.className = 'log-time';
+      timeEl.textContent = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+      const taskEl = document.createElement('span'); taskEl.className = 'log-task';
+      taskEl.textContent = e.task;
+      const durEl  = document.createElement('span'); durEl.className = 'log-dur';
+      durEl.textContent = fmtSession(e.dur);
+      row.append(timeEl, taskEl, durEl);
       container.appendChild(row);
     });
   }
@@ -115,13 +127,15 @@ export function renderHeatmap(container: HTMLElement) {
   const totalSessions = entries.length;
   const totalMins = Math.floor(entries.reduce((s, e) => s + e.dur, 0) / 60000);
   const activeDays = Object.keys(dayMap).length;
-  const stats = document.createElement('div');
-  stats.className = 'heatmap-stats';
-  stats.innerHTML = `
-    <span>${totalSessions} sessions</span>
-    <span>${totalMins >= 60 ? Math.floor(totalMins/60)+'h '+totalMins%60+'m' : totalMins+'m'} total</span>
-    <span>${activeDays} active days</span>
-  `;
+  const stats = document.createElement('div'); stats.className = 'heatmap-stats';
+  const totalTime = totalMins >= 60 ? `${Math.floor(totalMins/60)}h ${totalMins%60}m` : `${totalMins}m`;
+  [
+    `${totalSessions} sessions`,
+    `${totalTime} total`,
+    `${activeDays} active days`,
+  ].forEach(txt => {
+    const s = document.createElement('span'); s.textContent = txt; stats.appendChild(s);
+  });
 
   container.innerHTML = '';
   container.appendChild(labelBar);

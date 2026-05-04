@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "session-clock",
+  "pages_build_output_dir": "dist",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+
+  /**
+   * Cloudflare Pages supports ONLY two named environments:
+   *   "preview"    → branch deploys / preview URLs
+   *   "production" → main branch / production domain
+   *
+   * Bindings (uncomment when needed):
+   *
+   * "kv_namespaces": [
+   *   { "binding": "SC_KV", "id": "YOUR_KV_NAMESPACE_ID" }
+   * ],
+   * "d1_databases": [
+   *   { "binding": "SC_DB", "database_name": "session-clock", "database_id": "YOUR_DB_ID" }
+   * ],
+   * "r2_buckets": [
+   *   { "binding": "SC_BUCKET", "bucket_name": "session-clock-assets" }
+   * ]
+   */
+  "env": {
+    "preview": {
+      "vars": {
+        "ENVIRONMENT": "preview"
+      }
+    }
+  }
+}

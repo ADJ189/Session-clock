@@ -1,5 +1,13 @@
 import type { SyncResult } from './types';
 
+// Polyfill AbortSignal.timeout for Safari < 16.4 and Firefox < 100
+function abortAfter(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
 const CF_ENDPOINTS = [
   'https://cloudflare.com/cdn-cgi/trace',
   'https://1.1.1.1/cdn-cgi/trace',
@@ -20,7 +28,7 @@ export function setSyncHandler(fn: SyncStateHandler) { onStateChange = fn; }
 async function probe(url: string, ms: number): Promise<SyncResult | null> {
   try {
     const t0 = performance.now();
-    const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(ms) });
+    const res = await fetch(url, { cache: 'no-store', signal: abortAfter(ms) });
     const rtt = performance.now() - t0;
     const ds = res.headers.get('date');
     if (!ds) return null;
@@ -50,7 +58,7 @@ export async function syncTime(): Promise<void> {
   if (!best) {
     try {
       const t0 = performance.now();
-      const res = await fetch(FALLBACK, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+      const res = await fetch(FALLBACK, { cache: 'no-store', signal: abortAfter(5000) });
       const rtt = performance.now() - t0;
       const d = await res.json();
       best = { offset: new Date(d.datetime).getTime() - (Date.now() - rtt / 2), rtt };
