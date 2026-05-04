@@ -1,18 +1,71 @@
+# Dependabot configuration for Session Clock
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
 version: 2
+
 updates:
-  # 1. Updates your Svelte/TS libraries
+
+  # ── npm dependencies ──────────────────────────────────────────────────
+  # Covers: vite, typescript, terser (devDependencies)
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "monthly" # Keep it monthly to avoid distraction from exams
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    # Only open 3 PRs at a time — keeps it manageable
     open-pull-requests-limit: 3
+    # Group all minor + patch updates into one PR per week
+    # Major versions get their own PR (breaking changes)
     groups:
-      deps:
+      dev-dependencies:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Meaningful commit messages
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps(dev)"
+      include: "scope"
+    # Auto-label the PRs
+    labels:
+      - "dependencies"
+      - "automated"
+    # Reviewers — add your GitHub username
+    reviewers:
+      - "ADJ189"
+    # Ignore major version bumps for vite (breaking config changes)
+    ignore:
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
 
-  # 2. Updates your GitHub Actions
+  # ── GitHub Actions ───────────────────────────────────────────────────
+  # Covers: actions/checkout, actions/setup-node,
+  #         actions/upload-pages-artifact, actions/deploy-pages
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "actions/*"
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    reviewers:
+      - "ADJ189"
