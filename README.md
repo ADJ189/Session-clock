@@ -1,161 +1,82 @@
-# 🕐 Session Clock v8
+<div align="center">
 
-A beautiful, animated clock app with 32 themes, Pomodoro mode, ambient soundscapes, a literary clock, session focus logging, and more — built in **TypeScript** with **Vite**, zero runtime dependencies.
+# Session Clock
+
+<img src="public/icon-512.svg" width="72" alt="Session Clock" />
+
+**A cinematic focus timer. Every theme is a world.**
+
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Accurate-Time-/actions)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Zero deps](https://img.shields.io/badge/runtime_deps-0-22c55e?style=flat-square)](package.json)
+[![PWA](https://img.shields.io/badge/PWA-ready-8b5cf6?style=flat-square)](public/manifest.json)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
+[![CodeQL](https://img.shields.io/badge/CodeQL-clean-16a34a?style=flat-square)](https://github.com/ADJ189/Accurate-Time-/security)
+
+[**Open App →**](https://accurate-time.pages.dev/)&nbsp;&nbsp;·&nbsp;&nbsp;[**Wiki →**](https://github.com/ADJ189/Accurate-Time-/wiki)&nbsp;&nbsp;·&nbsp;&nbsp;[Issues](https://github.com/ADJ189/Accurate-Time-/issues)
+
+</div>
 
 ---
 
-## ✨ Features
+Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 45+ animated canvas themes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
 
-| Feature | Details |
+| | |
 |---|---|
-| **32 Animated Themes** | Natural (Aurora, Forest, Ocean…), Literary Clock, F1 teams, TV shows, Movies |
-| **🍅 Pomodoro Mode** | Customisable work/break cycles, animated SVG ring, audio chime |
-| **🌤 Live Weather** | Open-Meteo API — free, no key needed, requests geolocation |
-| **🎵 Ambient Soundscapes** | 6 synthesised sounds (Rain, Brown Noise, Forest, Café, Ocean, Fire) — Web Audio API, zero audio files |
-| **🎨 Custom Theme Builder** | Pick your own colours, preview live, save up to 10 custom themes |
-| **📋 Session Focus Log** | Label what you're working on, grouped by day, export as CSV |
-| **📖 Literary Clock** | Every 5-minute slot (00:00–23:55) mapped to a prose sentence |
-| **⌨ Keyboard Shortcuts** | Space, R, T, F, P, M, L, K, G, ? |
-| **📺 Presentation Mode** | Hides everything except the clock |
-| **⛶ Kiosk Mode** | Fullscreen via the Fullscreen API |
-| **⏱ Cloudflare Time Sync** | Multi-probe NTP-over-HTTP with WorldTimeAPI fallback |
+| **Themes** | 45+ animated — TV, film, anime, F1, natural |
+| **Audio** | Ambient · Binaural beats · True spatial ILD/ITD |
+| **Modes** | Pomodoro · **Zen** · Kiosk · PiP · Voice |
+| **Intelligence** | Streaks · Velocity · **Flow Intensity** · Smart breaks |
+| **Always on Top** | Document PiP — theme floats over other apps |
+| **Languages** | EN ES FR DE JA KO PT HI |
+| **Privacy** | Zero backend · localStorage only · No tracking |
+
+**[→ Full documentation on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki)**
 
 ---
 
-## 🚀 Getting Started
+## Quick Start
 
 ```bash
-# Install dev dependencies (TypeScript + Vite only — no runtime deps)
-npm install
-
-# Start dev server with hot-reload
-npm run dev
-
-# Type-check without building
-npm run typecheck
-
-# Production build → dist/
-npm run build
-
-# Preview production build locally
-npm run preview
+git clone https://github.com/ADJ189/Accurate-Time-
+cd Accurate-Time-
+npm install && npm run dev       # localhost:5173
+npm run typecheck                # strict TypeScript check
+npm run build                    # production → dist/
 ```
 
----
-
-## 🌐 Deploy to GitHub Pages
-
-### Step 1 — Create the repo
-
-```bash
-git init
-git add .
-git commit -m "feat: session clock v8 (TypeScript)"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/session-clock.git
-git push -u origin main
-```
-
-### Step 2 — Enable GitHub Pages
-
-1. Go to your repo → **Settings** → **Pages**
-2. Under **Source**, select **GitHub Actions**
-3. The `.github/workflows/deploy.yml` workflow runs automatically on every push to `main`
-4. Live at `https://YOUR-USERNAME.github.io/session-clock`
-
-> **No npm, no config, no manual steps.** The workflow type-checks, builds, and deploys automatically.
+Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The included workflow handles `typecheck → build → deploy` automatically.
 
 ---
 
-## ⌨ Keyboard Shortcuts
+## Key Shortcuts
 
-| Key | Action |
-|---|---|
-| `Space` | Start / Pause session timer |
-| `R` | Reset timer |
-| `T` | Cycle to next theme |
-| `F` | Toggle fullscreen / kiosk mode |
-| `P` | Toggle Pomodoro mode |
-| `M` | Open ambient sound mixer |
-| `L` | Open session focus log |
-| `K` | Collapse / expand theme panel |
-| `G` | Open custom theme builder |
-| `?` | Show all shortcuts |
-| `Esc` | Close any open panel |
+`Space` start/pause &nbsp;·&nbsp; `Z` Zen Mode &nbsp;·&nbsp; `T` next theme &nbsp;·&nbsp; `Ctrl+K` command palette &nbsp;·&nbsp; `Esc` exit
+
+**[→ All shortcuts on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki/Keyboard-Shortcuts)**
 
 ---
 
-## 📁 File Structure
+## Secret Themes
 
-```
-session-clock/
-├── index.html                  # HTML shell — structure, modals, canvas layers
-├── style.css                   # All CSS — themes, layout, animations, modals
-├── src/
-│   ├── main.ts                 # App entry — render loop, UI wiring, theme panel
-│   ├── types.ts                # All TypeScript interfaces and types
-│   ├── themes.ts               # All 32 theme definitions (typed objects)
-│   ├── litclock.ts             # Literary clock — 288 entries (00:00–23:55)
-│   ├── utils.ts                # Math helpers, formatters, constants
-│   ├── timesync.ts             # Cloudflare multi-probe NTP + WorldTimeAPI fallback
-│   ├── renderer.ts             # Canvas BG animations, symbols, all 14 transitions
-│   ├── sound.ts                # 6 Web Audio synthesisers — no audio files
-│   ├── pomodoro.ts             # Pomodoro timer module
-│   ├── focuslog.ts             # Session logging + CSV export
-│   └── weather.ts              # Open-Meteo weather fetch
-├── vite.config.ts              # Vite build config
-├── tsconfig.json               # TypeScript compiler config (strict mode)
-├── package.json
-├── .gitignore
-└── .github/
-    └── workflows/
-        └── deploy.yml          # GitHub Actions — type-check → build → deploy
-```
+🎮 **8-BIT** — `↑↑↓↓←→←→BA` &nbsp;·&nbsp; 🔥 **Phoenix** — 100 sessions &nbsp;·&nbsp; 🍳 **The Bear** — type `thebear`
+
+**[→ All easter eggs on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki/Easter-Eggs)**
 
 ---
 
-## 🎨 Themes
+## License
 
-**Natural** — Aurora, Sunrise, Forest, Ocean, Candy, Nordic, Midnight, Lemon
-
-**Literary** — Literary Clock (every 5 minutes mapped to a prose sentence, 00:00–23:55)
-
-**F1 Teams** — Red Bull Racing, Scuderia Ferrari, Mercedes-AMG, McLaren, Aston Martin
-
-**TV Shows** — Supernatural, The Mentalist, The Sopranos, Dark, Breaking Bad, Stranger Things
-
-**Movies** — Interstellar, Dune, The Matrix, Blade Runner 2049, Inception, The Godfather
+[AGPL-3.0](LICENSE) — free to use and fork; modifications must be open-sourced.
 
 ---
 
-## 🔧 Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Language | TypeScript 5 — strict mode |
-| Build | Vite 5 + Terser (minify, tree-shake, drop console) |
-| Rendering | HTML5 Canvas (`bgCanvas`) + CSS custom properties |
-| Animation | Single `requestAnimationFrame` loop, delta-time capped at 50 ms |
-| Particles | `Float32Array` pool, SoA layout |
-| Time sync | Cloudflare `/cdn-cgi/trace` (multi-probe, 3 endpoints) + WorldTimeAPI fallback |
-| Weather | [Open-Meteo](https://open-meteo.com/) — free, no API key |
-| Sound | Web Audio API synthesis — zero audio files |
-| Storage | `localStorage` only — no backend, no cookies |
-| Fonts | Google Fonts CDN (only external resource) |
-| Deployment | GitHub Actions → GitHub Pages |
+<div align="center">
+<sub>25 modules · 0 runtime deps · 55+ themes · 20+ easter eggs · 8 languages · Flow Intensity system</sub>
 
 ---
 
-## 🐛 Bugs Fixed vs v7
+Made with ❤️ by **ADJ189**
 
-| Bug | Fix |
-|---|---|
-| Pomodoro had two conflicting timer paths (`tick` vs `pomTimerTick`) | Unified into single `tick()` in `pomodoro.ts` |
-| `buildPanel()` stacked duplicate buttons on re-call | Containers cleared before rebuild; `onclick` used instead of `addEventListener` |
-| `syncResult` had unused `serverMs` field causing type confusion | Removed from interface |
-
----
-
-## 📜 License
-
-MIT — do whatever you like with it.
+*"Focus is the art of knowing what to ignore."*
+</div>

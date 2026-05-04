@@ -1,11 +1,28 @@
+# Dependencies
 node_modules/
-dist/
-.DS_Store
-*.local
 
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example
-.env*
+# Build output
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local env files
+*.local
+.env
+.env.*
 !.env.example
+
+# Wrangler local state
+.wrangler/
+.dev.vars
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# TypeScript build info
+*.tsbuildinfo

@@ -118,3 +118,19 @@ export function todayCount(): number {
   const stored: Record<string, number> = JSON.parse(localStorage.getItem(COUNT_KEY) || '{}');
   return stored[today] || 0;
 }
+
+export function getPhase(): import('./types').PomPhase { return phase; }
+export function getRemainingSeconds(): number {
+  if (!active || !phaseStart) return 0;
+  const elapsed = performance.now() - phaseStart;
+  const total = (phase === 'work' ? settings.workMins : phase === 'break' ? settings.breakMins : settings.longBreakMins) * 60_000;
+  return Math.max(0, Math.round((total - elapsed) / 1000));
+}
+export function setWorkMins(mins: number) {
+  settings.workMins = Math.max(1, Math.min(120, mins));
+  localStorage.setItem('sc_pom_settings', JSON.stringify(settings));
+}
+export function setBreakMins(mins: number) {
+  settings.breakMins = Math.max(1, Math.min(60, mins));
+  localStorage.setItem('sc_pom_settings', JSON.stringify(settings));
+}

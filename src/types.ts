@@ -1,7 +1,7 @@
 export interface Theme {
   id: string;
   name: string;
-  cat: 'nat' | 'tv' | 'movie' | 'f1';
+  cat: 'nat' | 'tv' | 'movie' | 'f1' | 'anime';
   sub?: string;
   tagline?: string;
   swatch?: string;
@@ -33,7 +33,7 @@ export interface Theme {
 export interface LitEntry { quote: string; source: string; }
 export type LitClock = Record<string, LitEntry>;
 
-export interface SoundDef { id: string; name: string; icon: string; }
+export interface SoundDef { id: string; name: string; icon: string; desc?: string; }
 export interface SoundNode { stop(): void; }
 
 export interface LogEntry {
