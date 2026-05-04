@@ -1,0 +1,63 @@
+/**
+ * Session Clock — Cloudflare Workers / Pages configuration
+ * https://developers.cloudflare.com/workers/configuration/
+ *
+ * This project is deployed as a Cloudflare Pages site (static).
+ * This wrangler.jsonc enables:
+ *   - npx wrangler deploy        (production)
+ *   - npx wrangler versions upload (preview/staging)
+ *   - Future: KV / D1 / R2 bindings for server-side features
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  "name": "session-clock",
+
+  // Static site assets — served from dist/ after `npm run build`
+  "pages_build_output_dir": "dist",
+
+  // Compatibility date — use latest stable
+  "compatibility_date": "2024-09-23",
+
+  // Compatibility flags for modern JS features
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Environment variables (non-secret, build-time)
+  // Add secrets via: npx wrangler secret put MY_SECRET
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+
+  /**
+   * Bindings — uncomment to enable when needed:
+   *
+   * KV namespace (e.g., for server-side session sync):
+   * "kv_namespaces": [
+   *   { "binding": "SC_KV", "id": "YOUR_KV_NAMESPACE_ID" }
+   * ],
+   *
+   * D1 database (e.g., for collaborative rooms):
+   * "d1_databases": [
+   *   { "binding": "SC_DB", "database_name": "session-clock", "database_id": "YOUR_DB_ID" }
+   * ],
+   *
+   * R2 bucket (e.g., for focus card image storage):
+   * "r2_buckets": [
+   *   { "binding": "SC_BUCKET", "bucket_name": "session-clock-assets" }
+   * ]
+   */
+
+  // Environments
+  "env": {
+    "preview": {
+      "vars": {
+        "ENVIRONMENT": "preview"
+      }
+    },
+    "staging": {
+      "vars": {
+        "ENVIRONMENT": "staging"
+      }
+    }
+  }
+}
