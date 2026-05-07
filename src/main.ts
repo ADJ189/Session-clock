@@ -80,6 +80,14 @@ const LOGOS: Record<string, string> = {
   lost:            `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#010810"/><circle cx="16" cy="9" r="6" fill="none" stroke="#2288cc" stroke-width=".7" opacity=".7"/><text x="16" y="12" text-anchor="middle" font-size="5" fill="#2288cc" font-family="sans-serif" font-weight="bold" opacity=".8">4</text><text x="7" y="19" text-anchor="middle" font-size="3" fill="#2288cc" opacity=".5" font-family="monospace">8 15 16 23 42</text></svg>`,
   shogun:          `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060200"/><circle cx="24" cy="5" r="4" fill="none" stroke="#cc2200" stroke-width=".8" opacity=".8"/><circle cx="24" cy="5" r="2" fill="#cc2200" opacity=".6"/><line x1="4" y1="18" x2="20" y2="18" stroke="#cc2200" stroke-width=".5" opacity=".4"/><text x="12" y="14" text-anchor="middle" font-size="5" fill="#cc2200" font-family="serif" opacity=".7">将</text></svg>`,
   fallout:         `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#080a00"/><circle cx="16" cy="11" r="7" fill="none" stroke="#88cc00" stroke-width=".7" opacity=".8"/><circle cx="16" cy="11" r="4" fill="none" stroke="#88cc00" stroke-width=".5" opacity=".5"/><circle cx="16" cy="11" r="1.5" fill="#88cc00" opacity=".8"/><text x="16" y="20" text-anchor="middle" font-size="3" fill="#88cc00" opacity=".6" font-family="monospace" letter-spacing=".5">VAULT</text></svg>`,
+  futurama:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000814"/><ellipse cx="22" cy="6" rx="5" ry="5" fill="none" stroke="#00aaff" stroke-width=".6" opacity=".7"/><ellipse cx="22" cy="6" rx="2.5" ry="2.5" fill="#00aaff" opacity=".4"/><rect x="4" y="14" width="16" height="5" rx="1" fill="none" stroke="#00aaff" stroke-width=".5" opacity=".5"/><text x="12" y="18.5" text-anchor="middle" font-size="3" fill="#00aaff" opacity=".7" font-family="monospace">FUTURAMA</text></svg>`,
+  familyguy:       `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0400"/><circle cx="16" cy="9" r="6" fill="none" stroke="#ff8800" stroke-width=".7" opacity=".7"/><circle cx="13.5" cy="8" r="1" fill="#ff8800" opacity=".8"/><circle cx="18.5" cy="8" r="1" fill="#ff8800" opacity=".8"/><path d="M13 11 Q16 13 19 11" fill="none" stroke="#ff8800" stroke-width=".8" opacity=".7"/><text x="16" y="20" text-anchor="middle" font-size="3" fill="#ff8800" opacity=".5" font-family="sans-serif">QUAHOG</text></svg>`,
+  rickmorty:       `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#020a00"/><circle cx="16" cy="11" r="8" fill="none" stroke="#00ff88" stroke-width=".8" opacity=".8"/><circle cx="16" cy="11" r="5" fill="none" stroke="#00ff88" stroke-width=".5" opacity=".5"/><circle cx="16" cy="11" r="2" fill="#00ff88" opacity=".7"/><text x="16" y="20.5" text-anchor="middle" font-size="2.8" fill="#00ff88" opacity=".6" font-family="monospace">PORTAL</text></svg>`,
+  simpsons:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#001a2e"/><circle cx="16" cy="10" r="6" fill="#ffcc00" opacity=".8"/><circle cx="14" cy="9" r="1" fill="#001a2e" opacity=".9"/><circle cx="18" cy="9" r="1" fill="#001a2e" opacity=".9"/><path d="M13 12 Q16 14.5 19 12" fill="none" stroke="#001a2e" stroke-width=".9" opacity=".8"/><text x="16" y="20.5" text-anchor="middle" font-size="3" fill="#ffcc00" opacity=".6" font-family="sans-serif">D'OH</text></svg>`,
+  southpark:       `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000c18"/><rect x="10" y="4" width="12" height="10" rx="5" fill="none" stroke="#66aaff" stroke-width=".7" opacity=".7"/><rect x="12" y="14" width="8" height="5" rx=".5" fill="none" stroke="#66aaff" stroke-width=".5" opacity=".5"/><circle cx="13.5" cy="8.5" r=".8" fill="#66aaff" opacity=".8"/><circle cx="18.5" cy="8.5" r=".8" fill="#66aaff" opacity=".8"/><text x="16" y="21" text-anchor="middle" font-size="2.5" fill="#66aaff" opacity=".5" font-family="sans-serif">SOUTH PARK</text></svg>`,
+  boondocks:       `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#080400"/><circle cx="16" cy="9" r="5" fill="none" stroke="#cc6600" stroke-width=".7" opacity=".7"/><circle cx="14" cy="8" r=".9" fill="#cc6600" opacity=".8"/><circle cx="18" cy="8" r=".9" fill="#cc6600" opacity=".8"/><path d="M13 11 Q16 12.5 19 11" fill="none" stroke="#cc6600" stroke-width=".7" opacity=".6"/><text x="16" y="20" text-anchor="middle" font-size="3" fill="#cc6600" opacity=".6" font-family="sans-serif">BNDKS</text></svg>`,
+  archer:          `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#08060e"/><rect x="6" y="4" width="20" height="14" rx="1.5" fill="none" stroke="#aa66ff" stroke-width=".6" opacity=".6"/><line x1="6" y1="8" x2="26" y2="8" stroke="#aa66ff" stroke-width=".3" opacity=".3"/><line x1="6" y1="12" x2="26" y2="12" stroke="#aa66ff" stroke-width=".3" opacity=".3"/><text x="16" y="11.5" text-anchor="middle" font-size="4" fill="#aa66ff" opacity=".8" font-family="sans-serif" font-weight="bold">ISIS</text></svg>`,
+  bobsburgers:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#020c10"/><rect x="5" y="6" width="22" height="11" rx="2" fill="none" stroke="#00cccc" stroke-width=".6" opacity=".6"/><circle cx="11" cy="11.5" r="3" fill="#cc4444" opacity=".4"/><circle cx="11" cy="11.5" r="3" fill="none" stroke="#ff6666" stroke-width=".5" opacity=".6"/><text x="20" y="13" text-anchor="middle" font-size="3.5" fill="#00cccc" opacity=".8" font-family="sans-serif">BOB'S</text></svg>`,
 };
 
 // ── Cached DOM refs ────────────────────────────────────────────────────
@@ -838,11 +846,12 @@ function buildPanel() {
   const tabs = document.createElement('div');
   tabs.className = 'panel-tabs';
   const tabDefs: [string, string, string][] = [
-    ['nat',   '🌿', 'Natural'],
-    ['tv',    '📺', 'TV Shows'],
-    ['movie', '🎬', 'Movies'],
-    ['anime', '⛩', 'Anime'],
-    ['f1',    '🏎', 'F1 Teams'],
+    ['nat',       '🌿', 'Natural'],
+    ['tv',        '📺', 'TV Shows'],
+    ['movie',     '🎬', 'Movies'],
+    ['animation', '🎨', 'Animation'],
+    ['anime',     '⛩', 'Anime'],
+    ['f1',        '🏎', 'F1 Teams'],
   ];
   const contents: Record<string, HTMLElement> = {};
   tabDefs.forEach(([id, icon, label]) => {
@@ -905,7 +914,7 @@ function buildPanel() {
   contents['nat'] = natContent;
 
   // TV, Movie, Anime, F1 tabs
-  (['tv','movie','anime','f1'] as const).forEach(cat => {
+  (['tv','movie','animation','anime','f1'] as const).forEach(cat => {
     const content = document.createElement('div');
     content.className = 'tab-content' + (activePanelTab === cat ? ' active' : '');
     content.dataset.tab = cat;
@@ -2485,7 +2494,7 @@ function buildPaletteCommands() {
   );
 
   THEMES.forEach(t => {
-    const catLabel = t.cat === 'nat' ? 'Natural' : t.cat === 'tv' ? 'TV Shows' : t.cat === 'movie' ? 'Movies' : t.cat === 'anime' ? 'Anime' : 'F1 Teams';
+    const catLabel = t.cat === 'nat' ? 'Natural' : t.cat === 'tv' ? 'TV Shows' : t.cat === 'movie' ? 'Movies' : t.cat === 'animation' ? 'Animation' : t.cat === 'anime' ? 'Anime' : 'F1 Teams';
     cmds.push({
       id: `theme_${t.id}`, icon: t.cat === 'f1' ? '🏎' : t.cat === 'anime' ? '⛩' : t.cat === 'tv' ? '📺' : t.cat === 'movie' ? '🎬' : '🎨',
       label: `${t.name}`, hint: t.tagline?.slice(3) ?? t.sub ?? '',

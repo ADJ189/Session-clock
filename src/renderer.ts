@@ -296,7 +296,15 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   succession(dt,t)      { drawSuccession(dt, t); },
   lost(dt,t)            { drawLost(dt, t); },
   shogun(dt,t)          { drawShogun(dt, t); },
-  fallout(dt,t)         { drawFallout(dt, t); },
+  fallout(dt,t)          { drawFallout(dt, t); },
+  futurama(dt,t)        { drawFuturama(dt, t); },
+  familyguy(dt,t)       { drawFamilyGuy(dt, t); },
+  rickmorty(dt,t)       { drawRickMorty(dt, t); },
+  simpsons(dt,t)        { drawSimpsons(dt, t); },
+  southpark(dt,t)       { drawSouthPark(dt, t); },
+  boondocks(dt,t)       { drawBoondocks(dt, t); },
+  archer(dt,t)          { drawArcher(dt, t); },
+  bobsburgers(dt,t)     { drawBobsBurgers(dt, t); },
 };
 
 // ── Background animations ─────────────────────────────────────────────
@@ -2163,6 +2171,251 @@ function drawFallout(dt: number, t: Theme) {
   }
 }
 
+// ── FUTURAMA — space city skyline + warp stars ───────────────────────
+const futStars = new Float32Array(200 * 3); // x,y,speed
+let futInit = false;
+function drawFuturama(dt: number, t: Theme) {
+  if (!futInit) {
+    futInit = true;
+    for (let i = 0; i < 200; i++) {
+      const o = i * 3;
+      futStars[o] = rnd(W); futStars[o+1] = rnd(H); futStars[o+2] = rnd(2) + 0.5;
+    }
+  }
+  // Warp stars
+  for (let i = 0; i < 200; i++) {
+    const o = i * 3;
+    futStars[o+1] += futStars[o+2]! * (1 + getRendererFlowIntensity() * 3);
+    if (futStars[o+1]! > H) { futStars[o+1] = 0; futStars[o] = rnd(W); }
+    const a = futStars[o+2]! / 2.5;
+    c.fillStyle = `rgba(180,220,255,${a})`;
+    c.fillRect(futStars[o]!, futStars[o+1]!, 1.5, futStars[o+2]! * 2);
+  }
+  if (!shouldDrawGlow()) return;
+  // New New York skyline — deterministic building silhouettes
+  c.fillStyle = 'rgba(0,20,60,0.85)';
+  c.beginPath(); c.moveTo(0, H);
+  const bCount = 18;
+  for (let i = 0; i <= bCount; i++) {
+    const x = i * W / bCount;
+    const h = H * 0.55 - Math.abs(Math.sin(i * 1.7)) * H * 0.18;
+    c.lineTo(x, h);
+  }
+  c.lineTo(W, H); c.closePath(); c.fill();
+  // Planet in background — large teal orb
+  if (shouldDrawGlow()) {
+    const pg = c.createRadialGradient(W*0.75, H*0.22, 0, W*0.75, H*0.22, W*0.14);
+    pg.addColorStop(0, 'rgba(0,160,230,0.18)');
+    pg.addColorStop(0.6, 'rgba(0,80,180,0.08)');
+    pg.addColorStop(1, 'transparent');
+    c.fillStyle = pg; c.fillRect(0, 0, W, H);
+  }
+}
+
+// ── FAMILY GUY — Quahog night + Drunken Clam neon ───────────────────
+let fgTick = 0;
+function drawFamilyGuy(dt: number, t: Theme) {
+  fgTick += dt;
+  if (!shouldDrawGlow()) return;
+  // Warm house window lights — deterministic
+  for (let i = 0; i < 12; i++) {
+    const wx = W * (0.05 + (i % 6) * 0.18);
+    const wy = H * (0.5 + Math.floor(i / 6) * 0.2);
+    const on = Math.sin(fgTick * 0.3 + i * 2.1) > 0;
+    if (!on) continue;
+    c.fillStyle = `rgba(255,200,80,0.12)`;
+    c.fillRect(wx, wy, 18, 12);
+  }
+  // Drunken Clam neon sign — orange pulse
+  const neonA = 0.12 + Math.sin(fgTick * 2) * 0.06;
+  const ng = c.createRadialGradient(W*0.3, H*0.42, 0, W*0.3, H*0.42, W*0.1);
+  ng.addColorStop(0, `rgba(255,130,0,${neonA})`);
+  ng.addColorStop(1, 'transparent');
+  c.fillStyle = ng; c.fillRect(0, 0, W, H);
+  // Ground amber ambience
+  const gg = c.createLinearGradient(0, H*0.75, 0, H);
+  gg.addColorStop(0, 'transparent'); gg.addColorStop(1, 'rgba(180,80,0,0.08)');
+  c.fillStyle = gg; c.fillRect(0, 0, W, H);
+}
+
+// ── RICK AND MORTY — portal green + space particles ──────────────────
+let rmPortalAngle = 0;
+const rmParticles = new Float32Array(60 * 4); // x,y,vx,vy
+let rmInit = false;
+function drawRickMorty(dt: number, t: Theme) {
+  if (!rmInit) {
+    rmInit = true;
+    for (let i = 0; i < 60; i++) {
+      const o = i * 4;
+      rmParticles[o] = rnd(W); rmParticles[o+1] = rnd(H);
+      rmParticles[o+2] = (rnd(1) - 0.5) * 0.8; rmParticles[o+3] = (rnd(1) - 0.5) * 0.8;
+    }
+  }
+  rmPortalAngle += dt * 1.2;
+  // Rotating portal rings
+  if (shouldDrawGlow()) {
+    const cx2 = W * 0.5, cy2 = H * 0.42;
+    const fr = 40 + Math.sin(rmPortalAngle * 0.5) * 8;
+    for (let ring = 0; ring < 5; ring++) {
+      const r = fr + ring * 18;
+      const a = Math.max(0, 0.18 - ring * 0.03);
+      c.strokeStyle = `rgba(0,255,136,${a})`;
+      c.lineWidth = 2.5 - ring * 0.4;
+      c.save(); c.translate(cx2, cy2); c.rotate(rmPortalAngle * (ring % 2 === 0 ? 1 : -1) * 0.3);
+      c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.stroke();
+      c.restore();
+    }
+    // Portal glow core
+    const pg = c.createRadialGradient(cx2, cy2, 0, cx2, cy2, fr + 20);
+    pg.addColorStop(0, `rgba(0,255,136,0.15)`); pg.addColorStop(1, 'transparent');
+    c.fillStyle = pg; c.fillRect(0, 0, W, H);
+  }
+  // Green space particles
+  c.fillStyle = 'rgba(0,230,100,0.4)';
+  for (let i = 0; i < 60; i++) {
+    const o = i * 4;
+    rmParticles[o] += rmParticles[o+2]!; rmParticles[o+1] += rmParticles[o+3]!;
+    if (rmParticles[o]! < 0 || rmParticles[o]! > W) rmParticles[o+2]! * -1;
+    if (rmParticles[o+1]! < 0 || rmParticles[o+1]! > H) rmParticles[o+3]! * -1;
+    if (rmParticles[o]! < 0) rmParticles[o] = W;
+    if (rmParticles[o]! > W) rmParticles[o] = 0;
+    if (rmParticles[o+1]! < 0) rmParticles[o+1] = H;
+    if (rmParticles[o+1]! > H) rmParticles[o+1] = 0;
+    c.fillRect(rmParticles[o]!, rmParticles[o+1]!, 1.5, 1.5);
+  }
+}
+
+// ── THE SIMPSONS — Springfield sky + yellow glow ─────────────────────
+let simpTick = 0;
+function drawSimpsons(dt: number, t: Theme) {
+  simpTick += dt;
+  if (!shouldDrawGlow()) return;
+  // Clouds slowly drifting — Springfield daytime feel
+  for (let i = 0; i < 4; i++) {
+    const cx2 = ((W * (0.15 + i * 0.28) + simpTick * (8 + i * 3)) % (W + 160)) - 80;
+    const cy2 = H * (0.12 + i * 0.06);
+    const cg = c.createRadialGradient(cx2, cy2, 0, cx2, cy2, 60 + i * 20);
+    cg.addColorStop(0, 'rgba(255,250,220,0.08)');
+    cg.addColorStop(1, 'transparent');
+    c.fillStyle = cg; c.fillRect(0, 0, W, H);
+  }
+  // Springfield Power Plant glow — bottom left
+  const ppg = c.createRadialGradient(W*0.12, H*0.85, 0, W*0.12, H*0.85, W*0.15);
+  ppg.addColorStop(0, `rgba(255,220,0,${0.06 + Math.sin(simpTick * 0.8) * 0.02})`);
+  ppg.addColorStop(1, 'transparent');
+  c.fillStyle = ppg; c.fillRect(0, 0, W, H);
+  // Homer donut glow — amber warmth at centre bottom
+  const dg = c.createLinearGradient(0, H * 0.7, 0, H);
+  dg.addColorStop(0, 'transparent');
+  dg.addColorStop(1, 'rgba(255,190,0,0.07)');
+  c.fillStyle = dg; c.fillRect(0, 0, W, H);
+}
+
+// ── SOUTH PARK — Colorado blizzard + snow drift ───────────────────────
+const spSnow = new Float32Array(150 * 3); // x,y,speed
+let spInit = false;
+function drawSouthPark(dt: number, t: Theme) {
+  if (!spInit) {
+    spInit = true;
+    for (let i = 0; i < 150; i++) {
+      const o = i * 3;
+      spSnow[o] = rnd(W); spSnow[o+1] = rnd(H); spSnow[o+2] = rnd(2) + 0.5;
+    }
+  }
+  // Snowflakes
+  c.fillStyle = 'rgba(200,220,255,0.55)';
+  for (let i = 0; i < 150; i++) {
+    const o = i * 3;
+    spSnow[o+1] += spSnow[o+2]!;
+    spSnow[o] += Math.sin(tick + i) * 0.4;
+    if (spSnow[o+1]! > H) { spSnow[o+1] = -4; spSnow[o] = rnd(W); }
+    c.beginPath(); c.arc(spSnow[o]!, spSnow[o+1]!, spSnow[o+2]! * 0.7, 0, Math.PI * 2); c.fill();
+  }
+  if (!shouldDrawGlow()) return;
+  // Mountain ridge silhouette — Colorado Rockies
+  c.fillStyle = 'rgba(0,10,30,0.8)';
+  c.beginPath(); c.moveTo(0, H);
+  for (let x = 0; x <= W; x += W / 8) {
+    const y = H * 0.6 - Math.abs(Math.sin(x / W * Math.PI * 3)) * H * 0.25;
+    c.lineTo(x, y);
+  }
+  c.lineTo(W, H); c.closePath(); c.fill();
+}
+
+// ── THE BOONDOCKS — golden hour suburbs + warm glow ──────────────────
+let bdTick = 0;
+function drawBoondocks(dt: number, t: Theme) {
+  bdTick += dt;
+  if (!shouldDrawGlow()) return;
+  // Suburban tree line silhouette
+  c.fillStyle = 'rgba(10,4,0,0.75)';
+  c.beginPath(); c.moveTo(0, H);
+  for (let i = 0; i <= 20; i++) {
+    const x = i * W / 20;
+    const treeH = H * 0.55 + Math.sin(i * 2.3) * H * 0.12 + Math.cos(i * 1.1) * H * 0.06;
+    c.lineTo(x, treeH);
+  }
+  c.lineTo(W, H); c.closePath(); c.fill();
+  // Setting sun warm glow
+  const sunG = c.createRadialGradient(W*0.6, H*0.3, 0, W*0.6, H*0.3, W*0.25);
+  sunG.addColorStop(0, `rgba(220,110,0,${0.1 + Math.sin(bdTick * 0.2) * 0.02})`);
+  sunG.addColorStop(1, 'transparent');
+  c.fillStyle = sunG; c.fillRect(0, 0, W, H);
+}
+
+// ── ARCHER — ISIS office + purple glass ──────────────────────────────
+let arTick = 0;
+function drawArcher(dt: number, t: Theme) {
+  arTick += dt;
+  if (!shouldDrawGlow()) return;
+  // Office building glass — horizontal venetian blind lines
+  const lineAlpha = 0.035 + Math.sin(arTick * 0.4) * 0.01;
+  c.strokeStyle = `rgba(160,100,255,${lineAlpha})`;
+  c.lineWidth = 1;
+  for (let y = 0; y < H; y += 22) {
+    c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+  }
+  // Desk lamp cone — soft purple spotlight
+  const lg = c.createRadialGradient(W*0.5, H*0.6, 0, W*0.5, H*0.6, W*0.3);
+  lg.addColorStop(0, 'rgba(140,80,230,0.08)');
+  lg.addColorStop(1, 'transparent');
+  c.fillStyle = lg; c.fillRect(0, 0, W, H);
+  // Occasional "Lana" flash — subtle top flicker
+  if (Math.sin(arTick * 7.3) > 0.96) {
+    c.fillStyle = 'rgba(200,150,255,0.04)';
+    c.fillRect(0, 0, W, H * 0.15);
+  }
+}
+
+// ── BOB'S BURGERS — Ocean Avenue + teal warmth ───────────────────────
+let bbTick = 0;
+function drawBobsBurgers(dt: number, t: Theme) {
+  bbTick += dt;
+  if (!shouldDrawGlow()) return;
+  // Gentle ocean waves at bottom
+  for (let i = 0; i < 3; i++) {
+    const waveY = H * 0.82 + Math.sin(bbTick * 0.6 + i * 1.2) * 6;
+    const wg = c.createLinearGradient(0, waveY - 12, 0, waveY + 12);
+    wg.addColorStop(0, 'transparent');
+    wg.addColorStop(0.5, `rgba(0,180,180,${0.07 - i * 0.015})`);
+    wg.addColorStop(1, 'transparent');
+    c.fillStyle = wg; c.fillRect(0, 0, W, H);
+  }
+  // "Bob's Burgers" sign warm neon glow
+  const sg = c.createRadialGradient(W*0.5, H*0.4, 0, W*0.5, H*0.4, W*0.18);
+  sg.addColorStop(0, `rgba(0,200,200,${0.07 + Math.sin(bbTick) * 0.02})`);
+  sg.addColorStop(0.5, 'rgba(255,100,100,0.03)');
+  sg.addColorStop(1, 'transparent');
+  c.fillStyle = sg; c.fillRect(0, 0, W, H);
+  // Street lamp warmth at bottom corners
+  ['rgba(255,190,80,0.06)', 'rgba(255,190,80,0.04)'].forEach((col, i) => {
+    const lampG = c.createRadialGradient(W * (i === 0 ? 0.15 : 0.85), H * 0.65, 0,
+                                          W * (i === 0 ? 0.15 : 0.85), H * 0.65, W * 0.12);
+    lampG.addColorStop(0, col); lampG.addColorStop(1, 'transparent');
+    c.fillStyle = lampG; c.fillRect(0, 0, W, H);
+  });
+}
+
 // ── Transitions ───────────────────────────────────────────────────────
 export function runTransition(type: string, cb: () => void) {
   if (transitioning) { cb(); return; }
@@ -2324,6 +2577,25 @@ const TRANS: Record<string, (cb: () => void) => void> = {
   vault(cb) {
     // Fallout: vault door iris-close
     let p=0,called=false;
-    const go=()=>{p+=.02;tc.fillStyle=`rgba(6,8,0,${Math.min(.94,p*1.3)})`;tc.fillRect(0,0,W,H);const r=Math.max(0,Math.min(W,H)*0.6*(1-p*1.4));if(r>0){tc.save();tc.globalCompositeOperation='destination-out';tc.beginPath();tc.arc(W/2,H/2,r,0,Math.PI*2);tc.fill();tc.restore();}if(shouldDrawGlow()){tc.strokeStyle=`rgba(136,200,0,${0.3*(1-p)})`;tc.lineWidth=3;tc.beginPath();tc.arc(W/2,H/2,r+4,0,Math.PI*2);tc.stroke();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+    const go=()=>{p+=.02;tc.fillStyle=`rgba(6,8,0,${Math.min(.94,p*1.3)})`;tc.fillRect(0,0,W,H);const r=Math.max(0,Math.min(W,H)*0.6*(1-p*1.4));if(r>0){tc.save();tc.globalCompositeOperation='destination-out';tc.beginPath();tc.arc(W/2,H/2,r,0,Math.PI*2);tc.fill();tc.restore();}if(shouldDrawGlow()){tc.strokeStyle=`rgba(136,200,0,${0.3*(1-p)})`;tc.lineWidth=3;tc.beginPath();tc.arc(W/2,H/2,r+4,0,Math.PI*2);tc.stroke();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);  },
+  // Rick and Morty: portal spin
+  portal(cb) {
+    let p=0,called=false,angle=0;
+    const go=()=>{p+=.018;angle+=.15;tc.fillStyle=`rgba(2,10,0,${Math.min(.93,p*1.3)})`;tc.fillRect(0,0,W,H);const r=Math.max(0,(1-p*1.3)*Math.min(W,H)*0.35);if(r>4){for(let i=0;i<4;i++){tc.strokeStyle=`rgba(0,255,136,${0.35-i*.07})`;tc.lineWidth=3-i*.5;tc.save();tc.translate(W/2,H/2);tc.rotate(angle*(i%2===0?1:-1));tc.beginPath();tc.arc(0,0,r+i*14,0,Math.PI*2);tc.stroke();tc.restore();}}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  // Family Guy: quick iris out (Quahog style)
+  quahog(cb) {
+    let p=0,called=false;
+    const go=()=>{p+=.022;tc.fillStyle=`rgba(8,3,0,${Math.min(.93,p*1.35)})`;tc.fillRect(0,0,W,H);const r=Math.max(0,(1-p*1.4)*Math.min(W,H)*0.5);if(r>2){tc.save();tc.globalCompositeOperation='destination-out';tc.beginPath();tc.arc(W/2,H/2,r,0,Math.PI*2);tc.fill();tc.restore();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  // South Park: blizzard white-out
+  blizzard(cb) {
+    let p=0,called=false;
+    const go=()=>{p+=.018;tc.fillStyle=`rgba(200,220,255,${Math.min(.06,p*.08)})`;tc.fillRect(0,0,W,H);tc.fillStyle=`rgba(0,8,20,${Math.min(.93,p*1.3)})`;tc.fillRect(0,0,W,H);if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  // Simpsons: couch zoom
+  couch(cb) {
+    let p=0,called=false;
+    const go=()=>{p+=.02;const s=1+p*.5;tc.clearRect(0,0,W,H);tc.fillStyle=`rgba(0,14,26,${Math.min(.93,p*1.3)})`;tc.fillRect(0,0,W,H);tc.save();tc.translate(W/2,H/2);tc.scale(s,s);tc.fillStyle=`rgba(255,220,0,${Math.max(0,.12-p*.12)})`;tc.beginPath();tc.arc(0,0,60,0,Math.PI*2);tc.fill();tc.restore();if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
 };

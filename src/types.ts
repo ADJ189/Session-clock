@@ -1,7 +1,7 @@
 export interface Theme {
   id: string;
   name: string;
-  cat: 'nat' | 'tv' | 'movie' | 'f1' | 'anime';
+  cat: 'nat' | 'tv' | 'movie' | 'f1' | 'anime' | 'animation';
   sub?: string;
   tagline?: string;
   swatch?: string;
