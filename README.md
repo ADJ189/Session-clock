@@ -13,7 +13,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-clean-16a34a?style=flat-square)](https://github.com/ADJ189/Accurate-Time-/security)
 
-[**Open App →**](https://accurate-time.pages.dev/)&nbsp;&nbsp;·&nbsp;&nbsp;[**Wiki →**](https://github.com/ADJ189/Accurate-Time-/wiki)&nbsp;&nbsp;·&nbsp;&nbsp;[Issues](https://github.com/ADJ189/Accurate-Time-/issues)
+[**Open App →**](https://ADJ189.github.io/Accurate-Time-)&nbsp;&nbsp;·&nbsp;&nbsp;[**Wiki →**](https://github.com/ADJ189/Accurate-Time-/wiki)&nbsp;&nbsp;·&nbsp;&nbsp;[Issues](https://github.com/ADJ189/Accurate-Time-/issues)
 
 </div>
 
@@ -23,7 +23,7 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 
 | | |
 |---|---|
-| **Themes** | 45+ animated — TV, film, anime, F1, natural |
+| **Themes** | 63+ animated — TV, film, animation, anime, F1, natural |
 | **Audio** | Ambient · Binaural beats · True spatial ILD/ITD |
 | **Modes** | Pomodoro · **Zen** · Kiosk · PiP · Voice |
 | **Intelligence** | Streaks · Velocity · **Flow Intensity** · Smart breaks |
@@ -72,7 +72,7 @@ Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The incl
 ---
 
 <div align="center">
-<sub>25 modules · 0 runtime deps · 55+ themes · 20+ easter eggs · 8 languages · Flow Intensity system</sub>
+<sub>25 modules · 0 runtime deps · 63+ themes · 20+ easter eggs · 8 languages · Flow Intensity</sub>
 
 ---
 
