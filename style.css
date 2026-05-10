@@ -213,20 +213,35 @@ body {
   font-family: var(--font-main);
   font-size: clamp(3.2rem, min(12.5vw, 9vh), 10rem);
   font-weight: 900; letter-spacing: -.04em;
-  font-variant-numeric: tabular-nums; user-select: none;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+  -webkit-user-select: none; user-select: none;
   color: var(--clr-text); text-shadow: var(--glow);
-  display: inline-block; min-width: 2ch; text-align: center;
-  /* digit flip animation on change */
-  transition: opacity .06s;
+  /* Fixed width prevents layout shift when digits change width */
+  display: inline-block; width: 2ch; text-align: center;
+  /* Isolate to own compositor layer — prevents sibling reflow */
+  transform: translateZ(0);
+  contain: layout style;
+  will-change: contents;
+  backface-visibility: hidden;
 }
+/* Digit tick — opacity only, NO transform that shifts layout */
 .digit-pair.tick {
-  animation: digitFlip .18s cubic-bezier(.4,0,.2,1);
+  animation: digitTick .14s ease-out;
 }
-@keyframes digitFlip {
-  0%   { opacity: 1; transform: translateY(0) scaleY(1); }
-  35%  { opacity: 0; transform: translateY(-8px) scaleY(.7); }
-  65%  { opacity: 0; transform: translateY(8px)  scaleY(.7); }
-  100% { opacity: 1; transform: translateY(0) scaleY(1); }
+@keyframes digitTick {
+  0%   { opacity: 1; }
+  30%  { opacity: .15; }
+  100% { opacity: 1; }
+}
+
+/* Milliseconds — fixed width, no layout contribution */
+.seconds-ms {
+  display: inline-block;
+  width: 3ch;          /* always 3 chars: .050 .100 .950 */
+  overflow: hidden;
+  vertical-align: baseline;
 }
 
 .clock-colon {
@@ -250,12 +265,7 @@ body {
   font-weight: 700; letter-spacing: .1em;
   opacity: .5; color: var(--clr-text); line-height: 1.2;
 }
-.seconds-ms {
-  font-size: clamp(.52rem, min(1.6vw, 1.3vh), 1.1rem);
-  letter-spacing: .04em; opacity: .3; font-weight: 400;
-  color: var(--clr-text); font-family: var(--font-main);
-  line-height: 1.2; font-variant-numeric: tabular-nums;
-}
+/* .seconds-ms moved and merged into digit-pair section above */
 
 .date-display {
   font-size: clamp(.68rem, 1.3vw, .92rem); letter-spacing: .18em;
@@ -403,17 +413,42 @@ body.theme-flash::after {
 /* ════════════════════════════════════════════════════════════
    THEME PANEL  —  Dock-style bottom sheet
 ════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════
+   THEME PANEL — compact floating box (not full-width sheet)
+════════════════════════════════════════════════════════ */
 #themePanel {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
-  background: rgba(8,6,20,.78);
+  position: fixed;
+  bottom: 62px;          /* sit above the feat dock */
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  z-index: 200;
+  width: min(640px, 96vw);
+  max-height: 52vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  border-radius: 18px;
+  background: var(--clr-panel, rgba(8,6,20,.92));
   -webkit-backdrop-filter: blur(32px) saturate(1.8);
   backdrop-filter: blur(32px) saturate(1.8);
-  -webkit-backdrop-filter: blur(32px) saturate(1.8);
-  border-top: 1px solid rgba(255,255,255,.09);
-  transition: transform .45s cubic-bezier(.4,0,.2,1);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow:
+    0 -2px 0 rgba(255,255,255,.05) inset,
+    0 24px 64px rgba(0,0,0,.6),
+    0 0 0 1px rgba(255,255,255,.04);
+  transition:
+    transform .38s cubic-bezier(.16,1,.3,1),
+    opacity   .28s ease;
   display: flex; flex-direction: column; align-items: center;
+  will-change: transform, opacity;
 }
-#themePanel.collapsed { transform: translateY(calc(100% - 38px)); }
+
+/* Collapsed: slide down out of sight */
+#themePanel.collapsed {
+  transform: translateX(-50%) translateY(calc(100% + 80px));
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* Toggle tab */
 #panelToggle {
@@ -3796,3 +3831,240 @@ body.flow-peak .session-timer {
 
 /* Reduced motion — disable flow animations */
 body.reduced-motion #flowBar { transition: width .1s; animation: none !important; }
+
+/* ── Additional seconds-ms styling (size + colour) ─── */
+.seconds-ms {
+  font-size: clamp(.52rem, min(1.6vw, 1.3vh), 1.1rem);
+  letter-spacing: .04em; opacity: .3; font-weight: 400;
+  color: var(--clr-text); font-family: var(--font-main);
+  line-height: 1.2; font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+}
+
+/* ── Theme panel floating box — layout adjustments ────────────────── */
+
+/* Toggle button inside the floating panel */
+#panelToggle {
+  border-radius: 14px 14px 0 0;
+  padding: 12px 24px 8px;
+}
+
+/* Panel body gets some horizontal padding inside the box */
+.panel-body {
+  padding: 4px 14px 14px;
+}
+
+/* The feat dock opens/closes the panel — remove old bottom padding dep */
+body:not(.clock-center) #mainUI {
+  padding-bottom: 70px;   /* clearance for feat dock only — panel floats */
+}
+
+/* Feat dock — a small "Themes" pill that opens the floating panel */
+#btnThemes {
+  position: fixed;
+  bottom: 10px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 210;
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 20px;
+  border-radius: 99px;
+  background: var(--clr-pill, rgba(255,255,255,.08));
+  border: 1px solid rgba(255,255,255,.12);
+  color: var(--clr-text);
+  font-size: .6rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; cursor: pointer;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  transition: background .18s, transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s;
+  box-shadow: 0 4px 16px rgba(0,0,0,.3);
+}
+#btnThemes:hover {
+  background: var(--clr-btn-bg);
+  box-shadow: 0 0 0 1px var(--clr-accent), 0 6px 20px rgba(0,0,0,.35);
+  transform: translateX(-50%) translateY(-2px);
+}
+#btnThemes:active { transform: translateX(-50%) scale(.93); }
+
+/* Light theme panel */
+body.light-theme #themePanel {
+  background: rgba(240,244,252,.96);
+  border-color: rgba(0,0,0,.08);
+  box-shadow: 0 -2px 0 rgba(255,255,255,.8) inset, 0 20px 60px rgba(0,0,0,.2);
+}
+
+/* Clock-center mode: panel pops up centred as usual */
+body.clock-center #themePanel {
+  bottom: 70px;
+}
+body.clock-center #themePanel.collapsed {
+  transform: translateX(-50%) translateY(calc(100% + 80px));
+  opacity: 0;
+}
+
+/* Kiosk/present/zen: hide panel entirely */
+body.kiosk #themePanel,
+body.present #themePanel,
+body.zen-mode #themePanel,
+body.hyperfocus #themePanel { display: none !important; }
+
+/* Tab bar in floating panel — remove full-width stretch */
+.panel-tabs {
+  width: 100%;
+  border-radius: 14px 14px 0 0;
+  overflow: hidden;
+}
+
+/* ════════════════════════════════════════════════════════════
+   MOTIVATION BOOSTER — half-way + milestone celebrations
+════════════════════════════════════════════════════════════ */
+
+/* Floating motivation widget */
+.motivation-widget {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(.8);
+  z-index: 8000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .4s ease, transform .5s cubic-bezier(.16,1,.3,1);
+  text-align: center;
+}
+.motivation-widget.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.motivation-widget.hiding {
+  opacity: 0;
+  transform: translate(-50%, -60%) scale(.9);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.motivation-text {
+  font-size: clamp(1.4rem, 3.5vw, 2.8rem);
+  font-weight: 900;
+  letter-spacing: -.02em;
+  color: var(--clr-accent);
+  text-shadow:
+    0 0 40px rgba(var(--clr-accent-rgb, 110,231,183), .5),
+    0 2px 8px rgba(0,0,0,.4);
+  display: block;
+  margin-bottom: 6px;
+}
+.motivation-sub {
+  font-size: clamp(.6rem, 1.5vw, .85rem);
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--clr-text);
+  opacity: .5;
+  display: block;
+}
+
+/* Confetti particle */
+.confetti-dot {
+  position: fixed;
+  width: 7px; height: 7px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 7999;
+  animation: confettifall 2.2s cubic-bezier(.25,.46,.45,.94) forwards;
+}
+@keyframes confettifall {
+  0%   { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(60vh) rotate(720deg) scale(.3); }
+}
+
+/* Gradient pulse on milestone */
+@keyframes milestonePulse {
+  0%,100% { opacity: 0; }
+  15%      { opacity: 1; }
+  85%      { opacity: 1; }
+}
+.milestone-bg {
+  position: fixed; inset: 0; z-index: 7990;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(var(--clr-accent-rgb,110,231,183),.08) 0%,
+    transparent 70%
+  );
+  animation: milestonePulse 3s ease forwards;
+}
+
+/* ════════════════════════════════════════════════════════════
+   BROWSER-SPECIFIC OPTIMISATIONS
+════════════════════════════════════════════════════════════ */
+
+/* iOS safe area — notch / Dynamic Island / home indicator */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .feat-dock, #btnThemes {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  #themePanel {
+    bottom: calc(62px + env(safe-area-inset-bottom));
+  }
+  .sc-toast {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Firefox — no backdrop-filter support pre-v103, degrade gracefully */
+@-moz-document url-prefix() {
+  .sc-modal, #themePanel, .topbar, .feat-dock {
+    background-color: var(--clr-panel, rgba(6,3,18,.97)) !important;
+  }
+}
+
+/* High-contrast mode — Windows / accessibility */
+@media (forced-colors: active) {
+  .digit-pair, .clock-colon { forced-color-adjust: none; }
+  .btn-primary { forced-color-adjust: none; background: ButtonText; color: ButtonFace; }
+  #themePanel { border: 2px solid ButtonText; }
+}
+
+/* Reduced data — skip grain animation for slow connections */
+@media (prefers-reduced-data: reduce) {
+  body::after { display: none; }
+  #bgCanvas { image-rendering: optimizeSpeed; }
+}
+
+/* Print — hide everything except clock */
+@media print {
+  body > *:not(.clock-block) { display: none !important; }
+  body { background: white; }
+  .digit-pair { color: black; text-shadow: none; }
+}
+
+/* Very small screens (320px) — scale down clock */
+@media (max-width: 360px) {
+  .digit-pair   { font-size: clamp(2.6rem, 18vw, 4rem); }
+  .clock-colon  { font-size: clamp(2rem, 13vw, 3rem); }
+  #themePanel   { width: 98vw; }
+  .panel-tab    { font-size: .48rem; padding: 6px 8px; }
+}
+
+/* Large screens (4K) — cap the clock so it doesn't get absurdly large */
+@media (min-width: 2560px) {
+  .digit-pair  { font-size: clamp(8rem, 6vw, 14rem); }
+  .clock-colon { font-size: clamp(6rem, 4.5vw, 10rem); }
+  #themePanel  { width: min(760px, 80vw); }
+}
+
+/* Hover-capable devices — enable hover effects */
+@media (hover: none) {
+  /* Touch devices: make tap targets larger */
+  .feat-btn { min-height: 52px; }
+  .nat-btn  { min-height: 48px; min-width: 48px; }
+  .panel-tab { padding: 10px 16px; }
+  /* Disable hover-only effects */
+  .media-card:hover { transform: none; box-shadow: none; }
+  .nat-btn:hover    { transform: none; }
+}
+
+/* Pointer: coarse (touchscreen) — bigger interactive targets */
+@media (pointer: coarse) {
+  #panelToggle { min-height: 44px; }
+  .settings-toggle { transform: scale(1.1); transform-origin: right center; }
+  .btn-primary { min-height: 48px; }
+}

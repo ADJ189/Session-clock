@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <meta name="description" content="Session Clock — animated themes, Pomodoro, ambient sound, literary clock, focus log and more.">
 <meta name="theme-color" content="#06030f">
+<meta name="color-scheme" content="dark light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta property="og:title" content="Session Clock">
 <meta property="og:description" content="A beautiful animated clock with 30+ themes, Pomodoro, ambient soundscapes, literary clock and session logging.">
 <meta property="og:type" content="website">
@@ -162,6 +165,10 @@
   <div class="panel-body">
     <div id="themePanelRows"></div>
     <div class="feat-dock" id="featBar"></div>
+    <button id="btnThemes" aria-label="Toggle themes panel">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg>
+      Themes
+    </button>
   </div>
 </div>
 
