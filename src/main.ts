@@ -191,6 +191,7 @@ function resetTimer() {
   }
   Intel.onFlowInterrupt();
   document.body.classList.remove('session-running');
+  resetMilestones();
   sessionRunning = false; sessionStart = sessionElapsed = 0;
   Features.updateButtonLabels('idle', 'work', Pom.isActive(), DOM.btnStart as HTMLButtonElement);
   const todaySessions = JSON.parse(localStorage.getItem('sc_focus_log') || '[]').length;
@@ -519,7 +520,8 @@ function renderFrame(ts: number) {
       tickDigit(DOM.digitMin, minStr);
       tickDigit(DOM.digitSec, secStr);
       DOM.ampmDis.textContent = hr >= 12 ? 'PM' : 'AM';
-      DOM.secMs.textContent = '.' + p3(ms);
+      // Clamp to 50ms steps — prevents layout thrash from 60fps ms updates
+      DOM.secMs.textContent = '.' + p3(Math.floor(ms / 50) * 50);
   }
 
   // SMPTE: override seconds-ms display with frame counter
@@ -571,6 +573,9 @@ function renderFrame(ts: number) {
     // Flow state + intensity UI update
     updateFlowState();
     updateFlowIntensityUI(Intel.getFlowIntensity());
+
+    // Motivation milestone check
+    checkMilestones();
     DOM.dateDis.textContent = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
     DOM.greeting.textContent = GREETS.find(([s, e]) => hr >= s && hr < e)?.[2] ?? '';
     DOM.dayPct.textContent = dp.toFixed(1) + '%';
@@ -2262,6 +2267,98 @@ function updateFlowState() {
 // Intercept theme panel open as flow interrupt
 const _origFocusLockIntercept = focusLockIntercept;
 
+// ── Motivation Booster ────────────────────────────────────────────────
+const MOTIV_HALF = [
+  ['Halfway there! 🔥', 'Keep the momentum'],
+  ["You're 50% done!", 'The hardest part is behind you'],
+  ['Half-time! ⚡', 'Stay locked in'],
+  ['Midpoint reached 🎯', 'Finish strong'],
+] as const;
+const MOTIV_75 = [
+  ['Almost there! 💪', "75% complete — don't stop now"],
+  ['Final stretch! 🏁', "You've got this"],
+  ['Three quarters done! ⚡', 'Push through'],
+] as const;
+
+let _lastMilestonePct = 0;
+
+function fireMilestoneConfetti(count = 28) {
+  const accentRgb = getComputedStyle(document.documentElement).getPropertyValue('--clr-accent-rgb').trim() || '110,231,183';
+  const colors = [
+    `rgba(${accentRgb},0.85)`, 'rgba(255,200,80,0.85)',
+    'rgba(255,100,180,0.85)', 'rgba(80,180,255,0.85)', 'rgba(255,255,255,0.7)',
+  ];
+  for (let i = 0; i < count; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'confetti-dot';
+    const w = 5 + Math.random() * 6, h = 5 + Math.random() * 6;
+    dot.style.cssText = [
+      `left:${20 + Math.random() * 60}vw`,
+      `top:${8 + Math.random() * 28}vh`,
+      `background:${colors[Math.floor(Math.random() * colors.length)]}`,
+      `animation-delay:${(Math.random() * 0.5).toFixed(2)}s`,
+      `animation-duration:${(1.8 + Math.random()).toFixed(2)}s`,
+      `width:${w.toFixed(1)}px`, `height:${h.toFixed(1)}px`,
+      `border-radius:${Math.random() > 0.5 ? '50%' : '2px'}`,
+    ].join(';');
+    document.body.appendChild(dot);
+    setTimeout(() => { if (dot.parentNode) dot.remove(); }, 3800);
+  }
+}
+
+function showMotivationWidget(headline: string, sub: string) {
+  document.querySelectorAll('.motivation-widget,.milestone-bg').forEach(el => el.remove());
+
+  // Ambient background pulse
+  const bg = document.createElement('div');
+  bg.className = 'milestone-bg';
+  document.body.appendChild(bg);
+  setTimeout(() => { if (bg.parentNode) bg.remove(); }, 3200);
+
+  // Floating widget
+  const w = document.createElement('div');
+  w.className = 'motivation-widget';
+  const big = document.createElement('span'); big.className = 'motivation-text'; big.textContent = headline;
+  const sm  = document.createElement('span'); sm.className  = 'motivation-sub';  sm.textContent  = sub;
+  w.append(big, sm);
+  document.body.appendChild(w);
+
+  requestAnimationFrame(() => requestAnimationFrame(() => w.classList.add('visible')));
+  setTimeout(() => {
+    w.classList.add('hiding');
+    setTimeout(() => { if (w.parentNode) w.remove(); }, 700);
+  }, 3200);
+
+  // Chime
+  try { (window as any).__uiSounds?.sessionStart?.(); } catch { /**/ }
+}
+
+function checkMilestones() {
+  if (!sessionRunning) return;
+  const totalMs = Pom.isActive()
+    ? Pom.getSettings().workMins * 60_000
+    : 25 * 60_000; // default 25min if no pomodoro
+  const elapsed = performance.now() - sessionStart;
+  const pct = Math.min(1, elapsed / totalMs);
+
+  if (pct >= 0.5 && _lastMilestonePct < 0.5) {
+    _lastMilestonePct = 0.5;
+    const [h, s] = MOTIV_HALF[Math.floor(Math.random() * MOTIV_HALF.length)]!;
+    showMotivationWidget(h, s);
+    fireMilestoneConfetti(28);
+  } else if (pct >= 0.75 && _lastMilestonePct < 0.75) {
+    _lastMilestonePct = 0.75;
+    const [h, s] = MOTIV_75[Math.floor(Math.random() * MOTIV_75.length)]!;
+    showMotivationWidget(h, s);
+    fireMilestoneConfetti(16);
+  }
+}
+
+function resetMilestones() {
+  _lastMilestonePct = 0;
+  document.querySelectorAll('.motivation-widget,.milestone-bg,.confetti-dot').forEach(el => el.remove());
+}
+
 // ── Smart Break Suggester ─────────────────────────────────────────────
 let breakBadgeShown = false;
 
@@ -2807,7 +2904,13 @@ function init() {
     else Intel.onTabVisible();
   });
 
-  // Smart break tick every 60s
+  // Themes pill — toggle floating panel
+  const themesBtn = document.getElementById('btnThemes');
+  if (themesBtn) {
+    themesBtn.addEventListener('click', () => {
+      DOM.themePanel.classList.toggle('collapsed');
+    });
+  }
   setInterval(() => {
     checkSmartBreak();
   }, 60_000);
