@@ -371,6 +371,7 @@ function applyTheme(theme: Theme, instant = false) {
   }
   const doApply = () => {
     currentTheme = theme;
+    invalidateCache(); // clear OffscreenCanvas cache — new theme needs fresh gradient
     buildParticles(theme);
     cssVar('--clr-text',    theme.text);
     cssVar('--clr-accent',  theme.accent);
@@ -385,6 +386,8 @@ function applyTheme(theme: Theme, instant = false) {
     cssVar('--clr-btn-fg',  theme.btnFg);
     cssVar('--clr-pill',    theme.pill);
     cssVar('--clr-panel',   theme.panel);
+    // Panel needs high opacity regardless of theme — derive a solid version
+    // The floating theme panel uses this via the color-mix fallback @supports rule
     cssVar('--font-main',   theme.font);
     cssVar('--glow', theme.glow === 'none' ? 'none' : `0 0 45px ${theme.accent}44,0 0 100px ${theme.accent}18`);
     cssVar('--btn-radius',  theme.isMedia ? '3px' : '99px');
