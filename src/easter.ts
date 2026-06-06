@@ -417,8 +417,7 @@ export function fireConfetti() {
 let lastShake = 0;
 let lastAcc = { x: 0, y: 0, z: 0 };
 
-function setupDeviceShake() {
-  if (!('DeviceMotionEvent' in window)) return;
+function attachDeviceMotionListener() {
   window.addEventListener('devicemotion', (e: DeviceMotionEvent) => {
     const a = e.accelerationIncludingGravity;
     if (!a) return;
@@ -432,6 +431,48 @@ function setupDeviceShake() {
       _showToast('🎲 Theme shuffled!', 2500);
     }
   });
+}
+
+function setupDeviceShake() {
+  if (!('DeviceMotionEvent' in window)) return;
+
+  // iOS 13+ requires explicit permission via a user gesture.
+  // Check if the API requires permission (only exists on iOS 13+).
+  if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+    // Show a button so the user can grant permission from a tap (gesture required).
+    const btn = document.createElement('button');
+    btn.id = 'deviceShakePermBtn';
+    btn.title = 'Enable shake-to-shuffle theme';
+    btn.style.cssText = `
+      position:fixed;bottom:80px;left:16px;z-index:8000;
+      background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+      border-radius:50%;width:38px;height:38px;font-size:1.1rem;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      backdrop-filter:blur(8px);transition:opacity .3s;
+    `;
+    btn.textContent = '📳';
+    btn.setAttribute('aria-label', 'Enable shake to shuffle theme');
+    document.body.appendChild(btn);
+
+    btn.addEventListener('click', async () => {
+      try {
+        const result = await (DeviceMotionEvent as any).requestPermission();
+        if (result === 'granted') {
+          attachDeviceMotionListener();
+          _showToast('📳 Shake to shuffle theme enabled!', 2500);
+        } else {
+          _showToast('Motion permission denied', 2500);
+        }
+      } catch {
+        _showToast('Could not request motion permission', 2500);
+      } finally {
+        btn.remove();
+      }
+    }, { once: true });
+  } else {
+    // Non-iOS browsers — attach directly, no permission needed.
+    attachDeviceMotionListener();
+  }
 }
 
 // ── 6. Hyperfocus hold (hold session timer 3s) ────────────────────────

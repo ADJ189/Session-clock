@@ -141,7 +141,8 @@ function render(query: string) {
     groups.set(item.tag, g);
   });
 
-  // Render sections
+  // Render sections into a fragment to avoid per-item reflows
+  const fragment = document.createDocumentFragment();
   const tagOrder = forceEgg ? ['egg'] : ['action', 'theme', 'setting', 'egg'];
   let globalIdx = 0;
   tagOrder.forEach(tag => {
@@ -150,7 +151,7 @@ function render(query: string) {
 
     const section = document.createElement('div'); section.className = 'cmd-section';
     section.textContent = TAG_LABELS[tag] ?? tag;
-    container.appendChild(section);
+    fragment.appendChild(section);
 
     group.forEach(item => {
       const idx = globalIdx++;
@@ -195,9 +196,12 @@ function render(query: string) {
         highlightActive();
       });
 
-      container.appendChild(el);
+      fragment.appendChild(el);
     });
   });
+
+  // Single DOM write — one reflow instead of up to 48+
+  container.appendChild(fragment);
 
   scrollActiveIntoView();
 }

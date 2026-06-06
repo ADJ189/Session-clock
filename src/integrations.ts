@@ -138,12 +138,47 @@ export function isSpotifyConnected(): boolean {
   return !!load('spotify')?.token;
 }
 
-export async function spotifyNowPlaying(): Promise<{ track: string; artist: string; playing: boolean } | null> {
+// Refresh the Spotify access token if it has expired (tokens last 60 min).
+async function spotifyEnsureFreshToken(): Promise<string | null> {
   const creds = load('spotify');
   if (!creds?.token) return null;
+
+  // If token is still valid (with 60 s buffer), return it immediately
+  if (Date.now() < Number(creds.expires) - 60_000) return creds.token;
+
+  // Token expired — attempt refresh
+  const clientId = localStorage.getItem(SPOTIFY_CLIENT_ID_KEY);
+  if (!clientId || !creds.refresh) return null;
+  try {
+    const res = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: creds.refresh,
+        client_id: clientId,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.access_token) return null;
+    save('spotify', {
+      token:   data.access_token,
+      refresh: data.refresh_token ?? creds.refresh,
+      expires: String(Date.now() + data.expires_in * 1000),
+    });
+    return data.access_token;
+  } catch { return null; }
+}
+
+export async function spotifyNowPlaying(): Promise<{ track: string; artist: string; playing: boolean } | null> {
+  const token = await spotifyEnsureFreshToken();
+  if (!token) return null;
+  const creds = load('spotify');
+  if (!creds) return null;
   try {
     const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-      headers: { Authorization: `Bearer ${creds.token}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (res.status === 204) return null;
     const d = await res.json();
@@ -152,24 +187,24 @@ export async function spotifyNowPlaying(): Promise<{ track: string; artist: stri
 }
 
 export async function spotifyTogglePlay(): Promise<void> {
-  const creds = load('spotify');
-  if (!creds?.token) return;
+  const token = await spotifyEnsureFreshToken();
+  if (!token) return;
   try {
-    const state = await fetch('https://api.spotify.com/v1/me/player', { headers: { Authorization: `Bearer ${creds.token}` } });
+    const state = await fetch('https://api.spotify.com/v1/me/player', { headers: { Authorization: `Bearer ${token}` } });
     if (!state.ok) return;
     const d = await state.json();
     const endpoint = d.is_playing ? 'pause' : 'play';
-    await fetch(`https://api.spotify.com/v1/me/player/${endpoint}`, { method: 'PUT', headers: { Authorization: `Bearer ${creds.token}` } });
+    await fetch(`https://api.spotify.com/v1/me/player/${endpoint}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
   } catch { /**/ }
 }
 
 export async function spotifySearchFocusPlaylists(): Promise<Array<{ id: string; name: string; uri: string }>> {
-  const creds = load('spotify');
-  if (!creds?.token) return [];
+  const token = await spotifyEnsureFreshToken();
+  if (!token) return [];
   const query = encodeURIComponent(FOCUS_PLAYLIST_SEARCHES[Math.floor(Math.random() * FOCUS_PLAYLIST_SEARCHES.length)]!);
   try {
     const res = await fetch(`https://api.spotify.com/v1/search?q=${query}&type=playlist&limit=6`, {
-      headers: { Authorization: `Bearer ${creds.token}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     const d = await res.json();
     return (d.playlists?.items ?? []).map((p: any) => ({ id: p.id, name: p.name, uri: p.uri }));
@@ -177,12 +212,12 @@ export async function spotifySearchFocusPlaylists(): Promise<Array<{ id: string;
 }
 
 export async function spotifyPlayPlaylist(uri: string): Promise<void> {
-  const creds = load('spotify');
-  if (!creds?.token) return;
+  const token = await spotifyEnsureFreshToken();
+  if (!token) return;
   try {
     await fetch('https://api.spotify.com/v1/me/player/play', {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${creds.token}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ context_uri: uri }),
     });
   } catch { /**/ }

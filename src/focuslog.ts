@@ -151,9 +151,12 @@ export function exportCSV() {
     return `"${d.toLocaleString()}","${e.task.replace(/"/g, '""')}","${fmtSession(e.dur)}","${e.date}"`;
   })];
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' }));
+  const url = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' }));
+  a.href = url;
   a.download = `session-log-${Date.now()}.csv`;
   a.click();
+  // Revoke the object URL after the browser has had time to initiate the download
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export function clear() {

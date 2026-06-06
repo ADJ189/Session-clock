@@ -299,7 +299,8 @@ export async function shareCard(canvas: HTMLCanvasElement, task: string, minutes
   if (canShare()) {
     try {
       // Try sharing as file (mobile)
-      const blob: Blob = await new Promise(res => canvas.toBlob(b => res(b!), 'image/png', 0.92));
+      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png', 0.92));
+      if (!blob) throw new Error('Canvas toBlob returned null — canvas may be tainted');
       const file = new File([blob], 'session-clock-focus.png', { type: 'image/png' });
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ title, text, files: [file] });
@@ -319,7 +320,8 @@ export async function shareCard(canvas: HTMLCanvasElement, task: string, minutes
 // ── Clipboard ─────────────────────────────────────────────────────────
 export async function copyCardToClipboard(canvas: HTMLCanvasElement): Promise<boolean> {
   try {
-    const blob: Blob = await new Promise(res => canvas.toBlob(b => res(b!), 'image/png', 0.92));
+    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png', 0.92));
+    if (!blob) return false; // canvas tainted or toBlob failed
     await navigator.clipboard.write([
       new ClipboardItem({ 'image/png': blob }),
     ]);
