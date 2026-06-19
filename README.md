@@ -1,10 +1,6 @@
 <div align="center">
 
-# Session Clock
-
-<img src="public/icon-512.svg" width="72" alt="Session Clock" />
-
-**A cinematic focus timer. Every theme is a world.**
+<img src="public/readme-banner.svg" width="900" alt="Session Clock — A cinematic focus timer. Every theme is a world." />
 
 [![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Accurate-Time-/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -19,7 +15,7 @@
 
 ---
 
-Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 45+ animated canvas themes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
+Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 63+ animated canvas themes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
 
 | | |
 |---|---|
@@ -32,6 +28,40 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 | **Privacy** | Zero backend · localStorage only · No tracking |
 
 **[→ Full documentation on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki)**
+
+---
+
+## Preview
+
+> **Want to add a screenshot here?** Pick one of these options:
+
+<!-- ── OPTION A: OG banner (SVG, already in repo, renders on GitHub) ── -->
+<!-- Uncomment to use: -->
+<!-- <img src="public/og-preview.svg" width="100%" alt="Session Clock preview" /> -->
+
+<!-- ── OPTION B: Screenshot of the running app ──────────────────────── -->
+<!-- 1. Run `npm run dev`                                                -->
+<!-- 2. Open http://localhost:5173 in your browser                      -->
+<!-- 3. Press `T` to pick your favourite theme                          -->
+<!-- 4. Take a full-window screenshot (1280×800 recommended)            -->
+<!-- 5. Save to docs/screenshot.png (create the docs/ folder first)     -->
+<!-- 6. Replace the line below and uncomment it:                        -->
+<!-- <img src="docs/screenshot.png" width="100%" alt="Session Clock — Forest theme" /> -->
+
+<!-- ── OPTION C: Animated GIF / WebP (most impressive on GitHub) ────── -->
+<!-- Tools: Kap (macOS), ScreenToGif (Windows), Peek (Linux)            -->
+<!-- 1. Record 5–8 s: theme switching, timer running, Zen Mode          -->
+<!-- 2. Export at 1280×800, ≤5 MB, 20 fps                              -->
+<!-- 3. Save to docs/demo.gif                                            -->
+<!-- 4. Uncomment the line below:                                        -->
+<!-- <img src="docs/demo.gif" width="100%" alt="Session Clock demo" />  -->
+
+<!-- ── OPTION D: Cloudflare / CDN hosted image ───────────────────────── -->
+<!-- Upload your screenshot to Cloudflare Images, Imgur, or similar     -->
+<!-- then replace the URL below:                                         -->
+<!-- <img src="https://your-cdn.com/session-clock-preview.png" width="100%" alt="Session Clock" /> -->
+
+*Choose one option above, uncomment it, and delete this block + the others.*
 
 ---
 
