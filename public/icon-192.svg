@@ -1,8 +1,101 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="42" fill="#06030f"/>
-  <circle cx="96" cy="96" r="70" fill="none" stroke="#6ee7b7" stroke-width="4" opacity=".3"/>
-  <circle cx="96" cy="96" r="52" fill="none" stroke="#6ee7b7" stroke-width="2" opacity=".6"/>
-  <line x1="96" y1="44" x2="96" y2="96" stroke="#6ee7b7" stroke-width="4" stroke-linecap="round"/>
-  <line x1="96" y1="96" x2="128" y2="110" stroke="#818cf8" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="96" cy="96" r="5" fill="#6ee7b7"/>
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#1a0a2e"/>
+      <stop offset="60%" stop-color="#0d0520"/>
+      <stop offset="100%" stop-color="#06030f"/>
+    </radialGradient>
+    <radialGradient id="faceGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6ee7b7" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#6ee7b7" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="centerGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <clipPath id="roundClip">
+      <rect width="192" height="192" rx="42"/>
+    </clipPath>
+  </defs>
+
+  <rect width="192" height="192" rx="42" fill="url(#bgGrad)"/>
+
+  <!-- Stars -->
+  <g clip-path="url(#roundClip)" opacity="0.55">
+    <circle cx="30" cy="34" r="0.8" fill="#fff" opacity="0.6"/>
+    <circle cx="158" cy="26" r="0.6" fill="#fff" opacity="0.5"/>
+    <circle cx="165" cy="48" r="0.5" fill="#fff" opacity="0.4"/>
+    <circle cx="25" cy="155" r="0.7" fill="#fff" opacity="0.5"/>
+    <circle cx="162" cy="160" r="0.6" fill="#fff" opacity="0.4"/>
+    <circle cx="75" cy="15" r="0.5" fill="#fff" opacity="0.6"/>
+  </g>
+
+  <!-- Face glow -->
+  <circle cx="96" cy="96" r="78" fill="url(#faceGlow)"/>
+
+  <!-- Outer ring -->
+  <circle cx="96" cy="96" r="71" fill="none" stroke="#6ee7b7" stroke-width="0.8" opacity="0.15"/>
+
+  <!-- Progress arc ~75% -->
+  <!-- 71 * 2π ≈ 446, 75% ≈ 335 -->
+  <circle cx="96" cy="96" r="71"
+    fill="none"
+    stroke="#6ee7b7"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-dasharray="335 111"
+    stroke-dashoffset="111"
+    opacity="0.55"
+    transform="rotate(-90 96 96)"/>
+
+  <!-- Inner ring -->
+  <circle cx="96" cy="96" r="59" fill="none" stroke="#6ee7b7" stroke-width="0.7" opacity="0.20"/>
+
+  <!-- Tick marks -->
+  <g stroke="#6ee7b7" stroke-linecap="round" opacity="0.45">
+    <line x1="96" y1="29" x2="96" y2="37" stroke-width="2.2"/>
+    <line x1="163" y1="96" x2="155" y2="96" stroke-width="2.2"/>
+    <line x1="96" y1="163" x2="96" y2="155" stroke-width="2.2"/>
+    <line x1="29" y1="96" x2="37" y2="96" stroke-width="2.2"/>
+    <!-- Minor ticks -->
+    <line x1="127.5" y1="36.2" x2="124" y2="42" stroke-width="1.2"/>
+    <line x1="150.8" y1="64.5" x2="146" y2="67.5" stroke-width="1.2"/>
+    <line x1="150.8" y1="127.5" x2="146" y2="124.5" stroke-width="1.2"/>
+    <line x1="127.5" y1="155.8" x2="124" y2="150" stroke-width="1.2"/>
+    <line x1="64.5" y1="155.8" x2="68" y2="150" stroke-width="1.2"/>
+    <line x1="41.2" y1="127.5" x2="46" y2="124.5" stroke-width="1.2"/>
+    <line x1="41.2" y1="64.5" x2="46" y2="67.5" stroke-width="1.2"/>
+    <line x1="64.5" y1="36.2" x2="68" y2="42" stroke-width="1.2"/>
+  </g>
+
+  <!-- Hour hand -->
+  <g filter="url(#glow)">
+    <line x1="96" y1="96" x2="66" y2="58"
+      stroke="#6ee7b7" stroke-width="4" stroke-linecap="round" opacity="0.95"/>
+  </g>
+
+  <!-- Minute hand -->
+  <g filter="url(#glow)">
+    <line x1="96" y1="96" x2="129" y2="62"
+      stroke="#818cf8" stroke-width="3" stroke-linecap="round" opacity="0.95"/>
+  </g>
+
+  <!-- Second hand -->
+  <g filter="url(#glow)">
+    <line x1="96" y1="111" x2="96" y2="44"
+      stroke="#f87171" stroke-width="1.5" stroke-linecap="round" opacity="0.85"/>
+  </g>
+
+  <!-- Center jewel -->
+  <circle cx="96" cy="96" r="8" fill="#06030f" filter="url(#centerGlow)"/>
+  <circle cx="96" cy="96" r="6" fill="#6ee7b7" opacity="0.9"/>
+  <circle cx="96" cy="96" r="3.5" fill="#06030f"/>
+  <circle cx="96" cy="96" r="1.8" fill="#6ee7b7"/>
+
+  <!-- Arc tip glow dot -->
+  <circle cx="117" cy="31" r="2" fill="#6ee7b7" opacity="0.9"/>
 </svg>

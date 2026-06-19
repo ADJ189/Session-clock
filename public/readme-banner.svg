@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260">
+  <defs>
+    <radialGradient id="bg" cx="25%" cy="50%" r="85%">
+      <stop offset="0%" stop-color="#1a0a2e"/>
+      <stop offset="50%" stop-color="#0d0520"/>
+      <stop offset="100%" stop-color="#06030f"/>
+    </radialGradient>
+    <radialGradient id="cg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6ee7b7" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#6ee7b7" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="tg" x="-5%" y="-30%" width="110%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="60%" stop-color="#a5f3d0"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <linearGradient id="sep" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6ee7b7" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#6ee7b7" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="c"><rect width="900" height="260" rx="16"/></clipPath>
+  </defs>
+
+  <rect width="900" height="260" rx="16" fill="url(#bg)"/>
+
+  <!-- Stars -->
+  <g clip-path="url(#c)" opacity="0.5">
+    <circle cx="30" cy="20" r="0.9" fill="#fff" opacity="0.6"/>
+    <circle cx="120" cy="12" r="0.7" fill="#fff" opacity="0.5"/>
+    <circle cx="400" cy="8" r="1.0" fill="#fff" opacity="0.6"/>
+    <circle cx="600" cy="15" r="0.7" fill="#fff" opacity="0.4"/>
+    <circle cx="860" cy="22" r="0.9" fill="#fff" opacity="0.5"/>
+    <circle cx="25" cy="240" r="0.8" fill="#fff" opacity="0.4"/>
+    <circle cx="875" cy="248" r="0.7" fill="#fff" opacity="0.5"/>
+    <circle cx="220" cy="250" r="0.9" fill="#fff" opacity="0.4"/>
+    <circle cx="700" cy="252" r="0.8" fill="#fff" opacity="0.5"/>
+  </g>
+
+  <!-- Clock (right) -->
+  <g transform="translate(756, 130)">
+    <circle cx="0" cy="0" r="105" fill="url(#cg)"/>
+    <circle cx="0" cy="0" r="100" fill="none" stroke="#6ee7b7" stroke-width="1" opacity="0.12"/>
+    <!-- Progress arc -->
+    <circle cx="0" cy="0" r="100"
+      fill="none" stroke="#6ee7b7" stroke-width="2.5" stroke-linecap="round"
+      stroke-dasharray="452 176" stroke-dashoffset="176" opacity="0.55"
+      transform="rotate(-90)"/>
+    <circle cx="0" cy="0" r="83" fill="none" stroke="#6ee7b7" stroke-width="0.8" opacity="0.18"/>
+    <!-- Ticks -->
+    <g stroke="#6ee7b7" stroke-linecap="round" opacity="0.4">
+      <line x1="0" y1="-100" x2="0" y2="-93" stroke-width="3"/>
+      <line x1="100" y1="0" x2="93" y2="0" stroke-width="3"/>
+      <line x1="0" y1="100" x2="0" y2="93" stroke-width="3"/>
+      <line x1="-100" y1="0" x2="-93" y2="0" stroke-width="3"/>
+      <line x1="50" y1="-86.6" x2="46.5" y2="-80.4" stroke-width="1.5"/>
+      <line x1="86.6" y1="-50" x2="80.4" y2="-46.5" stroke-width="1.5"/>
+      <line x1="86.6" y1="50" x2="80.4" y2="46.5" stroke-width="1.5"/>
+      <line x1="50" y1="86.6" x2="46.5" y2="80.4" stroke-width="1.5"/>
+      <line x1="-50" y1="86.6" x2="-46.5" y2="80.4" stroke-width="1.5"/>
+      <line x1="-86.6" y1="50" x2="-80.4" y2="46.5" stroke-width="1.5"/>
+      <line x1="-86.6" y1="-50" x2="-80.4" y2="-46.5" stroke-width="1.5"/>
+      <line x1="-50" y1="-86.6" x2="-46.5" y2="-80.4" stroke-width="1.5"/>
+    </g>
+    <!-- Hour hand -->
+    <g filter="url(#glow)">
+      <line x1="0" y1="0" x2="-47" y2="-65" stroke="#6ee7b7" stroke-width="5.5" stroke-linecap="round" opacity="0.95"/>
+    </g>
+    <!-- Minute hand -->
+    <g filter="url(#glow)">
+      <line x1="0" y1="0" x2="60" y2="-60" stroke="#818cf8" stroke-width="4" stroke-linecap="round" opacity="0.95"/>
+    </g>
+    <!-- Second hand -->
+    <g filter="url(#glow)">
+      <line x1="0" y1="24" x2="0" y2="-77" stroke="#f87171" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+    </g>
+    <!-- Center -->
+    <circle cx="0" cy="0" r="9" fill="#06030f"/>
+    <circle cx="0" cy="0" r="7" fill="#6ee7b7" opacity="0.9"/>
+    <circle cx="0" cy="0" r="4" fill="#06030f"/>
+    <circle cx="0" cy="0" r="2" fill="#6ee7b7"/>
+    <!-- Arc dot -->
+    <circle cx="45" cy="-88" r="3.5" fill="#6ee7b7" opacity="0.9" filter="url(#glow)"/>
+  </g>
+
+  <!-- Left text -->
+  <!-- Mini icon -->
+  <g transform="translate(48, 72)">
+    <circle cx="0" cy="0" r="16" fill="none" stroke="#6ee7b7" stroke-width="1.8" opacity="0.5"/>
+    <line x1="0" y1="0" x2="-6.5" y2="-9" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="8" y2="-7" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="2.5" fill="#6ee7b7"/>
+  </g>
+
+  <text x="76" y="82" font-family="'Helvetica Neue', Arial, sans-serif"
+    font-size="38" font-weight="800" letter-spacing="-0.5"
+    fill="url(#titleGrad)" filter="url(#tg)">Session Clock</text>
+
+  <line x1="48" y1="100" x2="600" y2="100" stroke="url(#sep)" stroke-width="1.2"/>
+
+  <text x="48" y="128" font-family="'Helvetica Neue', Arial, sans-serif"
+    font-size="16" font-weight="300" fill="#a5f3d0" opacity="0.8" letter-spacing="0.3">
+    A cinematic focus timer. Every theme is a world.
+  </text>
+
+  <!-- Feature pills -->
+  <g font-family="'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="500">
+    <rect x="48" y="146" width="96" height="24" rx="12" fill="#6ee7b7" fill-opacity="0.1" stroke="#6ee7b7" stroke-width="0.8" stroke-opacity="0.45"/>
+    <text x="96" y="162" fill="#6ee7b7" text-anchor="middle">🎬 63+ Themes</text>
+
+    <rect x="154" y="146" width="116" height="24" rx="12" fill="#818cf8" fill-opacity="0.1" stroke="#818cf8" stroke-width="0.8" stroke-opacity="0.4"/>
+    <text x="212" y="162" fill="#818cf8" text-anchor="middle">🎵 Binaural Audio</text>
+
+    <rect x="280" y="146" width="92" height="24" rx="12" fill="#f87171" fill-opacity="0.08" stroke="#f87171" stroke-width="0.8" stroke-opacity="0.35"/>
+    <text x="326" y="162" fill="#f87171" text-anchor="middle">🍅 Pomodoro</text>
+
+    <rect x="382" y="146" width="68" height="24" rx="12" fill="#6ee7b7" fill-opacity="0.1" stroke="#6ee7b7" stroke-width="0.8" stroke-opacity="0.35"/>
+    <text x="416" y="162" fill="#6ee7b7" text-anchor="middle">📲 PWA</text>
+
+    <rect x="460" y="146" width="78" height="24" rx="12" fill="#818cf8" fill-opacity="0.1" stroke="#818cf8" stroke-width="0.8" stroke-opacity="0.35"/>
+    <text x="499" y="162" fill="#818cf8" text-anchor="middle">🎙 Voice</text>
+
+    <rect x="548" y="146" width="90" height="24" rx="12" fill="#6ee7b7" fill-opacity="0.1" stroke="#6ee7b7" stroke-width="0.8" stroke-opacity="0.35"/>
+    <text x="593" y="162" fill="#6ee7b7" text-anchor="middle">🧘 Zen Mode</text>
+  </g>
+
+  <!-- Stats -->
+  <g font-family="'Helvetica Neue', Arial, sans-serif">
+    <text x="48" y="210" font-size="26" font-weight="800" fill="#6ee7b7">63+</text>
+    <text x="48" y="226" font-size="10" fill="#6ee7b7" opacity="0.55">THEMES</text>
+
+    <line x1="102" y1="192" x2="102" y2="230" stroke="#6ee7b7" stroke-width="0.8" opacity="0.2"/>
+
+    <text x="114" y="210" font-size="26" font-weight="800" fill="#818cf8">25</text>
+    <text x="114" y="226" font-size="10" fill="#818cf8" opacity="0.55">MODULES</text>
+
+    <line x1="162" y1="192" x2="162" y2="230" stroke="#6ee7b7" stroke-width="0.8" opacity="0.2"/>
+
+    <text x="174" y="210" font-size="26" font-weight="800" fill="#f87171">0</text>
+    <text x="174" y="226" font-size="10" fill="#f87171" opacity="0.55">DEPS</text>
+
+    <line x1="206" y1="192" x2="206" y2="230" stroke="#6ee7b7" stroke-width="0.8" opacity="0.2"/>
+
+    <text x="218" y="210" font-size="26" font-weight="800" fill="#4ade80">8</text>
+    <text x="218" y="226" font-size="10" fill="#4ade80" opacity="0.55">LANGUAGES</text>
+  </g>
+
+  <!-- Quote bottom -->
+  <text x="48" y="250" font-family="Georgia, serif"
+    font-size="12" fill="#6ee7b7" opacity="0.35" font-style="italic">
+    "Focus is the art of knowing what to ignore."
+  </text>
+</svg>

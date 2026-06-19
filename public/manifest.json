@@ -1,7 +1,7 @@
 {
   "name": "Session Clock",
   "short_name": "Session Clock",
-  "description": "A beautiful focus timer with 34 animated themes, Pomodoro, ambient soundscapes, and session intelligence.",
+  "description": "A cinematic focus timer with 63+ animated themes, Pomodoro, binaural audio, and zero backend.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#06030f",
@@ -12,6 +12,9 @@
     { "src": "icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
   ],
   "categories": ["productivity", "utilities"],
+  "screenshots": [
+    { "src": "og-preview.svg", "sizes": "1200x630", "type": "image/svg+xml", "form_factor": "wide" }
+  ],
   "shortcuts": [
     { "name": "Start Session", "url": "/?start=1", "description": "Start a focus session immediately" }
   ]
