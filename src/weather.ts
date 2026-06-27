@@ -142,13 +142,21 @@ async function fetchWeatherData(lat: number, lon: number) {
 // Set location manually (from weather page UI)
 export function setManualLocation(lat: number, lon: number, name?: string) {
   _currentLocation = { lat, lon, name };
-  localStorage.setItem('sc_weather_loc', JSON.stringify({ lat, lon, name }));
+  // Avoid persisting precise coordinates in clear text.
+  // Keep only non-sensitive display metadata in localStorage.
+  localStorage.setItem('sc_weather_loc', JSON.stringify({ name }));
 }
 
 export function getStoredLocation(): { lat: number; lon: number; name?: string } | null {
   try {
     const stored = localStorage.getItem('sc_weather_loc');
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    // Backward compatibility: only accept legacy entries that contain valid coordinates.
+    if (typeof parsed?.lat === 'number' && typeof parsed?.lon === 'number') {
+      return { lat: parsed.lat, lon: parsed.lon, name: parsed.name };
+    }
+    return null;
   } catch { return null; }
 }
 
