@@ -230,7 +230,7 @@ export async function initWeather(
       async ({ coords: { latitude: lat, longitude: lon } }) => {
         const name = await getCityName(lat, lon);
         _currentLocation = { lat, lon, name };
-        localStorage.setItem('sc_weather_loc', JSON.stringify({ lat, lon, name }));
+        localStorage.removeItem('sc_weather_loc');
         processWeather(lat, lon);
       },
       () => {
