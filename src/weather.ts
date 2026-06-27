@@ -148,7 +148,14 @@ export function setManualLocation(lat: number, lon: number, name?: string) {
 export function getStoredLocation(): { lat: number; lon: number; name?: string } | null {
   try {
     const stored = localStorage.getItem('sc_weather_loc');
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    // Purge legacy geolocation-derived entries (those without manual name)
+    if (!parsed.name) {
+      localStorage.removeItem('sc_weather_loc');
+      return null;
+    }
+    return parsed;
   } catch { return null; }
 }
 
