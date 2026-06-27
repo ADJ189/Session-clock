@@ -3,7 +3,8 @@ import { THEMES, THEME_BY_ID, THEMES_BY_CAT, NAT_QUOTES } from './themes';
 import { LIT_CLOCK } from './litclock';
 import { p2, p3, fmtSession, DAYS, MONTHS, GREETS } from './utils';
 import { clockOffset, synced, syncTime, setSyncHandler } from './timesync';
-import { initWeather, stopWeather, isRaining, isSnowing, isClear } from './weather';
+import { initWeather, stopWeather, isRaining, isSnowing, isClear, getWeatherOverlay } from './weather';
+import { openWeatherPage, setWeatherPageCallbacks, renderWeatherPage } from './weatherpage';
 import * as Sound from './sound';
 import * as Pom from './pomodoro';
 import * as Log from './focuslog';
@@ -238,7 +239,14 @@ function togglePrivacy() {
     showToast('🔒 Privacy Mode: fonts, weather & sync disabled');
   } else {
     syncTime();
-    initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode);
+    initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode, (code, temp, desc) => {
+      if (localStorage.getItem('sc_weather_theme') !== '0') {
+        const overlay = getWeatherOverlay();
+        const all = ['clear','rain','snow','thunder','fog','cloudy'];
+        all.forEach(c => document.body.classList.remove(`weather-${c}`));
+        if (overlay !== 'none') document.body.classList.add(`weather-${overlay}`);
+      }
+    });
     document.body.style.fontFamily = '';
     showToast('Privacy Mode off — reconnected');
   }
@@ -2920,9 +2928,40 @@ function init() {
 
   requestAnimationFrame(ts => { lastTs = ts; renderFrame(ts); });
 
+  // ── Weather overlay preference ─────────────────────────────────────
+  if (localStorage.getItem('sc_weather_theme') !== '0') {
+    document.body.classList.add('weather-overlay-on');
+  }
+
+  // ── Wire weather page callbacks ────────────────────────────────────
+  setWeatherPageCallbacks(isPrivacyMode, (code, temp, desc) => {
+    // Weather update received — apply overlay class if pref on
+    if (localStorage.getItem('sc_weather_theme') !== '0') {
+      const overlay = getWeatherOverlay();
+      const all = ['clear','rain','snow','thunder','fog','cloudy'];
+      all.forEach(c => document.body.classList.remove(`weather-${c}`));
+      if (overlay !== 'none') document.body.classList.add(`weather-${overlay}`);
+    }
+  });
+
+  // ── Weather pill click → open weather page ─────────────────────────
+  const weatherPillEl = document.getElementById('weatherPill');
+  if (weatherPillEl) {
+    weatherPillEl.addEventListener('click', () => {
+      openWeatherPage();
+    });
+  }
+
   if (!privacyMode) {
     syncTime();
-    initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode);
+    initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode, (code, temp, desc) => {
+      if (localStorage.getItem('sc_weather_theme') !== '0') {
+        const overlay = getWeatherOverlay();
+        const all = ['clear','rain','snow','thunder','fog','cloudy'];
+        all.forEach(c => document.body.classList.remove(`weather-${c}`));
+        if (overlay !== 'none') document.body.classList.add(`weather-${overlay}`);
+      }
+    });
   } else {
     updateSyncDisplay('failed');
   }
