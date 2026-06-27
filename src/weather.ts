@@ -152,6 +152,12 @@ export function getStoredLocation(): { lat: number; lon: number; name?: string }
     const stored = localStorage.getItem('sc_weather_loc');
     if (!stored) return null;
     const parsed = JSON.parse(stored);
+    // Purge legacy geolocation-derived entries (those without manual name)
+    if (!parsed.name) {
+      localStorage.removeItem('sc_weather_loc');
+      return null;
+    }
+    return parsed;
     // Backward compatibility: only accept legacy entries that contain valid coordinates.
     if (typeof parsed?.lat === 'number' && typeof parsed?.lon === 'number') {
       return { lat: parsed.lat, lon: parsed.lon, name: parsed.name };
@@ -238,7 +244,7 @@ export async function initWeather(
       async ({ coords: { latitude: lat, longitude: lon } }) => {
         const name = await getCityName(lat, lon);
         _currentLocation = { lat, lon, name };
-        localStorage.setItem('sc_weather_loc', JSON.stringify({ lat, lon, name }));
+        localStorage.removeItem('sc_weather_loc');
         processWeather(lat, lon);
       },
       () => {
