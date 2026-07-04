@@ -6,22 +6,11 @@ export default defineConfig({
     outDir: 'dist',
     // Chrome 87+, Firefox 78+, Safari 14+, Edge 88+
     target: ['es2020', 'chrome87', 'firefox78', 'safari14', 'edge88'],
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        passes: 3,
-        pure_funcs: ['console.log', 'console.warn', 'console.info'],
-        unsafe_math: true,
-        toplevel: true,
-      },
-      mangle: {
-        toplevel: true,
-        safari10: true,
-      },
-      format: { comments: false },
-    },
+    // esbuild's minifier is 10-100x faster than terser for builds of this
+    // size, and its `drop` option covers the console/debugger stripping
+    // terser was previously used for — no functional difference, much
+    // quicker CI/CD builds on Cloudflare Pages.
+    minify: 'esbuild',
     sourcemap: false,
     chunkSizeWarningLimit: 500,
     rollupOptions: {
@@ -31,6 +20,9 @@ export default defineConfig({
         entryFileNames: 'assets/[name]-[hash].js',
       },
     },
+  },
+  esbuild: {
+    drop: ['console', 'debugger'],
   },
   server: {
     port: 5173,
