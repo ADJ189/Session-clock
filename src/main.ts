@@ -22,6 +22,23 @@ import * as Integrations from './integrations';
 import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
 import * as Palette from './palette';
 
+// ── Audio autoplay-policy unlock ────────────────────────────────────────
+// Must run inside the very first real user gesture on the page, otherwise
+// AudioContext creation later (e.g. auto-starting rain+fire when the
+// "Common Room" theme is applied via setTimeout) is silently blocked by
+// the browser and produces no sound at all.
+(() => {
+  const unlock = () => {
+    Sound.unlockAudio();
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+    window.removeEventListener('touchstart', unlock);
+  };
+  window.addEventListener('pointerdown', unlock, { once: true });
+  window.addEventListener('keydown', unlock, { once: true });
+  window.addEventListener('touchstart', unlock, { once: true, passive: true });
+})();
+
 // ── Clock mode ────────────────────────────────────────────────────────
 export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
 let clockMode: ClockMode = (localStorage.getItem('sc_clock_mode') as ClockMode) || 'digital';
@@ -532,20 +549,23 @@ function renderFrame(ts: number) {
       tickDigit(DOM.digitSec, secStr);
       DOM.ampmDis.textContent = hr >= 12 ? 'PM' : 'AM';
       // Clamp to 50ms steps — prevents layout thrash from 60fps ms updates
-      DOM.secMs.textContent = '.' + p3(Math.floor(ms / 50) * 50);
+      const newSecMs = '.' + p3(Math.floor(ms / 50) * 50);
+      if (DOM.secMs.textContent !== newSecMs) DOM.secMs.textContent = newSecMs;
   }
 
   // SMPTE: override seconds-ms display with frame counter
   if (currentTheme.id === 'smpte' && clockMode === 'digital') {
     const frame = Math.floor(ms / (1000 / 24)) % 24;
-    DOM.secMs.textContent = ':' + p2(frame);
+    const smpteStr = ':' + p2(frame);
+    if (DOM.secMs.textContent !== smpteStr) DOM.secMs.textContent = smpteStr;
   }
   // Terminal: show 24hr time
   if (currentTheme.id === 'terminal' && clockMode === 'digital') {
     tickDigit(DOM.digitHr, p2(hr));
   }
 
-  DOM.timeDis.textContent = `${hrStr}:${minStr}:${secStr}`;
+  const newTimeDis = `${hrStr}:${minStr}:${secStr}`;
+  if (DOM.timeDis.textContent !== newTimeDis) DOM.timeDis.textContent = newTimeDis;
   const dp = ((hr * 3600 + min * 60 + sec) * 1000 + ms) / 864e5 * 100;
   DOM.pFill.style.width = dp.toFixed(4) + '%';
 
@@ -1198,6 +1218,57 @@ function buildPomUI() {
   });
 }
 
+// ── Mixer launch card (Settings → Sound) ────────────────────────────────
+// A single plain button among a dozen identical ones is easy to miss, and
+// "the mixer" is one of the app's headline features — so it gets its own
+// distinctive, theme-accented card with a live equalizer indicator instead.
+function mixerStatusText(): { sub: string; count: number } {
+  const playing = Sound.SOUNDS.filter(s => Sound.isPlaying(s.id)).map(s => s.name);
+  if (Sound.binauralPresetId) {
+    const preset = Sound.BINAURAL_PRESETS.find(p => p.id === Sound.binauralPresetId);
+    if (preset) playing.push(preset.name);
+  }
+  return playing.length
+    ? { sub: playing.join(' + '), count: playing.length }
+    : { sub: 'Rain, fireplace, binaural beats & more', count: 0 };
+}
+
+function buildMixerLaunchCard(): HTMLButtonElement {
+  const card = document.createElement('button');
+  card.className = 'mixer-launch-card';
+  card.id = 'mixerLaunchCard';
+
+  const icon = document.createElement('div'); icon.className = 'mixer-launch-icon';
+  for (let i = 0; i < 4; i++) { const bar = document.createElement('span'); bar.className = 'mixer-eq-bar'; icon.appendChild(bar); }
+
+  const info = document.createElement('div'); info.className = 'mixer-launch-info';
+  const title = document.createElement('div'); title.className = 'mixer-launch-title';
+  const titleText = document.createElement('span'); titleText.textContent = '🎵 Ambient Sound Mixer';
+  title.appendChild(titleText);
+  const badge = document.createElement('span'); badge.className = 'mixer-launch-badge';
+  title.appendChild(badge);
+  const sub = document.createElement('div'); sub.className = 'mixer-launch-sub';
+  info.append(title, sub);
+
+  const chevron = document.createElement('span'); chevron.className = 'mixer-launch-chevron'; chevron.textContent = '›';
+
+  card.append(icon, info, chevron);
+  card.addEventListener('click', () => { closeModal('settingsOverlay'); buildSoundUI(); openModal('soundOverlay'); });
+
+  updateMixerLaunchCard(card);
+  return card;
+}
+
+function updateMixerLaunchCard(card: HTMLElement | null) {
+  if (!card) return;
+  const { sub, count } = mixerStatusText();
+  card.classList.toggle('is-playing', count > 0);
+  const subEl   = card.querySelector<HTMLElement>('.mixer-launch-sub');
+  const badgeEl = card.querySelector<HTMLElement>('.mixer-launch-badge');
+  if (subEl) subEl.textContent = sub;
+  if (badgeEl) { badgeEl.textContent = count > 0 ? `${count} playing` : ''; badgeEl.style.display = count > 0 ? '' : 'none'; }
+}
+
 // ── Sound UI ───────────────────────────────────────────────────────────
 function makeSoundTrack(
   id: string, icon: string, name: string, desc: string,
@@ -1296,6 +1367,7 @@ function buildSoundUI() {
 
 Sound.setTrackChangeHandler(() => {
   buildSoundUI();
+  updateMixerLaunchCard(document.getElementById('mixerLaunchCard'));
   // Update MediaSession when tracks change
   const playing = Sound.SOUNDS.filter(s => Sound.isPlaying(s.id)).map(s => s.name);
   if (playing.length > 0) {
@@ -1402,7 +1474,18 @@ const hslToHex = (h: number, s: number, l: number): string => {
 // Currently active picker field
 let _pickerField = 'accent';
 
+// Drag listeners for the HSL picker canvases are rebound on every
+// buildColorRows() call (each swatch click). Without cleanup, every click
+// stacks another pair of window-level mousemove/mouseup listeners that
+// never get removed — a classic memory leak that eventually degrades or
+// crashes the page after enough clicks.
+let pickerAbort: AbortController | null = null;
+
 function buildColorRows() {
+  pickerAbort?.abort();
+  pickerAbort = new AbortController();
+  const { signal } = pickerAbort;
+
   const container = $('colorRows'); if (!container) return;
   container.innerHTML = '';
 
@@ -1509,18 +1592,18 @@ function buildColorRows() {
     updateAllInputs(hex); previewCustomTheme(); drawGradCanvas(newH); drawHueStrip();
   };
   let gradDragging = false, hueDragging = false;
-  gradCanvas.addEventListener('mousedown', e => { gradDragging = true; updateFromGrad(e); });
-  gradCanvas.addEventListener('touchstart', e => { gradDragging = true; updateFromGrad(e.touches[0]!); }, { passive: true });
-  hueCanvas.addEventListener('mousedown', e => { hueDragging = true; updateFromHue(e); });
-  hueCanvas.addEventListener('touchstart', e => { hueDragging = true; updateFromHue(e.touches[0]!); }, { passive: true });
+  gradCanvas.addEventListener('mousedown', e => { gradDragging = true; updateFromGrad(e); }, { signal });
+  gradCanvas.addEventListener('touchstart', e => { gradDragging = true; updateFromGrad(e.touches[0]!); }, { passive: true, signal });
+  hueCanvas.addEventListener('mousedown', e => { hueDragging = true; updateFromHue(e); }, { signal });
+  hueCanvas.addEventListener('touchstart', e => { hueDragging = true; updateFromHue(e.touches[0]!); }, { passive: true, signal });
   window.addEventListener('mousemove', e => {
     if (gradDragging) updateFromGrad(e);
     if (hueDragging) updateFromHue(e);
-  });
-  window.addEventListener('mouseup', () => { gradDragging = false; hueDragging = false; });
-  window.addEventListener('touchend', () => { gradDragging = false; hueDragging = false; }, { passive: true });
-  gradCanvas.addEventListener('touchmove', e => { if (gradDragging) updateFromGrad(e.touches[0]!); }, { passive: true });
-  hueCanvas.addEventListener('touchmove', e => { if (hueDragging) updateFromHue(e.touches[0]!); }, { passive: true });
+  }, { signal });
+  window.addEventListener('mouseup', () => { gradDragging = false; hueDragging = false; }, { signal });
+  window.addEventListener('touchend', () => { gradDragging = false; hueDragging = false; }, { passive: true, signal });
+  gradCanvas.addEventListener('touchmove', e => { if (gradDragging) updateFromGrad(e.touches[0]!); }, { passive: true, signal });
+  hueCanvas.addEventListener('touchmove', e => { if (hueDragging) updateFromHue(e.touches[0]!); }, { passive: true, signal });
 
   // Hex / RGB / HSL text inputs
   const inputRow = document.createElement('div');
@@ -1637,6 +1720,8 @@ function openThemeBuilder() { buildColorRows(); openModal('themeBuilderOverlay')
 
 // ── Settings modal ────────────────────────────────────────────────────
 let _lastSettingsTab = 'general';
+let _lastSettingsTabIndex = 0;
+const SETTINGS_TAB_ORDER = ['general', 'sound', 'focus', 'display', 'privacy'];
 function openSettings() {
   buildSettingsUI(_lastSettingsTab);
   openModal('settingsOverlay');
@@ -1649,10 +1734,17 @@ function buildSettingsUI(activeTab = 'general') {
   el.innerHTML = '';
   tabBarEl.innerHTML = '';
 
-  // Animate content in
-  el.style.animation = 'none';
-  void el.offsetWidth; // reflow
-  el.style.animation = 'paneFadeIn .18s ease';
+  // Slide + fade the new pane in, direction-aware (left↔right) based on
+  // where the target tab sits relative to the one we're leaving — makes
+  // switching tabs feel like physically sliding a panel instead of a
+  // jump-cut.
+  const newIndex = Math.max(0, SETTINGS_TAB_ORDER.indexOf(activeTab));
+  const dir = newIndex === _lastSettingsTabIndex ? 1 : Math.sign(newIndex - _lastSettingsTabIndex) || 1;
+  _lastSettingsTabIndex = newIndex;
+  el.classList.remove('pane-sliding');
+  el.style.setProperty('--pane-slide-x', `${dir * 14}px`);
+  void el.offsetWidth; // reflow to restart animation
+  el.classList.add('pane-sliding');
 
   // ── Tab definitions ───────────────────────────────────────────────────
   const tabs = [
@@ -1803,10 +1895,7 @@ function buildSettingsUI(activeTab = 'general') {
     paneWrap.appendChild(audioSec);
 
     const soundBtnSec = makeSection('Mixer');
-    const openMixerBtn = document.createElement('button'); openMixerBtn.className = 'settings-action-btn settings-action-btn--full';
-    openMixerBtn.textContent = '🎵 Open Sound Mixer';
-    openMixerBtn.addEventListener('click', () => { closeModal('settingsOverlay'); buildSoundUI(); openModal('soundOverlay'); });
-    soundBtnSec.appendChild(openMixerBtn);
+    soundBtnSec.appendChild(buildMixerLaunchCard());
     paneWrap.appendChild(soundBtnSec);
 
     wireToggle('toggleSpatial',   (on) => Sound.setSpatial(on));
@@ -2030,15 +2119,19 @@ function triggerTheaterMode(breakMins: number) {
   const minEl   = document.getElementById('theaterMinutes');
   if (!overlay) return;
 
-  theaterRemainMs = breakMins * 60_000;
+  // Track the real end timestamp instead of decrementing by a fixed
+  // amount every tick — setInterval is heavily throttled in background
+  // tabs (sometimes to once a minute), which would otherwise make a
+  // 20-minute break take far longer than 20 minutes to count down.
+  const endTime = Date.now() + breakMins * 60_000;
   if (minEl) minEl.textContent = String(breakMins);
   overlay.classList.add('visible');
 
   const tick = () => {
-    theaterRemainMs -= 1000;
+    theaterRemainMs = endTime - Date.now();
     if (timerEl) {
-      const m = Math.floor(theaterRemainMs / 60000);
-      const s = Math.floor((theaterRemainMs % 60000) / 1000);
+      const m = Math.floor(Math.max(0, theaterRemainMs) / 60000);
+      const s = Math.floor((Math.max(0, theaterRemainMs) % 60000) / 1000);
       timerEl.textContent = `${p2(m)}:${p2(s)}`;
     }
     if (theaterRemainMs <= 0) {
@@ -2046,6 +2139,7 @@ function triggerTheaterMode(breakMins: number) {
       if (theaterTimer) clearInterval(theaterTimer);
     }
   };
+  tick();
   if (theaterTimer) clearInterval(theaterTimer);
   theaterTimer = window.setInterval(tick, 1000);
 

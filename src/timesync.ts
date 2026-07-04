@@ -1,11 +1,18 @@
 import type { SyncResult } from './types';
 
-// Polyfill AbortSignal.timeout for Safari < 16.4 and Firefox < 100
-function abortAfter(ms: number): AbortSignal {
-  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
-  const ctrl = new AbortController();
-  setTimeout(() => ctrl.abort(), ms);
-  return ctrl.signal;
+// Timeout helper for fetch(). We manage our own AbortController + timer
+// (rather than relying solely on AbortSignal.timeout, which needs Safari
+// 16.4+ / Firefox 100+ and this app targets Safari 14+ / Firefox 78+) and
+// always clear the timer in `finally` so it never leaks — the previous
+// version left a dangling setTimeout on every successful sync.
+async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { cache: 'no-store', signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const CF_ENDPOINTS = [
@@ -28,7 +35,7 @@ export function setSyncHandler(fn: SyncStateHandler) { onStateChange = fn; }
 async function probe(url: string, ms: number): Promise<SyncResult | null> {
   try {
     const t0 = performance.now();
-    const res = await fetch(url, { cache: 'no-store', signal: abortAfter(ms) });
+    const res = await fetchWithTimeout(url, ms);
     const rtt = performance.now() - t0;
     const ds = res.headers.get('date');
     if (!ds) return null;
@@ -58,7 +65,7 @@ export async function syncTime(): Promise<void> {
   if (!best) {
     try {
       const t0 = performance.now();
-      const res = await fetch(FALLBACK, { cache: 'no-store', signal: abortAfter(5000) });
+      const res = await fetchWithTimeout(FALLBACK, 5000);
       const rtt = performance.now() - t0;
       const d = await res.json();
       best = { offset: new Date(d.datetime).getTime() - (Date.now() - rtt / 2), rtt };

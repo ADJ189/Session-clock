@@ -63,7 +63,23 @@ function ensureCtx() {
     masterGain.connect(comp);
     comp.connect(ctx.destination);
   }
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+}
+
+// ── Autoplay-policy unlock ─────────────────────────────────────────────
+// Browsers (Safari especially) only allow AudioContext creation/resume
+// synchronously inside a genuine user-gesture handler. Anything started
+// later via setTimeout or on theme-restore (e.g. autoStartCommonRoom,
+// which auto-plays rain + fire) is NOT considered gesture-triggered and
+// stays silently suspended forever — this is why those two tracks in
+// particular can appear to "not work". Call this once from the very
+// first pointerdown/keydown/touchstart on the page so the context is
+// already running by the time anything tries to auto-start a track.
+let audioUnlocked = false;
+export function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  ensureCtx();
 }
 
 export function getAudioLevel(): number {

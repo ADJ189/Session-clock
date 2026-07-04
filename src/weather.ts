@@ -1,9 +1,15 @@
-// Polyfill AbortSignal.timeout for Safari < 16.4 and Firefox < 100
-function abortAfter(ms: number): AbortSignal {
-  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
-  const ctrl = new AbortController();
-  setTimeout(() => ctrl.abort(), ms);
-  return ctrl.signal;
+// Timeout helper for fetch(). Self-managed AbortController + timer, always
+// cleared in `finally` so a timer never lingers after the request settles
+// (the previous polyfill left a dangling setTimeout on every successful
+// weather/geocode fetch — same leak pattern as timesync.ts).
+async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const WMO: Record<number, [string, string]> = {
@@ -117,9 +123,10 @@ export function getWeatherOverlay(): WeatherOverlay {
 // ── Reverse geocode city name ─────────────────────────────────────────
 async function getCityName(lat: number, lon: number): Promise<string> {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&format=json`,
-      { signal: abortAfter(6000), headers: { 'Accept-Language': 'en' } }
+      6000,
+      { headers: { 'Accept-Language': 'en' } }
     );
     const data = await res.json();
     return data?.address?.city || data?.address?.town || data?.address?.village || data?.address?.county || '';
@@ -135,7 +142,7 @@ async function fetchWeatherData(lat: number, lon: number) {
     + `&current=temperature_2m,apparent_temperature,weathercode,windspeed_10m,relativehumidity_2m`
     + `&hourly=temperature_2m,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min`
     + `&temperature_unit=celsius&windspeed_unit=kmh&timezone=auto&forecast_days=7`;
-  const res = await fetch(url, { signal: abortAfter(10000) });
+  const res = await fetchWithTimeout(url, 10000);
   return await res.json();
 }
 
