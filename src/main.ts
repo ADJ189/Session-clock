@@ -860,10 +860,21 @@ function setLogoContent(logo: HTMLElement, svgStr: string | undefined, fallback:
   // This is never user-supplied content — all strings are compile-time constants in LOGOS.
   while (logo.firstChild) logo.removeChild(logo.firstChild);
   if (svgStr) {
+    // None of the LOGOS strings declare xmlns on their root <svg> tag.
+    // DOMParser's 'image/svg+xml' mode requires that declaration to
+    // assign the parsed root the actual SVG namespace — without it the
+    // node parses "successfully" (tagName === 'svg') but has no
+    // namespaceURI, so once appended into the page the browser treats
+    // it as an unknown, non-rendering element. This is why the icons
+    // silently failed to show up.
+    const withNs = svgStr.includes('xmlns=')
+      ? svgStr
+      : svgStr.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
     const parser = new DOMParser();
-    const doc = parser.parseFromString(svgStr, 'image/svg+xml');
+    const doc = parser.parseFromString(withNs, 'image/svg+xml');
     const el = doc.documentElement;
-    if (el && el.tagName.toLowerCase() === 'svg') {
+    const ok = el && el.tagName.toLowerCase() === 'svg' && el.namespaceURI === 'http://www.w3.org/2000/svg' && !doc.querySelector('parsererror');
+    if (ok) {
       logo.appendChild(el);
       return;
     }
