@@ -22,7 +22,7 @@ export interface NowPlayingInfo { title: string; artist: string }
 const THEME_KEYWORDS: [string, string][] = [
   ['interstellar', 'interstellar'], ['hans zimmer', 'interstellar'], ['no time for caution', 'interstellar'],
   ['dune', 'dune'], ['duncan idaho', 'dune'],
-  ['blade runner 2049', 'bladerunner2049'], ['blade runner', 'bladerunner'],
+  ['blade runner', 'bladerunner'],
   ['the matrix', 'matrix'], ['clubbed to death', 'matrix'],
   ['breaking bad', 'breakingbad'],
   ['stranger things', 'strangerthings'], ['running up that hill', 'strangerthings'],
@@ -39,7 +39,7 @@ const THEME_KEYWORDS: [string, string][] = [
   ['john wick', 'johnwick'],
   ['oppenheimer', 'oppenheimer'],
   ['a real hero', 'drivemovie'],
-  ['house of the dragon', 'houseofdragon'], ['game of thrones', 'houseofdragon'],
+  ['house of the dragon', 'dragonfire'], ['game of thrones', 'dragonfire'],
   ['peaky blinders', 'peakyblinders'], ['red right hand', 'peakyblinders'],
   ['the sopranos', 'sopranos'],
   ['twin peaks', 'twinpeaks'], ['laura palmer', 'twinpeaks'],
