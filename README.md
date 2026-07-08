@@ -15,19 +15,20 @@
 
 ---
 
-Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 63+ animated canvas themes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
+Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 96 animated canvas themes (each with its own bespoke intro transition), a synthesized ambient sound mixer with crossfade scenes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
 
 | | |
 |---|---|
-| **Themes** | 63+ animated — TV, film, animation, anime, F1, natural |
-| **Audio** | Ambient · Binaural beats · True spatial ILD/ITD |
-| **Modes** | Pomodoro · **Zen** · Kiosk · PiP · Voice |
-| **Intelligence** | Streaks · Velocity · **Flow Intensity** · Smart breaks |
-| **Always on Top** | Document PiP — theme floats over other apps |
+| **Themes** | 96 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
+| **Sound Mixer** | 13 synthesized ambient tracks · crossfade scenes · night mode · live VU meter |
+| **Now Playing** | Matches ~30 soundtracks against Spotify (or any player, manually) and switches theme |
+| **Modes** | Pomodoro (fully custom cycles) · **Zen** · **Calm** · **Focus** · Kiosk · PiP · Voice |
+| **Intelligence** | Streaks · Velocity · **Flow Intensity** · Configurable break reminders |
+| **Always on Top** | Document PiP — mini clock floats over other apps |
 | **Languages** | EN ES FR DE JA KO PT HI |
 | **Privacy** | Zero backend · localStorage only · No tracking |
 
-**[→ Full documentation on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki)**
+**[→ Full documentation on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki)** &nbsp;·&nbsp; **[→ Changelog](CHANGELOG.md)**
 
 ---
 
@@ -62,6 +63,19 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 <!-- <img src="https://your-cdn.com/session-clock-preview.png" width="100%" alt="Session Clock" /> -->
 
 *Choose one option above, uncomment it, and delete this block + the others.*
+
+---
+
+## What's New in 8.1
+
+- **33 new themes** across TV, film, anime, animation, F1, and ambient categories — Fargo, Twin Peaks, The Batman, Your Name, Studio Ghibli, Spider-Verse, Zen Garden, and more. Each has its own bespoke canvas intro transition, not a generic fade.
+- **7 new ambient sounds** (Wind, Snowfall, Keyboard, Library, Spaceship, Campfire, Waves & Rocks) — synthesized entirely in-browser, no audio files.
+- **Sound Mixer redesign**: live output meter, night mode, crossfade Scenes that blend your ambient mix as Pomodoro moves between focus and break.
+- **Now Playing → Theme**: recognizes soundtracks from what's currently playing (Spotify, or type it in manually for any player) and switches the theme to match.
+- **Custom Pomodoro cycles**, configurable break reminders, an opt-in idle nudge, Calm Mode, Focus Mode, and an always-on-top mini clock.
+- Fixed theme picker icons not rendering, rain/fireplace sounds silently failing to autoplay, a dead "Smart Break Reminder" toggle, and a handful of memory leaks.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
@@ -102,7 +116,7 @@ Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The incl
 ---
 
 <div align="center">
-<sub>25 modules · 0 runtime deps · 63+ themes · 20+ easter eggs · 8 languages · Flow Intensity</sub>
+<sub>25 modules · 0 runtime deps · 96 themes · 13 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
 
 ---
 
