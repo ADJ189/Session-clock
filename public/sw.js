@@ -1,5 +1,5 @@
 // Session Clock Service Worker — offline cache strategy
-const CACHE = 'session-clock-v2';
+const CACHE = 'session-clock-v3';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
