@@ -635,6 +635,27 @@ body.theme-flash::after {
   padding-left: 22px; padding-right: 22px;
 }
 .pill-group .btn { padding: 6px 14px; font-size: .68rem; }
+
+/* ── Custom Pomodoro cycle inputs ── */
+.pom-custom-row {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  padding: 4px 22px 0;
+}
+.pom-custom-row label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .68rem; opacity: .7; color: var(--clr-text);
+}
+.pom-custom-row input[type="number"] {
+  width: 56px; padding: 6px 8px; border-radius: 8px; text-align: center;
+  font-size: .74rem; font-weight: 700; color: var(--clr-text);
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  -moz-appearance: textfield;
+}
+.pom-custom-row input[type="number"]::-webkit-inner-spin-button,
+.pom-custom-row input[type="number"]::-webkit-outer-spin-button { opacity: .6; }
+.pom-custom-row input[type="number"]:focus { outline: none; border-color: var(--clr-accent); background: rgba(255,255,255,.1); }
+body.light-theme .pom-custom-row input[type="number"] { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.12); }
+
 .pom-today {
   font-size: .7rem; opacity: .32; color: var(--clr-text); margin-top: 14px;
   padding-left: 22px; padding-right: 22px;
@@ -742,6 +763,89 @@ kbd {
 .master-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--clr-accent); cursor: pointer; transition: transform .15s; box-shadow: 0 0 6px rgba(0,0,0,.3); }
 .master-vol-slider::-webkit-slider-thumb:hover { transform: scale(1.25); }
 .master-vol-slider::-moz-range-thumb { width: 15px; height: 15px; border-radius: 50%; background: var(--clr-accent); cursor: pointer; border: none; }
+
+/* ── High-end mixer polish ── */
+.sc-modal--mixer { backdrop-filter: blur(28px) saturate(150%); -webkit-backdrop-filter: blur(28px) saturate(150%); }
+.mixer-header-actions { display: flex; align-items: center; gap: 8px; }
+.mixer-night-toggle {
+  width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); cursor: pointer; font-size: .85rem;
+  transition: background .15s, transform .15s;
+}
+.mixer-night-toggle:hover { transform: scale(1.08); }
+.mixer-night-toggle.active { background: color-mix(in srgb, var(--clr-accent) 30%, transparent); border-color: var(--clr-accent); }
+
+/* Active track gets a subtle glow + icon breathing pulse — feels alive */
+.sound-track { position: relative; overflow: hidden; }
+.sound-track.active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--clr-accent) 14%, transparent), rgba(255,255,255,.06));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-accent) 40%, transparent), 0 4px 16px color-mix(in srgb, var(--clr-accent) 12%, transparent);
+}
+.sound-track.active .sound-track-icon { animation: mixerIconPulse 2.4s ease-in-out infinite; }
+@keyframes mixerIconPulse { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.12); opacity: 1; } }
+
+/* Output VU meter */
+.mixer-vu-row { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
+.mixer-vu-track {
+  flex: 1; height: 6px; border-radius: 99px; background: rgba(255,255,255,.1);
+  overflow: hidden; position: relative;
+}
+.mixer-vu-fill {
+  height: 100%; width: 0%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--clr-accent), color-mix(in srgb, var(--clr-accent) 60%, #7ef7c7));
+  transition: width .08s linear;
+}
+.mixer-vu-fill.hot { background: linear-gradient(90deg, var(--clr-accent), #f97362); }
+
+/* Crossfade scenes */
+.mixer-scenes { padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); }
+.mixer-scenes-hdr { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.mixer-scene-auto { display: flex; align-items: center; gap: 6px; font-size: .6rem; opacity: .6; color: var(--clr-text); cursor: pointer; }
+.mixer-scene-auto input { accent-color: var(--clr-accent); cursor: pointer; }
+.mixer-scenes-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.scene-btn {
+  flex: 1; min-width: 130px; padding: 9px 12px; border-radius: 10px; font-size: .66rem; font-weight: 700;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: var(--clr-text); cursor: pointer;
+  transition: background .15s, transform .15s;
+}
+.scene-btn:hover { background: color-mix(in srgb, var(--clr-accent) 16%, transparent); transform: translateY(-1px); }
+.scene-btn:active { transform: scale(.97); }
+
+/* Night mode — dims the mixer panel for low-light viewing */
+.sc-modal--mixer.mixer-night { filter: brightness(.74) saturate(.85); }
+.sc-modal--mixer.mixer-night .sound-track.active { box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-accent) 25%, transparent); }
+
+body.light-theme .mixer-night-toggle { background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.1); }
+body.light-theme .mixer-scenes { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.06); }
+body.light-theme .scene-btn { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sound-track.active .sound-track-icon { animation: none; }
+}
+
+/* ── Now Playing manual input ── */
+.np-manual-input {
+  width: 100%; padding: 9px 12px; border-radius: 10px; font-size: .72rem;
+  color: var(--clr-text); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
+}
+.np-manual-input:focus { outline: none; border-color: var(--clr-accent); background: rgba(255,255,255,.08); }
+.np-manual-input::placeholder { color: var(--clr-text); opacity: .35; }
+.settings-hint { font-size: .6rem; opacity: .45; color: var(--clr-text); padding: 2px 22px 4px; margin: 0; }
+body.light-theme .np-manual-input { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.12); }
+
+/* ── Calm Mode ── */
+body.calm-mode .confetti-dot,
+body.calm-mode .milestone-bg { display: none !important; }
+body.calm-mode .mixer-launch-card.is-playing .mixer-eq-bar { animation: none; }
+
+/* ── Focus Mode — idle chrome auto-hide ── */
+.topbar, .feat-dock { transition: opacity .5s ease, transform .5s ease; }
+body.focus-mode-hidden .topbar {
+  opacity: 0; transform: translateY(-10px); pointer-events: none;
+}
+body.focus-mode-hidden .feat-dock {
+  opacity: 0; transform: translateY(10px); pointer-events: none;
+}
 
 /* ── Log tabs ── */
 .log-tabs {

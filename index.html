@@ -221,12 +221,15 @@
 </div>
 
 <div class="sc-overlay" id="soundOverlay">
-  <div class="sc-modal">
+  <div class="sc-modal sc-modal--mixer">
     <div class="modal-header">
       <h2>🎵 Sound Mixer</h2>
-      <button class="modal-close" onclick="SC.modals.close('soundOverlay')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
+      <div class="mixer-header-actions">
+        <button class="mixer-night-toggle" id="mixerNightToggle" title="Night mode">🌙</button>
+        <button class="modal-close" onclick="SC.modals.close('soundOverlay')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
     </div>
     <div class="sound-mixer">
       <div class="sound-tracks" id="soundGrid"></div>
@@ -236,10 +239,24 @@
           <input type="range" class="sc-range master-vol-slider" id="volSlider" min="0" max="200" value="70">
           <span class="sound-vol-pct" id="volLabel">70%</span>
         </div>
+        <div class="mixer-vu-row">
+          <span class="sound-master-lbl">Output</span>
+          <div class="mixer-vu-track"><div class="mixer-vu-fill" id="mixerVuFill"></div></div>
+        </div>
         <div class="sound-master-row" style="margin-top:10px">
           <span class="sound-master-lbl">Fade out</span>
           <input type="range" class="sc-range" id="fadeSlider" min="0" max="60" value="0">
           <span class="sound-vol-pct" id="fadeLabel">Off</span>
+        </div>
+      </div>
+      <div class="mixer-scenes">
+        <div class="mixer-scenes-hdr">
+          <span class="sound-master-lbl">🎬 Crossfade Scenes</span>
+          <label class="mixer-scene-auto"><input type="checkbox" id="mixerAutoCrossfade"> Auto-switch with Pomodoro</label>
+        </div>
+        <div class="mixer-scenes-row">
+          <button class="scene-btn" id="sceneFocusBtn">💼 Save Focus mix</button>
+          <button class="scene-btn" id="sceneBreakBtn">☕ Save Break mix</button>
         </div>
       </div>
     </div>
@@ -270,8 +287,16 @@
     <div class="pill-group" id="pomWorkBtns"></div>
     <h3>Short break</h3>
     <div class="pill-group" id="pomBreakBtns"></div>
+    <h3>Long break duration</h3>
+    <div class="pill-group" id="pomLongBreakMinBtns"></div>
     <h3>Long break after</h3>
     <div class="pill-group" id="pomLongBtns"></div>
+    <h3>Custom cycle</h3>
+    <div class="pom-custom-row" id="pomCustomRow">
+      <label>Work <input type="number" id="pomCustomWork" min="1" max="180" step="1"> min</label>
+      <label>Break <input type="number" id="pomCustomBreak" min="1" max="90" step="1"> min</label>
+      <label>Long break <input type="number" id="pomCustomLong" min="1" max="120" step="1"> min</label>
+    </div>
     <p class="pom-today">Completed today: <strong><span id="pomCountToday">0</span></strong></p>
   </div>
 </div>
