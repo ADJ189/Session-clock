@@ -19,6 +19,7 @@ import * as Easter from './easter';
 import * as Cmd from './cmdpalette';
 import * as Features from './features';
 import * as Integrations from './integrations';
+import * as NowPlaying from './nowplaying';
 import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
 import * as Palette from './palette';
 
@@ -185,6 +186,11 @@ function resetTimer() {
     const milestone = Intel.getStreakMilestone(streak.current);
     if (milestone) showToast(milestone);
     Intel.onBreakTaken();
+
+    // Celebrate finishing the session
+    fireMilestoneConfetti(32);
+    showMotivationWidget('✓ Session Complete!', 'Nice focus — logged to your history.');
+    _lastMilestonePct = 1;
 
     // Smart break recommendation
     const sessionMins = Math.floor(dur / 60000);
@@ -1000,8 +1006,8 @@ function switchPanelTab(id: string) {
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
-const openModal  = (id: string) => $(id).classList.add('open');
-const closeModal = (id: string) => $(id).classList.remove('open');
+const openModal  = (id: string) => { $(id).classList.add('open'); if (id === 'soundOverlay') { startMixerMeter(); applyMixerNightMode(); } };
+const closeModal = (id: string) => { $(id).classList.remove('open'); if (id === 'soundOverlay') stopMixerMeter(); };
 document.querySelectorAll('.sc-overlay').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) (el as HTMLElement).classList.remove('open'); });
 });
@@ -1169,14 +1175,20 @@ Pom.init({
     if (txt.includes('Work')) {
       Sound.adaptOnWorkStart();
       setBreathing(false);
+      crossfadeToScene('focus');
       // Acquire wake lock when work starts
       APIs.acquireWakeLock();
       APIs.sendNotification('🍅 Work Session Started', 'Stay focused. You\'ve got this.', 'pom-work');
     } else {
       // Work phase just ended → award tokens
       Sound.adaptOnBreak();
+      crossfadeToScene('break');
       // Release wake lock on break
       APIs.releaseWakeLock();
+      // Celebrate finishing a focus block — reuse the milestone confetti system
+      fireMilestoneConfetti(40);
+      showMotivationWidget('✓ Focus Block Complete!', txt.includes('Long') ? 'Time for a well-earned long break.' : 'Nice work — take a short breather.');
+      _lastMilestonePct = 1;
       // Send notification
       const isLong = txt.includes('Long');
       const mins = isLong ? Pom.getSettings().longBreakMins : Pom.getSettings().breakMins;
@@ -1210,23 +1222,45 @@ function buildPomUI() {
   const s = Pom.getSettings();
   const countEl = $('pomCountToday');
   if (countEl) countEl.textContent = String(Pom.todayCount());
-  (['pomWorkBtns','pomBreakBtns','pomLongBtns'] as const).forEach((id, i) => {
+  (['pomWorkBtns','pomBreakBtns','pomLongBreakMinBtns','pomLongBtns'] as const).forEach((id, i) => {
     const el = $(id); if (!el) return; el.innerHTML = '';
-    const opts = i===0?[15,20,25,30,45,60]:i===1?[5,10,15]:[3,4,5,6];
-    const cur  = i===0?s.workMins:i===1?s.breakMins:s.longBreakAfter;
+    const opts = i===0 ? [15,20,25,30,45,60] : i===1 ? [5,10,15] : i===2 ? [10,15,20,30] : [3,4,5,6];
+    const cur  = i===0 ? s.workMins : i===1 ? s.breakMins : i===2 ? s.longBreakMins : s.longBreakAfter;
     opts.forEach(v => {
       const b = document.createElement('button');
       b.className = 'btn' + (cur===v?' active-btn':'');
-      b.textContent = i<2?`${v}m`:`${v}`;
+      b.textContent = i<3?`${v}m`:`${v}`;
       b.onclick = () => {
         if (i===0) Pom.updateSettings({workMins:v});
         else if (i===1) Pom.updateSettings({breakMins:v});
+        else if (i===2) Pom.updateSettings({longBreakMins:v});
         else Pom.updateSettings({longBreakAfter:v});
         buildPomUI();
       };
       el.appendChild(b);
     });
   });
+
+  // Custom numeric inputs — any value within sane bounds, not just presets
+  const workIn = $('pomCustomWork') as HTMLInputElement | null;
+  const breakIn = $('pomCustomBreak') as HTMLInputElement | null;
+  const longIn = $('pomCustomLong') as HTMLInputElement | null;
+  if (workIn)  workIn.value  = String(s.workMins);
+  if (breakIn) breakIn.value = String(s.breakMins);
+  if (longIn)  longIn.value  = String(s.longBreakMins);
+  const wireCustom = (el: HTMLInputElement | null, min: number, max: number, apply: (v: number) => void) => {
+    if (!el || el.dataset.wired) return;
+    el.dataset.wired = '1';
+    el.addEventListener('change', () => {
+      const v = Math.max(min, Math.min(max, Math.round(+el.value) || min));
+      el.value = String(v);
+      apply(v);
+      buildPomUI();
+    });
+  };
+  wireCustom(workIn,  1, 180, v => Pom.updateSettings({ workMins: v }));
+  wireCustom(breakIn, 1, 90,  v => Pom.updateSettings({ breakMins: v }));
+  wireCustom(longIn,  1, 120, v => Pom.updateSettings({ longBreakMins: v }));
 }
 
 // ── Mixer launch card (Settings → Sound) ────────────────────────────────
@@ -1326,6 +1360,235 @@ function makeSoundTrack(
 
   return track;
 }
+
+// ── Mixer VU meter ───────────────────────────────────────────────────
+let mixerMeterRaf = 0;
+function startMixerMeter() {
+  cancelAnimationFrame(mixerMeterRaf);
+  const fill = document.getElementById('mixerVuFill');
+  if (!fill) return;
+  const tick = () => {
+    const lvl = Sound.getAudioLevel(); // 0..1
+    // A little visual boost so quiet ambient mixes still show life on the meter
+    const pct = Math.min(100, Math.pow(lvl, 0.6) * 130);
+    fill.style.width = pct.toFixed(1) + '%';
+    fill.classList.toggle('hot', pct > 85);
+    mixerMeterRaf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+function stopMixerMeter() { cancelAnimationFrame(mixerMeterRaf); }
+
+// ── Mixer night mode ─────────────────────────────────────────────────
+// 'auto' dims the mixer panel automatically between 9pm–6am local time;
+// 'on'/'off' are explicit manual overrides via the toolbar toggle.
+function isNightHours(): boolean { const h = new Date().getHours(); return h >= 21 || h < 6; }
+function applyMixerNightMode() {
+  const mode = localStorage.getItem('sc_mixer_night') || 'auto';
+  const on = mode === 'on' || (mode === 'auto' && isNightHours());
+  const modal = document.querySelector('.sc-modal--mixer');
+  modal?.classList.toggle('mixer-night', on);
+  const btn = document.getElementById('mixerNightToggle');
+  if (btn) { btn.classList.toggle('active', mode === 'on'); btn.title = `Night mode: ${mode}`; }
+}
+document.getElementById('mixerNightToggle')?.addEventListener('click', () => {
+  const cur = localStorage.getItem('sc_mixer_night') || 'auto';
+  const next = cur === 'auto' ? 'on' : cur === 'on' ? 'off' : 'auto';
+  localStorage.setItem('sc_mixer_night', next);
+  applyMixerNightMode();
+  showToast(`🌙 Mixer night mode: ${next}`);
+});
+
+// ── Crossfade scenes ──────────────────────────────────────────────────
+// Snapshot the currently-playing tracks + volumes as a named "scene";
+// when both are defined and auto-switch is on, the app crossfades
+// between them as Pomodoro moves between work and break phases instead
+// of hard-cutting the ambience.
+interface MixScene { tracks: Record<string, number> }
+function captureCurrentMix(): MixScene {
+  const tracks: Record<string, number> = {};
+  Sound.SOUNDS.forEach(s => { if (Sound.isPlaying(s.id)) tracks[s.id] = Sound.getTrackVolume(s.id); });
+  return { tracks };
+}
+function saveScene(key: 'focus' | 'break') {
+  const scene = captureCurrentMix();
+  if (Object.keys(scene.tracks).length === 0) { showToast('Play a mix first, then save it as a scene'); return; }
+  localStorage.setItem(`sc_scene_${key}`, JSON.stringify(scene));
+  showToast(`Saved current mix as ${key === 'focus' ? 'Focus' : 'Break'} scene`);
+}
+function getScene(key: 'focus' | 'break'): MixScene | null {
+  try { return JSON.parse(localStorage.getItem(`sc_scene_${key}`) || 'null'); } catch { return null; }
+}
+function crossfadeToScene(key: 'focus' | 'break') {
+  if (localStorage.getItem('sc_mixer_autofade') !== '1') return;
+  const scene = getScene(key);
+  if (!scene) return;
+  Object.entries(scene.tracks).forEach(([id, v]) => Sound.setTrackVolume(id, v));
+  Sound.crossfadeTo(Object.keys(scene.tracks), 2500);
+}
+document.getElementById('sceneFocusBtn')?.addEventListener('click', () => saveScene('focus'));
+document.getElementById('sceneBreakBtn')?.addEventListener('click', () => saveScene('break'));
+(() => {
+  const cb = document.getElementById('mixerAutoCrossfade') as HTMLInputElement | null;
+  if (!cb) return;
+  cb.checked = localStorage.getItem('sc_mixer_autofade') === '1';
+  cb.addEventListener('change', () => localStorage.setItem('sc_mixer_autofade', cb.checked ? '1' : '0'));
+})();
+
+// ── Calm Mode — one switch that simplifies motion, parallax & quality ──
+function applyCalmMode(on: boolean) {
+  localStorage.setItem('sc_calm_mode', on ? '1' : '0');
+  document.body.classList.toggle('calm-mode', on);
+  if (on) {
+    localStorage.setItem('sc_reduce_motion', '1');
+    document.body.classList.add('reduced-motion');
+    localStorage.setItem('sc_parallax', '0');
+    setTier('med');
+    invalidateCache();
+  }
+  showToast(on ? '🌤 Calm Mode on — simplified & lighter' : 'Calm Mode off');
+}
+
+// ── Focus Mode — fades the header/dock chrome away when idle ───────────
+let focusModeIdleTimer = 0;
+function focusModeActivity() {
+  document.body.classList.remove('focus-mode-hidden');
+  scheduleFocusModeHide();
+}
+function scheduleFocusModeHide() {
+  clearTimeout(focusModeIdleTimer);
+  focusModeIdleTimer = window.setTimeout(() => {
+    // Don't hide chrome while a modal is open — user may be mid-interaction
+    if (document.querySelector('.sc-overlay.open')) { scheduleFocusModeHide(); return; }
+    document.body.classList.add('focus-mode-hidden');
+  }, 4000);
+}
+function wireFocusModeListeners(on: boolean) {
+  document.removeEventListener('mousemove', focusModeActivity);
+  document.removeEventListener('touchstart', focusModeActivity);
+  document.removeEventListener('keydown', focusModeActivity);
+  clearTimeout(focusModeIdleTimer);
+  document.body.classList.remove('focus-mode-hidden');
+  if (on) {
+    document.addEventListener('mousemove', focusModeActivity, { passive: true });
+    document.addEventListener('touchstart', focusModeActivity, { passive: true });
+    document.addEventListener('keydown', focusModeActivity);
+    scheduleFocusModeHide();
+  }
+}
+function applyFocusMode(on: boolean) {
+  localStorage.setItem('sc_focus_mode', on ? '1' : '0');
+  wireFocusModeListeners(on);
+  showToast(on ? '👁 Focus Mode on — move the mouse to bring controls back' : 'Focus Mode off');
+}
+
+// ── Minimalist always-on-top mini clock (Document Picture-in-Picture) ──
+// Chrome 116+ only; feature-detected before the button is ever shown, and
+// the call itself is wrapped so unsupported/older Chromium or a user
+// gesture requirement failure degrades to a friendly toast instead of an
+// unhandled promise rejection.
+async function openMiniClockPiP() {
+  const dpip = (window as any).documentPictureInPicture;
+  if (!dpip) { showToast('Always-on-top mini clock needs a recent Chrome'); return; }
+  try {
+    const pipWindow: Window = await dpip.requestWindow({ width: 260, height: 130 });
+    pipWindow.document.title = 'Session Clock';
+    const style = pipWindow.document.createElement('style');
+    style.textContent = `
+      html,body{margin:0;height:100%;display:flex;align-items:center;justify-content:center;
+        background:#0a0a10;font-family:'Inter',system-ui,sans-serif;overflow:hidden;}
+      .t{font-size:2.6rem;font-weight:800;color:#e9edf5;letter-spacing:.02em;font-variant-numeric:tabular-nums;}
+      .p{font-size:.85rem;color:#e9edf5;opacity:.5;margin-left:6px;}
+      .wrap{display:flex;align-items:baseline;}
+    `;
+    pipWindow.document.head.appendChild(style);
+    const wrap = pipWindow.document.createElement('div'); wrap.className = 'wrap';
+    const t = pipWindow.document.createElement('span'); t.className = 't';
+    const p = pipWindow.document.createElement('span'); p.className = 'p';
+    wrap.append(t, p);
+    pipWindow.document.body.appendChild(wrap);
+
+    const tick = () => {
+      if (pipWindow.closed) return;
+      const now = new Date();
+      let h = now.getHours(); const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      t.textContent = `${h}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      p.textContent = ampm;
+      pipWindow.requestAnimationFrame(tick);
+    };
+    tick();
+  } catch {
+    showToast('Could not open the always-on-top window');
+  }
+}
+
+// ── Idle detection (opt-in, non-destructive, low priority) ─────────────
+// Default OFF. This is purely a gentle nudge — it never pauses, resets,
+// or otherwise alters the running timer, so even a false "idle" read
+// can't lose or break a session. That's the deliberate trade-off for a
+// feature that's inherently a guess about what the user is doing.
+let idleTimer = 0;
+let idleNudgeShown = false;
+function idleActivity() {
+  idleNudgeShown = false;
+  scheduleIdleCheck();
+}
+function scheduleIdleCheck() {
+  clearTimeout(idleTimer);
+  if (localStorage.getItem('sc_idle_detect') !== '1') return;
+  idleTimer = window.setTimeout(() => {
+    if (!sessionRunning || idleNudgeShown || document.querySelector('.sc-overlay.open')) { scheduleIdleCheck(); return; }
+    idleNudgeShown = true;
+    showToast('👋 Still there? Your session is still running.', 6000);
+    scheduleIdleCheck();
+  }, 15 * 60_000);
+}
+function wireIdleListeners(on: boolean) {
+  document.removeEventListener('mousemove', idleActivity);
+  document.removeEventListener('keydown', idleActivity);
+  document.removeEventListener('touchstart', idleActivity);
+  clearTimeout(idleTimer);
+  if (on) {
+    document.addEventListener('mousemove', idleActivity, { passive: true });
+    document.addEventListener('keydown', idleActivity);
+    document.addEventListener('touchstart', idleActivity, { passive: true });
+    scheduleIdleCheck();
+  }
+}
+function applyIdleDetection(on: boolean) {
+  localStorage.setItem('sc_idle_detect', on ? '1' : '0');
+  wireIdleListeners(on);
+  showToast(on ? '💤 Idle nudge on (15 min, gentle reminder only)' : 'Idle nudge off');
+}
+
+// ── Now Playing → theme matching ────────────────────────────────────
+let nowPlayingPollTimer = 0;
+let lastNowPlayingKey = '';
+function tryMatchNowPlayingTheme(info: { title: string; artist: string }, manual: boolean) {
+  const key = `${info.title}|${info.artist}`.toLowerCase();
+  if (!manual && key === lastNowPlayingKey) return; // don't re-match the same track over and over
+  lastNowPlayingKey = key;
+  const themeId = NowPlaying.matchThemeForTrack(info);
+  if (!themeId) { if (manual) showToast("No matching theme for that yet — try a movie/show soundtrack name"); return; }
+  const theme = THEME_BY_ID[themeId];
+  if (!theme || theme.id === currentTheme?.id) return;
+  applyTheme(theme);
+  const label = info.title || info.artist;
+  showToast(`🎵 "${label}" → switched to ${theme.name}`);
+}
+function startNowPlayingPoll() {
+  stopNowPlayingPoll();
+  nowPlayingPollTimer = window.setInterval(async () => {
+    if (localStorage.getItem('sc_nowplaying_theme') !== '1') { stopNowPlayingPoll(); return; }
+    if (!Integrations.isSpotifyConnected()) return;
+    try {
+      const np = await Integrations.spotifyNowPlaying();
+      if (np && np.playing) tryMatchNowPlayingTheme({ title: np.track, artist: np.artist }, false);
+    } catch { /* transient network/API error — try again next tick */ }
+  }, 20_000);
+}
+function stopNowPlayingPoll() { clearInterval(nowPlayingPollTimer); nowPlayingPollTimer = 0; }
 
 function buildSoundUI() {
   const container = $('soundGrid'); container.innerHTML = '';
@@ -1909,6 +2172,35 @@ function buildSettingsUI(activeTab = 'general') {
     soundBtnSec.appendChild(buildMixerLaunchCard());
     paneWrap.appendChild(soundBtnSec);
 
+    const npSec = makeSection('Now Playing → Theme');
+    npSec.appendChild(makeRow('Auto-switch Theme', 'When Spotify (or a manually-entered track) matches a soundtrack, switch to that theme', 'toggleNowPlayingTheme', localStorage.getItem('sc_nowplaying_theme') === '1'));
+    const npRow = document.createElement('div'); npRow.className = 'settings-row';
+    const npInput = document.createElement('input'); npInput.type = 'text'; npInput.className = 'np-manual-input';
+    npInput.placeholder = "What's playing? (any player — song, artist, or soundtrack)";
+    npInput.value = localStorage.getItem('sc_nowplaying_manual') || '';
+    npRow.appendChild(npInput);
+    npSec.appendChild(npRow);
+    const npHint = document.createElement('p'); npHint.className = 'settings-hint';
+    npHint.textContent = Integrations.isSpotifyConnected()
+      ? '✓ Spotify connected — this checks automatically too.'
+      : 'Connect Spotify in General → Integrations for automatic detection, or just type here.';
+    npSec.appendChild(npHint);
+    paneWrap.appendChild(npSec);
+
+    npInput.addEventListener('change', () => {
+      const val = npInput.value.trim();
+      localStorage.setItem('sc_nowplaying_manual', val);
+      if (!val) return;
+      tryMatchNowPlayingTheme({ title: val, artist: '' }, true);
+    });
+    npInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') npInput.blur(); });
+
+    wireToggle('toggleNowPlayingTheme', (on) => {
+      localStorage.setItem('sc_nowplaying_theme', on ? '1' : '0');
+      showToast(on ? '🎵 Now Playing theme-matching on' : 'Now Playing theme-matching off');
+      if (on) startNowPlayingPoll(); else stopNowPlayingPoll();
+    });
+
     wireToggle('toggleSpatial',   (on) => Sound.setSpatial(on));
     wireToggle('toggleBreathing', (on) => { breathingBreakEnabled = on; localStorage.setItem('sc_breathing_break', on ? '1' : '0'); });
     wireToggle('toggleUiSounds',  (on) => { localStorage.setItem('sc_ui_sounds', on ? '1' : '0'); showToast(on ? '🔔 UI sounds on' : '🔕 UI sounds off'); });
@@ -1918,7 +2210,26 @@ function buildSettingsUI(activeTab = 'general') {
   else if (activeTab === 'focus') {
     const focusSec = makeSection('Pomodoro & Sessions');
     focusSec.appendChild(makeRow('Focus Lock Delay', '3-second intentional friction before opening panels during Pomodoro', 'toggleFocusLockS', focusLockEnabled));
-    focusSec.appendChild(makeRow('Smart Break Reminder', 'Gently pulses after 90 uninterrupted minutes', 'toggleSmartBreak', localStorage.getItem('sc_smart_break') !== '0'));
+    focusSec.appendChild(makeRow('Smart Break Reminder', 'Nudges you with a toast + notification during long, non-Pomodoro sessions', 'toggleSmartBreak', localStorage.getItem('sc_smart_break') !== '0'));
+
+    const intervalRow = document.createElement('div'); intervalRow.className = 'settings-row';
+    const intInfo = document.createElement('div'); intInfo.className = 'settings-row-info';
+    const intTop = document.createElement('div'); intTop.className = 'settings-row-top';
+    const intLbl = document.createElement('span'); intLbl.className = 'settings-row-label'; intLbl.textContent = 'Remind me after';
+    intTop.appendChild(intLbl);
+    intInfo.appendChild(intTop);
+    const intSelect = document.createElement('select'); intSelect.className = 'settings-select';
+    [30, 45, 60, 90, 120].forEach(m => {
+      const opt = document.createElement('option'); opt.value = String(m); opt.textContent = `${m} min`;
+      if ((parseInt(localStorage.getItem('sc_break_reminder_mins') || '90', 10)) === m) opt.selected = true;
+      intSelect.appendChild(opt);
+    });
+    intSelect.addEventListener('change', () => localStorage.setItem('sc_break_reminder_mins', intSelect.value));
+    intervalRow.append(intInfo, intSelect);
+    focusSec.appendChild(intervalRow);
+
+    focusSec.appendChild(makeRow('Idle Nudge', 'After 15 min with no input, a gentle "still there?" toast — never pauses or alters your timer', 'toggleIdleDetect', localStorage.getItem('sc_idle_detect') === '1'));
+
     paneWrap.appendChild(focusSec);
 
     const pomBtn = document.createElement('button'); pomBtn.className = 'settings-action-btn settings-action-btn--full';
@@ -1929,6 +2240,7 @@ function buildSettingsUI(activeTab = 'general') {
 
     wireToggle('toggleFocusLockS', () => toggleFocusLock());
     wireToggle('toggleSmartBreak', (on) => { localStorage.setItem('sc_smart_break', on ? '1' : '0'); });
+    wireToggle('toggleIdleDetect', (on) => applyIdleDetection(on));
   }
 
   // ══ DISPLAY ═══════════════════════════════════════════════════════════
@@ -1957,6 +2269,20 @@ function buildSettingsUI(activeTab = 'general') {
     layoutSec.appendChild(clockPosRow);
 
     paneWrap.appendChild(layoutSec);
+
+    // ── Calm Mode — one toggle that simplifies everything at once ──────
+    const calmSec = makeSection('Simplify');
+    calmSec.appendChild(makeRow('Calm Mode', 'One switch for less visual intensity — reduces motion, turns off parallax, and lowers render quality', 'toggleCalmMode', localStorage.getItem('sc_calm_mode') === '1'));
+    calmSec.appendChild(makeRow('Focus Mode', 'Fades away buttons and chrome after a few idle seconds; move the mouse to bring them back', 'toggleFocusModeS', localStorage.getItem('sc_focus_mode') === '1'));
+    paneWrap.appendChild(calmSec);
+
+    if ('documentPictureInPicture' in window) {
+      const pipBtn = document.createElement('button'); pipBtn.className = 'settings-action-btn settings-action-btn--full';
+      pipBtn.textContent = '🪟 Pop Out Mini Clock (Always on Top)';
+      pipBtn.addEventListener('click', () => { closeModal('settingsOverlay'); openMiniClockPiP(); });
+      const pipSec = makeSection('Always on Top'); pipSec.appendChild(pipBtn);
+      paneWrap.appendChild(pipSec);
+    }
 
     const animSec = makeSection('Motion & Animations');
     const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1994,6 +2320,8 @@ function buildSettingsUI(activeTab = 'general') {
     perfSec.appendChild(qualityRow);
     paneWrap.appendChild(perfSec);
 
+    wireToggle('toggleCalmMode', (on) => applyCalmMode(on));
+    wireToggle('toggleFocusModeS', (on) => applyFocusMode(on));
     wireToggle('toggleReduceMotion', (on) => {
       localStorage.setItem('sc_reduce_motion', on ? '1' : '0');
       document.body.classList.toggle('reduced-motion', on);
@@ -2399,6 +2727,7 @@ const MOTIV_75 = [
 let _lastMilestonePct = 0;
 
 function fireMilestoneConfetti(count = 28) {
+  if (document.body.classList.contains('calm-mode') || document.body.classList.contains('reduced-motion')) return;
   const accentRgb = getComputedStyle(document.documentElement).getPropertyValue('--clr-accent-rgb').trim() || '110,231,183';
   const colors = [
     `rgba(${accentRgb},0.85)`, 'rgba(255,200,80,0.85)',
@@ -2478,16 +2807,31 @@ function resetMilestones() {
 // ── Smart Break Suggester ─────────────────────────────────────────────
 let breakBadgeShown = false;
 
+function getBreakReminderMins(): number {
+  const v = parseInt(localStorage.getItem('sc_break_reminder_mins') || '90', 10);
+  return Number.isFinite(v) && v > 0 ? v : 90;
+}
+
 function checkSmartBreak() {
-  if (!Intel.checkBreakNeeded(sessionRunning)) return;
+  // Respect the Settings toggle (previously ignored — toggling it off did nothing)
+  if (localStorage.getItem('sc_smart_break') === '0') return;
+  // Pomodoro already manages its own break cadence
+  if (Pom.isActive()) return;
+  if (!Intel.checkBreakNeeded(sessionRunning, getBreakReminderMins())) return;
   if (breakBadgeShown) return;
   breakBadgeShown = true;
 
+  const mins = getBreakReminderMins();
+  showToast(`🧘 You've been focused for ${mins}+ minutes — a short break helps.`, 6500);
+  APIs.sendNotification('Time for a quick break?', `You've been focused for ${mins}+ minutes. Stretch, hydrate, rest your eyes for a moment.`, 'break-reminder');
+
   const pill = document.querySelector<HTMLElement>('.sync-pill');
-  if (!pill) return;
-  pill.classList.add('break-hint');
-  pill.title = 'You\'ve been focused for 90+ minutes — consider a short break';
-  setTimeout(() => { pill.classList.remove('break-hint'); breakBadgeShown = false; }, 30_000);
+  if (pill) {
+    pill.classList.add('break-hint');
+    pill.title = `You've been focused for ${mins}+ minutes — consider a short break`;
+    setTimeout(() => pill.classList.remove('break-hint'), 30_000);
+  }
+  setTimeout(() => { breakBadgeShown = false; }, 30_000);
 }
 
 // ── Sound Preset Saving ───────────────────────────────────────────────
@@ -2798,6 +3142,10 @@ function init() {
   const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' ||
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduceMotion) document.body.classList.add('reduced-motion');
+  if (localStorage.getItem('sc_calm_mode') === '1') document.body.classList.add('calm-mode');
+  if (localStorage.getItem('sc_focus_mode') === '1') wireFocusModeListeners(true);
+  if (localStorage.getItem('sc_idle_detect') === '1') wireIdleListeners(true);
+  if (localStorage.getItem('sc_nowplaying_theme') === '1') startNowPlayingPoll();
 
   APIs.initBattery().then(() => {
     APIs.onBatteryChange((level, charging) => {

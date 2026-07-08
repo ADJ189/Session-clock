@@ -1,12 +1,19 @@
 import type { SoundDef, SoundNode } from './types';
 
 export const SOUNDS: SoundDef[] = [
-  { id: 'rain',   name: 'Rain',        icon: '🌧', desc: 'Gentle rainfall on a window'   },
-  { id: 'brown',  name: 'Brown Noise', icon: '📻', desc: 'Deep, soothing rumble'           },
-  { id: 'forest', name: 'Forest',      icon: '🌲', desc: 'Wind, leaves, distant birds'     },
-  { id: 'cafe',   name: 'Café',        icon: '☕', desc: 'Warm murmur of a coffee shop'   },
-  { id: 'ocean',  name: 'Ocean',       icon: '🌊', desc: 'Waves rolling onto shore'        },
-  { id: 'fire',   name: 'Fireplace',   icon: '🔥', desc: 'Crackling wood fire'             },
+  { id: 'rain',      name: 'Rain',        icon: '🌧', desc: 'Gentle rainfall on a window'   },
+  { id: 'brown',     name: 'Brown Noise', icon: '📻', desc: 'Deep, soothing rumble'           },
+  { id: 'forest',    name: 'Forest',      icon: '🌲', desc: 'Wind, leaves, distant birds'     },
+  { id: 'cafe',      name: 'Café',        icon: '☕', desc: 'Warm murmur of a coffee shop'   },
+  { id: 'ocean',     name: 'Ocean',       icon: '🌊', desc: 'Waves rolling onto shore'        },
+  { id: 'fire',      name: 'Fireplace',   icon: '🔥', desc: 'Crackling wood fire'             },
+  { id: 'wind',      name: 'Wind',        icon: '🍃', desc: 'Open-air gusts, ebbing and flowing' },
+  { id: 'snow',      name: 'Snowfall',    icon: '❄️', desc: 'Soft hush and distant footsteps'  },
+  { id: 'keyboard',  name: 'Keyboard',    icon: '⌨️', desc: 'Mechanical typing, in bursts'      },
+  { id: 'library',   name: 'Library',     icon: '📚', desc: 'Quiet room tone, rare page turns' },
+  { id: 'spaceship', name: 'Spaceship',   icon: '🚀', desc: 'Deep engine drone, sci-fi hum'    },
+  { id: 'campfire',  name: 'Campfire',    icon: '🏕', desc: 'Bright outdoor fire under the stars' },
+  { id: 'waves',     name: 'Waves & Rocks', icon: '🌊', desc: 'Surf crashing against the shore' },
 ];
 
 export interface BinauralPreset {
@@ -418,14 +425,327 @@ function makeFire(): { out: AudioNode; nodes: AudioNode[] } {
   return { out: mix, nodes: [hiss, sizzle, stopProxy] };
 }
 
+// ── WIND — gusting filtered noise with slow gust swells ───────────────
+// Open-air wind: pink noise through a slowly-sweeping bandpass, with
+// occasional stronger gusts (amplitude + brightness both rise together,
+// which is what makes real wind gusts sound "louder AND sharper").
+function makeWind(): { out: AudioNode; nodes: AudioNode[] } {
+  const base = makeNoiseBuf(8, 1, d => {
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (let i = 0; i < d.length; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886*b0 + white*0.0555179; b1 = 0.99332*b1 + white*0.0750759;
+      b2 = 0.96900*b2 + white*0.1538520; b3 = 0.86650*b3 + white*0.3104856;
+      b4 = 0.55000*b4 + white*0.5329522; b5 = -0.7616*b5 - white*0.0168980;
+      d[i] = (b0+b1+b2+b3+b4+b5+b6+white*0.5362) * 0.045;
+      b6 = white * 0.115926;
+    }
+  });
+  const bp = ctx!.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 500; bp.Q.value = 0.6;
+  base.connect(bp);
+
+  // Gust LFO — slow, irregular via two incommensurate sines, drives both
+  // the filter's centre frequency and the overall gain together.
+  const lfo1 = ctx!.createOscillator(); lfo1.type = 'sine'; lfo1.frequency.value = 0.06;
+  const lfo2 = ctx!.createOscillator(); lfo2.type = 'sine'; lfo2.frequency.value = 0.017;
+  const lfoMix = ctx!.createGain(); lfoMix.gain.value = 220;
+  lfo1.connect(lfoMix); lfo2.connect(lfoMix);
+  lfoMix.connect(bp.frequency);
+  bp.frequency.value = 450;
+
+  const gustGain = ctx!.createGain(); gustGain.gain.value = 0.5;
+  const gustLfo = ctx!.createOscillator(); gustLfo.type = 'sine'; gustLfo.frequency.value = 0.05;
+  const gustLfoG = ctx!.createGain(); gustLfoG.gain.value = 0.22;
+  gustLfo.connect(gustLfoG); gustLfoG.connect(gustGain.gain);
+
+  bp.connect(gustGain);
+
+  const out = ctx!.createGain(); out.gain.value = 0.85;
+  gustGain.connect(out);
+
+  return { out, nodes: [base, lfo1, lfo2, gustLfo] };
+}
+
+// ── SNOW — near-silent hiss + soft, sparse footstep crunches ──────────
+function makeSnow(): { out: AudioNode; nodes: AudioNode[] } {
+  const hush = makeNoiseBuf(6, 1, d => {
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.08;
+  });
+  const hushLp = ctx!.createBiquadFilter(); hushLp.type = 'lowpass'; hushLp.frequency.value = 2200; hushLp.Q.value = 0.5;
+  const hushHp = ctx!.createBiquadFilter(); hushHp.type = 'highpass'; hushHp.frequency.value = 400; hushHp.Q.value = 0.4;
+  hush.connect(hushHp); hushHp.connect(hushLp);
+
+  const mix = ctx!.createGain(); mix.gain.value = 0.5;
+  hushLp.connect(mix);
+
+  // Sparse soft crunch — like a distant footstep in fresh snow
+  const crunchGain = ctx!.createGain(); crunchGain.gain.value = 0.5;
+  crunchGain.connect(mix);
+  let crunchActive = true;
+  const scheduleCrunch = () => {
+    if (!crunchActive || !ctx || ctx.state === 'closed') return;
+    const delay = 4000 + Math.random() * 9000;
+    setTimeout(() => {
+      if (!crunchActive || !ctx || ctx.state === 'closed') return;
+      // 2-3 soft compressive taps per crunch
+      const taps = 2 + Math.floor(Math.random() * 2);
+      for (let n = 0; n < taps; n++) {
+        const t = ctx.currentTime + n * (0.09 + Math.random() * 0.05);
+        const src = makeNoiseBuf(0.12, 1, d => { for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1); });
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400 + Math.random()*800; bp.Q.value = 1.5;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.18 + Math.random() * 0.1, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+        src.connect(bp); bp.connect(g); g.connect(crunchGain);
+        src.start(t); src.stop(t + 0.13);
+      }
+      scheduleCrunch();
+    }, delay);
+  };
+  scheduleCrunch();
+
+  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
+  (stopProxy as any)._customStop = () => { crunchActive = false; };
+
+  return { out: mix, nodes: [hush, stopProxy] };
+}
+
+// ── KEYBOARD — mechanical clacks in typing "runs" with think-pauses ───
+function makeKeyboard(): { out: AudioNode; nodes: AudioNode[] } {
+  const clackGain = ctx!.createGain(); clackGain.gain.value = 0.55;
+
+  let active = true;
+  const scheduleRun = () => {
+    if (!active || !ctx || ctx.state === 'closed') return;
+    // Pause between typing runs (thinking / reading)
+    const pause = 900 + Math.random() * 3200;
+    setTimeout(() => {
+      if (!active || !ctx || ctx.state === 'closed') return;
+      const keystrokes = 4 + Math.floor(Math.random() * 14);
+      let t = ctx.currentTime;
+      for (let k = 0; k < keystrokes; k++) {
+        t += 0.06 + Math.random() * 0.1;
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'square';
+        o.frequency.value = 1400 + Math.random() * 900;
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.22 + Math.random() * 0.12, t + 0.003);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.02 + Math.random() * 0.02);
+        o.connect(hp); hp.connect(g); g.connect(clackGain);
+        o.start(t); o.stop(t + 0.05);
+      }
+      scheduleRun();
+    }, pause);
+  };
+  scheduleRun();
+
+  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
+  (stopProxy as any)._customStop = () => { active = false; };
+
+  return { out: clackGain, nodes: [stopProxy] };
+}
+
+// ── LIBRARY HUM — near-silent room tone + rare distant page-turns ─────
+function makeLibrary(): { out: AudioNode; nodes: AudioNode[] } {
+  const hum = ctx!.createOscillator(); hum.type = 'sine'; hum.frequency.value = 60;
+  const humG = ctx!.createGain(); humG.gain.value = 0.02;
+  hum.connect(humG);
+
+  const room = makeNoiseBuf(8, 1, d => {
+    let l = 0;
+    for (let i = 0; i < d.length; i++) { l = l * 0.995 + (Math.random()*2-1) * 0.005; d[i] = l * 1.4; }
+  });
+  const roomLp = ctx!.createBiquadFilter(); roomLp.type = 'lowpass'; roomLp.frequency.value = 900; roomLp.Q.value = 0.5;
+  const roomG = ctx!.createGain(); roomG.gain.value = 0.14;
+  room.connect(roomLp); roomLp.connect(roomG);
+
+  const mix = ctx!.createGain(); mix.gain.value = 0.7;
+  humG.connect(mix); roomG.connect(mix);
+
+  const pageGain = ctx!.createGain(); pageGain.gain.value = 0.4;
+  pageGain.connect(mix);
+  let active = true;
+  const schedulePage = () => {
+    if (!active || !ctx || ctx.state === 'closed') return;
+    const delay = 8000 + Math.random() * 18000;
+    setTimeout(() => {
+      if (!active || !ctx || ctx.state === 'closed') return;
+      const t = ctx.currentTime;
+      const src = makeNoiseBuf(0.35, 1, d => { for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1); });
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2500; bp.Q.value = 0.7;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.1, t + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      src.connect(bp); bp.connect(g); g.connect(pageGain);
+      src.start(t); src.stop(t + 0.4);
+      schedulePage();
+    }, delay);
+  };
+  schedulePage();
+
+  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
+  (stopProxy as any)._customStop = () => { active = false; };
+
+  return { out: mix, nodes: [hum, room, stopProxy] };
+}
+
+// ── SPACESHIP HUM — layered detuned drone + slow reactor pulse ────────
+function makeSpaceship(): { out: AudioNode; nodes: AudioNode[] } {
+  const nodes: AudioNode[] = [];
+  const mix = ctx!.createGain(); mix.gain.value = 0.7;
+
+  // Two slightly detuned low oscillators for a "beating" engine drone
+  [55, 55.6, 110].forEach((f, i) => {
+    const o = ctx!.createOscillator(); o.type = i === 2 ? 'sine' : 'sawtooth'; o.frequency.value = f;
+    const lp = ctx!.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300; lp.Q.value = 0.7;
+    const g = ctx!.createGain(); g.gain.value = i === 2 ? 0.12 : 0.16;
+    o.connect(lp); lp.connect(g); g.connect(mix);
+    nodes.push(o);
+  });
+
+  // Textured noise layer for engine "air"
+  const tex = makeNoiseBuf(6, 1, d => {
+    let l = 0;
+    for (let i = 0; i < d.length; i++) { l = l * 0.996 + (Math.random()*2-1)*0.004; d[i] = l * 1.6; }
+  });
+  const texLp = ctx!.createBiquadFilter(); texLp.type = 'lowpass'; texLp.frequency.value = 500; texLp.Q.value = 0.6;
+  const texG = ctx!.createGain(); texG.gain.value = 0.18;
+  tex.connect(texLp); texLp.connect(texG); texG.connect(mix);
+  nodes.push(tex);
+
+  // Slow reactor pulse — gentle bandpass sweep on the drone
+  const pulseLfo = ctx!.createOscillator(); pulseLfo.type = 'sine'; pulseLfo.frequency.value = 0.12;
+  const pulseG = ctx!.createGain(); pulseG.gain.value = 0.08;
+  const pulseFilter = ctx!.createBiquadFilter(); pulseFilter.type = 'peaking'; pulseFilter.frequency.value = 220; pulseFilter.Q.value = 2; pulseFilter.gain.value = 0;
+  pulseLfo.connect(pulseG); pulseG.connect(pulseFilter.gain);
+  mix.connect(pulseFilter);
+  nodes.push(pulseLfo);
+
+  const out = ctx!.createGain(); out.gain.value = 0.75;
+  pulseFilter.connect(out);
+
+  return { out, nodes };
+}
+
+// ── CAMPFIRE — airier outdoor fire: brighter crackle, less bass roar ──
+function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
+  const hiss = makeNoiseBuf(4, 1, d => {
+    let l = 0;
+    for (let i = 0; i < d.length; i++) { l = l * 0.996 + (Math.random()*2-1)*0.004; d[i] = l * 1.4; }
+  });
+  const hissLp = ctx!.createBiquadFilter(); hissLp.type = 'lowpass'; hissLp.frequency.value = 500; hissLp.Q.value = 0.7;
+  hiss.connect(hissLp);
+  const hissG = ctx!.createGain(); hissG.gain.value = 0.32; hissLp.connect(hissG);
+
+  // Open-air ambience: soft high-passed noise (night air)
+  const air = makeNoiseBuf(6, 1, d => { for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * 0.06; });
+  const airHp = ctx!.createBiquadFilter(); airHp.type = 'highpass'; airHp.frequency.value = 3000;
+  air.connect(airHp);
+  const airG = ctx!.createGain(); airG.gain.value = 0.2; airHp.connect(airG);
+
+  const mix = ctx!.createGain(); mix.gain.value = 1.0;
+  hissG.connect(mix); airG.connect(mix);
+
+  const crackleGain = ctx!.createGain(); crackleGain.gain.value = 0.8;
+  crackleGain.connect(mix);
+  let active = true;
+  const scheduleCrackle = () => {
+    if (!active || !ctx || ctx.state === 'closed') return;
+    const delay = 150 + Math.random() * 550; // brighter, more frequent than indoor fireplace
+    setTimeout(() => {
+      if (!active || !ctx || ctx.state === 'closed') return;
+      const t = ctx.currentTime;
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sawtooth'; o.frequency.value = 140 + Math.random() * 260;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.35 + Math.random() * 0.3, t + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.02 + Math.random() * 0.03);
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 800;
+      o.connect(hp); hp.connect(g); g.connect(crackleGain);
+      o.start(t); o.stop(t + 0.06);
+      scheduleCrackle();
+    }, delay);
+  };
+  scheduleCrackle();
+
+  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
+  (stopProxy as any)._customStop = () => { active = false; };
+
+  return { out: mix, nodes: [hiss, air, stopProxy] };
+}
+
+// ── WAVES ON ROCKS — percussive surf impacts + spray tail ─────────────
+function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
+  // Steady background surf (quieter than the main "ocean" preset)
+  const bed = makeNoiseBuf(8, 1, d => {
+    let l = 0;
+    for (let i = 0; i < d.length; i++) { l = l * 0.995 + (Math.random()*2-1)*0.005; d[i] = l * 1.6; }
+  });
+  const bedLp = ctx!.createBiquadFilter(); bedLp.type = 'lowpass'; bedLp.frequency.value = 700; bedLp.Q.value = 0.6;
+  bed.connect(bedLp);
+  const bedG = ctx!.createGain(); bedG.gain.value = 0.28; bedLp.connect(bedG);
+
+  const mix = ctx!.createGain(); mix.gain.value = 0.9;
+  bedG.connect(mix);
+
+  // Percussive crash impacts with a longer bright "spray" decay
+  const crashGain = ctx!.createGain(); crashGain.gain.value = 0.85;
+  crashGain.connect(mix);
+  let active = true;
+  const scheduleCrash = () => {
+    if (!active || !ctx || ctx.state === 'closed') return;
+    const delay = 3500 + Math.random() * 5000; // waves hitting rocks — a few seconds apart
+    setTimeout(() => {
+      if (!active || !ctx || ctx.state === 'closed') return;
+      const t = ctx.currentTime;
+      // Impact: short low thud
+      const thud = ctx.createOscillator(); const thudG = ctx.createGain();
+      thud.type = 'sine'; thud.frequency.value = 70 + Math.random() * 30;
+      thudG.gain.setValueAtTime(0, t);
+      thudG.gain.linearRampToValueAtTime(0.5, t + 0.01);
+      thudG.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      thud.connect(thudG); thudG.connect(crashGain);
+      thud.start(t); thud.stop(t + 0.45);
+
+      // Spray: bright noise burst with a longer decay
+      const spray = makeNoiseBuf(1.2, 1, d => { for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1); });
+      const sprayHp = ctx.createBiquadFilter(); sprayHp.type = 'highpass'; sprayHp.frequency.value = 1500;
+      const sprayG = ctx.createGain();
+      sprayG.gain.setValueAtTime(0, t + 0.02);
+      sprayG.gain.linearRampToValueAtTime(0.3, t + 0.08);
+      sprayG.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+      spray.connect(sprayHp); sprayHp.connect(sprayG); sprayG.connect(crashGain);
+      spray.start(t); spray.stop(t + 1.2);
+
+      scheduleCrash();
+    }, delay);
+  };
+  scheduleCrash();
+
+  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
+  (stopProxy as any)._customStop = () => { active = false; };
+
+  return { out: mix, nodes: [bed, stopProxy] };
+}
+
 // ── MAKERS dispatch ───────────────────────────────────────────────────
 const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
-  rain:   makeRain,
-  brown:  makeBrown,
-  forest: makeForest,
-  cafe:   makeCafe,
-  ocean:  makeOcean,
-  fire:   makeFire,
+  rain:     makeRain,
+  brown:    makeBrown,
+  forest:   makeForest,
+  cafe:     makeCafe,
+  ocean:    makeOcean,
+  fire:     makeFire,
+  wind:     makeWind,
+  snow:     makeSnow,
+  keyboard: makeKeyboard,
+  library:  makeLibrary,
+  spaceship:makeSpaceship,
+  campfire: makeCampfire,
+  waves:    makeWavesRocks,
 };
 
 // ── Public API ────────────────────────────────────────────────────────
@@ -503,12 +823,19 @@ interface SpatialProfile {
 }
 
 const SPATIAL_PROFILES: Record<string, SpatialProfile> = {
-  rain:   { speed: 0.04, width: 0.55, pattern: 'sweep'  },  // slow wide sweep — rain from all sides
-  brown:  { speed: 0.02, width: 0.30, pattern: 'wander' },  // very slow gentle wander
-  forest: { speed: 0.09, width: 0.75, pattern: 'burst'  },  // birds dart L/R unexpectedly
-  cafe:   { speed: 0.18, width: 0.60, pattern: 'wander' },  // people walking past
-  ocean:  { speed: 0.05, width: 0.65, pattern: 'sweep'  },  // waves rolling side to side
-  fire:   { speed: 0.03, width: 0.20, pattern: 'fixed',  fixedPan: 0.15 }, // fire stays slightly right
+  rain:      { speed: 0.04, width: 0.55, pattern: 'sweep'  },  // slow wide sweep — rain from all sides
+  brown:     { speed: 0.02, width: 0.30, pattern: 'wander' },  // very slow gentle wander
+  forest:    { speed: 0.09, width: 0.75, pattern: 'burst'  },  // birds dart L/R unexpectedly
+  cafe:      { speed: 0.18, width: 0.60, pattern: 'wander' },  // people walking past
+  ocean:     { speed: 0.05, width: 0.65, pattern: 'sweep'  },  // waves rolling side to side
+  fire:      { speed: 0.03, width: 0.20, pattern: 'fixed',  fixedPan: 0.15 }, // fire stays slightly right
+  wind:      { speed: 0.03, width: 0.70, pattern: 'wander' },
+  snow:      { speed: 0.015,width: 0.25, pattern: 'wander' },
+  keyboard:  { speed: 0.02, width: 0.15, pattern: 'fixed',  fixedPan: -0.2 },
+  library:   { speed: 0.01, width: 0.20, pattern: 'wander' },
+  spaceship: { speed: 0.008,width: 0.15, pattern: 'fixed',  fixedPan: 0    },
+  campfire:  { speed: 0.03, width: 0.25, pattern: 'fixed',  fixedPan: -0.1 },
+  waves:     { speed: 0.06, width: 0.60, pattern: 'burst'  },
 };
 
 const MAX_ITD = 0.00065; // 0.65ms — human head max inter-aural time delay
@@ -696,6 +1023,43 @@ export function adaptOnBreak() {
 
 export function autoStartCommonRoom() {
   if (!SOUNDS.some(s => isPlaying(s.id))) { playTrack('rain'); playTrack('fire'); }
+}
+
+// ── Crossfade ─────────────────────────────────────────────────────────
+// Smoothly ramps out currently-playing tracks not in `toIds` while
+// ramping in (or starting) the tracks in `toIds`, instead of an abrupt
+// stop/start cut. Operates on each track's own per-track GainNode, so
+// master volume and other tracks are untouched.
+export function crossfadeTo(toIds: string[], durationMs = 2500) {
+  ensureCtx();
+  const seconds = Math.max(0.05, durationMs / 1000);
+  const now = ctx!.currentTime;
+
+  // Ramp out anything playing that isn't in the target set
+  Object.keys(trackNodes).forEach(id => {
+    if (toIds.includes(id)) return;
+    const t = trackNodes[id]; if (!t) return;
+    t.gain.gain.cancelScheduledValues(now);
+    t.gain.gain.setValueAtTime(Math.max(0.0001, t.gain.gain.value), now);
+    t.gain.gain.linearRampToValueAtTime(0.0001, now + seconds);
+    // Only actually stop it if nothing re-raised it in the meantime
+    // (guards against a second crossfadeTo() call racing this one).
+    setTimeout(() => {
+      const tn = trackNodes[id];
+      if (tn && tn.gain.gain.value < 0.01) stopTrack(id);
+    }, durationMs + 60);
+  });
+
+  // Start (if needed) and ramp in the target tracks
+  toIds.forEach(id => {
+    const target = trackVols[id] ?? 0.8;
+    if (!trackNodes[id]) playTrack(id);
+    const t = trackNodes[id]; if (!t) return;
+    t.gain.gain.cancelScheduledValues(now);
+    t.gain.gain.setValueAtTime(Math.max(0.0001, t.gain.gain.value), now);
+    t.gain.gain.linearRampToValueAtTime(target, now + seconds);
+  });
+  onTrackChange?.();
 }
 
 function fadeAll() {

@@ -131,10 +131,10 @@ export function onBreakTaken() {
   breakSuggested = false;
 }
 
-export function checkBreakNeeded(sessionRunning: boolean): boolean {
+export function checkBreakNeeded(sessionRunning: boolean, thresholdMins = 90): boolean {
   if (!sessionRunning || breakSuggested) return false;
   const minsNoBreak = (Date.now() - lastBreakTs) / 60000;
-  if (minsNoBreak >= 90) {
+  if (minsNoBreak >= thresholdMins) {
     breakSuggested = true;
     return true;
   }
