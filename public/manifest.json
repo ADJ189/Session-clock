@@ -1,7 +1,7 @@
 {
   "name": "Session Clock",
   "short_name": "Session Clock",
-  "description": "A cinematic focus timer with 63+ animated themes, Pomodoro, binaural audio, and zero backend.",
+  "description": "A cinematic focus timer with 96 animated themes, Pomodoro, ambient sound mixer, and zero backend.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#06030f",

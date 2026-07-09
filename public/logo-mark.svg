@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <filter id="markGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Progress ring — 4 quadrant arcs with gaps at N/E/S/W -->
+  <g fill="none" stroke-width="16" stroke-linecap="round">
+    <!-- bottom-right -->
+    <path d="M 183.37 110.24 A 84 84 0 0 1 110.24 183.37" stroke="#6ee7b7"/>
+    <!-- bottom-left -->
+    <path d="M 89.76 183.37 A 84 84 0 0 1 16.63 110.24" stroke="#6ee7b7"/>
+    <!-- top-left -->
+    <path d="M 16.63 89.76 A 84 84 0 0 1 89.76 16.63" stroke="#6ee7b7"/>
+    <!-- top-right — brighter, glowing accent segment -->
+    <path d="M 110.24 16.63 A 84 84 0 0 1 183.37 89.76" stroke="#c8fbe9" filter="url(#markGlow)"/>
+  </g>
+
+  <!-- Hourglass + checkmark -->
+  <g>
+    <!-- top bulb (outline) -->
+    <path d="M 70 58 L 130 58 L 100 102 Z" fill="none" stroke="#6ee7b7" stroke-width="7" stroke-linejoin="round"/>
+    <!-- sand accent -->
+    <path d="M 88 88 L 112 88 L 100 106 Z" fill="#6ee7b7"/>
+    <!-- bottom bulb (solid) -->
+    <path d="M 100 102 L 136 146 L 64 146 Z" fill="#6ee7b7"/>
+    <!-- checkmark: short arm knocked out of the mint triangle, long arm flows mint across the neck -->
+    <path d="M 78 132 L 92 144 L 114.9 102" fill="none" stroke="#06030f" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 114.9 102 L 128 78" fill="none" stroke="#6ee7b7" stroke-width="7" stroke-linecap="round"/>
+  </g>
+</svg>
