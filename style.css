@@ -465,10 +465,11 @@ body.theme-flash::after {
   background: none; border: none; cursor: pointer;
   color: var(--clr-text); font-family: inherit; font-weight: 700;
   font-size: .62rem; letter-spacing: .14em; text-transform: uppercase;
-  padding: 10px 20px 6px; opacity: .55; transition: opacity .2s;
+  padding: 10px 20px 6px; opacity: .55; transition: opacity .2s, transform .15s;
   width: 100%; justify-content: center;
 }
 #panelToggle:hover { opacity: 1; }
+#panelToggle:active { transform: scale(.97); }
 #panelChevron {
   font-size: .7rem; opacity: .6;
   transition: transform .35s cubic-bezier(.4,0,.2,1);
@@ -524,6 +525,12 @@ body.theme-flash::after {
 
 /* ── Feature dock — 5 buttons, Apple tab-bar style ── */
 .feat-dock {
+  position: fixed;
+  bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, 96vw);
+  z-index: 200;
+  border-radius: 16px 16px 0 0;
   display: flex; gap: 2px; justify-content: center; align-items: stretch;
   padding: 6px 8px 8px;
   background: rgba(0,0,0,.22);
@@ -568,6 +575,7 @@ body.theme-flash::after {
   box-shadow: 0 4px 24px rgba(0,0,0,.45);
 }
 #themesRevealBtn:hover { box-shadow: 0 6px 30px rgba(0,0,0,.6); filter: brightness(1.1); }
+#themesRevealBtn:active { transform: translateX(-50%) translateY(0) scale(.96); }
 
 /* ════════════════════════════════════════════════════════════
    MODALS  —  frosted glass sheets
@@ -959,6 +967,12 @@ body.present .date-display    { opacity: .25; }
 /* Show reveal button */
 body.kiosk   #themesRevealBtn,
 body.present #themesRevealBtn { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all; }
+/* Primary mechanism: JS toggles this class whenever the panel collapses —
+   :has() below is a harmless progressive-enhancement backup for the rare
+   case where JS added the class before the browser painted, but is NOT
+   relied on alone since :has() support isn't universal on this app's
+   declared browser target (Safari < 15.4, Firefox < 121). */
+body.theme-panel-collapsed #themesRevealBtn,
 body:has(#themePanel.collapsed) #themesRevealBtn { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all; }
 
 /* Keyboard hint */
@@ -4113,6 +4127,11 @@ body.kiosk #themePanel,
 body.present #themePanel,
 body.zen-mode #themePanel,
 body.hyperfocus #themePanel { display: none !important; }
+
+body.kiosk #featBar,
+body.present #featBar,
+body.zen-mode #featBar,
+body.hyperfocus #featBar { display: none !important; }
 
 /* Tab bar in floating panel — remove full-width stretch */
 .panel-tabs {

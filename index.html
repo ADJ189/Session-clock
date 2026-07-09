@@ -171,13 +171,17 @@
   </button>
   <div class="panel-body">
     <div id="themePanelRows"></div>
-    <div class="feat-dock" id="featBar"></div>
-    <button id="btnThemes" aria-label="Toggle themes panel">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2"/></svg>
-      Themes
-    </button>
   </div>
 </div>
+
+<!-- Quick-action dock — independent of the theme panel's collapsed state -->
+<div class="feat-dock" id="featBar"></div>
+
+<!-- Reappears whenever the theme panel is collapsed/hidden, so there's always a way back in -->
+<button id="themesRevealBtn" aria-label="Show themes">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+  Themes
+</button>
 
 <!-- MODALS -->
 <div class="sc-overlay" id="logOverlay">
