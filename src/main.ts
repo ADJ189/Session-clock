@@ -393,6 +393,11 @@ let currentTheme: Theme = THEMES[0];
 const root = document.documentElement;
 const cssVar = (name: string, val: string) => root.style.setProperty(name, val);
 
+// Guards the cross-tab BroadcastChannel theme sync (see bc.onmessage below)
+// from re-broadcasting a theme it just received — without this, two open
+// tabs would ping-pong the same theme back and forth forever.
+let applyingRemoteTheme = false;
+
 function applyTheme(theme: Theme, instant = false) {
   // UI sound on theme switch (except initial load)
   if (currentTheme && currentTheme.id !== theme.id && !instant) {
@@ -462,7 +467,7 @@ function applyTheme(theme: Theme, instant = false) {
     document.querySelectorAll<HTMLElement>('.nat-btn,.media-card').forEach(b => b.classList.toggle('active', b.dataset.id === theme.id));
     lastQKey = '';
     localStorage.setItem('sc_last_theme', theme.id);
-    bcBroadcast('theme', { id: theme.id });
+    if (!applyingRemoteTheme) bcBroadcast('theme', { id: theme.id });
     // Common Room: auto-start rain + fire
     if (theme.id === 'commonroom') setTimeout(() => Sound.autoStartCommonRoom(), 400);
     // Rebuild clock canvas so font/colours update for current theme
@@ -1024,7 +1029,7 @@ const SHORTCUTS: [string, string, () => void][] = [
   ['P',     'Toggle Pomodoro mode',         () => $('btnPomToggle').click()],
   ['M',     'Open ambient sound mixer',     () => { buildSoundUI(); openModal('soundOverlay'); }],
   ['L',     'Open session focus log',       () => { Log.render($('logEntries')); openModal('logOverlay'); }],
-  ['K',     'Collapse / expand panel',      () => { DOM.themePanel.classList.toggle('collapsed'); }],
+  ['K',     'Collapse / expand panel',      () => { toggleThemePanel(); }],
   ['Z',     'Zen Mode — distraction-free study', () => toggleZen()],
   ['G',     'Open custom theme builder',    openThemeBuilder],
   ['?',     'Show shortcuts',               () => openModal('kbOverlay')],
@@ -1155,11 +1160,24 @@ function focusLockIntercept(action: () => void): void {
 }
 
 
+// Centralizes every place the theme panel gets collapsed/expanded so the
+// "reveal" button's visibility (driven by body.theme-panel-collapsed) can
+// never fall out of sync with the panel's actual state.
+function setThemePanelCollapsed(collapsed: boolean) {
+  DOM.themePanel.classList.toggle('collapsed', collapsed);
+  document.body.classList.toggle('theme-panel-collapsed', collapsed);
+}
+function toggleThemePanel() {
+  setThemePanelCollapsed(!DOM.themePanel.classList.contains('collapsed'));
+}
+
 $('panelToggle').onclick = () => {
   focusLockIntercept(() => {
-    DOM.themePanel.classList.toggle('collapsed');
+    toggleThemePanel();
   });
 };
+
+document.getElementById('themesRevealBtn')?.addEventListener('click', () => setThemePanelCollapsed(false));
 
 // ── Pomodoro UI ────────────────────────────────────────────────────────
 Pom.init({
@@ -2637,7 +2655,11 @@ function bcBroadcast(type: string, payload: Record<string, unknown> = {}) {
 if (bc) {
   bc.onmessage = (e) => {
     const { type } = e.data;
-    if (type === 'theme')   applyTheme(THEME_BY_ID[e.data.id] ?? currentTheme, true);
+    if (type === 'theme' && e.data.id !== currentTheme?.id) {
+      applyingRemoteTheme = true;
+      applyTheme(THEME_BY_ID[e.data.id] ?? currentTheme, true);
+      applyingRemoteTheme = false;
+    }
     if (type === 'session') {
       if (e.data.running && !sessionRunning) DOM.btnStart.click();
       if (!e.data.running && sessionRunning)  DOM.btnStart.click();
@@ -2689,7 +2711,7 @@ function updateFlowState() {
   flowUIActive = isFlow;
 
   if (isFlow) {
-    DOM.themePanel.classList.add('collapsed');
+    setThemePanelCollapsed(true);
     document.body.classList.add('flow-state');
     let badge = document.getElementById(FLOW_BADGE_ID);
     if (!badge) {
@@ -3353,7 +3375,7 @@ function init() {
   if (topbarThemesBtn) {
     topbarThemesBtn.addEventListener('click', () => {
       focusLockIntercept(() => {
-        DOM.themePanel.classList.toggle('collapsed');
+        toggleThemePanel();
       });
     });
   }
@@ -3368,13 +3390,6 @@ function init() {
     else Intel.onTabVisible();
   });
 
-  // Themes pill — toggle floating panel
-  const themesBtn = document.getElementById('btnThemes');
-  if (themesBtn) {
-    themesBtn.addEventListener('click', () => {
-      DOM.themePanel.classList.toggle('collapsed');
-    });
-  }
   setInterval(() => {
     checkSmartBreak();
   }, 60_000);
