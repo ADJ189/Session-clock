@@ -81,8 +81,8 @@ export function tick(now: number) {
   const rem = Math.max(0, tot - elapsed);
   updateRing(rem, tot);
   const ms = rem;
-  const s = (ms / 1000) | 0;
-  const m = (s / 60) | 0;
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
   if (timerEl) timerEl.textContent = '00:' + p2(m) + ':' + p2(s % 60);
   if (rem <= 0 && sessionRunning()) nextPhase();
 }

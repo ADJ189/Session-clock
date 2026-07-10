@@ -1,4 +1,4 @@
-import type { Theme } from './types';
+import { THEME_CATEGORIES, type Theme } from './types';
 
 export const THEMES: Theme[] = [
   // ── Natural ───────────────────────────────────────────────────────────
@@ -438,14 +438,12 @@ export const THEMES: Theme[] = [
 ];
 
 export const THEME_BY_ID = Object.fromEntries(THEMES.map(t => [t.id, t])) as Record<string, Theme>;
-export const THEMES_BY_CAT = {
-  nat:       THEMES.filter(t => t.cat === 'nat'),
-  tv:        THEMES.filter(t => t.cat === 'tv'),
-  movie:     THEMES.filter(t => t.cat === 'movie'),
-  animation: THEMES.filter(t => t.cat === 'animation'),
-  anime:     THEMES.filter(t => t.cat === 'anime'),
-  f1:        THEMES.filter(t => t.cat === 'f1'),
-};
+// Derived from THEME_CATEGORIES — adding a category to that one array is
+// enough, this picks it up automatically instead of needing a matching
+// line added here by hand.
+export const THEMES_BY_CAT = Object.fromEntries(
+  THEME_CATEGORIES.map(cat => [cat, THEMES.filter(t => t.cat === cat)])
+) as Record<typeof THEME_CATEGORIES[number], Theme[]>;
 
 export const NAT_QUOTES = [
   'The secret of getting ahead is getting started.',

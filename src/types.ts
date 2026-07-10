@@ -1,7 +1,13 @@
+// Single source of truth for theme categories. Add a new one here and
+// everything downstream (Theme.cat's type, THEMES_BY_CAT, the category
+// tab UI) picks it up automatically — no hunting through multiple files.
+export const THEME_CATEGORIES = ['nat', 'tv', 'movie', 'f1', 'anime', 'animation'] as const;
+export type ThemeCategory = typeof THEME_CATEGORIES[number];
+
 export interface Theme {
   id: string;
   name: string;
-  cat: 'nat' | 'tv' | 'movie' | 'f1' | 'anime' | 'animation';
+  cat: ThemeCategory;
   sub?: string;
   tagline?: string;
   swatch?: string;
@@ -31,7 +37,10 @@ export interface Theme {
 }
 
 export interface LitEntry { quote: string; source: string; }
-export type LitClock = Record<string, LitEntry>;
+// "HH:MM" — catches malformed keys (e.g. "14:0" instead of "14:00") at
+// compile time instead of the clock silently going blank at that minute.
+export type TimeString = `${number}:${number}`;
+export type LitClock = Record<TimeString, LitEntry>;
 
 export interface SoundDef { id: string; name: string; icon: string; desc?: string; }
 export interface SoundNode { stop(): void; }

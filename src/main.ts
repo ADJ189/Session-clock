@@ -1,6 +1,13 @@
 import type { Theme } from './types';
 import { THEMES, THEME_BY_ID, THEMES_BY_CAT, NAT_QUOTES } from './themes';
-import { LIT_CLOCK } from './litclock';
+import { THEME_CATEGORIES } from './types';
+
+// Media categories shown as picker tabs — everything except 'nat', which
+// renders in its own non-tabbed section. Derived once from the single
+// category source of truth so a new category added there needs no
+// matching edit here.
+const MEDIA_CATEGORIES = THEME_CATEGORIES.filter(c => c !== 'nat');
+import type { TimeString, LitEntry } from './types';
 import { p2, p3, fmtSession, DAYS, MONTHS, GREETS } from './utils';
 import { clockOffset, synced, syncTime, setSyncHandler } from './timesync';
 import { initWeather, stopWeather, isRaining, isSnowing, isClear, getWeatherOverlay } from './weather';
@@ -9,9 +16,7 @@ import * as Sound from './sound';
 import * as Pom from './pomodoro';
 import * as Log from './focuslog';
 import { resize, buildParticles, drawBg, runTransition, setBreathing, setParallax, invalidateCache } from './renderer';
-import { drawQR } from './qr';
 import * as Intel from './intelligence';
-import { generateShareCard } from './share';
 import { initPerf, getTier, setTier, tickFps, getFps, isTabVisible, type QualityTier } from './perf';
 import * as APIs from './apis';
 import * as Privacy from './privacy';
@@ -468,8 +473,12 @@ function applyTheme(theme: Theme, instant = false) {
     lastQKey = '';
     localStorage.setItem('sc_last_theme', theme.id);
     if (!applyingRemoteTheme) bcBroadcast('theme', { id: theme.id });
-    // Common Room: auto-start rain + fire
-    if (theme.id === 'commonroom') setTimeout(() => Sound.autoStartCommonRoom(), 400);
+    // Common Room: auto-start rain + fire — opt-in, off by default
+    // (Settings → Sound → Auto-play Theme Ambience)
+    if (theme.id === 'commonroom' && localStorage.getItem('sc_auto_theme_ambience') === '1') {
+      setTimeout(() => Sound.autoStartCommonRoom(), 400);
+    }
+    if (theme.id === 'literary') ensureLitClockLoaded();
     // Rebuild clock canvas so font/colours update for current theme
     updateClockCanvas();
   };
@@ -497,6 +506,18 @@ setSyncHandler(updateSyncDisplay);
 
 // ── Render loop ────────────────────────────────────────────────────────
 let lastTs = 0, lastSec = -1, lastQKey = '', _rafSkip = 0;
+
+// Lazy-loaded literary-clock quote database — a ~300-line dataset only
+// used by one specific theme, so it's fetched on demand (kicked off as
+// soon as the Literary theme is selected, see applyTheme below) instead
+// of shipping in every page's initial bundle.
+let litClockData: Record<TimeString, LitEntry> | null = null;
+let litClockLoading = false;
+function ensureLitClockLoaded() {
+  if (litClockData || litClockLoading) return;
+  litClockLoading = true;
+  import('./litclock').then(m => { litClockData = m.LIT_CLOCK; litClockLoading = false; });
+}
 
 function tickDigit(el: HTMLElement, val: string) {
   if (el.textContent === val) return;
@@ -623,10 +644,10 @@ function renderFrame(ts: number) {
     DOM.dayPct.textContent = dp.toFixed(1) + '%';
 
     if (currentTheme.id === 'literary') {
-      const key = p2(hr) + ':' + p2(Math.floor(min / 5) * 5);
-      if (key !== lastQKey) {
+      const key = (p2(hr) + ':' + p2(Math.floor(min / 5) * 5)) as TimeString;
+      if (key !== lastQKey && litClockData) {
         lastQKey = key;
-        const entry = LIT_CLOCK[key];
+        const entry = litClockData[key];
         if (entry) {
           DOM.quoteText.style.opacity = '0';
           setTimeout(() => { DOM.quoteText.textContent = `"${entry.quote}"`; DOM.litMeta.textContent = entry.source; DOM.quoteText.style.opacity = '.55'; }, 400);
@@ -972,7 +993,7 @@ function buildPanel() {
   contents['nat'] = natContent;
 
   // TV, Movie, Anime, F1 tabs
-  (['tv','movie','animation','anime','f1'] as const).forEach(cat => {
+  MEDIA_CATEGORIES.forEach(cat => {
     const content = document.createElement('div');
     content.className = 'tab-content' + (activePanelTab === cat ? ' active' : '');
     content.dataset.tab = cat;
@@ -988,7 +1009,6 @@ function buildPanel() {
   const featDefs: [string, string, string, () => void][] = [
     // [id, emoji, label, action]
     ['btnSound',   '🎵', 'Sound',    () => { buildSoundUI(); openModal('soundOverlay'); }],
-    ['btnLog',     '📊', 'Log',      openLog],
     ['btnZen',     '🧘', 'Zen',      toggleZen],
     ['btnSettings','⚙️', 'Settings', openSettings],
   ];
@@ -1028,7 +1048,6 @@ const SHORTCUTS: [string, string, () => void][] = [
   ['F',     'Toggle fullscreen / kiosk',    toggleKiosk],
   ['P',     'Toggle Pomodoro mode',         () => $('btnPomToggle').click()],
   ['M',     'Open ambient sound mixer',     () => { buildSoundUI(); openModal('soundOverlay'); }],
-  ['L',     'Open session focus log',       () => { Log.render($('logEntries')); openModal('logOverlay'); }],
   ['K',     'Collapse / expand panel',      () => { toggleThemePanel(); }],
   ['Z',     'Zen Mode — distraction-free study', () => toggleZen()],
   ['G',     'Open custom theme builder',    openThemeBuilder],
@@ -1693,35 +1712,6 @@ Sound.setTrackChangeHandler(() => {
   $('fadeLabel').textContent = v === 0 ? 'Off' : `${v}m`;
 });
 
-// ── Focus log UI ───────────────────────────────────────────────────────
-let logView: 'list' | 'heatmap' = 'list';
-
-function openLog() {
-  renderLogView();
-  openModal('logOverlay');
-}
-
-function renderLogView() {
-  const listBtn = $('logTabList');
-  const heatBtn = $('logTabHeat');
-  const container = $('logEntries');
-  if (listBtn) listBtn.classList.toggle('active', logView === 'list');
-  if (heatBtn) heatBtn.classList.toggle('active', logView === 'heatmap');
-  if (logView === 'heatmap') Log.renderHeatmap(container);
-  else Log.render(container);
-}
-
-
-// Tab buttons wired via onclick in HTML — expose via SC
-(window as any).SC = {
-  ...(window as any).SC,
-  focusLog: {
-    exportCSV: Log.exportCSV,
-    clear: () => { Log.clear(); renderLogView(); },
-    switchTab: (tab: 'list' | 'heatmap') => { logView = tab; renderLogView(); },
-  },
-};
-
 // ── Custom Theme Builder — full RGB/HSL palette ───────────────────────
 const THEME_FIELDS = [
   { key: 'accent',  label: 'Main Accent',  icon: '✦', hint: 'Clock glow, highlights, active states' },
@@ -2184,6 +2174,7 @@ function buildSettingsUI(activeTab = 'general') {
     audioSec.appendChild(makeRow('3D Spatial Audio', 'Sounds pan independently — best with headphones', 'toggleSpatial', Sound.isSpatialEnabled(), 'ILD+ITD'));
     audioSec.appendChild(makeRow('Box Breathing on Break', 'Guided breathing overlay during Pomodoro breaks', 'toggleBreathing', breathingBreakEnabled));
     audioSec.appendChild(makeRow('UI Sound Effects', 'Subtle click, chime, and interaction sounds', 'toggleUiSounds', localStorage.getItem('sc_ui_sounds') !== '0'));
+    audioSec.appendChild(makeRow('Auto-play Theme Ambience', 'Some themes (like Common Room) can auto-start matching ambient sounds when selected', 'toggleAutoThemeAmbience', localStorage.getItem('sc_auto_theme_ambience') === '1'));
     paneWrap.appendChild(audioSec);
 
     const soundBtnSec = makeSection('Mixer');
@@ -2222,6 +2213,7 @@ function buildSettingsUI(activeTab = 'general') {
     wireToggle('toggleSpatial',   (on) => Sound.setSpatial(on));
     wireToggle('toggleBreathing', (on) => { breathingBreakEnabled = on; localStorage.setItem('sc_breathing_break', on ? '1' : '0'); });
     wireToggle('toggleUiSounds',  (on) => { localStorage.setItem('sc_ui_sounds', on ? '1' : '0'); showToast(on ? '🔔 UI sounds on' : '🔕 UI sounds off'); });
+    wireToggle('toggleAutoThemeAmbience', (on) => { localStorage.setItem('sc_auto_theme_ambience', on ? '1' : '0'); showToast(on ? '🎵 Theme ambience auto-play on' : 'Theme ambience auto-play off'); });
   }
 
   // ══ FOCUS ═════════════════════════════════════════════════════════════
@@ -2392,7 +2384,11 @@ function buildSettingsUI(activeTab = 'general') {
 
 
 // ── QR Handoff ────────────────────────────────────────────────────────
-function openQRHandoff() {
+// drawQR is dynamically imported on first use — it's a self-contained
+// canvas QR-code renderer only ever needed when this specific modal
+// opens, so keeping it out of the initial bundle shaves parse/eval time
+// off every page load for people who never open this feature.
+async function openQRHandoff() {
   const canvas = $<HTMLCanvasElement>('qrCanvas');
   const label  = $('qrLabel');
   const urlEl  = $('qrUrl');
@@ -2427,6 +2423,7 @@ function openQRHandoff() {
   // Draw QR using theme colours
   const fg = currentTheme.text;
   const bg = currentTheme.baseBg[1] ?? currentTheme.baseBg[0];
+  const { drawQR } = await import('./qr');
   drawQR(canvas, url, fg, bg);
 
   if (label) label.textContent = url.length > 77
@@ -2993,6 +2990,7 @@ async function openShareCard() {
   };
 
   // Generate the real rendered canvas once (no download yet)
+  const { generateShareCard } = await import('./share');
   const cv = generateShareCard(cardOpts, false);
 
   // 1. Try native share (mobile)
@@ -3090,7 +3088,6 @@ function buildPaletteCommands() {
   });
 
   cmds.push(
-    { id:'open_log',       icon:'📋', label:'Focus Log',          hint:'L',  group:'Navigation', action: () => { renderLogView(); openModal('logOverlay'); } },
     { id:'open_settings',  icon:'⚙️', label:'Settings',                      group:'Navigation', action: openSettings },
     { id:'open_data',      icon:'🛡', label:'My Data & Privacy',             group:'Navigation', action: openDataPanel },
     { id:'open_custom',    icon:'🎨', label:'Custom Theme Builder', hint:'G', group:'Navigation', action: openThemeBuilder },
@@ -3946,7 +3943,6 @@ function buildCommandPalette() {
     ['templates',    '📋', 'Session Templates',          'Study, coding, deep work, reading…',        () => openModal('templatesOverlay')],
     ['countdown',    '⏳', 'Deadline Countdown',         'Count down to an exam, meeting, or event',  () => openModal('countdownOverlay')],
     ['worldclock',   '🌍', 'World Clock',                'Compare times across timezones',             () => openModal('worldClockOverlay')],
-    ['log',          '📊', 'Focus Log',                  'View session history & heatmap',            () => openLog()],
     ['share',        '🖼', 'Share Focus Card',           'Download PNG of today\'s focus',             () => { openShareCard(); }],
     ['settings',     '⚙️', 'Settings',                  'Clock, sound, focus, privacy',              () => openSettings()],
     ['theme-builder','🎨', 'Custom Theme Builder',       'Build your own colour theme',               () => openThemeBuilder()],

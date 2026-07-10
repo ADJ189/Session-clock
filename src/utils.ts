@@ -12,9 +12,9 @@ export const easeIO = (t: number) =>
 
 /** Format ms as HH:MM:SS */
 export function fmtSession(ms: number): string {
-  const s = (ms / 1000) | 0;
-  const h = (s / 3600) | 0;
-  const m = ((s % 3600) / 60) | 0;
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
   const sc = s % 60;
   return `${p2(h)}:${p2(m)}:${p2(sc)}`;
 }
