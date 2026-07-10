@@ -137,7 +137,6 @@
         Reset
       </button>
       <button class="btn btn-icon" id="btnPomToggle" title="Pomodoro">🍅</button>
-      <button class="btn btn-icon" id="btnLog" title="Focus log">📋</button>
     </div>
     <!-- Smart status line -->
     <div class="session-status-line" id="sessionStatusLine">Ready to focus</div>
@@ -165,7 +164,7 @@
 <!-- Theme panel -->
 <div id="themePanel">
   <button id="panelToggle" aria-label="Toggle themes">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
     Themes
     <span id="panelChevron">▾</span>
   </button>
@@ -179,31 +178,11 @@
 
 <!-- Reappears whenever the theme panel is collapsed/hidden, so there's always a way back in -->
 <button id="themesRevealBtn" aria-label="Show themes">
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
   Themes
 </button>
 
 <!-- MODALS -->
-<div class="sc-overlay" id="logOverlay">
-  <div class="sc-modal">
-    <div class="modal-header">
-      <h2>📋 Session Log</h2>
-      <button class="modal-close" onclick="SC.modals.close('logOverlay')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="log-tabs">
-      <button class="log-tab active" id="logTabList" onclick="SC.focusLog.switchTab('list')">List</button>
-      <button class="log-tab" id="logTabHeat" onclick="SC.focusLog.switchTab('heatmap')">Heatmap</button>
-    </div>
-    <div id="logEntries"></div>
-    <div class="log-actions">
-      <button class="btn btn-ghost" onclick="SC.focusLog.exportCSV()">Export CSV</button>
-      <button class="btn btn-ghost" onclick="SC.focusLog.clear()">Clear All</button>
-    </div>
-  </div>
-</div>
-
 <div class="sc-overlay" id="themeBuilderOverlay">
   <div class="sc-modal">
     <div class="modal-header">
