@@ -37,7 +37,10 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  min-height: 100vh; background: #000;
+  min-height: 100vh; /* fallback for older Safari/Firefox without dvh support */
+  min-height: 100dvh; /* dynamic viewport height — accounts for the collapsing
+                          address bar on iOS/Android instead of sizing behind it */
+  background: #000;
   /* Prevent overscroll bounce on iOS/mobile Chrome */
   overscroll-behavior: none;
   /* Prevent callout on long press on iOS */
@@ -438,7 +441,6 @@ body.theme-flash::after {
     0 -2px 0 rgba(255,255,255,.05) inset,
     0 24px 64px rgba(0,0,0,.7),
     0 0 0 1px rgba(255,255,255,.04);
-  filter: blur(0);
   transition:
     transform .48s cubic-bezier(.2,1.1,.38,1),
     opacity   .34s cubic-bezier(.22,1,.36,1),
@@ -446,7 +448,7 @@ body.theme-flash::after {
     -webkit-backdrop-filter .4s cubic-bezier(.22,1,.36,1),
     backdrop-filter .4s cubic-bezier(.22,1,.36,1);
   display: flex; flex-direction: column; align-items: center;
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
 }
 
 /* Fallback for browsers without color-mix (Safari < 16.2, FF < 113) */
@@ -614,14 +616,12 @@ body.theme-flash::after {
   color: var(--clr-text);
   transform: translateY(26px) scale(.94);
   opacity: 0;
-  filter: blur(4px);
   transition:
     transform .5s cubic-bezier(.2,1.34,.4,1),
-    opacity .32s cubic-bezier(.22,1,.36,1),
-    filter .38s cubic-bezier(.22,1,.36,1);
+    opacity .32s cubic-bezier(.22,1,.36,1);
   box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.05);
 }
-.sc-overlay.open .sc-modal { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
+.sc-overlay.open .sc-modal { transform: translateY(0) scale(1); opacity: 1; }
 .sc-modal--narrow { width: min(400px, 94vw); }
 
 .modal-header {
@@ -1814,8 +1814,8 @@ body.light-theme .mixer-launch-card { background: linear-gradient(135deg, color-
 .settings-tab-btn:active { transform: scale(.93); }
 
 @keyframes paneSlideIn {
-  from { opacity: 0; transform: translateX(var(--pane-slide-x, 14px)) scale(.985); filter: blur(3px); }
-  to   { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  from { opacity: 0; transform: translateX(var(--pane-slide-x, 14px)) scale(.985); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 #settingsContent.pane-sliding { animation: paneSlideIn .38s cubic-bezier(.22,1,.36,1); }
 #settingsContent .settings-section {
@@ -3852,12 +3852,12 @@ body.reduced-motion .zen-ring { animation: none; }
 
 /* Theme panel — own layer so sliding doesn't repaint main */
 #themePanel {
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
   contain: layout style;
 }
 
 /* Animated elements — GPU layers only when actively animating */
-.sc-modal        { will-change: transform, opacity, filter; }
+.sc-modal        { will-change: transform, opacity; }
 .sc-overlay      { contain: layout style paint; }
 .btn-primary     { will-change: transform, box-shadow; }
 .feat-btn        { will-change: transform, opacity; }
@@ -4158,11 +4158,14 @@ body.hyperfocus #featBar { display: none !important; }
 
 /* iOS safe area — notch / Dynamic Island / home indicator */
 @supports (padding: env(safe-area-inset-bottom)) {
-  .feat-dock, #btnThemes {
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  .feat-dock {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
   #themePanel {
     bottom: calc(62px + env(safe-area-inset-bottom));
+  }
+  #themesRevealBtn {
+    bottom: calc(20px + env(safe-area-inset-bottom));
   }
   .sc-toast {
     bottom: calc(88px + env(safe-area-inset-bottom));
@@ -4227,6 +4230,22 @@ body.hyperfocus #featBar { display: none !important; }
   #panelToggle { min-height: 44px; }
   .settings-toggle { transform: scale(1.1); transform-origin: right center; }
   .btn-primary { min-height: 48px; }
+
+  /* iOS Safari auto-zooms the page when a focused text input renders
+     under 16px — several inputs here are intentionally smaller for
+     desktop's tighter visual density, which is exactly what triggers
+     it on phones. Bump to 16px only on touchscreens so tapping into
+     any of these doesn't yank the whole page into a zoomed-in state. */
+  #focusInput,
+  .cmd-input,
+  .np-manual-input,
+  .weather-loc-search,
+  #picker-hex,
+  #picker-rgb,
+  #picker-hsl,
+  .pom-custom-row input[type="number"] {
+    font-size: 16px !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
