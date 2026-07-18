@@ -49,7 +49,11 @@ export function initPerf(): QualityTier {
 }
 
 export function getTier(): QualityTier { return tier; }
-export function setTier(t: QualityTier) { tier = t; localStorage.setItem('sc_quality', t); }
+export function setTier(t: QualityTier) {
+  tier = t;
+  localStorage.setItem('sc_quality', t);
+  badStreak = 0; goodStreak = 0; lastTierChangeTs = performance.now();
+}
 export function isTabVisible() { return tabVisible; }
 
 // ── Frame rate adaptation ─────────────────────────────────────────────
@@ -71,6 +75,20 @@ export function shouldSampleAudio(): boolean {
 }
 
 // ── FPS tracking ──────────────────────────────────────────────────────
+// Minimum time between automatic tier changes — prevents the tier from
+// flipping back and forth every couple of seconds when FPS is hovering
+// right at a threshold (e.g. oscillating between 22-26fps), which reads
+// as stuttery/buggy even though each individual decision was "correct".
+const TIER_CHANGE_COOLDOWN_MS = 8000;
+// Consecutive good/bad readings required before actually changing tier —
+// smooths out one-off blips (a GC pause, a theme-switch hitch) so a
+// single bad frame window can't tank quality for the rest of the session.
+const STREAK_REQUIRED = 2;
+
+let lastTierChangeTs = 0;
+let badStreak = 0;
+let goodStreak = 0;
+
 export function tickFps(now: number): number {
   frameCount++;
   frameTimes.push(now);
@@ -78,13 +96,40 @@ export function tickFps(now: number): number {
   if (frameTimes.length > 60) frameTimes.shift();
   if (now - lastFpsTs >= 2000) {
     const span = frameTimes[frameTimes.length - 1]! - frameTimes[0]!;
-    fps = span > 0 ? Math.round(frameTimes.length / (span / 1000)) : 60;
+    // A tab that was backgrounded and just resumed has one huge gap in
+    // frameTimes (rAF doesn't run while hidden) — that would compute as
+    // a near-zero FPS and trigger a false downgrade. Skip this window
+    // entirely rather than act on a meaningless reading.
+    const isStaleWindow = span > 6000;
+    fps = (span > 0 && !isStaleWindow) ? Math.round(frameTimes.length / (span / 1000)) : fps;
     lastFpsTs = now;
-    // Auto-downgrade if sustained low FPS
-    if (fps < 24 && tier === 'high') { tier = 'med'; }
-    else if (fps < 16 && tier === 'med') { tier = 'low'; }
-    // Auto-upgrade if FPS recovered (hysteresis: 5s at good FPS)
-    else if (fps > 55 && tier === 'low' && frameCount > 300) { tier = 'med'; }
+
+    if (!isStaleWindow) {
+      const wantsDowngrade = (tier === 'high' && fps < 24) || (tier === 'med' && fps < 16);
+      const wantsUpgrade   = (tier === 'low' && fps > 50) || (tier === 'med' && fps > 55);
+
+      if (wantsDowngrade) { badStreak++; goodStreak = 0; }
+      else if (wantsUpgrade) { goodStreak++; badStreak = 0; }
+      else { badStreak = 0; goodStreak = 0; }
+
+      const cooledDown = now - lastTierChangeTs >= TIER_CHANGE_COOLDOWN_MS;
+
+      if (cooledDown && badStreak >= STREAK_REQUIRED) {
+        if (tier === 'high') tier = 'med';
+        else if (tier === 'med') tier = 'low';
+        lastTierChangeTs = now;
+        badStreak = 0; goodStreak = 0;
+      } else if (cooledDown && goodStreak >= STREAK_REQUIRED) {
+        // Symmetric recovery: low → med → high. Previously this only
+        // handled low → med, so a device that dipped to 'med' quality
+        // once could never automatically climb back to 'high' even
+        // after FPS fully recovered and stayed high for a long time.
+        if (tier === 'low') tier = 'med';
+        else if (tier === 'med') tier = 'high';
+        lastTierChangeTs = now;
+        badStreak = 0; goodStreak = 0;
+      }
+    }
   }
   return fps;
 }
@@ -95,6 +140,11 @@ export function getFps() { return fps; }
 function setupVisibilityAPI() {
   document.addEventListener('visibilitychange', () => {
     tabVisible = !document.hidden;
+    if (!tabVisible) {
+      // rAF doesn't run while hidden, so the buffer would otherwise
+      // contain one huge stale gap when the tab resumes.
+      frameTimes = [];
+    }
   });
 }
 
