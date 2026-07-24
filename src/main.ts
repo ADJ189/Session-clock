@@ -3154,6 +3154,15 @@ function buildPaletteCommands() {
   Palette.registerCommands(cmds);
 }
 
+function hideSplash() {
+  const el = document.getElementById('splashScreen');
+  if (!el || el.classList.contains('splash-hide')) return;
+  el.classList.add('splash-hide');
+  el.addEventListener('transitionend', () => el.remove(), { once: true });
+  // Belt-and-suspenders: remove even if transitionend never fires.
+  setTimeout(() => el.remove(), 900);
+}
+
 function init() {
   initPerf(); // detect device tier before anything else
 
@@ -3392,6 +3401,10 @@ function init() {
   }, 60_000);
 
   requestAnimationFrame(ts => { lastTs = ts; renderFrame(ts); });
+
+  // Reveal the app now that the theme, clock, and first frame are ready —
+  // double rAF so we wait for an actual paint, not just this callback.
+  requestAnimationFrame(() => requestAnimationFrame(hideSplash));
 
   // ── Weather overlay preference ─────────────────────────────────────
   if (localStorage.getItem('sc_weather_theme') !== '0') {
