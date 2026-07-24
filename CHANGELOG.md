@@ -18,6 +18,7 @@ All notable changes to Session Clock are documented here.
 - **Focus Mode**: header and dock fade out after a few idle seconds, back on any input.
 - **Always-on-top mini clock** via Document Picture-in-Picture (Chrome 116+).
 - Session/focus-block completion now triggers the existing milestone confetti + motivation widget.
+- **Splash screen** on load: inline SVG mark + title, no extra network request, so it paints before the JS bundle/fonts arrive instead of leaving a blank frame. Fades out once the theme and first render are ready; a fallback timer clears it if init ever fails.
 
 ### Fixed
 - **Theme picker icons weren't rendering.** `DOMParser` requires an explicit `xmlns="http://www.w3.org/2000/svg"` on the root `<svg>` to assign it the SVG namespace — without it the element parses "successfully" but silently fails to render once appended to the page. Confirmed via a live namespace check; fixed by injecting the attribute if missing.

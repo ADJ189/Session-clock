@@ -4789,3 +4789,34 @@ body.weather-fog.weather-overlay-on::after {
 
 /* ── Onboarding — hide location step entirely ──────────────────── */
 /* (location step removed, so we just ensure the other steps still look good) */
+
+/* ── Splash screen ─────────────────────────────────────────────────
+   Inline (not an external asset) so it paints before any JS/fonts
+   arrive — that's the whole point, it covers the load gap itself. */
+#splashScreen {
+  position: fixed; inset: 0; z-index: 100000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px;
+  background: #06030f;
+  opacity: 1;
+  transition: opacity .5s ease;
+}
+#splashScreen.splash-hide { opacity: 0; pointer-events: none; }
+
+.splash-mark {
+  width: 84px; height: 84px;
+  filter: drop-shadow(0 0 22px rgba(110,231,183,.35));
+  animation: splashPulse 1.8s ease-in-out infinite;
+}
+.splash-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: .8rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: #6ee7b7; opacity: .85;
+}
+@keyframes splashPulse {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.06); opacity: .8; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-mark { animation: none; }
+}

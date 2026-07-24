@@ -32,6 +32,38 @@
 </head>
 <body>
 
+<!-- Splash screen — shown instantly (inline, no extra request) while the
+     module bundle and fonts load, and removed once the first frame is
+     ready. Fallback timer below guards against it ever getting stuck. -->
+<div id="splashScreen" role="status" aria-label="Loading Session Clock">
+  <svg class="splash-mark" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g fill="none" stroke="#6ee7b7" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M90,82 C84,46 80,18 65,14 C50,18 46,46 40,82"/>
+      <path d="M110,82 C116,46 120,18 135,14 C150,18 154,46 160,82"/>
+      <path d="M46,96 C36,120 34,150 46,176"/>
+      <path d="M154,96 C164,120 166,150 154,176"/>
+      <path d="M62,126 Q78,106 94,126"/>
+      <path d="M106,126 Q122,106 138,126"/>
+      <path d="M78,150 C84,170 94,182 100,182 C106,182 116,170 122,150"/>
+      <path d="M92,196 L108,196"/>
+    </g>
+  </svg>
+  <div class="splash-title">Session Clock</div>
+</div>
+<script>
+  // Safety net: if main.ts ever fails to load/execute, don't leave the
+  // user staring at a stuck splash forever.
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var s = document.getElementById('splashScreen');
+      if (s && !s.classList.contains('splash-hide')) {
+        s.classList.add('splash-hide');
+        setTimeout(function () { s.remove(); }, 700);
+      }
+    }, 4000);
+  });
+</script>
+
 <!-- Canvas layers -->
 <canvas id="bgCanvas"></canvas>
 <div id="overlay"></div>
