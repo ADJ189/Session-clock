@@ -18,11 +18,16 @@ All notable changes to Session Clock are documented here.
 - **Focus Mode**: header and dock fade out after a few idle seconds, back on any input.
 - **Always-on-top mini clock** via Document Picture-in-Picture (Chrome 116+).
 - Session/focus-block completion now triggers the existing milestone confetti + motivation widget.
-- **Splash screen** on load: your bunny artwork (background removed, cropped, inline base64 PNG — no extra network request) at a much bigger size, with a gentle float animation and a "loading" dot sequence. Held for a short minimum (~0.9s) so it reads as intentional rather than a flash, hard-capped at 1.5s no matter how long loading actually takes.
+- **Splash screen** on load: your bunny artwork (background removed, cropped, served as a cached PNG) at a much bigger size, with a gentle float animation and a "loading" dot sequence. Held for a short minimum (~0.9s) so it reads as intentional rather than a flash, hard-capped at 1.5s no matter how long loading actually takes.
 - **Weather pill** now shows a proper scalable outline cloud icon (was a plain-text `☁` glyph that rendered inconsistently across platforms) as its default/placeholder state; real condition icons still swap in once weather data loads.
 - **Support card**: hovering the weather pill (after a short hover-intent delay) shows a small card with GitHub avatar, a "Star on GitHub" link, and a short message.
+- **Location picker now opens automatically** the first time you open the weather page with no location set, instead of leaving you on an empty hero section — no more hunting for the "Set location" button.
+- **Weather fetch retry + clear failure state**: a single transient network blip now retries once automatically instead of immediately showing "unavailable"; if it genuinely fails, the weather page shows a distinct "tap to retry" state instead of an indefinite "Fetching weather…".
+- **Weather-adaptive theme effects**: sunny/clear now gets a warm drifting glow and cloudy gets soft drifting cloud-shadow patches (previously only rain/snow/thunder/fog had an ambient effect). Thunderstorms now get an actual bright double-flash "strike" instead of just an ambient purple pulse.
 
 ### Fixed
+- **Weather showing "unavailable" after every location change.** `setManualLocation()` was only persisting `{ name }` to storage — the actual coordinates were silently dropped. Any reload, or even just reopening the weather page right after picking a location, read back `undefined` lat/lon, fetched `NaN, NaN` from the API, and failed every time. Now persists the coordinates too (rounded to ~11km precision, so it's still not storing an exact GPS fix in clear text).
+- Weather overlay effects (rain/snow/thunder/fog, and the two new ones above) now respect `prefers-reduced-motion` — they never did before.
 - **Location permission prompt firing on startup.** `initWeather()` called `navigator.geolocation.getCurrentPosition()` automatically on every page load if no location was stored yet, popping the browser's native permission dialog before the user had asked for weather at all. It now only uses a location the user explicitly set via the weather page's "Use GPS" button or city search; the pill shows a neutral "Set location" prompt instead until then.
 - Deduplicated the reverse-geocoding request — `weatherpage.ts`'s GPS button had its own inline copy of the Nominatim fetch instead of reusing `weather.ts`'s `getCityName()`.
 - Unreachable dead code in `getStoredLocation()` (a legacy-coordinate fallback sitting after an unconditional `return`, so it could never run).
@@ -38,7 +43,8 @@ All notable changes to Session Clock are documented here.
 - Removed 3 accidental duplicate themes (Blade Runner 2049, 2001: A Space Odyssey, House of the Dragon all already existed under different IDs).
 
 ### Changed
-- Service worker cache bumped so returning visitors pick up this update instead of a stale cached build.
+- Service worker cache bumped to v4 (and the splash image added to its precache list) so returning visitors pick up this update instead of a stale cached build.
+- Splash artwork moved from an inline base64 PNG back to a normal cached file (`/splash-bunny.png`). Base64-inlining briefly seemed like a win for first paint, but it forces the browser to re-download the image as part of the HTML on *every* visit — bad tradeoff for a PWA people reopen daily. `index.html` dropped from 116KB back to ~25KB; the image itself is now cached by the service worker like any other asset.
 
 ### Security
 - **XSS via city search results.** The weather page's city-search dropdown inserted Nominatim API results (`name`, `state`, `country`) directly into `innerHTML`. That's untrusted external data — a malicious or spoofed response could have injected arbitrary HTML/script. Rebuilt with `textContent`-based DOM construction instead.
