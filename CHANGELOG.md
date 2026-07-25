@@ -18,7 +18,7 @@ All notable changes to Session Clock are documented here.
 - **Focus Mode**: header and dock fade out after a few idle seconds, back on any input.
 - **Always-on-top mini clock** via Document Picture-in-Picture (Chrome 116+).
 - Session/focus-block completion now triggers the existing milestone confetti + motivation widget.
-- **Splash screen** on load: full-size outlined bunny mark that floats, blinks, and smiles, plus a "loading" dot sequence — inline SVG, no extra network request, so it paints before the JS bundle/fonts arrive. Held for a short minimum (~0.9s) so it reads as intentional rather than a flash, hard-capped at 1.5s no matter how long loading actually takes.
+- **Splash screen** on load: your bunny artwork (background removed, cropped, inline base64 PNG — no extra network request) at a much bigger size, with a gentle float animation and a "loading" dot sequence. Held for a short minimum (~0.9s) so it reads as intentional rather than a flash, hard-capped at 1.5s no matter how long loading actually takes.
 - **Weather pill** now shows a proper scalable outline cloud icon (was a plain-text `☁` glyph that rendered inconsistently across platforms) as its default/placeholder state; real condition icons still swap in once weather data loads.
 - **Support card**: hovering the weather pill (after a short hover-intent delay) shows a small card with GitHub avatar, a "Star on GitHub" link, and a short message.
 
