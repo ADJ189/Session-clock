@@ -121,7 +121,7 @@ export function getWeatherOverlay(): WeatherOverlay {
 }
 
 // ── Reverse geocode city name ─────────────────────────────────────────
-async function getCityName(lat: number, lon: number): Promise<string> {
+export async function getCityName(lat: number, lon: number): Promise<string> {
   try {
     const res = await fetchWithTimeout(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&format=json`,
@@ -165,11 +165,6 @@ export function getStoredLocation(): { lat: number; lon: number; name?: string }
       return null;
     }
     return parsed;
-    // Backward compatibility: only accept legacy entries that contain valid coordinates.
-    if (typeof parsed?.lat === 'number' && typeof parsed?.lon === 'number') {
-      return { lat: parsed.lat, lon: parsed.lon, name: parsed.name };
-    }
-    return null;
   } catch { return null; }
 }
 
@@ -182,8 +177,8 @@ export async function initWeather(
 ) {
   if (privacyCheck()) return;
 
-  const show = (icon: string, text: string, title = '') => {
-    iconEl.textContent = icon;
+  const show = (icon: string | null, text: string, title = '') => {
+    if (icon) iconEl.textContent = icon;
     textEl.textContent = text;
     if (title) pillEl.title = title;
     pillEl.classList.add('loaded');
@@ -230,35 +225,25 @@ export async function initWeather(
       applyWeatherBodyClass(getWeatherOverlay());
 
     } catch {
-      show('🌡', '—', 'Weather unavailable');
+      show(null, '—', 'Weather unavailable');
     }
   };
 
   const fetchWeather = () => {
     if (privacyCheck()) return;
 
-    // Check stored location first (manual pin or previously granted)
+    // Only use a location the user explicitly chose (GPS button or city
+    // search inside the weather page — see weatherpage.ts). We never call
+    // navigator.geolocation here: doing so used to fire the browser's
+    // permission popup the moment the site loaded, before the user had
+    // asked for weather at all. If nothing's set yet, just show a neutral
+    // "tap to set location" state.
     const stored = getStoredLocation();
     if (stored) {
       processWeather(stored.lat, stored.lon);
-      return;
+    } else {
+      show(null, 'Set location', 'Tap to choose your location for weather');
     }
-
-    if (!navigator.geolocation) { return; }
-
-    // Try geolocation silently — if denied, no popup or error shown
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords: { latitude: lat, longitude: lon } }) => {
-        const name = await getCityName(lat, lon);
-        _currentLocation = { lat, lon, name };
-        localStorage.removeItem('sc_weather_loc');
-        processWeather(lat, lon);
-      },
-      () => {
-        // Denied — will remain without weather until user sets location in weather page
-      },
-      { timeout: 8000, maximumAge: 300_000 },
-    );
   };
 
   fetchWeather();

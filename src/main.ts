@@ -3154,13 +3154,21 @@ function buildPaletteCommands() {
   Palette.registerCommands(cmds);
 }
 
+const SPLASH_MIN_MS = 900; // feels intentional rather than a flash; hard cap of 1.5s lives in index.html
+
 function hideSplash() {
   const el = document.getElementById('splashScreen');
   if (!el || el.classList.contains('splash-hide')) return;
-  el.classList.add('splash-hide');
-  el.addEventListener('transitionend', () => el.remove(), { once: true });
-  // Belt-and-suspenders: remove even if transitionend never fires.
-  setTimeout(() => el.remove(), 900);
+  const t0 = (window as any).__splashT0 ?? 0;
+  const elapsed = performance.now() - t0;
+  const wait = Math.max(0, SPLASH_MIN_MS - elapsed);
+  setTimeout(() => {
+    if (!document.body.contains(el) || el.classList.contains('splash-hide')) return;
+    el.classList.add('splash-hide');
+    el.addEventListener('transitionend', () => el.remove(), { once: true });
+    // Belt-and-suspenders: remove even if transitionend never fires.
+    setTimeout(() => el.remove(), 600);
+  }, wait);
 }
 
 function init() {

@@ -6,7 +6,7 @@ import {
   getWeatherDesc, getWeatherOverlay, getWeatherCode,
   getHourlyForecast, getDailyForecast,
   getSunTimes, getWMOInfo,
-  setManualLocation, getStoredLocation, initWeather,
+  setManualLocation, getStoredLocation, initWeather, getCityName,
   type WeatherOverlay,
 } from './weather';
 
@@ -150,12 +150,8 @@ function buildWeatherPageDOM(): HTMLElement {
     btn.innerHTML = '<span>⏳</span><div><div class="weather-loc-btn-label">Locating…</div><div class="weather-loc-btn-sub">Please wait</div></div>';
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lon } }) => {
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&format=json`, { headers: { 'Accept-Language': 'en' } });
-          const d = await res.json();
-          const name = d?.address?.city || d?.address?.town || d?.address?.village || '';
-          setManualLocation(lat, lon, name);
-        } catch { setManualLocation(lat, lon); }
+        const name = await getCityName(lat, lon);
+        setManualLocation(lat, lon, name);
         (overlay.querySelector('#weatherLocationPanel') as HTMLElement).classList.remove('open');
         refreshWeather(overlay as HTMLElement);
       },
@@ -205,7 +201,16 @@ async function searchCity(query: string, overlay: HTMLElement) {
       const sub = [item.address?.state, item.address?.country].filter(Boolean).join(', ');
       const btn = document.createElement('button');
       btn.className = 'weather-loc-result';
-      btn.innerHTML = `<span class="weather-loc-result-name">${name}</span><span class="weather-loc-result-sub">${sub}</span>`;
+      // Built via textContent, not innerHTML — `name`/`sub` come straight
+      // from the Nominatim API response and are untrusted external data.
+      const nameEl = document.createElement('span');
+      nameEl.className = 'weather-loc-result-name';
+      nameEl.textContent = name;
+      const subEl = document.createElement('span');
+      subEl.className = 'weather-loc-result-sub';
+      subEl.textContent = sub;
+      btn.appendChild(nameEl);
+      btn.appendChild(subEl);
       btn.addEventListener('click', () => {
         setManualLocation(parseFloat(item.lat), parseFloat(item.lon), name);
         (overlay.querySelector('#weatherLocationPanel') as HTMLElement).classList.remove('open');
