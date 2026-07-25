@@ -34,33 +34,39 @@
 
 <!-- Splash screen — shown instantly (inline, no extra request) while the
      module bundle and fonts load, and removed once the first frame is
-     ready. Fallback timer below guards against it ever getting stuck. -->
+     ready (with a short minimum hold so it doesn't just flash). Fallback
+     timer below guards against it ever getting stuck or overstaying. -->
 <div id="splashScreen" role="status" aria-label="Loading Session Clock">
   <svg class="splash-mark" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <g fill="none" stroke="#6ee7b7" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <g fill="none" stroke="#6ee7b7" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M90,82 C84,46 80,18 65,14 C50,18 46,46 40,82"/>
       <path d="M110,82 C116,46 120,18 135,14 C150,18 154,46 160,82"/>
       <path d="M46,96 C36,120 34,150 46,176"/>
       <path d="M154,96 C164,120 166,150 154,176"/>
-      <path d="M62,126 Q78,106 94,126"/>
-      <path d="M106,126 Q122,106 138,126"/>
-      <path d="M78,150 C84,170 94,182 100,182 C106,182 116,170 122,150"/>
+      <g class="splash-eyes">
+        <path d="M62,126 Q78,106 94,126"/>
+        <path d="M106,126 Q122,106 138,126"/>
+      </g>
+      <path class="splash-smile" d="M78,150 C84,170 94,182 100,182 C106,182 116,170 122,150"/>
       <path d="M92,196 L108,196"/>
     </g>
   </svg>
   <div class="splash-title">Session Clock</div>
+  <div class="splash-dots"><span></span><span></span><span></span></div>
 </div>
 <script>
-  // Safety net: if main.ts ever fails to load/execute, don't leave the
-  // user staring at a stuck splash forever.
+  // Marks when the splash first appeared, so main.ts can hold it for a
+  // short minimum time (feels intentional) without ever overstaying.
+  window.__splashT0 = performance.now();
+  // Hard ceiling: whatever happens, the splash is gone by ~1.5s.
   window.addEventListener('load', function () {
     setTimeout(function () {
       var s = document.getElementById('splashScreen');
       if (s && !s.classList.contains('splash-hide')) {
         s.classList.add('splash-hide');
-        setTimeout(function () { s.remove(); }, 700);
+        setTimeout(function () { s.remove(); }, 400);
       }
-    }, 4000);
+    }, 1500);
   });
 </script>
 
@@ -82,9 +88,27 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
       Themes
     </button>
-    <div id="weatherPill" class="topbar-pill">
-      <span id="weatherIcon">☁</span>
-      <span id="weatherText">--°</span>
+    <div class="weather-support-wrap">
+      <div id="weatherPill" class="topbar-pill">
+        <span id="weatherIcon" class="weather-icon-default">
+          <svg viewBox="0 0 24 16" width="17" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6.5 13.5a4.2 4.2 0 0 1-.4-8.38A5 5 0 0 1 15.7 4.1 4 4 0 0 1 17.5 12" />
+            <path d="M6.5 13.5h11" />
+          </svg>
+        </span>
+        <span id="weatherText">--°</span>
+      </div>
+      <div class="support-card" role="note">
+        <img class="support-avatar" src="https://github.com/ADJ189.png?size=64" alt="" width="30" height="30" loading="lazy" referrerpolicy="no-referrer">
+        <div class="support-card-body">
+          <div class="support-card-name">ADJ189</div>
+          <div class="support-card-msg">Enjoying Session Clock? A star helps other people find it.</div>
+          <a class="support-card-star" href="https://github.com/ADJ189/Accurate-Time-" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L2 9.7l7.1-.6z"/></svg>
+            Star on GitHub
+          </a>
+        </div>
+      </div>
     </div>
     <div class="info-strip">
       <div class="info-slide" id="infoSlide">

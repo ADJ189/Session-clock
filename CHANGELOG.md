@@ -18,9 +18,14 @@ All notable changes to Session Clock are documented here.
 - **Focus Mode**: header and dock fade out after a few idle seconds, back on any input.
 - **Always-on-top mini clock** via Document Picture-in-Picture (Chrome 116+).
 - Session/focus-block completion now triggers the existing milestone confetti + motivation widget.
-- **Splash screen** on load: inline SVG mark + title, no extra network request, so it paints before the JS bundle/fonts arrive instead of leaving a blank frame. Fades out once the theme and first render are ready; a fallback timer clears it if init ever fails.
+- **Splash screen** on load: full-size outlined bunny mark that floats, blinks, and smiles, plus a "loading" dot sequence — inline SVG, no extra network request, so it paints before the JS bundle/fonts arrive. Held for a short minimum (~0.9s) so it reads as intentional rather than a flash, hard-capped at 1.5s no matter how long loading actually takes.
+- **Weather pill** now shows a proper scalable outline cloud icon (was a plain-text `☁` glyph that rendered inconsistently across platforms) as its default/placeholder state; real condition icons still swap in once weather data loads.
+- **Support card**: hovering the weather pill (after a short hover-intent delay) shows a small card with GitHub avatar, a "Star on GitHub" link, and a short message.
 
 ### Fixed
+- **Location permission prompt firing on startup.** `initWeather()` called `navigator.geolocation.getCurrentPosition()` automatically on every page load if no location was stored yet, popping the browser's native permission dialog before the user had asked for weather at all. It now only uses a location the user explicitly set via the weather page's "Use GPS" button or city search; the pill shows a neutral "Set location" prompt instead until then.
+- Deduplicated the reverse-geocoding request — `weatherpage.ts`'s GPS button had its own inline copy of the Nominatim fetch instead of reusing `weather.ts`'s `getCityName()`.
+- Unreachable dead code in `getStoredLocation()` (a legacy-coordinate fallback sitting after an unconditional `return`, so it could never run).
 - **Theme picker icons weren't rendering.** `DOMParser` requires an explicit `xmlns="http://www.w3.org/2000/svg"` on the root `<svg>` to assign it the SVG namespace — without it the element parses "successfully" but silently fails to render once appended to the page. Confirmed via a live namespace check; fixed by injecting the attribute if missing.
 - **Rain and fireplace sounds silently failed to play.** Both are auto-started via `setTimeout` when the "Common Room" theme loads, which browsers don't treat as a user gesture — so the `AudioContext` stayed permanently suspended. Fixed by priming the context on the very first real interaction with the page.
 - **"Smart Break Reminder" toggle did nothing.** The setting was saved but never actually read anywhere.
@@ -34,6 +39,10 @@ All notable changes to Session Clock are documented here.
 
 ### Changed
 - Service worker cache bumped so returning visitors pick up this update instead of a stale cached build.
+
+### Security
+- **XSS via city search results.** The weather page's city-search dropdown inserted Nominatim API results (`name`, `state`, `country`) directly into `innerHTML`. That's untrusted external data — a malicious or spoofed response could have injected arbitrary HTML/script. Rebuilt with `textContent`-based DOM construction instead.
+- `npm audit`: fixed a high-severity path-traversal advisory in a transitive `postcss` build dependency (`npm audit` now reports 0 vulnerabilities). Build-tool only — never shipped to users.
 
 ---
 
