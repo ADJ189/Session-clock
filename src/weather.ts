@@ -143,15 +143,32 @@ async function fetchWeatherData(lat: number, lon: number) {
     + `&hourly=temperature_2m,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min`
     + `&temperature_unit=celsius&windspeed_unit=kmh&timezone=auto&forecast_days=7`;
   const res = await fetchWithTimeout(url, 10000);
-  return await res.json();
+  if (!res.ok) throw new Error(`Weather API error ${res.status}`);
+  const data = await res.json();
+  if (!data?.current) throw new Error('Weather API returned no current conditions');
+  return data;
+}
+
+// One retry after a short delay — most "unavailable" reports are a single
+// transient network blip, not a real outage, so don't give up immediately.
+async function fetchWeatherDataWithRetry(lat: number, lon: number) {
+  try {
+    return await fetchWeatherData(lat, lon);
+  } catch {
+    await new Promise(r => setTimeout(r, 1200));
+    return fetchWeatherData(lat, lon);
+  }
 }
 
 // Set location manually (from weather page UI)
 export function setManualLocation(lat: number, lon: number, name?: string) {
   _currentLocation = { lat, lon, name };
-  // Avoid persisting precise coordinates in clear text.
-  // Keep only non-sensitive display metadata in localStorage.
-  localStorage.setItem('sc_weather_loc', JSON.stringify({ name }));
+  // Round to ~1 decimal place (~11km) before persisting — enough for
+  // city-level forecast accuracy without keeping an exact address-level
+  // GPS fix in clear text in localStorage.
+  const lat1 = Math.round(lat * 10) / 10;
+  const lon1 = Math.round(lon * 10) / 10;
+  localStorage.setItem('sc_weather_loc', JSON.stringify({ lat: lat1, lon: lon1, name }));
 }
 
 export function getStoredLocation(): { lat: number; lon: number; name?: string } | null {
@@ -159,12 +176,13 @@ export function getStoredLocation(): { lat: number; lon: number; name?: string }
     const stored = localStorage.getItem('sc_weather_loc');
     if (!stored) return null;
     const parsed = JSON.parse(stored);
-    // Purge legacy geolocation-derived entries (those without manual name)
-    if (!parsed.name) {
+    // Reject anything that isn't a real coordinate pair — this also
+    // self-heals entries from the earlier bug where only {name} was saved.
+    if (typeof parsed?.lat !== 'number' || typeof parsed?.lon !== 'number') {
       localStorage.removeItem('sc_weather_loc');
       return null;
     }
-    return parsed;
+    return { lat: parsed.lat, lon: parsed.lon, name: parsed.name };
   } catch { return null; }
 }
 
@@ -189,9 +207,10 @@ export async function initWeather(
     sunTimes = calcSunTimes(lat, lon);
     (window as any).__scLat = lat;
     _currentLocation = { lat, lon, name: _currentLocation?.name };
+    _lastFetchFailed = false;
 
     try {
-      const data = await fetchWeatherData(lat, lon);
+      const data = await fetchWeatherDataWithRetry(lat, lon);
       const cur = data.current;
       _currentWeatherCode = cur.weathercode as number;
       _currentTemp = Math.round(cur.temperature_2m);
@@ -225,6 +244,7 @@ export async function initWeather(
       applyWeatherBodyClass(getWeatherOverlay());
 
     } catch {
+      _lastFetchFailed = true;
       show(null, '—', 'Weather unavailable');
     }
   };
@@ -252,6 +272,9 @@ export async function initWeather(
     if (!privacyCheck()) fetchWeather();
   }, 15 * 60_000);
 }
+
+let _lastFetchFailed = false;
+export function didWeatherFail() { return _lastFetchFailed; }
 
 export function stopWeather() {
   clearInterval(refreshTimer);

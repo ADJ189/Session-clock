@@ -6,7 +6,7 @@ import {
   getWeatherDesc, getWeatherOverlay, getWeatherCode,
   getHourlyForecast, getDailyForecast,
   getSunTimes, getWMOInfo,
-  setManualLocation, getStoredLocation, initWeather, getCityName,
+  setManualLocation, getStoredLocation, initWeather, getCityName, didWeatherFail,
   type WeatherOverlay,
 } from './weather';
 
@@ -31,6 +31,12 @@ export function openWeatherPage() {
   overlay.classList.add('open');
   renderWeatherPage(overlay as HTMLElement);
   window.addEventListener('sc-weather-update', handleWeatherUpdate);
+
+  // No location yet — go straight to the picker dialog instead of
+  // leaving the user staring at an empty hero section.
+  if (!getStoredLocation()) {
+    (overlay.querySelector('#weatherLocationPanel') as HTMLElement)?.classList.add('open');
+  }
 }
 
 export function closeWeatherPage() {
@@ -135,6 +141,12 @@ function buildWeatherPageDOM(): HTMLElement {
 
   overlay.addEventListener('click', e => { if (e.target === overlay) closeWeatherPage(); });
   overlay.querySelector('#weatherCloseBtn')!.addEventListener('click', closeWeatherPage);
+
+  overlay.querySelector('#weatherHero')!.addEventListener('click', () => {
+    if ((overlay!.querySelector('#weatherHero') as HTMLElement).classList.contains('weather-hero--retry')) {
+      refreshWeather(overlay as HTMLElement);
+    }
+  });
 
   overlay.querySelector('#weatherSetLocationBtn')!.addEventListener('click', () => {
     (overlay.querySelector('#weatherLocationPanel') as HTMLElement).classList.add('open');
@@ -262,6 +274,8 @@ export function renderWeatherPage(overlay: HTMLElement) {
   const windEl  = overlay.querySelector('#weatherWind') as HTMLElement;
   const humEl   = overlay.querySelector('#weatherHumidity') as HTMLElement;
 
+  const heroEl = overlay.querySelector('#weatherHero') as HTMLElement;
+
   if (temp !== null) {
     const [icon] = getWMOInfo(code);
     iconEl.textContent  = icon;
@@ -270,10 +284,18 @@ export function renderWeatherPage(overlay: HTMLElement) {
     feelsEl.textContent = `Feels like ${feels}°`;
     windEl.textContent  = `${wind} km/h`;
     humEl.textContent   = `${humidity}%`;
+    heroEl.classList.remove('weather-hero--retry');
+  } else if (stored && didWeatherFail()) {
+    iconEl.textContent = '⚠️';
+    tempEl.textContent = '--°';
+    descEl.textContent = 'Weather unavailable — tap to retry';
+    feelsEl.textContent = ''; windEl.textContent = ''; humEl.textContent = '';
+    heroEl.classList.add('weather-hero--retry');
   } else {
     iconEl.textContent = stored ? '⏳' : '📍';
     tempEl.textContent = '--°';
     descEl.textContent = stored ? 'Fetching weather…' : 'Tap "Set location" to begin';
+    heroEl.classList.remove('weather-hero--retry');
   }
 
   // Particles
