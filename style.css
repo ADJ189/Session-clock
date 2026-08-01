@@ -4846,8 +4846,9 @@ body.weather-fog.weather-overlay-on::after {
 #splashScreen.splash-hide { opacity: 0; pointer-events: none; }
 
 .splash-mark {
-  width: 172px; height: 172px;
-  filter: drop-shadow(0 0 26px rgba(110,231,183,.35));
+  width: auto; height: auto;
+  max-width: 75vw; max-height: 75vh;
+  filter: drop-shadow(0 0 36px rgba(110,231,183,.35));
   animation: splashFloat 2.4s ease-in-out infinite;
 }
 .splash-eyes {
