@@ -2,7 +2,7 @@
 
 All notable changes to Session Clock are documented here.
 
-## [8.1.0] — Unreleased
+## [1.0] — Unreleased
 
 ### Added
 - **33 new themes** (96 total, up from 63): Fargo, Mad Men, True Detective, Chernobyl, Andor, Twin Peaks, Grand Budapest Hotel, No Country for Old Men, Drive, Se7en, Whiplash, The Batman, John Wick, Cowboy Bebop, Ghost in the Shell, Your Name, Studio Ghibli, Vinland Saga, Jujutsu Kaisen, Gravity Falls, Adventure Time, Spider-Verse, Williams Racing, Alpine F1 Team, Racing Bulls, Deep Bioluminescence, Zen Garden, Coffee Shop Rain, Vinyl Warmth, Midnight Library, Greenhouse, Lava Lamp, Northern Cabin.
@@ -52,6 +52,7 @@ All notable changes to Session Clock are documented here.
 
 ---
 
-## Earlier versions
+## Earlier versions [0.1 - 0.9]
 
-Prior history (63-theme baseline, SvelteKit fork, weather module, CompressZ, 2xSpeed Studios site, etc.) predates this changelog.
+- 63-theme baseline, SvelteKit fork, weather module . 
+- Initial svelte config , re written to typescript . 
