@@ -3511,10 +3511,16 @@ function init() {
   if (intContent) {
     Integrations.buildIntegrationsPanel(intContent, { showToast });
   }
-  // Handle Spotify OAuth callback
+  // Handle OAuth redirect callbacks — one handler for every provider
+  // (Spotify, Notion, GitHub, Todoist, Linear all land here with
+  // ?code=&state=<provider>:<nonce>; Google's token-model flow never
+  // redirects, so it isn't handled here).
   if (window.location.search.includes('code=')) {
-    Integrations.spotifyHandleCallback().then(() => {
-      showToast('🎵 Spotify connected!', 4000);
+    Integrations.oauthHandleCallback().then((result) => {
+      if (result) {
+        const name = result.provider[0]!.toUpperCase() + result.provider.slice(1);
+        showToast(`✅ ${name} connected!`, 4000);
+      }
       if (intContent) Integrations.buildIntegrationsPanel(intContent, { showToast });
     });
   }

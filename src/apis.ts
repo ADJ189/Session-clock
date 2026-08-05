@@ -22,8 +22,8 @@ export function sendNotification(title: string, body: string, tag = 'sc') {
   const n = new Notification(title, {
     body,
     tag,                          // prevents duplicate stacking
-    icon: '/icon-192.svg',
-    badge: '/icon-192.svg',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     silent: false,
     requireInteraction: false,
   });
@@ -53,8 +53,8 @@ export function setupMediaSession(
     artist: 'Session Clock',
     album:  'Focus Mode',
     artwork: [
-      { src: '/icon-192.svg', sizes: '192x192', type: 'image/svg+xml' },
-      { src: '/icon-512.svg', sizes: '512x512', type: 'image/svg+xml' },
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
   });
 
