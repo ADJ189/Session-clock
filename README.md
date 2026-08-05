@@ -109,6 +109,12 @@ Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The incl
 
 ---
 
+## Contributing
+
+Bug reports and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md)
+for setup, project layout, and how to configure OAuth for local dev.
+Third-party fonts, APIs, and tooling are listed in [CREDITS.md](CREDITS.md).
+
 ## License
 
 [AGPL-3.0](LICENSE) — free to use and fork; modifications must be open-sourced.
