@@ -66,7 +66,7 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 
 ---
 
-## What's New in 1.1 : 
+## What's New in 8.1
 
 - **33 new themes** across TV, film, anime, animation, F1, and ambient categories — Fargo, Twin Peaks, The Batman, Your Name, Studio Ghibli, Spider-Verse, Zen Garden, and more. Each has its own bespoke canvas intro transition, not a generic fade.
 - **7 new ambient sounds** (Wind, Snowfall, Keyboard, Library, Spaceship, Campfire, Waves & Rocks) — synthesized entirely in-browser, no audio files.

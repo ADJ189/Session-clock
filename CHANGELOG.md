@@ -2,7 +2,16 @@
 
 All notable changes to Session Clock are documented here.
 
-## [1.0] — Latest Release 
+## [8.2.0] — What's new in this version
+
+### Added
+- **Music dock**: a floating widget next to the clock with real in-page Spotify playback via the official Web Playback SDK (Premium required) — play/pause/skip/scrub actually control audio in the tab, not just a remote device.
+- **Pop-out dock**: click the ⧉ icon to pop the dock into a real OS-level window via Document Picture-in-Picture (same API the mini clock already uses), so it stays visible above other windows/tabs.
+- **Auto-sync with focus sessions**: optional 🔁 toggle on the dock — when on, Spotify playback auto-resumes when a focus session starts and pauses on break/stop.
+- **YouTube tab**: paste a YouTube video or playlist URL into the dock's YouTube tab to play it via YouTube's official IFrame Player API, docked at a small fixed size (kept visible per YouTube's own terms — no audio-only/hidden playback).
+- **Focus sidebar task cards**: compact GitHub (issues/PRs), Notion (tasks), Todoist (tasks), and Calendar (upcoming events) cards next to the music dock, built on the existing integrations data layer — nothing new is fetched, just new compact UI for data you're already pulling in.
+
+## [1.0] — Unreleased
 
 ### Added
 - **33 new themes** (96 total, up from 63): Fargo, Mad Men, True Detective, Chernobyl, Andor, Twin Peaks, Grand Budapest Hotel, No Country for Old Men, Drive, Se7en, Whiplash, The Batman, John Wick, Cowboy Bebop, Ghost in the Shell, Your Name, Studio Ghibli, Vinland Saga, Jujutsu Kaisen, Gravity Falls, Adventure Time, Spider-Verse, Williams Racing, Alpine F1 Team, Racing Bulls, Deep Bioluminescence, Zen Garden, Coffee Shop Rain, Vinyl Warmth, Midnight Library, Greenhouse, Lava Lamp, Northern Cabin.
