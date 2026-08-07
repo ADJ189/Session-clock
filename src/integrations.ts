@@ -216,7 +216,7 @@ export async function oauthHandleCallback(): Promise<{ provider: string } | null
 
 // Shared refresh path for every OAuth provider that issues refresh
 // tokens (Spotify, Linear; GitHub/Notion/Todoist tokens don't expire).
-async function ensureFreshToken(provider: string): Promise<string | null> {
+export async function ensureFreshToken(provider: string): Promise<string | null> {
   const creds = load(provider);
   if (!creds?.token) return null;
   if (!creds.expires || Date.now() < Number(creds.expires) - 60_000) return creds.token;

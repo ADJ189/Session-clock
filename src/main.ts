@@ -25,6 +25,8 @@ import * as Cmd from './cmdpalette';
 import * as Features from './features';
 import * as Integrations from './integrations';
 import * as NowPlaying from './nowplaying';
+import * as MusicDock from './musicdock';
+import * as SideTasks from './sidetasks';
 import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
 import * as Palette from './palette';
 
@@ -3511,6 +3513,16 @@ function init() {
   if (intContent) {
     Integrations.buildIntegrationsPanel(intContent, { showToast });
   }
+
+  // Focus sidebar — music dock + connected-service task cards. Fixed
+  // position, self-contained; nothing here reaches back into main.ts
+  // state, so it's safe to mount unconditionally.
+  const sidebar = document.createElement('div');
+  sidebar.className = 'sc-focus-sidebar';
+  document.body.appendChild(sidebar);
+  MusicDock.mountDock(sidebar);
+  SideTasks.mountSideStack(sidebar);
+  if (Integrations.isSpotifyConnected()) MusicDock.initSpotifyPlayback();
   // Handle OAuth redirect callbacks — one handler for every provider
   // (Spotify, Notion, GitHub, Todoist, Linear all land here with
   // ?code=&state=<provider>:<nonce>; Google's token-model flow never
