@@ -1,6 +1,6 @@
 // Session Clock Service Worker — offline cache strategy
-const CACHE = 'session-clock-v5';
-const PRECACHE = ['/', '/index.html', '/splash-bunny.png'];
+const CACHE = 'session-clock-v6';
+const PRECACHE = ['/', '/index.html', '/splash-base.png', '/splash-triangle.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
