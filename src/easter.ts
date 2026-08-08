@@ -543,7 +543,7 @@ function check100Sessions() {
   if (sessions >= 100 && !localStorage.getItem('sc_phoenix_unlocked')) {
     localStorage.setItem('sc_phoenix_unlocked', '1');
     setTimeout(() => {
-      _showToast('🔥 100 sessions! Phoenix theme unlocked — check the shop!', 6000);
+      _showToast('🔥 100 sessions! Phoenix theme unlocked — find it in Clock Style settings', 6000);
     }, 2000);
   }
 }

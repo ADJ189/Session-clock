@@ -42,7 +42,6 @@ export interface Strings {
   sound: string;
   log: string;
   share: string;
-  shop: string;
   settings: string;
 
   // Settings
@@ -120,7 +119,7 @@ const en: Strings = {
   breakTime: 'Break time. Breathe, stretch, hydrate.',
   almostThere: 'Almost there —',
   focusSession: 'Focus', shortBreak: 'Short Break', longBreak: 'Long Break',
-  sound: 'Sound', log: 'Log', share: 'Share', shop: 'Shop', settings: 'Settings',
+  sound: 'Sound', log: 'Log', share: 'Share', settings: 'Settings',
   preferences: 'Preferences', general: 'General', soundLabel: 'Sound',
   focus: 'Focus', display: 'Display', privacy: 'Privacy',
   themeSaved: 'Theme saved', sessionSaved: 'Session saved',
@@ -162,7 +161,7 @@ const es: Strings = {
   breakTime: 'Hora del descanso. Respira, estírate, hidrátate.',
   almostThere: 'Ya casi —',
   focusSession: 'Enfoque', shortBreak: 'Descanso corto', longBreak: 'Descanso largo',
-  sound: 'Sonido', log: 'Registro', share: 'Compartir', shop: 'Tienda', settings: 'Ajustes',
+  sound: 'Sonido', log: 'Registro', share: 'Compartir', settings: 'Ajustes',
   preferences: 'Preferencias', general: 'General', soundLabel: 'Sonido',
   focus: 'Enfoque', display: 'Pantalla', privacy: 'Privacidad',
   themeSaved: 'Tema guardado', sessionSaved: 'Sesión guardada',
@@ -200,7 +199,7 @@ const fr: Strings = {
   breakTime: 'Pause. Respirez, étirez-vous, hydratez-vous.',
   almostThere: 'Presque terminé —',
   focusSession: 'Focus', shortBreak: 'Courte pause', longBreak: 'Longue pause',
-  sound: 'Son', log: 'Journal', share: 'Partager', shop: 'Boutique', settings: 'Réglages',
+  sound: 'Son', log: 'Journal', share: 'Partager', settings: 'Réglages',
   preferences: 'Préférences', general: 'Général', soundLabel: 'Son',
   focus: 'Focus', display: 'Affichage', privacy: 'Confidentialité',
   themeSaved: 'Thème enregistré', sessionSaved: 'Session enregistrée',
@@ -238,7 +237,7 @@ const de: Strings = {
   breakTime: 'Pause. Atme, dehne dich, trinke Wasser.',
   almostThere: 'Fast geschafft —',
   focusSession: 'Fokus', shortBreak: 'Kurze Pause', longBreak: 'Lange Pause',
-  sound: 'Ton', log: 'Protokoll', share: 'Teilen', shop: 'Shop', settings: 'Einstellungen',
+  sound: 'Ton', log: 'Protokoll', share: 'Teilen', settings: 'Einstellungen',
   preferences: 'Einstellungen', general: 'Allgemein', soundLabel: 'Ton',
   focus: 'Fokus', display: 'Anzeige', privacy: 'Datenschutz',
   themeSaved: 'Thema gespeichert', sessionSaved: 'Sitzung gespeichert',
@@ -276,7 +275,7 @@ const ja: Strings = {
   breakTime: '休憩時間。深呼吸して、ストレッチして、水を飲みましょう。',
   almostThere: 'もうすぐです —',
   focusSession: '集中', shortBreak: '短い休憩', longBreak: '長い休憩',
-  sound: 'サウンド', log: 'ログ', share: '共有', shop: 'ショップ', settings: '設定',
+  sound: 'サウンド', log: 'ログ', share: '共有', settings: '設定',
   preferences: '設定', general: '一般', soundLabel: 'サウンド',
   focus: '集中', display: '表示', privacy: 'プライバシー',
   themeSaved: 'テーマを保存しました', sessionSaved: 'セッションを保存しました',
@@ -314,7 +313,7 @@ const ko: Strings = {
   breakTime: '휴식 시간. 숨 쉬고, 스트레칭하고, 물 마시세요.',
   almostThere: '거의 다 됐어요 —',
   focusSession: '집중', shortBreak: '짧은 휴식', longBreak: '긴 휴식',
-  sound: '사운드', log: '기록', share: '공유', shop: '상점', settings: '설정',
+  sound: '사운드', log: '기록', share: '공유', settings: '설정',
   preferences: '환경설정', general: '일반', soundLabel: '사운드',
   focus: '집중', display: '디스플레이', privacy: '개인정보',
   themeSaved: '테마 저장됨', sessionSaved: '세션 저장됨',
@@ -352,7 +351,7 @@ const pt: Strings = {
   breakTime: 'Hora da pausa. Respire, alongue-se, hidrate-se.',
   almostThere: 'Quase lá —',
   focusSession: 'Foco', shortBreak: 'Pausa curta', longBreak: 'Pausa longa',
-  sound: 'Som', log: 'Registro', share: 'Compartilhar', shop: 'Loja', settings: 'Configurações',
+  sound: 'Som', log: 'Registro', share: 'Compartilhar', settings: 'Configurações',
   preferences: 'Preferências', general: 'Geral', soundLabel: 'Som',
   focus: 'Foco', display: 'Exibição', privacy: 'Privacidade',
   themeSaved: 'Tema salvo', sessionSaved: 'Sessão salva',
@@ -390,7 +389,7 @@ const hi: Strings = {
   breakTime: 'ब्रेक का समय। सांस लें, स्ट्रेच करें, पानी पिएं।',
   almostThere: 'लगभग हो गया —',
   focusSession: 'फोकस', shortBreak: 'छोटा ब्रेक', longBreak: 'लंबा ब्रेक',
-  sound: 'ध्वनि', log: 'लॉग', share: 'साझा', shop: 'दुकान', settings: 'सेटिंग्स',
+  sound: 'ध्वनि', log: 'लॉग', share: 'साझा', settings: 'सेटिंग्स',
   preferences: 'प्राथमिकताएं', general: 'सामान्य', soundLabel: 'ध्वनि',
   focus: 'फोकस', display: 'डिस्प्ले', privacy: 'गोपनीयता',
   themeSaved: 'थीम सहेजी गई', sessionSaved: 'सत्र सहेजा गया',

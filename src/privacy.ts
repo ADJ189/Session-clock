@@ -29,19 +29,11 @@ export const DATA_CATEGORIES: DataCategory[] = [
     sensitive: true,
   },
   {
-    id: 'shop',
-    label: 'Token Shop',
-    icon: '🪙',
-    desc: 'Token balance, owned items, equipped items',
-    keys: ['sc_tokens', 'sc_owned_items', 'sc_equipped'],
-    sensitive: false,
-  },
-  {
     id: 'preferences',
     label: 'Preferences',
     icon: '⚙️',
     desc: 'Theme, clock mode, quality, Pomodoro settings',
-    keys: ['sc_last_theme', 'sc_clock_mode', 'sc_quality', 'sc_pom'],
+    keys: ['sc_last_theme', 'sc_clock_mode', 'sc_clock_pos_map', 'sc_hide_seconds', 'sc_hide_ms', 'sc_quality', 'sc_pom'],
     sensitive: false,
   },
   {

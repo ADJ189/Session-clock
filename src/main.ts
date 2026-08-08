@@ -54,6 +54,7 @@ function setClockMode(m: ClockMode) {
   clockMode = m;
   localStorage.setItem('sc_clock_mode', m);
   updateClockModeDOM();
+  applyClockPosition(getClockPosition(m), m);
 }
 function updateClockModeDOM() {
   const cb = document.getElementById('clock-block-wrap');
@@ -241,11 +242,26 @@ DOM.btnReset.addEventListener('click', resetTimer);
 let privacyMode = localStorage.getItem('sc_privacy') === '1';
 let breathingBreakEnabled = localStorage.getItem('sc_breathing_break') !== '0';
 
-// Clock position: 'top' (default) | 'center'
-let clockPosition: 'top' | 'center' = (localStorage.getItem('sc_clock_pos') ?? 'top') as 'top' | 'center';
-function applyClockPosition(pos: 'top' | 'center') {
-  clockPosition = pos;
-  localStorage.setItem('sc_clock_pos', pos);
+// Clock position: per clock-mode 'top' (default) | 'center'.
+// Stored as a map so each clock style (digital, analogue, flip…) remembers
+// its own preferred position/scale instead of sharing one global setting.
+type ClockPosMap = Partial<Record<ClockMode, 'top' | 'center'>>;
+function loadClockPosMap(): ClockPosMap {
+  try {
+    const raw = localStorage.getItem('sc_clock_pos_map');
+    if (raw) return JSON.parse(raw);
+  } catch { /* corrupt/old data — fall through to migration */ }
+  // Migrate a legacy single-value setting to every mode, once.
+  const legacy = localStorage.getItem('sc_clock_pos') as 'top' | 'center' | null;
+  if (legacy) return { digital: legacy, analogue: legacy, flip: legacy, word: legacy, minimal: legacy, segment: legacy };
+  return {};
+}
+let clockPosMap: ClockPosMap = loadClockPosMap();
+function getClockPosition(mode: ClockMode): 'top' | 'center' { return clockPosMap[mode] ?? 'top'; }
+function applyClockPosition(pos: 'top' | 'center', mode: ClockMode = clockMode) {
+  clockPosMap[mode] = pos;
+  localStorage.setItem('sc_clock_pos_map', JSON.stringify(clockPosMap));
+  if (mode !== clockMode) return; // updated a background mode's preference only
   document.body.classList.toggle('clock-top',    pos === 'top');
   document.body.classList.toggle('clock-center', pos === 'center');
   // Update toggle pill
@@ -253,6 +269,30 @@ function applyClockPosition(pos: 'top' | 'center') {
     (el as HTMLElement).classList.toggle('center-active', pos === 'center');
     (el as HTMLElement).textContent = pos === 'center' ? '⊞ Centred' : '⊟ Top';
   });
+}
+
+// Hide seconds / milliseconds — applies across every clock style via a
+// body-level class so each renderer's CSS (and the analogue second-hand
+// draw call) can simply check for it instead of threading a flag through
+// every render path.
+let hideSeconds = localStorage.getItem('sc_hide_seconds') === '1';
+let hideMs = localStorage.getItem('sc_hide_ms') === '1';
+function applyHideSeconds(on: boolean) {
+  hideSeconds = on;
+  localStorage.setItem('sc_hide_seconds', on ? '1' : '0');
+  document.body.classList.toggle('hide-seconds', on);
+  // Hiding seconds makes a standalone ms readout meaningless — hide it too,
+  // but leave the user's own ms preference untouched underneath.
+  document.body.classList.toggle('hide-ms', on || hideMs);
+  // Flip/Segment/Analogue rebuild their DOM/canvas around the new digit count
+  updateClockCanvas();
+  showToast(on ? 'Seconds hidden' : 'Seconds shown');
+}
+function applyHideMs(on: boolean) {
+  hideMs = on;
+  localStorage.setItem('sc_hide_ms', on ? '1' : '0');
+  document.body.classList.toggle('hide-ms', on || hideSeconds);
+  showToast(on ? 'Milliseconds hidden' : 'Milliseconds shown');
 }
 
 function isPrivacyMode() { return privacyMode; }
@@ -706,7 +746,7 @@ function renderAnalogue(hr: number, min: number, sec: number, ms: number) {
 
   drawHand(hrAngle,  R * 0.55, 3.5, currentTheme.text);
   drawHand(minAngle, R * 0.78, 2.2, currentTheme.text);
-  drawHand(secAngle, R * 0.88, 1.2, acc);
+  if (!hideSeconds) drawHand(secAngle, R * 0.88, 1.2, acc);
 
   // Centre dot
   ctx2.beginPath(); ctx2.arc(cx, cy, 4, 0, Math.PI * 2);
@@ -828,9 +868,9 @@ const SEG_PATHS: Record<string, number[]> = {
   '6':[1,0,1,1,1,1,1], '7':[1,1,1,0,0,0,0], '8':[1,1,1,1,1,1,1],
   '9':[1,1,1,1,0,1,1],
 };
-function drawSegDigit(ctx2: CanvasRenderingContext2D, digit: string, x: number, y: number, w: number, h: number, color: string, dimColor: string) {
+function drawSegDigit(ctx2: CanvasRenderingContext2D, digit: string, x: number, y: number, w: number, h: number, color: string, dimColor: string, strokeScale = 1) {
   const segs = SEG_PATHS[digit] ?? SEG_PATHS['8'];
-  const t = 4, g = 3; // thickness, gap
+  const t = 4 * strokeScale, g = 3 * strokeScale; // thickness, gap — scale with canvas size
   const iw = w - t * 2 - g * 2, ih = (h - t * 3 - g * 4) / 2;
   // top, topR, botR, bot, botL, topL, mid
   const drawSeg = (on: number, draw: () => void) => {
@@ -859,19 +899,29 @@ function renderSegment(hr: string, min: string, sec: string) {
   ctx2.clearRect(0, 0, el.width, el.height);
   const acc = currentTheme.accent;
   const dim = acc + '18';
-  const dw = 42, dh = 80, gap = 12, colonW = 18;
-  const totalW = 6 * dw + 5 * gap + 2 * colonW;
+
+  // Base digit metrics scale with the canvas's actual pixel height (which
+  // now varies with viewport/dpr/center-mode — see updateClockCanvas), so
+  // digits fill a bigger canvas instead of floating in the middle of it.
+  const scale = el.height / 110;
+  const dw = 42 * scale, dh = 80 * scale, gap = 12 * scale, colonW = 18 * scale;
+  const dotR = 3 * scale;
+
+  const digits = hideSeconds
+    ? [hr[0], hr[1], min[0], min[1]]
+    : [hr[0], hr[1], min[0], min[1], sec[0], sec[1]];
+  const colonCount = hideSeconds ? 1 : 2;
+  const totalW = digits.length * dw + (digits.length - 1) * gap + colonCount * colonW;
   let ox = (el.width - totalW) / 2, oy = (el.height - dh) / 2;
-  const digits = [hr[0], hr[1], min[0], min[1], sec[0], sec[1]];
   digits.forEach((d, i) => {
-    if (i === 2 || i === 4) {
+    if (i === 2 || (!hideSeconds && i === 4)) {
       // Colon
       ctx2.fillStyle = Math.floor(Date.now() / 500) % 2 === 0 ? acc : dim;
-      ctx2.beginPath(); ctx2.arc(ox + colonW / 2, oy + dh * 0.33, 3, 0, Math.PI * 2); ctx2.fill();
-      ctx2.beginPath(); ctx2.arc(ox + colonW / 2, oy + dh * 0.67, 3, 0, Math.PI * 2); ctx2.fill();
+      ctx2.beginPath(); ctx2.arc(ox + colonW / 2, oy + dh * 0.33, dotR, 0, Math.PI * 2); ctx2.fill();
+      ctx2.beginPath(); ctx2.arc(ox + colonW / 2, oy + dh * 0.67, dotR, 0, Math.PI * 2); ctx2.fill();
       ox += colonW + gap;
     }
-    drawSegDigit(ctx2, d, ox, oy, dw, dh, acc, dim);
+    drawSegDigit(ctx2, d, ox, oy, dw, dh, acc, dim, scale);
     ox += dw + gap;
   });
 }
@@ -2257,19 +2307,21 @@ function buildSettingsUI(activeTab = 'general') {
 
   // ══ DISPLAY ═══════════════════════════════════════════════════════════
   else if (activeTab === 'display') {
-    // Clock position
+    // Clock position — scoped to whichever clock style is active right now,
+    // so each style (digital, analogue, flip…) remembers its own preference.
     const layoutSec = makeSection('Layout');
     const clockPosRow = document.createElement('div'); clockPosRow.className = 'settings-row';
     const cpInfo = document.createElement('div'); cpInfo.className = 'settings-row-info';
     const cpTop = document.createElement('div'); cpTop.className = 'settings-row-top';
     const cpLbl = document.createElement('span'); cpLbl.className = 'settings-row-label'; cpLbl.textContent = 'Clock Position';
     cpTop.appendChild(cpLbl);
-    const cpDesc = document.createElement('span'); cpDesc.className = 'settings-row-desc'; cpDesc.textContent = 'Top: classic layout. Centre: full-viewport clock.';
+    const cpDesc = document.createElement('span'); cpDesc.className = 'settings-row-desc';
+    cpDesc.textContent = `Top: classic layout. Centre: full-viewport clock. Applies to the ${clockMode} style only.`;
     cpInfo.append(cpTop, cpDesc);
     const cpSeg = document.createElement('div'); cpSeg.className = 'settings-seg';
     ['top','center'].forEach(pos => {
       const btn = document.createElement('button');
-      btn.className = 'settings-seg-btn' + (clockPosition === pos ? ' active' : '');
+      btn.className = 'settings-seg-btn' + (getClockPosition(clockMode) === pos ? ' active' : '');
       btn.textContent = pos === 'top' ? '⊟ Top' : '⊞ Centre';
       btn.addEventListener('click', () => {
         applyClockPosition(pos as 'top' | 'center');
@@ -2280,7 +2332,12 @@ function buildSettingsUI(activeTab = 'general') {
     clockPosRow.append(cpInfo, cpSeg);
     layoutSec.appendChild(clockPosRow);
 
+    // Digits — independent hide-seconds / hide-milliseconds
+    const digitsSec = makeSection('Digits');
+    digitsSec.appendChild(makeRow('Hide Seconds', 'Drop the seconds digits/hand across every clock style — just hours and minutes', 'toggleHideSeconds', localStorage.getItem('sc_hide_seconds') === '1'));
+    digitsSec.appendChild(makeRow('Hide Milliseconds', 'Hide the fractional-second readout under the clock (kept even with seconds shown, unless this is on)', 'toggleHideMs', localStorage.getItem('sc_hide_ms') === '1'));
     paneWrap.appendChild(layoutSec);
+    paneWrap.appendChild(digitsSec);
 
     // ── Calm Mode — one toggle that simplifies everything at once ──────
     const calmSec = makeSection('Simplify');
@@ -2343,6 +2400,8 @@ function buildSettingsUI(activeTab = 'general') {
       localStorage.setItem('sc_parallax', on ? '1' : '0');
       showToast(on ? 'Parallax on' : 'Parallax off');
     });
+    wireToggle('toggleHideSeconds', (on) => applyHideSeconds(on));
+    wireToggle('toggleHideMs', (on) => applyHideMs(on));
   }
 
   // ══ PRIVACY ══════════════════════════════════════════════════════════
@@ -2574,18 +2633,35 @@ function updateClockCanvas() {
   const ampmStack = document.querySelector<HTMLElement>('.ampm-stack');
   if (ampmStack) ampmStack.style.display = (clockMode === 'digital') ? '' : 'none';
 
+  const centered = getClockPosition(clockMode) === 'center';
+
   if (clockMode === 'analogue') {
     const canvas = document.createElement('canvas');
     canvas.id = 'analogueClock';
-    const sz = Math.min(Math.min(window.innerWidth * 0.65, window.innerHeight * 0.38), 340);
-    canvas.width = canvas.height = sz;
+    // Scaling was capped at a flat 340px regardless of viewport, so on
+    // larger screens — especially in center mode, where the clock is the
+    // sole focus — it never grew past a small/medium footprint. Give
+    // center mode meaningfully more headroom.
+    const cap = centered ? 620 : 360;
+    const wFrac = centered ? 0.82 : 0.62;
+    const hFrac = centered ? 0.66 : 0.4;
+    const sz = Math.min(Math.min(window.innerWidth * wFrac, window.innerHeight * hFrac), cap);
+    // Render at devicePixelRatio for a crisp bitmap at larger sizes
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = canvas.height = sz * dpr;
+    canvas.style.width = canvas.style.height = sz + 'px';
     block.appendChild(canvas);
 
   } else if (clockMode === 'flip') {
     const wrap = document.createElement('div');
     wrap.id = 'flipClockWrap'; wrap.className = 'flip-clock-wrap';
-    ['Hr','Min','Sec'].forEach((part, i) => {
-      if (i > 0) { const sep = document.createElement('span'); sep.className = 'flip-sep'; sep.textContent = ':'; wrap.appendChild(sep); }
+    const parts = hideSeconds ? ['Hr','Min'] : ['Hr','Min','Sec'];
+    parts.forEach((part, i) => {
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'flip-sep' + (part === 'Sec' ? ' flip-sep-sec' : '');
+        sep.textContent = ':'; wrap.appendChild(sep);
+      }
       const card = document.createElement('div');
       card.id = `flip${part}`; card.className = 'flip-card';
       ['flip-top','flip-bot','flip-top-back'].forEach(cls => {
@@ -2594,6 +2670,7 @@ function updateClockCanvas() {
       wrap.appendChild(card);
     });
     block.appendChild(wrap);
+    flipPrev = { hr: '', min: '', sec: '' }; // force a redraw of every card next tick
 
   } else if (clockMode === 'word') {
     const grid = document.createElement('div');
@@ -2612,8 +2689,15 @@ function updateClockCanvas() {
   } else if (clockMode === 'segment') {
     const canvas = document.createElement('canvas');
     canvas.id = 'segmentClock';
-    canvas.width = Math.min(window.innerWidth * 0.88, 520);
-    canvas.height = 110;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = Math.min(window.innerWidth * (centered ? 0.94 : 0.88), centered ? 900 : 520);
+    const cssH = centered ? 170 : 110;
+    // Layout math in renderSegment() is self-referential to el.width/height,
+    // so — same approach as the analogue clock above — we bake dpr into the
+    // raw pixel size rather than scaling the 2D context, and let CSS scale
+    // the element back down to its intended on-screen size.
+    canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+    canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
     block.appendChild(canvas);
   }
 }
@@ -3166,6 +3250,24 @@ function hideSplash() {
   const wait = Math.max(0, SPLASH_MIN_MS - elapsed);
   setTimeout(() => {
     if (!document.body.contains(el) || el.classList.contains('splash-hide')) return;
+
+    // The inner triangle spins continuously while sources are still loading.
+    // Once we actually get here (load done + min-hold satisfied), let it
+    // finish its current lap and ease to a clean stop rather than being
+    // cut off mid-turn — the spin's *duration* is what's tied to loading.
+    const tri = el.querySelector<HTMLElement>('.splash-mark-triangle');
+    const reduceMotionPref = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (tri && !reduceMotionPref) {
+      const m = new DOMMatrixReadOnly(getComputedStyle(tri).transform);
+      const current = Math.atan2(m.b, m.a) * (180 / Math.PI);
+      const normalized = ((current % 360) + 360) % 360;
+      tri.style.animation = 'none';
+      tri.style.transform = `rotate(${normalized}deg)`;
+      void tri.offsetWidth; // reflow — lock in the start angle before transitioning
+      tri.style.transition = 'transform .5s cubic-bezier(.16,1,.3,1)';
+      tri.style.transform = 'rotate(360deg)'; // finish this lap, land upright
+    }
+
     el.classList.add('splash-hide');
     el.addEventListener('transitionend', () => el.remove(), { once: true });
     // Belt-and-suspenders: remove even if transitionend never fires.
@@ -3198,7 +3300,7 @@ function init() {
   APIs.acquireWakeLock();
   resize();
   window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
-  applyClockPosition(clockPosition);
+  applyClockPosition(getClockPosition(clockMode));
   buildPanel();
   updatePanelHeight();
   updateClockCanvas();
@@ -3257,14 +3359,19 @@ function init() {
   const cmdBtn = $('btnCmdPalette');
   if (cmdBtn) cmdBtn.addEventListener('click', () => Cmd.open());
 
-  // Clock position pill
+  // Clock position pill — toggles the CURRENT clock mode's position only
   const posPill = $('clockPosPill');
   if (posPill) {
     posPill.addEventListener('click', () => {
-      applyClockPosition(clockPosition === 'top' ? 'center' : 'top');
+      applyClockPosition(getClockPosition(clockMode) === 'top' ? 'center' : 'top');
     });
-    applyClockPosition(clockPosition);
+    applyClockPosition(getClockPosition(clockMode));
   }
+
+  // Hide seconds/ms — apply persisted preference on boot (toggles wire the
+  // rest up lazily, only when the Display settings tab is opened)
+  document.body.classList.toggle('hide-seconds', hideSeconds);
+  document.body.classList.toggle('hide-ms', hideSeconds || hideMs);
 
   // Ripple position tracking — track cursor for CSS ::after ripple
   document.addEventListener('mousedown', e => {
