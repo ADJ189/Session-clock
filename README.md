@@ -3,7 +3,7 @@
 <img src="public/readme-banner.svg" width="900" alt="Session Clock — A cinematic focus timer. Every theme is a world." />
 
 [![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Accurate-Time-/actions)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Zero deps](https://img.shields.io/badge/runtime_deps-0-22c55e?style=flat-square)](package.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-8b5cf6?style=flat-square)](public/manifest.json)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
@@ -66,14 +66,18 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 
 ---
 
-## What's New in 8.1
+## What's New in 8.2
 
+- **Hide Seconds / Hide Milliseconds**, and **per-clock-style center mode** — Digital, Analogue, Flip, Word, Minimal, and Segment clocks now each remember their own Top/Centre preference and scale properly (larger, sharper canvases) when centered, instead of sharing one global setting tuned only for the digital clock.
+- **New animated splash intro** and **app icon** using the new hourglass logo — the inner triangle spins while sources load and eases to a stop once ready.
+- **Music dock**: real in-page Spotify playback (Web Playback SDK), pop-out via Document Picture-in-Picture, optional auto-sync with focus/break, plus a YouTube tab via the official IFrame Player API.
+- **Focus sidebar task cards**: compact GitHub, Notion, Todoist, and Calendar cards next to the music dock.
 - **33 new themes** across TV, film, anime, animation, F1, and ambient categories — Fargo, Twin Peaks, The Batman, Your Name, Studio Ghibli, Spider-Verse, Zen Garden, and more. Each has its own bespoke canvas intro transition, not a generic fade.
 - **7 new ambient sounds** (Wind, Snowfall, Keyboard, Library, Spaceship, Campfire, Waves & Rocks) — synthesized entirely in-browser, no audio files.
 - **Sound Mixer redesign**: live output meter, night mode, crossfade Scenes that blend your ambient mix as Pomodoro moves between focus and break.
 - **Now Playing → Theme**: recognizes soundtracks from what's currently playing (Spotify, or type it in manually for any player) and switches the theme to match.
 - **Custom Pomodoro cycles**, configurable break reminders, an opt-in idle nudge, Calm Mode, Focus Mode, and an always-on-top mini clock.
-- Fixed theme picker icons not rendering, rain/fireplace sounds silently failing to autoplay, a dead "Smart Break Reminder" toggle, and a handful of memory leaks.
+- Removed leftover Token Shop remnants (dead UI from an early, since-removed feature). Fixed theme picker icons not rendering, rain/fireplace sounds silently failing to autoplay, a dead "Smart Break Reminder" toggle, and a handful of memory leaks.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
@@ -122,7 +126,7 @@ Third-party fonts, APIs, and tooling are listed in [CREDITS.md](CREDITS.md).
 ---
 
 <div align="center">
-<sub>25 modules · 0 runtime deps · 96 themes · 13 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
+<sub>27 modules · 0 runtime deps · 96 themes · 13 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
 
 ---
 

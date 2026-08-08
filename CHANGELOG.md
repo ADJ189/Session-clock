@@ -2,6 +2,21 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.2.0] — Logo fix, per-style clock scaling, hide seconds/ms
+
+### Added
+- **Hide Seconds / Hide Milliseconds**: two independent toggles in Settings → Display. Hiding seconds drops the seconds digits (or the analogue second hand / the last segment-clock group / the Sec flip card) across every clock style and re-centers the remaining hour/minute display at a larger size. Hiding milliseconds just drops the fractional-second readout under the digital clock.
+- **Per-clock-style center mode**: "Clock Position" (Top/Centre) is no longer one global setting — each clock style (Digital, Analogue, Flip, Word, Minimal, Segment) now remembers its own preference. Existing single-value settings are migrated automatically on first load.
+- **Larger, sharper clock scaling in center mode**: Analogue and Segment clocks are canvas-based and previously had a hard-coded small size cap regardless of screen size (Analogue: 340px, Segment: 520×110) — they now scale meaningfully larger in center mode and render at devicePixelRatio for crisp digits/hands instead of a slightly blurry fixed-size canvas. Flip, Word, and Minimal clocks previously only grew in center mode via generic layout CSS; they now have their own dedicated center-mode scale-up (previously only the digital clock's font actually got bigger when centered).
+- **New animated splash intro**, built the same way as the CompressF/CompressZ splash: independent icon pop-in and wordmark pop-in timings, then a 0.4s fade. Uses the new hourglass logo, with the inner sand-triangle isolated into its own layer so it spins continuously while the app's sources are still loading, then eases to a smooth stop exactly when loading finishes (rather than being cut off mid-turn or spinning on a fixed timer unrelated to actual load time).
+- **New app logo/icons**: replaced `logo.png`, `icon-192.png`, and `icon-512.png` with a properly centered, evenly padded version of the mark. The previous asset had the artwork sitting off-center in a mostly-blank canvas, which is what caused it to look shifted/oddly scaled wherever it was cropped or masked (browser tab, home-screen icon, app switcher, etc).
+
+### Changed
+- **Install button moved to bottom-left.** It used to appear bottom-right and sit directly on top of the music dock / side-task cards (Spotify, YouTube, GitHub, etc.), hiding them the moment it showed up. The dock stays bottom-right as before; the install prompt no longer competes with it for the same corner.
+
+### Removed
+- **Token Shop remnants.** An early version of Session Clock had a Token Shop (earn tokens from focus sessions, spend them on cosmetic items/equipped items). The shop's actual logic was removed in a previous pass, but dead leftovers remained: the shop modal markup in `index.html`, its dedicated CSS block and unused keyframes, the "Token Shop" entry under Settings → Manage Privacy, and an unused `shop` i18n string across every supported language. All of it has been removed; a stray "check the shop!" toast on the 100-session Phoenix-theme unlock now points at Clock Style settings instead.
+
 ## [1.1.0] — What's new in this version
 
 ### Added

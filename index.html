@@ -38,7 +38,10 @@
      ready (with a short minimum hold so it doesn't just flash). Fallback
      timer below guards against it ever getting stuck or overstaying. -->
 <div id="splashScreen" role="status" aria-label="Loading Session Clock">
-  <img class="splash-mark" alt="" aria-hidden="true" src="/splash-bunny.png">
+  <div class="splash-mark-wrap">
+    <img class="splash-mark-base" alt="" aria-hidden="true" src="/splash-base.png">
+    <img class="splash-mark-triangle" alt="" aria-hidden="true" src="/splash-triangle.png">
+  </div>
   <div class="splash-title">Session Clock</div>
   <div class="splash-dots"><span></span><span></span><span></span></div>
 </div>
@@ -131,7 +134,7 @@
       <span class="digit-pair" id="digitHr">--</span>
       <span class="clock-colon colon">:</span>
       <span class="digit-pair" id="digitMin">--</span>
-      <span class="clock-colon colon">:</span>
+      <span class="clock-colon colon sep-sec">:</span>
       <span class="digit-pair" id="digitSec">--</span>
       <div class="ampm-stack">
         <span class="ampm" id="ampmDis">--</span>
@@ -338,21 +341,6 @@
     </div>
     <div id="settingsTabBar"></div>
     <div id="settingsContent"></div>
-  </div>
-</div>
-
-<!-- Token Shop -->
-<div class="sc-overlay" id="shopOverlay">
-  <div class="sc-modal sc-modal--shop">
-    <div class="modal-header">
-      <h2>🛒 Shop</h2>
-      <div class="shop-header-tokens"><span id="shopTokenDisplay">🪙 0</span></div>
-      <button class="modal-close" onclick="SC.modals.close('shopOverlay')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <div class="shop-tabs" id="shopTabs"></div>
-    <div id="shopGrid"></div>
   </div>
 </div>
 

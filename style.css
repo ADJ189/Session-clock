@@ -1407,38 +1407,6 @@ body:has([data-theme="terminal"]) .btn,
 .media-name { font-size: .6rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255,255,255,.82); line-height: 1.2; }
 .media-sub  { font-size: .46rem; font-weight: 500; letter-spacing: .07em; opacity: .42; text-transform: uppercase; line-height: 1.2; }
 
-/* Feat bar tokens */
-.feat-tokens { opacity: .55; font-size: .56rem; margin-left: 2px; }
-
-/* ════════════════════════════════════════════════════════════
-   TOKEN SHOP MODAL
-════════════════════════════════════════════════════════════ */
-
-
-
-
-
-
-@keyframes shopShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
-
-
-
-
-/* ════════════════════════════════════════════════════════════
-   APPLE-STYLE TOKEN COIN
-════════════════════════════════════════════════════════════ */
-
-
-/* Token earn pop animation */
-@keyframes tokenPop {
-  0%   { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1.2); }
-  60%  { opacity: 1; transform: translateX(-50%) translateY(-16px) scale(1); }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-28px) scale(.8); }
-}
-
-
-
-
 /* ════════════════════════════════════════════════════════════
    FLOW STATE
 ════════════════════════════════════════════════════════════ */
@@ -1522,7 +1490,10 @@ body.light-theme .sc-toast {
    PWA INSTALL BUTTON (shown when installable)
 ════════════════════════════════════════════════════════════ */
 #pwaInstallBtn {
-  display: none; position: fixed; bottom: 80px; right: 16px; z-index: 150;
+  /* Bottom-LEFT — the music dock + side-task cards (Spotify, YouTube,
+     GitHub, etc.) live bottom-right (see .sc-focus-sidebar) and this used
+     to sit right on top of them the moment it appeared. */
+  display: none; position: fixed; bottom: 20px; left: 16px; z-index: 150;
   background: var(--clr-btn-bg); color: var(--clr-btn-fg);
   border: 1px solid rgba(255,255,255,.18); border-radius: 99px;
   padding: 8px 18px; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
@@ -2490,6 +2461,34 @@ body.clock-center .clock-colon {
   font-size: clamp(3.5rem, min(13vw, 10vh), 12rem);
 }
 
+/* Center mode scaling for the non-digital clock styles — previously only
+   .digit-pair grew in center mode, so Flip/Word/Minimal stayed pinned to
+   their "top layout" size even when given the whole viewport. */
+body.clock-center .flip-card {
+  width: clamp(70px, 15vw, 160px);
+  height: clamp(98px, 21vw, 220px);
+  font-size: clamp(2.6rem, 9vw, 8.5rem);
+}
+body.clock-center .flip-sep { font-size: clamp(2.6rem, 8vw, 7rem); }
+body.clock-center .word-clock-grid { width: min(min(94vw, 82vh), 760px); }
+body.clock-center .wc-char { font-size: clamp(.7rem, 2.9vw, 2.1rem); }
+body.clock-center .minimal-hr { font-size: clamp(9rem, 32vw, 26rem); }
+body.clock-center .minimal-ap { font-size: clamp(1.2rem, 4.2vw, 3.4rem); }
+/* Analogue and Segment clocks are canvas-based — their center-mode size is
+   computed in JS (updateClockCanvas) so the bitmap itself is drawn sharp
+   at the larger size rather than being CSS-upscaled and going blurry. */
+
+/* ── Hide seconds / milliseconds — applies across every clock style ──── */
+body.hide-seconds #digitSec,
+body.hide-seconds .sep-sec,
+body.hide-seconds .flip-sep-sec {
+  display: none;
+}
+body.hide-ms #secMs { display: none; }
+/* With seconds gone, let HH:MM claim the freed width */
+body.hide-seconds .digit-pair       { font-size: clamp(3.6rem, min(15vw, 11vh), 12rem); }
+body.hide-seconds.clock-center .digit-pair { font-size: clamp(6rem, min(23vw, 18vh), 20rem); }
+
 /* Center mode: hide greeting, date, weather strip — clean canvas */
 body.clock-center .greeting,
 body.clock-center #dateDisplay,
@@ -2528,11 +2527,6 @@ body.clock-center #panelToggle:hover { opacity: .8; }
 }
 .clock-pos-pill:hover { background: rgba(255,255,255,.12); color: rgba(255,255,255,.8); }
 .clock-pos-pill.center-active { background: rgba(var(--clr-accent-rgb, 110,231,183),.15); border-color: rgba(var(--clr-accent-rgb, 110,231,183),.3); color: var(--clr-accent); }
-
-/* ════════════════════════════════════════════════════════════
-   SHOP TOGGLE — hidden until enabled in settings
-════════════════════════════════════════════════════════════ */
-
 
 /* ════════════════════════════════════════════════════════════
    APPLE-STYLE REFINEMENTS
@@ -4845,24 +4839,29 @@ body.weather-fog.weather-overlay-on::after {
 }
 #splashScreen.splash-hide { opacity: 0; pointer-events: none; }
 
-.splash-mark {
-  width: auto; height: auto;
-  max-width: 75vw; max-height: 75vh;
+.splash-mark-wrap {
+  position: relative;
+  width: min(42vw, 200px);
+  aspect-ratio: 664 / 693;
   filter: drop-shadow(0 0 36px rgba(110,231,183,.35));
-  animation: splashFloat 2.4s ease-in-out infinite;
+  animation: splashPopIcon .6s cubic-bezier(.16,1,.3,1) both;
 }
-.splash-eyes {
-  transform-box: fill-box; transform-origin: 50% 50%;
-  animation: splashBlink 2.6s ease-in-out infinite;
+.splash-mark-base, .splash-mark-triangle {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
 }
-.splash-smile {
-  transform-box: fill-box; transform-origin: 50% 0%;
-  animation: splashSmile 1.8s ease-in-out infinite;
+.splash-mark-triangle {
+  /* centroid of the isolated inner triangle within the cropped mark */
+  transform-origin: 49.5% 40.9%;
+  animation: splashTriSpin .55s linear infinite;
+  will-change: transform;
 }
 .splash-title {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: .8rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
   color: #6ee7b7; opacity: .85;
+  animation: splashPopWordmark .6s cubic-bezier(.16,1,.3,1) .15s both;
 }
 .splash-dots { display: flex; gap: 6px; }
 .splash-dots span {
@@ -4873,24 +4872,23 @@ body.weather-fog.weather-overlay-on::after {
 .splash-dots span:nth-child(2) { animation-delay: .15s; }
 .splash-dots span:nth-child(3) { animation-delay: .3s; }
 
-@keyframes splashFloat {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50%      { transform: translateY(-5px) scale(1.015); }
+@keyframes splashPopIcon {
+  0%   { opacity: 0; transform: scale(.72); }
+  100% { opacity: 1; transform: scale(1); }
 }
-@keyframes splashBlink {
-  0%, 88%, 100% { transform: scaleY(1); }
-  93%           { transform: scaleY(.12); }
+@keyframes splashPopWordmark {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
-@keyframes splashSmile {
-  0%, 100% { transform: scaleY(1); }
-  50%      { transform: scaleY(1.12); }
+@keyframes splashTriSpin {
+  to { transform: rotate(360deg); }
 }
 @keyframes splashDot {
   0%, 100% { opacity: .3; transform: translateY(0); }
   50%      { opacity: 1;  transform: translateY(-3px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .splash-mark, .splash-eyes, .splash-smile, .splash-dots span { animation: none; }
+  .splash-mark-wrap, .splash-title, .splash-mark-triangle, .splash-dots span { animation: none; }
 }
 
 /* ── Music dock + side task cards (see src/musicdock.ts, src/sidetasks.ts) ── */
