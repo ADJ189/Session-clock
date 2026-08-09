@@ -2,6 +2,22 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.3.0] — Platform-aware optimizations, mobile header fix, repo rename
+
+### Added
+- **Platform/browser detection engine** (`src/platform.ts`): detects OS (iOS, iPadOS, Android, macOS, Windows, Linux) and rendering engine (WebKit, Blink, Gecko) once at boot, and exposes real capability flags — Vibration API support, Document Picture-in-Picture support, and whether `DeviceOrientationEvent` needs an explicit permission prompt (iOS 13+) — instead of assuming a feature exists just because the browser is a certain brand.
+- **Haptic Feedback** setting (Settings → Motion & Animations): a short vibration on Pomodoro work-start and work-complete. Only ever shown/offered on devices that actually support the Vibration API (Android Chrome/Firefox) — hidden entirely elsewhere rather than shown as a dead toggle, since no browser on iOS (all WebKit, by Apple's platform rule) implements it.
+- **Document Picture-in-Picture buttons now hidden on unsupported browsers** instead of being tappable dead buttons — affects the music dock's pop-out (⧉) button on Firefox and Safari/iOS, which don't implement the Chromium-only Document PiP API. (The mini-clock's own "Always on Top" pop-out was already conditionally rendered and needed no change.)
+
+### Fixed
+- **Gyroscope-based parallax silently never worked on iPhone/iPad.** The code attached a `deviceorientation` listener directly on load, but iOS 13+ requires that permission be requested from inside a user gesture — since that never happened, the browser never granted it and the listener simply never fired. The Parallax toggle in Settings now requests motion permission at the moment it's switched on (a real tap, satisfying iOS's requirement), and only attaches the gyroscope listener once granted; mouse-based parallax is unaffected and still works everywhere.
+- **Mobile header was overflowing/overlapping on phones.** The top bar (Themes button, weather pill, rotating info strip, UTC clock, clock-position toggle, GitHub/search/keyboard-shortcut icons) was laid out for a wide desktop row and had no real mobile treatment — on an iPhone-width viewport it visibly overlapped itself. A themed tagline badge (e.g. "☕ The owls are not what they seem." for Twin Peaks) is also absolutely centred over the header, which made things worse on narrow screens where the flex clusters reach much closer to centre. Below 600px width: the info strip, UTC clock, and clock-position toggle are now hidden (the last two are redundant with Settings → Display, which already has its own clock-position and hide-seconds controls); the tagline badge renders as its own slim strip just under the header instead of overlapping it; and the keyboard-shortcuts button plus the "⌘K" text label are hidden on any touch device, since both assume a physical keyboard that isn't there.
+
+### Changed
+- **Repository moved** from `ADJ189/Accurate-Time-` to [`ADJ189/Session-clock`](https://github.com/ADJ189/Session-clock) — updated every reference across `README.md`, `CONTRIBUTING.md`, and the in-app GitHub/star links.
+- **README** now has an actual preview screenshot instead of a "pick an option" placeholder, and its version numbering follows this changelog (previously README/`package.json` used one number and this file used another, with neither kept in sync).
+- **SECURITY.md**, previously an unfilled GitHub template, now describes the app's actual (client-side-only, two small OAuth-proxy Functions) security model and points to GitHub's private vulnerability reporting.
+
 ## [1.2.0] — Logo fix, per-style clock scaling, hide seconds/ms
 
 ### Added

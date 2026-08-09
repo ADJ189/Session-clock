@@ -2,14 +2,14 @@
 
 <img src="public/readme-banner.svg" width="900" alt="Session Clock — A cinematic focus timer. Every theme is a world." />
 
-[![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Accurate-Time-/actions)
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Session-clock/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Session-clock/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Zero deps](https://img.shields.io/badge/runtime_deps-0-22c55e?style=flat-square)](package.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-8b5cf6?style=flat-square)](public/manifest.json)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
-[![CodeQL](https://img.shields.io/badge/CodeQL-clean-16a34a?style=flat-square)](https://github.com/ADJ189/Accurate-Time-/security)
+[![CodeQL](https://img.shields.io/badge/CodeQL-clean-16a34a?style=flat-square)](https://github.com/ADJ189/Session-clock/security)
 
-[**Open App →**](https://accurate-time.pages.dev/)&nbsp;&nbsp;·&nbsp;&nbsp;[**Wiki →**](https://github.com/ADJ189/Accurate-Time-/wiki)&nbsp;&nbsp;·&nbsp;&nbsp;[Issues](https://github.com/ADJ189/Accurate-Time-/issues)
+[**Open App →**](https://accurate-time.pages.dev/)&nbsp;&nbsp;·&nbsp;&nbsp;[**Wiki →**](https://github.com/ADJ189/Session-clock/wiki)&nbsp;&nbsp;·&nbsp;&nbsp;[Issues](https://github.com/ADJ189/Session-clock/issues)
 
 </div>
 
@@ -28,46 +28,21 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 | **Languages** | EN ES FR DE JA KO PT HI |
 | **Privacy** | Zero backend · localStorage only · No tracking |
 
-**[→ Full documentation on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki)** &nbsp;·&nbsp; **[→ Changelog](CHANGELOG.md)**
+**[→ Full documentation on the Wiki](https://github.com/ADJ189/Session-clock/wiki)** &nbsp;·&nbsp; **[→ Changelog](CHANGELOG.md)**
 
 ---
 
 ## Preview
 
-> **Want to add a screenshot here?** Pick one of these options:
-
-<!-- ── OPTION A: OG banner (SVG, already in repo, renders on GitHub) ── -->
-<!-- Uncomment to use: -->
-<!-- <img src="public/og-preview.svg" width="100%" alt="Session Clock preview" /> -->
-
-<!-- ── OPTION B: Screenshot of the running app ──────────────────────── -->
-<!-- 1. Run `npm run dev`                                                -->
-<!-- 2. Open http://localhost:5173 in your browser                      -->
-<!-- 3. Press `T` to pick your favourite theme                          -->
-<!-- 4. Take a full-window screenshot (1280×800 recommended)            -->
-<!-- 5. Save to docs/screenshot.png (create the docs/ folder first)     -->
-<!-- 6. Replace the line below and uncomment it:                        -->
-<!-- <img src="docs/screenshot.png" width="100%" alt="Session Clock — Forest theme" /> -->
-
-<!-- ── OPTION C: Animated GIF / WebP (most impressive on GitHub) ────── -->
-<!-- Tools: Kap (macOS), ScreenToGif (Windows), Peek (Linux)            -->
-<!-- 1. Record 5–8 s: theme switching, timer running, Zen Mode          -->
-<!-- 2. Export at 1280×800, ≤5 MB, 20 fps                              -->
-<!-- 3. Save to docs/demo.gif                                            -->
-<!-- 4. Uncomment the line below:                                        -->
-<!-- <img src="docs/demo.gif" width="100%" alt="Session Clock demo" />  -->
-
-<!-- ── OPTION D: Cloudflare / CDN hosted image ───────────────────────── -->
-<!-- Upload your screenshot to Cloudflare Images, Imgur, or similar     -->
-<!-- then replace the URL below:                                         -->
-<!-- <img src="https://your-cdn.com/session-clock-preview.png" width="100%" alt="Session Clock" /> -->
-
-*Choose one option above, uncomment it, and delete this block + the others.*
+<img src="docs/screenshot.png" width="100%" alt="Session Clock — Natural theme, themes panel open, Spotify/YouTube dock" />
 
 ---
 
-## What's New in 8.2
+## What's New in 1.3.0
 
+- **Platform-aware optimizations** — a real OS/browser-engine detection layer now backs the app, so features that only exist on some platforms (haptic vibration, Document Picture-in-Picture pop-outs, iOS's gyroscope permission prompt) behave correctly instead of silently failing or showing a dead button.
+- **Fixed a mobile layout bug**: the header could overlap itself on phone-width screens; it now collapses sensibly, and a long-standing bug where gyroscope parallax never actually worked on iPhone/iPad (missing the required iOS motion-permission request) is fixed.
+- **Haptic Feedback** setting for Pomodoro start/complete, on devices that support it.
 - **Hide Seconds / Hide Milliseconds**, and **per-clock-style center mode** — Digital, Analogue, Flip, Word, Minimal, and Segment clocks now each remember their own Top/Centre preference and scale properly (larger, sharper canvases) when centered, instead of sharing one global setting tuned only for the digital clock.
 - **New animated splash intro** and **app icon** using the new hourglass logo — the inner triangle spins while sources load and eases to a stop once ready.
 - **Music dock**: real in-page Spotify playback (Web Playback SDK), pop-out via Document Picture-in-Picture, optional auto-sync with focus/break, plus a YouTube tab via the official IFrame Player API.
@@ -86,8 +61,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 ## Quick Start
 
 ```bash
-git clone https://github.com/ADJ189/Accurate-Time-
-cd Accurate-Time-
+git clone https://github.com/ADJ189/Session-clock
+cd Session-clock
 npm install && npm run dev       # localhost:5173
 npm run typecheck                # strict TypeScript check
 npm run build                    # production → dist/
@@ -101,7 +76,7 @@ Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The incl
 
 `Space` start/pause &nbsp;·&nbsp; `Z` Zen Mode &nbsp;·&nbsp; `T` next theme &nbsp;·&nbsp; `Ctrl+K` command palette &nbsp;·&nbsp; `Esc` exit
 
-**[→ All shortcuts on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki/Keyboard-Shortcuts)**
+**[→ All shortcuts on the Wiki](https://github.com/ADJ189/Session-clock/wiki/Keyboard-Shortcuts)**
 
 ---
 
@@ -109,7 +84,7 @@ Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The incl
 
 🎮 **8-BIT** — `↑↑↓↓←→←→BA` &nbsp;·&nbsp; 🔥 **Phoenix** — 100 sessions &nbsp;·&nbsp; 🍳 **The Bear** — type `thebear`
 
-**[→ All easter eggs on the Wiki](https://github.com/ADJ189/Accurate-Time-/wiki/Easter-Eggs)**
+**[→ All easter eggs on the Wiki](https://github.com/ADJ189/Session-clock/wiki/Easter-Eggs)**
 
 ---
 
@@ -126,7 +101,7 @@ Third-party fonts, APIs, and tooling are listed in [CREDITS.md](CREDITS.md).
 ---
 
 <div align="center">
-<sub>27 modules · 0 runtime deps · 96 themes · 13 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
+<sub>28 modules · 0 runtime deps · 96 themes · 13 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
 
 ---
 

@@ -7,8 +7,8 @@ changes are a straightforward edit-and-refresh loop.
 ## Setup
 
 ```bash
-git clone https://github.com/ADJ189/Accurate-Time-.git
-cd Accurate-Time-
+git clone https://github.com/ADJ189/Session-clock.git
+cd Session-clock
 npm install
 npm run dev        # http://localhost:5173
 ```
@@ -28,6 +28,7 @@ below if you'd like to help with that.
 ```
 src/
   main.ts           entry point + most UI wiring (large, being split up — see below)
+  platform.ts         OS/browser-engine detection, capability flags (vibration, Document PiP, device orientation), haptics helper
   renderer.ts        the 96 canvas theme renderers
   themes.ts           theme metadata (colours, names, categories)
   sound.ts            synthesized ambient audio engine

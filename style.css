@@ -999,7 +999,48 @@ body:has(#themePanel.collapsed) #themesRevealBtn { opacity: 1; transform: transl
   .sc-modal h3     { margin-left: 16px; margin-right: 16px; }
   .sc-modal > *:not(.modal-header):not(h3) { padding-left: 16px; padding-right: 16px; }
   .kb-grid, .sound-mixer, #colorRows, .pill-group, .modal-actions, .saved-theme-row { padding-left: 16px; padding-right: 16px; }
+
+  /* The header was designed for a wide desktop row — Themes + weather +
+     rotating info strip on the left, UTC clock + clock-position toggle +
+     GitHub + search + keyboard-shortcuts on the right, is simply too much
+     for a ~375-430px phone viewport and used to overflow/overlap. Drop
+     the elements that are either redundant on mobile (clock position and
+     hide-seconds are already one tap away in Settings → Display) or
+     meaningless on a touchscreen (⌘K and a keyboard-shortcuts reference
+     card both assume a physical keyboard), and keep the rest breathing. */
+  .info-strip, .utc-pill, .clock-pos-pill { display: none; }
+
+  /* Theme tagline badge (e.g. "☕ The owls are not what they seem.") is
+     absolutely centred over the header on desktop, where there's empty
+     space either side of it. On mobile the left/right clusters reach much
+     closer to centre, so instead of overlapping them it now renders as
+     its own slim strip just under the header. */
+  .showbadge {
+    top: 46px; left: 12px; right: 12px;
+    transform: translateY(-10px); text-align: center;
+    white-space: normal; font-size: .52rem; letter-spacing: .18em;
+  }
+  .showbadge.visible { transform: translateY(0); }
 }
+
+/* Keyboard-only affordances — a physical-keyboard shortcut trigger and a
+   ⌘K hint label mean nothing on a touchscreen. Icons some of these share
+   (e.g. the command-palette search icon) stay, since it's still tappable
+   and useful; just the keyboard-specific parts go. */
+html.is-touch #btnKbShortcuts,
+html.is-touch .cmd-btn-label {
+  display: none;
+}
+
+/* Document Picture-in-Picture (the music dock's ⧉ pop-out button) is
+   Chromium-only — Firefox and every browser on iOS (all WebKit, by
+   platform rule) don't implement it. The mini-clock's own "Always on
+   Top" pop-out is already conditionally rendered in JS and needs no CSS
+   guard; the music dock's button isn't, so hide it here instead. */
+html.no-doc-pip [data-role="pip"] {
+  display: none;
+}
+
 
 /* ── Light themes (Nordic, Lemon) ── */
 body.light-theme { background: #f1f5f9; }
