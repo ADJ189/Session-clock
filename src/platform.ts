@@ -1,0 +1,99 @@
+// ── Platform & capability detection ─────────────────────────────────────
+// One place to answer "what device/browser is this" and "can I actually
+// use X here" so the rest of the app doesn't scatter UA sniffing or
+// half-guarded feature calls across a dozen files. Applied once at boot
+// as classes on <html> so CSS can react with zero JS in the render path;
+// JS call sites use the exported CAPS/helpers instead of re-detecting.
+
+export type OSFamily = 'ios' | 'ipados' | 'android' | 'macos' | 'windows' | 'linux' | 'other';
+export type Engine = 'webkit' | 'blink' | 'gecko' | 'other';
+
+function detectOS(): OSFamily {
+  const ua = navigator.userAgent;
+  const platform = navigator.platform || '';
+  // iPadOS 13+ identifies as "MacIntel" with no "iPad" in the UA string —
+  // the only reliable tell left is a Mac platform that also reports touch.
+  if (platform === 'MacIntel' && navigator.maxTouchPoints > 1) return 'ipados';
+  if (/iPad|iPhone|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  if (/Mac/.test(platform)) return 'macos';
+  if (/Win/.test(platform)) return 'windows';
+  if (/Linux/.test(platform)) return 'linux';
+  return 'other';
+}
+
+function detectEngine(): Engine {
+  const ua = navigator.userAgent;
+  if (/Firefox\//.test(ua)) return 'gecko';
+  // Chrome/Edge/Opera/Samsung Internet UAs all also contain "Safari", so
+  // Blink has to be checked before WebKit or every Chromium browser on iOS
+  // (which itself is *forced* to use WebKit under the hood, App Store rule)
+  // would misreport. On iOS this correctly still resolves to 'webkit'.
+  if (/CriOS\/|Chrome\/|Chromium\/|Edg\/|OPR\/|SamsungBrowser\//.test(ua)) return 'blink';
+  if (/Safari\//.test(ua) || /AppleWebKit\//.test(ua)) return 'webkit';
+  return 'other';
+}
+
+export const OS: OSFamily = detectOS();
+export const ENGINE: Engine = detectEngine();
+export const IS_APPLE = OS === 'ios' || OS === 'ipados' || OS === 'macos';
+export const IS_TOUCH = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+export const IS_STANDALONE =
+  matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+
+export const CAPS = {
+  // Vibration API — Android Chrome/Firefox support it; iOS Safari (and thus
+  // every browser on iOS, since they all run on WebKit) never has, by policy.
+  vibration: 'vibrate' in navigator,
+  // Document Picture-in-Picture — Chromium only. Used for the mini-clock
+  // and music-dock pop-out; both already degrade gracefully, this just
+  // lets CSS hide the trigger entirely instead of showing a dead button.
+  documentPiP: 'documentPictureInPicture' in window,
+  deviceOrientation: 'DeviceOrientationEvent' in window,
+  deviceOrientationNeedsPermission:
+    typeof (window as any).DeviceOrientationEvent?.requestPermission === 'function',
+  webShare: typeof navigator.share === 'function',
+};
+
+/** Sets classes on <html> once at boot — call as early as possible. */
+export function applyPlatformClasses(): void {
+  const cl = document.documentElement.classList;
+  cl.add(`platform-${OS}`, `engine-${ENGINE}`);
+  cl.toggle('is-apple', IS_APPLE);
+  cl.toggle('is-touch', IS_TOUCH);
+  cl.toggle('is-standalone', IS_STANDALONE);
+  cl.toggle('no-vibration', !CAPS.vibration);
+  cl.toggle('no-doc-pip', !CAPS.documentPiP);
+}
+
+/**
+ * Light haptic tick for meaningful moments (session start/complete, a
+ * milestone, a mode switch). Silently no-ops anywhere the Vibration API
+ * doesn't exist — notably all of iOS/iPadOS/macOS Safari — and respects
+ * its own opt-out so it stays in line with the app's "opt-in rather than
+ * always-on" stance rather than just following the OS default.
+ */
+export function haptic(pattern: number | number[] = 12): void {
+  if (!CAPS.vibration) return;
+  if (localStorage.getItem('sc_haptics') === '0') return;
+  try { navigator.vibrate(pattern); } catch { /* some browsers throw outside a user gesture */ }
+}
+
+let motionGranted = !CAPS.deviceOrientationNeedsPermission;
+/**
+ * Must be called from inside a user gesture (a click handler) on iOS —
+ * the OS silently ignores the permission prompt otherwise. Returns true
+ * once orientation events are safe to rely on; false if unsupported or
+ * declined, letting the caller fall back to mouse-only behaviour.
+ */
+export async function requestMotionPermission(): Promise<boolean> {
+  if (!CAPS.deviceOrientation) return false;
+  if (motionGranted) return true;
+  try {
+    const result = await (window as any).DeviceOrientationEvent.requestPermission();
+    motionGranted = result === 'granted';
+  } catch {
+    motionGranted = false;
+  }
+  return motionGranted;
+}

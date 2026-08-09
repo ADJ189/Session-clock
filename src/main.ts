@@ -28,7 +28,15 @@ import * as NowPlaying from './nowplaying';
 import * as MusicDock from './musicdock';
 import * as SideTasks from './sidetasks';
 import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
+import { applyPlatformClasses, CAPS, haptic, requestMotionPermission } from './platform';
 import * as Palette from './palette';
+
+// ── Platform detection ───────────────────────────────────────────────
+// Runs first, synchronously, before anything else touches the DOM — CSS
+// rules keyed off these classes (body.platform-ios, body.no-doc-pip, etc.)
+// need to be correct on the very first paint, not applied after a flash
+// of the wrong layout.
+applyPlatformClasses();
 
 // ── Audio autoplay-policy unlock ────────────────────────────────────────
 // Must run inside the very first real user gesture on the page, otherwise
@@ -1268,6 +1276,7 @@ Pom.init({
       // Acquire wake lock when work starts
       APIs.acquireWakeLock();
       APIs.sendNotification('🍅 Work Session Started', 'Stay focused. You\'ve got this.', 'pom-work');
+      haptic(15);
     } else {
       // Work phase just ended → award tokens
       Sound.adaptOnBreak();
@@ -1278,6 +1287,7 @@ Pom.init({
       fireMilestoneConfetti(40);
       showMotivationWidget('✓ Focus Block Complete!', txt.includes('Long') ? 'Time for a well-earned long break.' : 'Nice work — take a short breather.');
       _lastMilestonePct = 1;
+      haptic([20, 60, 20]); // distinct pattern from the plain start tick — this one's a small celebration
       // Send notification
       const isLong = txt.includes('Long');
       const mins = isLong ? Pom.getSettings().longBreakMins : Pom.getSettings().breakMins;
@@ -2357,6 +2367,9 @@ function buildSettingsUI(activeTab = 'general') {
     const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     animSec.appendChild(makeRow('Reduce Motion', 'Simpler transitions, no parallax, no particle animations', 'toggleReduceMotion', reduceMotion));
     animSec.appendChild(makeRow('Parallax Depth', 'Canvas layers shift with mouse/gyroscope movement', 'toggleParallax', localStorage.getItem('sc_parallax') !== '0'));
+    if (CAPS.vibration) {
+      animSec.appendChild(makeRow('Haptic Feedback', 'A short vibration on session start/complete and milestones', 'toggleHaptics', localStorage.getItem('sc_haptics') !== '0'));
+    }
     paneWrap.appendChild(animSec);
 
     const perfSec = makeSection('Performance');
@@ -2396,10 +2409,25 @@ function buildSettingsUI(activeTab = 'general') {
       document.body.classList.toggle('reduced-motion', on);
       showToast(on ? 'Reduced motion on' : 'Full animations on');
     });
-    wireToggle('toggleParallax', (on) => {
+    wireToggle('toggleParallax', async (on) => {
       localStorage.setItem('sc_parallax', on ? '1' : '0');
+      // iOS requires the gyroscope permission prompt to originate from this
+      // exact tap — request it here rather than at boot, where it would be
+      // silently ignored and parallax would just never work on iPhone/iPad.
+      if (on && CAPS.deviceOrientationNeedsPermission) {
+        const granted = await requestMotionPermission();
+        if (granted) attachGyroParallax();
+        else showToast('Motion access declined — mouse parallax still works on desktop');
+      }
       showToast(on ? 'Parallax on' : 'Parallax off');
     });
+    if (CAPS.vibration) {
+      wireToggle('toggleHaptics', (on) => {
+        localStorage.setItem('sc_haptics', on ? '1' : '0');
+        if (on) haptic(15); // immediate confirmation tick so it's obvious what just changed
+        showToast(on ? 'Haptic feedback on' : 'Haptic feedback off');
+      });
+    }
     wireToggle('toggleHideSeconds', (on) => applyHideSeconds(on));
     wireToggle('toggleHideMs', (on) => applyHideMs(on));
   }
@@ -2718,8 +2746,15 @@ window.addEventListener('mousemove', e => {
   targetPY = (e.clientY / window.innerHeight - 0.5) * PARALLAX_STRENGTH;
 });
 
-// Gyroscope for mobile
-if (window.DeviceOrientationEvent) {
+// Gyroscope for mobile — falls back to staying inert if unsupported/denied,
+// mouse-based parallax above still works. iOS 13+ requires an explicit
+// permission grant from within a user gesture (see the Parallax toggle
+// handler in the settings panel, which is what actually requests it) —
+// this listener is only ever attached once that's been granted.
+let gyroAttached = false;
+function attachGyroParallax() {
+  if (gyroAttached || !CAPS.deviceOrientation) return;
+  gyroAttached = true;
   window.addEventListener('deviceorientation', e => {
     if (e.gamma != null && e.beta != null) {
       targetPX = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, e.gamma / 2));
@@ -2727,6 +2762,8 @@ if (window.DeviceOrientationEvent) {
     }
   });
 }
+// No permission prompt needed on Android/desktop — safe to attach immediately.
+if (CAPS.deviceOrientation && !CAPS.deviceOrientationNeedsPermission) attachGyroParallax();
 
 // ── Cross-tab BroadcastChannel sync ───────────────────────────────────
 const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sc_sync') : null;
