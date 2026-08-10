@@ -2,6 +2,14 @@
 
 All notable changes to Session Clock are documented here.
 
+## [Unreleased]
+
+### Added
+- **3 new movie themes**: Spider-Man: Brand New Day, The Odyssey, Fight Club (99 themes total, up from 96).
+
+### Fixed
+- **CodeQL code scanning failure** (`CodeQL detected code written in GitHub Actions but could not process any of it`, exit code 32). Removing `.github/workflows/deploy.yml` at one point left GitHub's *Default setup* code scanning with a `github-actions` language enabled but too little workflow YAML to build an analysis database from, so the run failed outright instead of just skipping that language. Replaced with an advanced-setup `.github/workflows/codeql.yml` scoped to `javascript-typescript` only — see the README's "Code scanning (CodeQL)" section for the one-time Settings switch this requires.
+
 ## [1.3.0] — Platform-aware optimizations, mobile header fix, repo rename
 
 ### Added

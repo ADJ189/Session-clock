@@ -15,11 +15,11 @@
 
 ---
 
-Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 96 animated canvas themes (each with its own bespoke intro transition), a synthesized ambient sound mixer with crossfade scenes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
+Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 99 animated canvas themes (each with its own bespoke intro transition), a synthesized ambient sound mixer with crossfade scenes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
 
 | | |
 |---|---|
-| **Themes** | 96 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
+| **Themes** | 99 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
 | **Sound Mixer** | 13 synthesized ambient tracks · crossfade scenes · night mode · live VU meter |
 | **Now Playing** | Matches ~30 soundtracks against Spotify (or any player, manually) and switches theme |
 | **Modes** | Pomodoro (fully custom cycles) · **Zen** · **Calm** · **Focus** · Kiosk · PiP · Voice |
@@ -47,7 +47,7 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 - **New animated splash intro** and **app icon** using the new hourglass logo — the inner triangle spins while sources load and eases to a stop once ready.
 - **Music dock**: real in-page Spotify playback (Web Playback SDK), pop-out via Document Picture-in-Picture, optional auto-sync with focus/break, plus a YouTube tab via the official IFrame Player API.
 - **Focus sidebar task cards**: compact GitHub, Notion, Todoist, and Calendar cards next to the music dock.
-- **33 new themes** across TV, film, anime, animation, F1, and ambient categories — Fargo, Twin Peaks, The Batman, Your Name, Studio Ghibli, Spider-Verse, Zen Garden, and more. Each has its own bespoke canvas intro transition, not a generic fade.
+- **36 new themes** across TV, film, anime, animation, F1, and ambient categories — Fargo, Twin Peaks, The Batman, Your Name, Studio Ghibli, Spider-Verse, Zen Garden, Spider-Man: Brand New Day, The Odyssey, Fight Club, and more. Each has its own bespoke canvas intro transition, not a generic fade.
 - **7 new ambient sounds** (Wind, Snowfall, Keyboard, Library, Spaceship, Campfire, Waves & Rocks) — synthesized entirely in-browser, no audio files.
 - **Sound Mixer redesign**: live output meter, night mode, crossfade Scenes that blend your ambient mix as Pomodoro moves between focus and break.
 - **Now Playing → Theme**: recognizes soundtracks from what's currently playing (Spotify, or type it in manually for any player) and switches the theme to match.
@@ -69,6 +69,12 @@ npm run build                    # production → dist/
 ```
 
 Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The included workflow handles `typecheck → build → deploy` automatically.
+
+### Code scanning (CodeQL)
+
+Code scanning runs from `.github/workflows/codeql.yml`, an **advanced-setup** workflow scoped to `javascript-typescript` only. This repo intentionally does **not** rely on GitHub's *Default setup* for code scanning: Default setup auto-selects languages to analyze — including a `github-actions` language that scans the workflow YAML itself — and that "actions" scan fails with `CodeQL detected code written in GitHub Actions but could not process any of it` whenever there's too little workflow YAML for it to build a database from (e.g. after trimming down to a single small workflow file). Pinning to advanced setup with an explicit `languages:` list avoids that failure mode entirely.
+
+If code scanning is still on Default setup for this repo, switch it once: **Settings → Code security → Code scanning → Default setup → Disable**, then let this workflow's next run populate the results instead (Default and advanced setup can't run side by side — GitHub errors on `codeql.yml` until Default is turned off).
 
 ---
 
@@ -101,7 +107,7 @@ Third-party fonts, APIs, and tooling are listed in [CREDITS.md](CREDITS.md).
 ---
 
 <div align="center">
-<sub>28 modules · 0 runtime deps · 96 themes · 13 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
+<sub>28 modules · 0 runtime deps · 99 themes · 13 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
 
 ---
 
