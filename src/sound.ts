@@ -1,7 +1,11 @@
 import type { SoundDef, SoundNode } from './types';
+import { CAPS, subscribeOrientation } from './platform';
 
 export const SOUNDS: SoundDef[] = [
   { id: 'rain',      name: 'Rain',        icon: '🌧', desc: 'Gentle rainfall on a window'   },
+  { id: 'roofrain',  name: 'Rain on Roof', icon: '🏚', desc: 'Heavier patter on a hard surface overhead' },
+  { id: 'white',     name: 'White Noise', icon: '📺', desc: 'Full-spectrum flat hiss'          },
+  { id: 'pink',      name: 'Pink Noise',  icon: '🎛', desc: 'Softer, more natural-sounding hiss' },
   { id: 'brown',     name: 'Brown Noise', icon: '📻', desc: 'Deep, soothing rumble'           },
   { id: 'forest',    name: 'Forest',      icon: '🌲', desc: 'Wind, leaves, distant birds'     },
   { id: 'cafe',      name: 'Café',        icon: '☕', desc: 'Warm murmur of a coffee shop'   },
@@ -11,6 +15,7 @@ export const SOUNDS: SoundDef[] = [
   { id: 'snow',      name: 'Snowfall',    icon: '❄️', desc: 'Soft hush and distant footsteps'  },
   { id: 'keyboard',  name: 'Keyboard',    icon: '⌨️', desc: 'Mechanical typing, in bursts'      },
   { id: 'library',   name: 'Library',     icon: '📚', desc: 'Quiet room tone, rare page turns' },
+  { id: 'airplane',  name: 'Airplane Cabin', icon: '✈️', desc: 'Steady jet-engine drone, great for masking' },
   { id: 'spaceship', name: 'Spaceship',   icon: '🚀', desc: 'Deep engine drone, sci-fi hum'    },
   { id: 'campfire',  name: 'Campfire',    icon: '🏕', desc: 'Bright outdoor fire under the stars' },
   { id: 'waves',     name: 'Waves & Rocks', icon: '🌊', desc: 'Surf crashing against the shore' },
@@ -116,6 +121,22 @@ function makeNoiseBuf(seconds: number, channels: 1 | 2, fn: (ch: Float32Array, c
   return src;
 }
 
+// Paul Kellett's -3dB/octave pink-noise approximation (7-pole IIR on white
+// noise). Was duplicated verbatim in both the forest wind bed and the wind
+// track — pulled out once here so both (and the new standalone Pink Noise
+// track) share one implementation.
+function fillPinkNoise(d: Float32Array, amp: number): void {
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for (let i = 0; i < d.length; i++) {
+    const white = Math.random() * 2 - 1;
+    b0 = 0.99886*b0 + white*0.0555179; b1 = 0.99332*b1 + white*0.0750759;
+    b2 = 0.96900*b2 + white*0.1538520; b3 = 0.86650*b3 + white*0.3104856;
+    b4 = 0.55000*b4 + white*0.5329522; b5 = -0.7616*b5 - white*0.0168980;
+    d[i] = (b0+b1+b2+b3+b4+b5+b6+white*0.5362) * amp;
+    b6 = white * 0.115926;
+  }
+}
+
 // ── RAIN — broadband white noise + gentle highpass + soft lowpass ─────
 // Real rain is essentially white noise shaped between ~500Hz–10kHz.
 // Two slight detuned layers give it depth without phasing artefacts.
@@ -149,6 +170,43 @@ function makeRain(): { out: AudioNode; nodes: AudioNode[] } {
   return { out: mix, nodes: [src, src2] };
 }
 
+// ── RAIN ON ROOF — heavier, more percussive than window rain ──────────
+// A hard overhead surface (metal/shingle) resonates and adds a sharper
+// "patter" than rain heard through glass: brighter overall, a resonant
+// peak where the roof itself rings, and periodic gust swells that make
+// it noticeably heavier/lighter over time rather than perfectly steady.
+function makeRoofRain(): { out: AudioNode; nodes: AudioNode[] } {
+  const src = makeNoiseBuf(4, 1, d => {
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.4;
+  });
+  const hp = ctx!.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 700;  hp.Q.value = 0.7;
+  const lp = ctx!.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 9000; lp.Q.value = 0.6;
+  // Resonant peak — the roof surface itself "ringing" under impact
+  const ring = ctx!.createBiquadFilter(); ring.type = 'peaking'; ring.frequency.value = 3200; ring.gain.value = 7; ring.Q.value = 3.5;
+  src.connect(hp); hp.connect(lp); lp.connect(ring);
+
+  // Lower "body" layer — the duller thud of drops landing, felt more than heard
+  const body = makeNoiseBuf(4, 1, d => {
+    let l = 0;
+    for (let i = 0; i < d.length; i++) { l = l * 0.99 + (Math.random() * 2 - 1) * 0.01; d[i] = l * 2.0; }
+  });
+  const bodyLp = ctx!.createBiquadFilter(); bodyLp.type = 'lowpass'; bodyLp.frequency.value = 400; bodyLp.Q.value = 0.6;
+  body.connect(bodyLp);
+
+  const ringG = ctx!.createGain(); ringG.gain.value = 0.5; ring.connect(ringG);
+  const bodyG = ctx!.createGain(); bodyG.gain.value = 0.4; bodyLp.connect(bodyG);
+  const mix = ctx!.createGain(); mix.gain.value = 0.75;
+  ringG.connect(mix); bodyG.connect(mix);
+
+  // Gust swell — rain intensity rising and falling, more pronounced than
+  // the gentle window-rain version since an open roof catches more wind
+  const lfo = ctx!.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.045;
+  const lfoG = ctx!.createGain(); lfoG.gain.value = 0.22;
+  lfo.connect(lfoG); lfoG.connect(mix.gain);
+
+  return { out: mix, nodes: [src, body, lfo] };
+}
+
 // ── BROWN NOISE — correct integration filter, safe amplitude ─────────
 // Brown noise = integrate white noise. Each sample = prev + (white * k).
 // The integration naturally rolls off at 6dB/oct above DC.
@@ -173,6 +231,33 @@ function makeBrown(): { out: AudioNode; nodes: AudioNode[] } {
   return { out, nodes: [src] };
 }
 
+// ── WHITE NOISE — flat full-spectrum hiss ──────────────────────────────
+// The simplest possible masking noise: every frequency at equal energy.
+// A very gentle top-end taper keeps it from sounding harsh through cheap
+// speakers, without meaningfully changing its flat character.
+function makeWhite(): { out: AudioNode; nodes: AudioNode[] } {
+  const src = makeNoiseBuf(4, 1, d => {
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+  });
+  const taper = ctx!.createBiquadFilter(); taper.type = 'lowpass'; taper.frequency.value = 14000; taper.Q.value = 0.4;
+  src.connect(taper);
+  const out = ctx!.createGain(); out.gain.value = 0.8;
+  taper.connect(out);
+  return { out, nodes: [src] };
+}
+
+// ── PINK NOISE — -3dB/octave, the "warmer" alternative to white ───────
+// Equal energy per octave rather than per Hz, which is what makes pink
+// noise sound noticeably softer/rounder than white despite covering the
+// same full range — closer to how we actually perceive loudness across
+// frequency.
+function makePink(): { out: AudioNode; nodes: AudioNode[] } {
+  const src = makeNoiseBuf(6, 1, d => fillPinkNoise(d, 0.11));
+  const out = ctx!.createGain(); out.gain.value = 0.85;
+  src.connect(out);
+  return { out, nodes: [src] };
+}
+
 // ── FOREST — wind + rustle + stochastic bird chirps ──────────────────
 // Wind = lowpass pink noise. Leaves = mid-range filtered noise with
 // slow amplitude modulation. Birds = short sine bursts with random timing.
@@ -180,17 +265,7 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
   const sr = ctx!.sampleRate;
 
   // Wind base: pink-ish noise (approximate pink via IIR)
-  const wind = makeNoiseBuf(8, 1, d => {
-    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-    for (let i = 0; i < d.length; i++) {
-      const white = Math.random() * 2 - 1;
-      b0 = 0.99886*b0 + white*0.0555179; b1 = 0.99332*b1 + white*0.0750759;
-      b2 = 0.96900*b2 + white*0.1538520; b3 = 0.86650*b3 + white*0.3104856;
-      b4 = 0.55000*b4 + white*0.5329522; b5 = -0.7616*b5 - white*0.0168980;
-      d[i] = (b0+b1+b2+b3+b4+b5+b6+white*0.5362) * 0.04;
-      b6 = white * 0.115926;
-    }
-  });
+  const wind = makeNoiseBuf(8, 1, d => fillPinkNoise(d, 0.04));
   const windLp = ctx!.createBiquadFilter(); windLp.type = 'lowpass'; windLp.frequency.value = 800; windLp.Q.value = 0.6;
   wind.connect(windLp);
 
@@ -215,7 +290,8 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
   // Stochastic bird chirps — scheduled with random timing
   const nodes: AudioNode[] = [wind, rustle, lfo];
   const chirpGain = ctx!.createGain(); chirpGain.gain.value = 0.22;
-  chirpGain.connect(analyser!);
+  chirpGain.connect(mix); // was wrongly wired straight to the analyser — bypassed
+                           // this track's own volume slider and spatial panning
 
   // Schedule recurring chirp bursts using recursive setTimeout
   let chirpActive = true;
@@ -381,7 +457,8 @@ function makeFire(): { out: AudioNode; nodes: AudioNode[] } {
 
   // Stochastic crackle bursts using AudioContext scheduling
   const crackleGain = ctx!.createGain(); crackleGain.gain.value = 0.7;
-  crackleGain.connect(analyser!);
+  crackleGain.connect(mix); // was wrongly wired straight to the analyser — bypassed
+                             // this track's own volume slider and spatial panning
 
   let crackleActive = true;
   const scheduleCrackle = () => {
@@ -430,17 +507,7 @@ function makeFire(): { out: AudioNode; nodes: AudioNode[] } {
 // occasional stronger gusts (amplitude + brightness both rise together,
 // which is what makes real wind gusts sound "louder AND sharper").
 function makeWind(): { out: AudioNode; nodes: AudioNode[] } {
-  const base = makeNoiseBuf(8, 1, d => {
-    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-    for (let i = 0; i < d.length; i++) {
-      const white = Math.random() * 2 - 1;
-      b0 = 0.99886*b0 + white*0.0555179; b1 = 0.99332*b1 + white*0.0750759;
-      b2 = 0.96900*b2 + white*0.1538520; b3 = 0.86650*b3 + white*0.3104856;
-      b4 = 0.55000*b4 + white*0.5329522; b5 = -0.7616*b5 - white*0.0168980;
-      d[i] = (b0+b1+b2+b3+b4+b5+b6+white*0.5362) * 0.045;
-      b6 = white * 0.115926;
-    }
-  });
+  const base = makeNoiseBuf(8, 1, d => fillPinkNoise(d, 0.045));
   const bp = ctx!.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 500; bp.Q.value = 0.6;
   base.connect(bp);
 
@@ -630,6 +697,51 @@ function makeSpaceship(): { out: AudioNode; nodes: AudioNode[] } {
   return { out, nodes };
 }
 
+// ── AIRPLANE CABIN — steady jet drone + air-conditioning hiss ─────────
+// Real cabin noise is famously one of the *steadiest* ambient sounds
+// there is — engine drone plus pressurization/AC hiss, both very
+// narrow-band and almost perfectly constant. That consistency is exactly
+// what makes it effective as a masking/focus sound, so unlike most of the
+// other generators here this one deliberately has almost no movement.
+function makeAirplane(): { out: AudioNode; nodes: AudioNode[] } {
+  const nodes: AudioNode[] = [];
+  const mix = ctx!.createGain(); mix.gain.value = 0.8;
+
+  // Engine drone: a low fundamental plus its 2nd harmonic, both filtered
+  // rather than pure tones, since a real turbine drone is broadband-ish
+  [95, 190].forEach((f, i) => {
+    const o = ctx!.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    const lp = ctx!.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260; lp.Q.value = 0.6;
+    const g = ctx!.createGain(); g.gain.value = i === 0 ? 0.22 : 0.1;
+    o.connect(lp); lp.connect(g); g.connect(mix);
+    nodes.push(o);
+  });
+
+  // Pressurization / air-conditioning hiss — steady mid-high broadband air
+  const hiss = makeNoiseBuf(6, 1, d => {
+    let l = 0;
+    for (let i = 0; i < d.length; i++) { l = l * 0.985 + (Math.random()*2-1)*0.015; d[i] = l * 1.3; }
+  });
+  const hissBp = ctx!.createBiquadFilter(); hissBp.type = 'bandpass'; hissBp.frequency.value = 2400; hissBp.Q.value = 0.5;
+  const hissG = ctx!.createGain(); hissG.gain.value = 0.16;
+  hiss.connect(hissBp); hissBp.connect(hissG); hissG.connect(mix);
+  nodes.push(hiss);
+
+  // Deep rumble floor — the airframe itself, felt more than heard
+  const rumble = makeNoiseBuf(8, 1, d => {
+    let l = 0;
+    for (let i = 0; i < d.length; i++) { l = l * 0.999 + (Math.random()*2-1)*0.001; d[i] = l * 1.5; }
+  });
+  const rumbleLp = ctx!.createBiquadFilter(); rumbleLp.type = 'lowpass'; rumbleLp.frequency.value = 100; rumbleLp.Q.value = 0.7;
+  const rumbleG = ctx!.createGain(); rumbleG.gain.value = 0.25;
+  rumble.connect(rumbleLp); rumbleLp.connect(rumbleG); rumbleG.connect(mix);
+  nodes.push(rumble);
+
+  const out = ctx!.createGain(); out.gain.value = 0.8;
+  mix.connect(out);
+  return { out, nodes };
+}
+
 // ── CAMPFIRE — airier outdoor fire: brighter crackle, less bass roar ──
 function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
   const hiss = makeNoiseBuf(4, 1, d => {
@@ -734,6 +846,9 @@ function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
 // ── MAKERS dispatch ───────────────────────────────────────────────────
 const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
   rain:     makeRain,
+  roofrain: makeRoofRain,
+  white:    makeWhite,
+  pink:     makePink,
   brown:    makeBrown,
   forest:   makeForest,
   cafe:     makeCafe,
@@ -743,6 +858,7 @@ const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
   snow:     makeSnow,
   keyboard: makeKeyboard,
   library:  makeLibrary,
+  airplane: makeAirplane,
   spaceship:makeSpaceship,
   campfire: makeCampfire,
   waves:    makeWavesRocks,
@@ -824,6 +940,9 @@ interface SpatialProfile {
 
 const SPATIAL_PROFILES: Record<string, SpatialProfile> = {
   rain:      { speed: 0.04, width: 0.55, pattern: 'sweep'  },  // slow wide sweep — rain from all sides
+  roofrain:  { speed: 0.05, width: 0.65, pattern: 'sweep'  },  // heavier version of the same overhead sweep
+  white:     { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0 },    // flat masking noise — deliberately stays centred, not moving
+  pink:      { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0 },    // same — motion would undercut its use as a steady floor
   brown:     { speed: 0.02, width: 0.30, pattern: 'wander' },  // very slow gentle wander
   forest:    { speed: 0.09, width: 0.75, pattern: 'burst'  },  // birds dart L/R unexpectedly
   cafe:      { speed: 0.18, width: 0.60, pattern: 'wander' },  // people walking past
@@ -833,6 +952,7 @@ const SPATIAL_PROFILES: Record<string, SpatialProfile> = {
   snow:      { speed: 0.015,width: 0.25, pattern: 'wander' },
   keyboard:  { speed: 0.02, width: 0.15, pattern: 'fixed',  fixedPan: -0.2 },
   library:   { speed: 0.01, width: 0.20, pattern: 'wander' },
+  airplane:  { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0 },    // cabin drone surrounds you evenly, doesn't move
   spaceship: { speed: 0.008,width: 0.15, pattern: 'fixed',  fixedPan: 0    },
   campfire:  { speed: 0.03, width: 0.25, pattern: 'fixed',  fixedPan: -0.1 },
   waves:     { speed: 0.06, width: 0.60, pattern: 'burst'  },
@@ -932,30 +1052,74 @@ export function tickSpatial(now: number) {
   Object.keys(spatialRigs).forEach(id => {
     const rig  = spatialRigs[id];
     const prof = SPATIAL_PROFILES[id];
-    if (!rig || !prof || prof.pattern === 'fixed') return;
+    if (!rig || !prof) return;
 
-    let pan = 0;
-    const phase = now * prof.speed + rig.lfoPhase;
-
-    switch (prof.pattern) {
-      case 'sweep':
-        // Smooth sine sweep
-        pan = Math.sin(phase) * prof.width;
-        break;
-      case 'wander':
-        // Slower, slightly irregular wander using two sines
-        pan = (Math.sin(phase) * 0.6 + Math.sin(phase * 1.618) * 0.4) * prof.width;
-        break;
-      case 'burst':
-        // Mostly centre, then quick darts to a random side
-        // Use a squared sine to spend most time near centre
-        const raw  = Math.sin(phase * 1.3) * Math.sin(phase * 0.7);
-        pan = Math.sign(raw) * Math.pow(Math.abs(raw), 0.5) * prof.width;
-        break;
+    let pan: number;
+    if (prof.pattern === 'fixed') {
+      // Static sources have no LFO motion of their own — normally nothing
+      // to update after the initial pan is set. Head tracking is the one
+      // thing that still needs to move them (turning your head should
+      // shift *every* source, not just the ones already in motion), so
+      // only pay this extra per-frame work when it's actually on.
+      if (!headTrackingEnabled) return;
+      pan = prof.fixedPan ?? 0;
+    } else {
+      const phase = now * prof.speed + rig.lfoPhase;
+      switch (prof.pattern) {
+        case 'sweep':
+          // Smooth sine sweep
+          pan = Math.sin(phase) * prof.width;
+          break;
+        case 'wander':
+          // Slower, slightly irregular wander using two sines
+          pan = (Math.sin(phase) * 0.6 + Math.sin(phase * 1.618) * 0.4) * prof.width;
+          break;
+        case 'burst': {
+          // Mostly centre, then quick darts to a random side
+          // Use a squared sine to spend most time near centre
+          const raw = Math.sin(phase * 1.3) * Math.sin(phase * 0.7);
+          pan = Math.sign(raw) * Math.pow(Math.abs(raw), 0.5) * prof.width;
+          break;
+        }
+        default: pan = 0;
+      }
     }
 
+    if (headTrackingEnabled) pan = Math.max(-1, Math.min(1, pan - headingOffset * 0.65));
     applyPanValue(rig, pan, id);
   });
+}
+
+// ── Head-tracked spatial audio ──────────────────────────────────────────
+// Turning your phone (or head, on devices that track it) shifts the whole
+// soundstage the opposite way — the same illusion AirPods-style "head
+// tracking" relies on: sound sources stay anchored in place as you turn
+// toward or away from them, instead of rotating with you. Built on the
+// same gyroscope stream platform.ts already shares with the background
+// parallax effect, so enabling this attaches no new hardware listener.
+let headTrackingEnabled = localStorage.getItem('sc_head_tracking') === '1';
+let headingOffset = 0; // -1..1, derived from live device gamma (left/right tilt)
+let unsubscribeHeadTracking: (() => void) | null = null;
+
+export function isHeadTrackingEnabled() { return headTrackingEnabled; }
+export function isHeadTrackingAvailable() { return CAPS.deviceOrientation; }
+
+/** Call from within a click handler — same iOS-gesture requirement as requestMotionPermission(). */
+export function setHeadTracking(v: boolean) {
+  headTrackingEnabled = v;
+  localStorage.setItem('sc_head_tracking', v ? '1' : '0');
+  if (v && !unsubscribeHeadTracking) {
+    unsubscribeHeadTracking = subscribeOrientation(o => {
+      if (o.gamma == null) return;
+      // gamma ranges roughly -90..90 (tilt left/right); /45 keeps a
+      // comfortable, non-twitchy full swing within a natural head turn
+      headingOffset = Math.max(-1, Math.min(1, o.gamma / 45));
+    });
+  } else if (!v && unsubscribeHeadTracking) {
+    unsubscribeHeadTracking();
+    unsubscribeHeadTracking = null;
+    headingOffset = 0;
+  }
 }
 
 // ── Binaural Beats ────────────────────────────────────────────────────

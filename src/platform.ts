@@ -97,3 +97,33 @@ export async function requestMotionPermission(): Promise<boolean> {
   }
   return motionGranted;
 }
+
+// ── Shared device-orientation subscription ───────────────────────────
+// Both the background parallax effect and head-tracked spatial audio
+// need live gyroscope readings. Rather than each feature attaching its
+// own 'deviceorientation' listener (duplicate work on every device tilt,
+// and duplicate iOS-permission bookkeeping), they subscribe here — the
+// real browser listener is attached lazily, once, on first subscriber.
+export interface OrientationSample { alpha: number | null; beta: number | null; gamma: number | null; }
+type OrientationCB = (o: OrientationSample) => void;
+const orientationSubs = new Set<OrientationCB>();
+let orientationAttached = false;
+function attachOrientationListener(): void {
+  if (orientationAttached || !CAPS.deviceOrientation) return;
+  orientationAttached = true;
+  window.addEventListener('deviceorientation', (e: DeviceOrientationEvent) => {
+    if (orientationSubs.size === 0) return;
+    const sample: OrientationSample = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
+    orientationSubs.forEach(cb => cb(sample));
+  });
+}
+/**
+ * Subscribe to raw device-orientation samples. Caller must have already
+ * obtained permission via requestMotionPermission() where required (iOS).
+ * Returns an unsubscribe function.
+ */
+export function subscribeOrientation(cb: OrientationCB): () => void {
+  attachOrientationListener();
+  orientationSubs.add(cb);
+  return () => orientationSubs.delete(cb);
+}

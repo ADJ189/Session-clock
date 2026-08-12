@@ -28,7 +28,7 @@ import * as NowPlaying from './nowplaying';
 import * as MusicDock from './musicdock';
 import * as SideTasks from './sidetasks';
 import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
-import { applyPlatformClasses, CAPS, haptic, requestMotionPermission } from './platform';
+import { applyPlatformClasses, CAPS, haptic, requestMotionPermission, subscribeOrientation } from './platform';
 import * as Palette from './palette';
 
 // ── Platform detection ───────────────────────────────────────────────
@@ -2234,6 +2234,9 @@ function buildSettingsUI(activeTab = 'general') {
   else if (activeTab === 'sound') {
     const audioSec = makeSection('Audio');
     audioSec.appendChild(makeRow('3D Spatial Audio', 'Sounds pan independently — best with headphones', 'toggleSpatial', Sound.isSpatialEnabled(), 'ILD+ITD'));
+    if (Sound.isHeadTrackingAvailable()) {
+      audioSec.appendChild(makeRow('Head Tracking', 'Turn your phone and the soundstage stays anchored in place, like AirPods spatial audio', 'toggleHeadTracking', Sound.isHeadTrackingEnabled()));
+    }
     audioSec.appendChild(makeRow('Box Breathing on Break', 'Guided breathing overlay during Pomodoro breaks', 'toggleBreathing', breathingBreakEnabled));
     audioSec.appendChild(makeRow('UI Sound Effects', 'Subtle click, chime, and interaction sounds', 'toggleUiSounds', localStorage.getItem('sc_ui_sounds') !== '0'));
     audioSec.appendChild(makeRow('Auto-play Theme Ambience', 'Some themes (like Common Room) can auto-start matching ambient sounds when selected', 'toggleAutoThemeAmbience', localStorage.getItem('sc_auto_theme_ambience') === '1'));
@@ -2273,6 +2276,16 @@ function buildSettingsUI(activeTab = 'general') {
     });
 
     wireToggle('toggleSpatial',   (on) => Sound.setSpatial(on));
+    if (Sound.isHeadTrackingAvailable()) {
+      wireToggle('toggleHeadTracking', async (on) => {
+        if (on && CAPS.deviceOrientationNeedsPermission) {
+          const granted = await requestMotionPermission();
+          if (!granted) { showToast('Motion access declined'); return; }
+        }
+        Sound.setHeadTracking(on);
+        if (on && !Sound.isSpatialEnabled()) showToast('Head tracking on — turn on 3D Spatial Audio above to hear it move');
+      });
+    }
     wireToggle('toggleBreathing', (on) => { breathingBreakEnabled = on; localStorage.setItem('sc_breathing_break', on ? '1' : '0'); });
     wireToggle('toggleUiSounds',  (on) => { localStorage.setItem('sc_ui_sounds', on ? '1' : '0'); showToast(on ? '🔔 UI sounds on' : '🔕 UI sounds off'); });
     wireToggle('toggleAutoThemeAmbience', (on) => { localStorage.setItem('sc_auto_theme_ambience', on ? '1' : '0'); showToast(on ? '🎵 Theme ambience auto-play on' : 'Theme ambience auto-play off'); });
@@ -2750,15 +2763,18 @@ window.addEventListener('mousemove', e => {
 // mouse-based parallax above still works. iOS 13+ requires an explicit
 // permission grant from within a user gesture (see the Parallax toggle
 // handler in the settings panel, which is what actually requests it) —
-// this listener is only ever attached once that's been granted.
+// this listener is only ever attached once that's been granted. Routed
+// through platform.ts's shared subscribeOrientation() rather than its own
+// raw 'deviceorientation' listener, since the sound engine's head-tracked
+// spatial audio needs the exact same gyroscope stream.
 let gyroAttached = false;
 function attachGyroParallax() {
   if (gyroAttached || !CAPS.deviceOrientation) return;
   gyroAttached = true;
-  window.addEventListener('deviceorientation', e => {
-    if (e.gamma != null && e.beta != null) {
-      targetPX = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, e.gamma / 2));
-      targetPY = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, (e.beta - 45) / 2));
+  subscribeOrientation(o => {
+    if (o.gamma != null && o.beta != null) {
+      targetPX = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, o.gamma / 2));
+      targetPY = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, (o.beta - 45) / 2));
     }
   });
 }
