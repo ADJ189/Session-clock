@@ -1,6 +1,6 @@
 {
   "name": "session-clock",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Beautiful animated clock — 63+ themes, Pomodoro, ambient sound, literary clock, focus log.",
   "private": true,
   "type": "module",

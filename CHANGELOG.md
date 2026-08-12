@@ -2,13 +2,19 @@
 
 All notable changes to Session Clock are documented here.
 
-## [Unreleased]
+## [1.4.0] — Head-tracked spatial audio, 4 new ambient sounds, sound-engine fixes
 
 ### Added
-- **3 new movie themes**: Spider-Man: Brand New Day, The Odyssey, Fight Club (99 themes total, up from 96).
+- **Head Tracking** (Settings → Sound → Head Tracking, shown only on devices with a gyroscope): turning your phone shifts the ambient soundstage the opposite way, so sources stay anchored in place as you turn toward or away from them — the same illusion behind AirPods-style spatial audio head tracking. Built on the existing ILD+ITD 3D Spatial Audio panning engine, driven by live device-orientation samples through the same shared gyroscope subscription `platform.ts` already uses for background parallax (no duplicate permission prompt, no duplicate listener).
+- **4 new ambient tracks**, bringing the mixer to 17: **White Noise** (flat full-spectrum hiss), **Pink Noise** (−3dB/octave, softer and more natural than white), **Rain on Roof** (heavier, more percussive than the existing window Rain — resonant peak simulating a hard overhead surface, plus stronger gust swells), and **Airplane Cabin** (steady low engine drone + pressurization hiss — deliberately almost motionless, since real cabin noise's constancy is what makes it effective as a masking sound).
+- Every track — including the 4 new ones — already had its own volume slider in the mixer; see **Fixed** below for two tracks where that slider was silently being ignored.
 
 ### Fixed
-- **CodeQL code scanning failure** (`CodeQL detected code written in GitHub Actions but could not process any of it`, exit code 32). Removing `.github/workflows/deploy.yml` at one point left GitHub's *Default setup* code scanning with a `github-actions` language enabled but too little workflow YAML to build an analysis database from, so the run failed outright instead of just skipping that language. Replaced with an advanced-setup `.github/workflows/codeql.yml` scoped to `javascript-typescript` only — see the README's "Code scanning (CodeQL)" section for the one-time Settings switch this requires.
+- **Forest's bird chirps and Fireplace's crackle ignored their own volume slider.** Both were wired directly to the output analyser instead of through their track's own gain node — so dragging either slider down did nothing to those specific layers (wind/rustle in Forest, and the fire's base roar, both worked correctly; only the birds and the crackle bursts were affected), and neither layer responded to 3D Spatial Audio panning either. Both now route through their track's normal mix bus like every other sound, so per-track volume and spatial panning apply correctly across the board.
+- **Gyroscope-driven effects (parallax, and now head-tracked audio) share one orientation listener** instead of each attaching its own — a small correctness/perf cleanup alongside the audio work above, and the reason head tracking needed no separate iOS permission flow.
+
+### Changed
+- De-duplicated the pink-noise generation algorithm (Paul Kellett's IIR approximation), previously copy-pasted identically into both the Forest and Wind generators, into one shared helper — also now reused by the new standalone Pink Noise track.
 
 ## [1.3.0] — Platform-aware optimizations, mobile header fix, repo rename
 
