@@ -2,6 +2,8 @@
 
 <img src="public/readme-banner.svg" width="900" alt="Session Clock — A cinematic focus timer. Every theme is a world." />
 
+<img src="public/og-preview.svg" width="900" alt="Session Clock preview — clock, themes, and sound mixer" />
+
 [![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Session-clock/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Session-clock/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Zero deps](https://img.shields.io/badge/runtime_deps-0-22c55e?style=flat-square)](package.json)
@@ -29,12 +31,6 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 | **Privacy** | Zero backend · localStorage only · No tracking |
 
 **[→ Full documentation on the Wiki](https://github.com/ADJ189/Session-clock/wiki)** &nbsp;·&nbsp; **[→ Changelog](CHANGELOG.md)**
-
----
-
-## Preview
-
-<img src="docs/screenshot.png" width="100%" alt="Session Clock — Natural theme, themes panel open, Spotify/YouTube dock" />
 
 ---
 

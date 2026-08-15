@@ -766,111 +766,156 @@ kbd {
 }
 .kb-desc { font-size: .72rem; color: var(--clr-text); opacity: .55; }
 
-/* ── Sound mixer ── */
-.sound-mixer { display: flex; flex-direction: column; gap: 12px; padding: 0 22px 22px; }
-.sound-tracks { display: flex; flex-direction: column; gap: 6px; }
+/* ── Sound mixer — modern minimalist panel ──────────────────────────
+   Redesigned away from the old horizontal "channel strip" layout
+   (row list + tiny fader + circular knob, styled like a hardware
+   console) toward a flat, monochrome-leaning card grid: restrained
+   color, one accent used sparingly, hairline borders instead of
+   gradients/bezels, and a segmented digital-style level meter rather
+   than an analog needle-style bar. */
+.sc-modal--mixer { width: min(620px, 94vw); backdrop-filter: blur(28px) saturate(150%); -webkit-backdrop-filter: blur(28px) saturate(150%); }
+.sound-mixer { display: flex; flex-direction: column; gap: 14px; padding: 0 20px 22px; }
+
+.sound-tracks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (max-width: 480px) { .sound-tracks { grid-template-columns: 1fr; } }
+
 .sound-track {
-  display: flex; align-items: center; gap: 11px;
-  padding: 10px 13px; border-radius: 12px;
-  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
-  transition: background .15s, border-color .2s;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 13px 14px 12px; border-radius: 14px;
+  background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.07);
+  transition: background .16s ease, border-color .16s ease, transform .12s ease;
 }
-.sound-track.active { background: rgba(255,255,255,.09); border-color: var(--clr-accent); }
-.sound-track-icon  { font-size: 1.2rem; width: 26px; text-align: center; flex-shrink: 0; }
+.sound-track:active { transform: scale(.98); }
+.sound-track.active {
+  background: rgba(255,255,255,.05);
+  border-color: color-mix(in srgb, var(--clr-accent) 55%, transparent);
+}
+.sound-track-top { display: flex; align-items: center; gap: 10px; }
+.sound-track-icon  {
+  font-size: 1rem; width: 30px; height: 30px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 9px; background: rgba(255,255,255,.05);
+  transition: background .16s ease;
+}
+.sound-track.active .sound-track-icon { background: color-mix(in srgb, var(--clr-accent) 22%, transparent); }
 .sound-track-info  { flex: 1; min-width: 0; }
-.sound-track-name  { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--clr-text); opacity: .85; }
-.sound-track-desc  { font-size: .57rem; opacity: .35; color: var(--clr-text); margin-top: 1px; }
-.sound-track-vol   { display: flex; align-items: center; gap: 7px; flex-shrink: 0; width: 120px; }
-.sound-vol-pct     { font-size: .57rem; font-family: var(--font-main); color: var(--clr-text); opacity: .4; min-width: 28px; text-align: right; }
-.track-vol-slider  {
-  -webkit-appearance: none; appearance: none; flex: 1; height: 3px;
-  border-radius: 99px; background: rgba(255,255,255,.14); outline: none; cursor: pointer;
+.sound-track-name  { font-size: .68rem; font-weight: 700; letter-spacing: .04em; color: var(--clr-text); opacity: .9; }
+.sound-track-desc  { font-size: .58rem; opacity: .38; color: var(--clr-text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sound-track-vol   { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.sound-vol-pct     { font-size: .58rem; font-variant-numeric: tabular-nums; font-family: var(--font-main); color: var(--clr-text); opacity: .42; min-width: 28px; text-align: right; }
+
+/* Flat, filled-track sliders — value fill drawn with a CSS var the JS
+   updates on input, instead of a plain unfilled groove + round knob. */
+.track-vol-slider {
+  --val: 40%;
+  -webkit-appearance: none; appearance: none; flex: 1; height: 4px;
+  border-radius: 99px; outline: none; cursor: pointer;
+  background: linear-gradient(to right, var(--clr-accent) var(--val), rgba(255,255,255,.1) var(--val));
 }
-.track-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--clr-accent); cursor: pointer; transition: transform .15s; }
-.track-vol-slider::-webkit-slider-thumb:hover { transform: scale(1.3); }
-.track-vol-slider::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--clr-accent); cursor: pointer; border: none; }
+.track-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+  background: #fff; cursor: pointer; transition: transform .15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+.track-vol-slider::-webkit-slider-thumb:hover { transform: scale(1.25); }
+.track-vol-slider::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: #fff; cursor: pointer; border: none; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.track-vol-slider::-moz-range-progress { background: var(--clr-accent); height: 4px; border-radius: 99px; }
+.track-vol-slider::-moz-range-track { background: rgba(255,255,255,.1); height: 4px; border-radius: 99px; }
+
+/* Minimal switch — slimmer, monochrome body with a single accent dot
+   rather than a full accent-filled iOS-style pill. */
 .track-toggle {
-  width: 34px; height: 19px; border-radius: 99px; border: none; cursor: pointer;
-  background: rgba(255,255,255,.12); position: relative; transition: background .2s; flex-shrink: 0;
+  width: 30px; height: 17px; border-radius: 99px; border: 1px solid rgba(255,255,255,.14); cursor: pointer;
+  background: rgba(255,255,255,.04); position: relative; transition: background .18s, border-color .18s; flex-shrink: 0;
 }
-.track-toggle.on { background: var(--clr-accent); }
+.track-toggle.on { background: color-mix(in srgb, var(--clr-accent) 20%, transparent); border-color: color-mix(in srgb, var(--clr-accent) 60%, transparent); }
 .track-toggle::after {
-  content: ''; position: absolute; top: 2.5px; left: 2.5px;
-  width: 14px; height: 14px; border-radius: 50%; background: #fff;
-  transition: transform .2s;
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 11px; height: 11px; border-radius: 50%; background: rgba(255,255,255,.5);
+  transition: transform .18s, background .18s;
 }
-.track-toggle.on::after { transform: translateX(15px); }
+.track-toggle.on::after { transform: translateX(13px); background: var(--clr-accent); }
+
 .sound-master {
-  padding: 12px 14px; border-radius: 12px;
-  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
+  padding: 14px 15px; border-radius: 14px;
+  background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.06);
+  display: flex; flex-direction: column; gap: 11px;
 }
-.sound-master-row { display: flex; align-items: center; gap: 9px; }
-.sound-master-lbl { font-size: .6rem; letter-spacing: .13em; text-transform: uppercase; font-weight: 700; color: var(--clr-text); opacity: .38; min-width: 64px; }
+.sound-master-row { display: flex; align-items: center; gap: 10px; }
+.sound-master-lbl { font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--clr-text); opacity: .4; min-width: 60px; }
 .master-vol-slider {
   -webkit-appearance: none; appearance: none; flex: 1; height: 4px;
-  border-radius: 99px; background: rgba(255,255,255,.16); outline: none; cursor: pointer;
+  border-radius: 99px; outline: none; cursor: pointer;
 }
-.master-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--clr-accent); cursor: pointer; transition: transform .15s; box-shadow: 0 0 6px rgba(0,0,0,.3); }
-.master-vol-slider::-webkit-slider-thumb:hover { transform: scale(1.25); }
-.master-vol-slider::-moz-range-thumb { width: 15px; height: 15px; border-radius: 50%; background: var(--clr-accent); cursor: pointer; border: none; }
+.master-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; cursor: pointer; transition: transform .15s; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.master-vol-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.master-vol-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; cursor: pointer; border: none; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 
-/* ── High-end mixer polish ── */
-.sc-modal--mixer { backdrop-filter: blur(28px) saturate(150%); -webkit-backdrop-filter: blur(28px) saturate(150%); }
+/* ── Header actions ── */
 .mixer-header-actions { display: flex; align-items: center; gap: 8px; }
 .mixer-night-toggle {
-  width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); cursor: pointer; font-size: .85rem;
+  width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); cursor: pointer; font-size: .8rem;
   transition: background .15s, transform .15s;
 }
-.mixer-night-toggle:hover { transform: scale(1.08); }
-.mixer-night-toggle.active { background: color-mix(in srgb, var(--clr-accent) 30%, transparent); border-color: var(--clr-accent); }
+.mixer-night-toggle:hover { transform: scale(1.06); }
+.mixer-night-toggle.active { background: color-mix(in srgb, var(--clr-accent) 24%, transparent); border-color: var(--clr-accent); }
 
-/* Active track gets a subtle glow + icon breathing pulse — feels alive */
-.sound-track { position: relative; overflow: hidden; }
-.sound-track.active {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--clr-accent) 14%, transparent), rgba(255,255,255,.06));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-accent) 40%, transparent), 0 4px 16px color-mix(in srgb, var(--clr-accent) 12%, transparent);
+/* Active-track breathing dot instead of a scaling emoji icon — a single
+   small accent pixel pulses in the corner, quieter and more "digital". */
+.sound-track.active::before {
+  content: ''; position: absolute; top: 10px; right: 10px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--clr-accent);
+  animation: mixerDotPulse 2.4s ease-in-out infinite;
 }
-.sound-track.active .sound-track-icon { animation: mixerIconPulse 2.4s ease-in-out infinite; }
-@keyframes mixerIconPulse { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.12); opacity: 1; } }
+@keyframes mixerDotPulse { 0%,100% { opacity: .45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.4); } }
 
-/* Output VU meter */
-.mixer-vu-row { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
+/* Output level meter — segmented/blocky rather than a single smooth
+   analog needle bar, closer to a digital console's LED ladder. */
+.mixer-vu-row { display: flex; align-items: center; gap: 9px; }
 .mixer-vu-track {
-  flex: 1; height: 6px; border-radius: 99px; background: rgba(255,255,255,.1);
+  flex: 1; height: 8px; border-radius: 3px; background: rgba(255,255,255,.08);
   overflow: hidden; position: relative;
+  -webkit-mask-image: repeating-linear-gradient(to right, #000 0, #000 6px, transparent 6px, transparent 8px);
+  mask-image: repeating-linear-gradient(to right, #000 0, #000 6px, transparent 6px, transparent 8px);
 }
 .mixer-vu-fill {
-  height: 100%; width: 0%; border-radius: 99px;
-  background: linear-gradient(90deg, var(--clr-accent), color-mix(in srgb, var(--clr-accent) 60%, #7ef7c7));
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--clr-accent) 70%, #fff), var(--clr-accent));
   transition: width .08s linear;
 }
 .mixer-vu-fill.hot { background: linear-gradient(90deg, var(--clr-accent), #f97362); }
 
 /* Crossfade scenes */
-.mixer-scenes { padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); }
+.mixer-scenes { padding: 13px 14px; border-radius: 14px; background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.06); }
 .mixer-scenes-hdr { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.mixer-scene-auto { display: flex; align-items: center; gap: 6px; font-size: .6rem; opacity: .6; color: var(--clr-text); cursor: pointer; }
+.mixer-scene-auto { display: flex; align-items: center; gap: 6px; font-size: .58rem; opacity: .6; color: var(--clr-text); cursor: pointer; }
 .mixer-scene-auto input { accent-color: var(--clr-accent); cursor: pointer; }
 .mixer-scenes-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .scene-btn {
-  flex: 1; min-width: 130px; padding: 9px 12px; border-radius: 10px; font-size: .66rem; font-weight: 700;
-  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: var(--clr-text); cursor: pointer;
-  transition: background .15s, transform .15s;
+  flex: 1; min-width: 130px; padding: 9px 12px; border-radius: 10px; font-size: .64rem; font-weight: 700;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); color: var(--clr-text); cursor: pointer;
+  transition: background .15s, border-color .15s, transform .15s;
 }
-.scene-btn:hover { background: color-mix(in srgb, var(--clr-accent) 16%, transparent); transform: translateY(-1px); }
+.scene-btn:hover { background: color-mix(in srgb, var(--clr-accent) 14%, transparent); border-color: color-mix(in srgb, var(--clr-accent) 40%, transparent); transform: translateY(-1px); }
 .scene-btn:active { transform: scale(.97); }
 
 /* Night mode — dims the mixer panel for low-light viewing */
 .sc-modal--mixer.mixer-night { filter: brightness(.74) saturate(.85); }
 .sc-modal--mixer.mixer-night .sound-track.active { box-shadow: 0 0 0 1px color-mix(in srgb, var(--clr-accent) 25%, transparent); }
 
+body.light-theme .sound-track       { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.07); }
+body.light-theme .sound-track.active { background: rgba(0,0,0,.045); }
+body.light-theme .sound-master      { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.05); }
+body.light-theme .sound-track-icon  { background: rgba(0,0,0,.04); }
 body.light-theme .mixer-night-toggle { background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.1); }
 body.light-theme .mixer-scenes { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.06); }
 body.light-theme .scene-btn { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.1); }
+body.light-theme .track-toggle { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.14); }
 
 @media (prefers-reduced-motion: reduce) {
-  .sound-track.active .sound-track-icon { animation: none; }
+  .sound-track.active::before { animation: none; }
 }
 
 /* ── Now Playing manual input ── */
@@ -1049,9 +1094,6 @@ body.light-theme .sc-modal h2        { color: var(--clr-accent); }
 body.light-theme .sc-modal h3        { color: var(--clr-text); }
 body.light-theme kbd                 { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.14); color: var(--clr-text); }
 body.light-theme .kb-desc            { color: var(--clr-text); }
-body.light-theme .sound-track        { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.08); }
-body.light-theme .sound-track.active { background: rgba(0,0,0,.08); }
-body.light-theme .sound-master       { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.07); }
 body.light-theme .modal-close        { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.1); color: rgba(0,0,0,.4); }
 body.light-theme .modal-close:hover  { color: #000; background: rgba(0,0,0,.1); }
 body.light-theme .btn-ghost          { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.1); color: var(--clr-text); }
@@ -4932,8 +4974,11 @@ body.weather-fog.weather-overlay-on::after {
   .splash-mark-wrap, .splash-title, .splash-mark-triangle, .splash-dots span { animation: none; }
 }
 
-/* ── Music dock + side task cards (see src/musicdock.ts, src/sidetasks.ts) ── */
-/* ── Music dock ─────────────────────────────────────────────────── */
+/* ── Music dock + side task cards (see src/musicdock.ts, src/sidetasks.ts) ──
+   Theme-adaptive: colors are drawn from the same --clr-accent/--clr-text
+   custom properties the rest of the app (mixer, modals, banner) uses, so
+   switching themes recolors the dock and the YouTube "now playing" card
+   along with everything else instead of staying a fixed dark panel. ── */
 .sc-music-dock {
   display: flex;
   align-items: center;
@@ -4941,12 +4986,12 @@ body.weather-fog.weather-overlay-on::after {
   width: 300px;
   padding: 10px;
   border-radius: 16px;
-  background: rgba(20, 20, 24, 0.55);
+  background: var(--clr-panel, rgba(20, 20, 24, 0.55));
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  color: #fff;
+  color: var(--clr-text, #fff);
   font-family: inherit;
 }
 .sc-dock-art {
@@ -4958,13 +5003,13 @@ body.weather-fog.weather-overlay-on::after {
 .sc-dock-title { font-size: 13px; font-weight: 600; }
 .sc-dock-artist { font-size: 11px; opacity: 0.65; margin-top: 1px; }
 .sc-dock-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.15); margin-top: 6px; overflow: hidden; }
-.sc-dock-bar-fill { height: 100%; width: 0%; background: #fff; transition: width 0.3s linear; }
+.sc-dock-bar-fill { height: 100%; width: 0%; background: var(--clr-accent, #fff); transition: width 0.3s linear; }
 .sc-dock-controls { display: flex; align-items: center; gap: 4px; flex: none; }
 .sc-dock-controls button {
-  background: none; border: none; color: #fff; opacity: 0.85; cursor: pointer;
+  background: none; border: none; color: var(--clr-text, #fff); opacity: 0.85; cursor: pointer;
   font-size: 15px; padding: 6px; line-height: 1; border-radius: 8px;
 }
-.sc-dock-controls button:hover { opacity: 1; background: rgba(255,255,255,0.08); }
+.sc-dock-controls button:hover { opacity: 1; background: color-mix(in srgb, var(--clr-accent) 16%, transparent); }
 .sc-music-dock--pip { width: 100%; box-shadow: none; border-radius: 0; }
 
 /* ── Side task cards ────────────────────────────────────────────── */
@@ -5009,8 +5054,26 @@ body.weather-fog.weather-overlay-on::after {
 .sc-dock-controls button.active { background: rgba(255,255,255,0.16); opacity: 1; }
 .sc-dock-yt-input {
   width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 8px;
-  padding: 6px 8px; font-size: 12px; margin-bottom: 8px;
+  border: 1px solid rgba(255,255,255,0.1); color: var(--clr-text, #fff); border-radius: 8px;
+  padding: 6px 8px; font-size: 12px; margin-bottom: 8px; font-family: inherit;
 }
-.sc-dock-yt-player { border-radius: 10px; overflow: hidden; }
+.sc-dock-yt-input:focus { outline: none; border-color: var(--clr-accent); background: rgba(255,255,255,0.09); }
+
+/* YouTube "now playing" banner — themed card sitting directly above the
+   required-visible IFrame, so the dialog reads as a proper mini player
+   rather than a bare video embed with a URL box glued on top. */
+.sc-dock-yt-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px; margin-bottom: 8px; border-radius: 12px;
+  background: color-mix(in srgb, var(--clr-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--clr-accent) 25%, transparent);
+}
+.sc-dock-yt-art {
+  width: 40px; height: 40px; border-radius: 8px; flex: none;
+  background: #222 center/cover no-repeat;
+}
+.sc-dock-yt-banner .sc-dock-controls button:hover { color: var(--clr-accent); }
+
+.sc-dock-yt-player { border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 9; }
+.sc-dock-yt-player iframe { width: 100%; height: 100%; }
 .sc-dock-yt-note { font-size: 10px; opacity: 0.5; margin: 6px 0 0; line-height: 1.4; }
