@@ -197,8 +197,20 @@ function dockMarkup(): string {
     </div>
     <div data-role="pane-youtube" class="sc-dock-pane sc-hidden">
       <input data-role="yt-input" class="sc-dock-yt-input" placeholder="Paste a YouTube video or playlist URL" />
+      <div data-role="yt-banner" class="sc-dock-yt-banner sc-hidden">
+        <div class="sc-dock-yt-art" data-role="yt-art"></div>
+        <div class="sc-dock-info">
+          <div class="sc-dock-title" data-role="yt-title">—</div>
+          <div class="sc-dock-artist" data-role="yt-channel">—</div>
+        </div>
+        <div class="sc-dock-controls">
+          <button data-role="yt-prev" aria-label="Previous">⏮</button>
+          <button data-role="yt-play" aria-label="Play/Pause">▶</button>
+          <button data-role="yt-next" aria-label="Next">⏭</button>
+        </div>
+      </div>
       <div data-role="yt-player" class="sc-dock-yt-player"></div>
-      <p class="sc-dock-yt-note">Standard YouTube embed — plays via YouTube's own player, so it stays visible per YouTube's terms. No audio-only mode is offered here.</p>
+      <p class="sc-dock-yt-note">Standard YouTube embed — plays via YouTube's own official IFrame Player API, so it stays visible per YouTube's terms. No audio-only or stream-extraction mode is offered here.</p>
     </div>`;
 }
 
@@ -227,6 +239,29 @@ function extractYouTubeId(url: string): { videoId?: string; listId?: string } {
   } catch { return {}; }
 }
 
+/** Live YouTube "now playing" info, driven off the official player's own
+ *  events — never scraped, never fetched via an unofficial endpoint. */
+interface YtNowPlaying { title: string; channel: string; videoId: string; isPlaying: boolean; }
+const ytNowPlaying = new WeakMap<HTMLElement, YtNowPlaying>();
+
+function renderYtBanner(root: HTMLElement): void {
+  const info = ytNowPlaying.get(root);
+  const banner = root.querySelector<HTMLElement>('[data-role="yt-banner"]');
+  if (!banner) return;
+  if (!info) { banner.classList.add('sc-hidden'); return; }
+  banner.classList.remove('sc-hidden');
+  const art = banner.querySelector<HTMLElement>('[data-role="yt-art"]');
+  const title = banner.querySelector<HTMLElement>('[data-role="yt-title"]');
+  const channel = banner.querySelector<HTMLElement>('[data-role="yt-channel"]');
+  const playBtn = banner.querySelector<HTMLElement>('[data-role="yt-play"]');
+  // hqdefault.jpg is YouTube's own public thumbnail CDN for the video ID —
+  // same URL pattern <iframe>/oEmbed markup already exposes, not scraped.
+  if (art) art.style.backgroundImage = info.videoId ? `url(https://i.ytimg.com/vi/${info.videoId}/hqdefault.jpg)` : '';
+  if (title) title.textContent = info.title || 'Loading…';
+  if (channel) channel.textContent = info.channel || '';
+  if (playBtn) playBtn.textContent = info.isPlaying ? '⏸' : '▶';
+}
+
 async function mountYouTubePlayer(root: HTMLElement, url: string): Promise<void> {
   const target = root.querySelector<HTMLElement>('[data-role="yt-player"]');
   if (!target) return;
@@ -238,9 +273,25 @@ async function mountYouTubePlayer(root: HTMLElement, url: string): Promise<void>
   target.appendChild(mount);
   const YT = (window as any).YT;
   const player = new YT.Player(mount, {
-    height: '120', width: '100%',
+    height: '100%', width: '100%',
     videoId: listId ? undefined : videoId,
     playerVars: listId ? { listType: 'playlist', list: listId } : {},
+    events: {
+      onReady: () => {
+        const data = player.getVideoData?.() ?? {};
+        ytNowPlaying.set(root, { title: data.title ?? '', channel: data.author ?? '', videoId: data.video_id ?? videoId ?? '', isPlaying: false });
+        renderYtBanner(root);
+      },
+      onStateChange: (e: any) => {
+        const data = player.getVideoData?.() ?? {};
+        const YTState = (window as any).YT.PlayerState;
+        ytNowPlaying.set(root, {
+          title: data.title ?? '', channel: data.author ?? '', videoId: data.video_id ?? '',
+          isPlaying: e.data === YTState.PLAYING,
+        });
+        renderYtBanner(root);
+      },
+    },
   });
   ytPlayers.set(root, player);
 }
@@ -278,6 +329,15 @@ function wireDockEvents(el: HTMLElement): void {
   ytInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && ytInput.value.trim()) mountYouTubePlayer(el, ytInput.value.trim());
   });
+
+  el.querySelector('[data-role="yt-play"]')?.addEventListener('click', () => {
+    const p = ytPlayers.get(el);
+    if (!p?.getPlayerState) return;
+    const YTState = (window as any).YT?.PlayerState;
+    if (p.getPlayerState() === YTState?.PLAYING) p.pauseVideo(); else p.playVideo();
+  });
+  el.querySelector('[data-role="yt-next"]')?.addEventListener('click', () => ytPlayers.get(el)?.nextVideo?.());
+  el.querySelector('[data-role="yt-prev"]')?.addEventListener('click', () => ytPlayers.get(el)?.previousVideo?.());
 }
 
 function renderDock(): void {

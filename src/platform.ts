@@ -79,6 +79,41 @@ export function haptic(pattern: number | number[] = 12): void {
   try { navigator.vibrate(pattern); } catch { /* some browsers throw outside a user gesture */ }
 }
 
+// ── Global tap haptics ───────────────────────────────────────────────
+// Vibration API note: this is Android-only by platform design — no iOS
+// browser engine (WebKit) has ever exposed navigator.vibrate, in Safari
+// or in any other iOS browser, standalone PWA or not, since they're all
+// required to run on WebKit. There is no web API workaround; genuine iOS
+// haptics (UIImpactFeedbackGenerator) only exist behind a native shell
+// (e.g. Capacitor's Haptics plugin or a Tauri iOS build), which this repo
+// doesn't have. CAPS.vibration is false on iOS, so haptic() already
+// silently no-ops there — this delegate just rides the same guard so
+// Android gets full coverage for free without misleading iOS.
+//
+// Rather than hand-wiring haptic() into every button/toggle/slider call
+// site individually (easy to miss new ones), one delegated listener on
+// <html> covers the whole app: any tap on an interactive control gets a
+// light tick, any drag-grab of a slider gets one too. Call once at boot.
+const HAPTIC_TAP_SELECTOR = [
+  'button', '.btn', '.scene-btn', '.pill', '.pill-group button',
+  '.track-toggle', '.mixer-night-toggle', '.modal-close', '.theme-card',
+  '.tab-btn', '.kb-item', '.sc-tab', '[role="button"]', '.saved-theme-chip',
+  'input[type="range"]', 'input[type="checkbox"]',
+].join(', ');
+
+let globalHapticsBound = false;
+export function bindGlobalHaptics(): void {
+  if (globalHapticsBound || !CAPS.vibration) return;
+  globalHapticsBound = true;
+  document.addEventListener('pointerdown', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target || !target.closest) return;
+    const el = target.closest<HTMLElement>(HAPTIC_TAP_SELECTOR);
+    if (!el || (el as HTMLButtonElement).disabled) return;
+    haptic(6);
+  }, { passive: true, capture: true });
+}
+
 let motionGranted = !CAPS.deviceOrientationNeedsPermission;
 /**
  * Must be called from inside a user gesture (a click handler) on iOS —

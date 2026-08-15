@@ -28,7 +28,7 @@ import * as NowPlaying from './nowplaying';
 import * as MusicDock from './musicdock';
 import * as SideTasks from './sidetasks';
 import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
-import { applyPlatformClasses, CAPS, haptic, requestMotionPermission, subscribeOrientation } from './platform';
+import { applyPlatformClasses, bindGlobalHaptics, CAPS, haptic, requestMotionPermission, subscribeOrientation } from './platform';
 import * as Palette from './palette';
 
 // ── Platform detection ───────────────────────────────────────────────
@@ -37,6 +37,7 @@ import * as Palette from './palette';
 // need to be correct on the very first paint, not applied after a flash
 // of the wrong layout.
 applyPlatformClasses();
+bindGlobalHaptics();
 
 // ── Audio autoplay-policy unlock ────────────────────────────────────────
 // Must run inside the very first real user gesture on the page, otherwise
@@ -1421,6 +1422,8 @@ function makeSoundTrack(
   const track = document.createElement('div');
   track.className = ['sound-track', isBinaural ? 'binaural-track' : '', active ? 'active' : ''].filter(Boolean).join(' ');
 
+  const top = document.createElement('div'); top.className = 'sound-track-top';
+
   const iconEl = document.createElement('div'); iconEl.className = 'sound-track-icon';
   iconEl.textContent = icon;
 
@@ -1434,12 +1437,15 @@ function makeSoundTrack(
   toggle.dataset.id = id;
   toggle.title = active ? 'Stop' : 'Play';
 
+  top.append(iconEl, info, toggle);
+
   if (!isBinaural) {
     const volWrap = document.createElement('div'); volWrap.className = 'sound-track-vol';
     const slider = document.createElement('input') as HTMLInputElement;
     slider.type = 'range'; slider.className = 'track-vol-slider';
     slider.min = '0'; slider.max = '200'; slider.value = String(vol);
     slider.dataset.id = id;
+    slider.style.setProperty('--val', Math.min(100, vol / 2) + '%');
     const pct = document.createElement('span'); pct.className = 'sound-vol-pct';
     pct.id = 'tvp_' + id; pct.textContent = vol + '%';
     slider.addEventListener('input', e => {
@@ -1448,12 +1454,13 @@ function makeSoundTrack(
       Sound.setTrackVolume(id, v);
       pct.textContent = p + '%';
       pct.style.color = p > 100 ? 'var(--clr-accent)' : '';
+      slider.style.setProperty('--val', Math.min(100, p / 2) + '%');
     });
     volWrap.append(slider, pct);
-    track.append(iconEl, info, volWrap, toggle);
+    track.append(top, volWrap);
     toggle.addEventListener('click', () => Sound.toggleTrack(id));
   } else {
-    track.append(iconEl, info, toggle);
+    track.append(top);
     toggle.addEventListener('click', () => Sound.toggleBinaural(id));
   }
 
@@ -2381,7 +2388,7 @@ function buildSettingsUI(activeTab = 'general') {
     animSec.appendChild(makeRow('Reduce Motion', 'Simpler transitions, no parallax, no particle animations', 'toggleReduceMotion', reduceMotion));
     animSec.appendChild(makeRow('Parallax Depth', 'Canvas layers shift with mouse/gyroscope movement', 'toggleParallax', localStorage.getItem('sc_parallax') !== '0'));
     if (CAPS.vibration) {
-      animSec.appendChild(makeRow('Haptic Feedback', 'A short vibration on session start/complete and milestones', 'toggleHaptics', localStorage.getItem('sc_haptics') !== '0'));
+      animSec.appendChild(makeRow('Haptic Feedback', 'A light tap on buttons, toggles and sliders, plus session start/complete and milestones', 'toggleHaptics', localStorage.getItem('sc_haptics') !== '0'));
     }
     paneWrap.appendChild(animSec);
 
