@@ -5077,3 +5077,26 @@ body.weather-fog.weather-overlay-on::after {
 .sc-dock-yt-player { border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 9; }
 .sc-dock-yt-player iframe { width: 100%; height: 100%; }
 .sc-dock-yt-note { font-size: 10px; opacity: 0.5; margin: 6px 0 0; line-height: 1.4; }
+
+.sc-dock-yt-connect { margin-bottom: 8px; }
+.sc-dock-yt-connect-btn {
+  width: 100%; padding: 7px 0; margin-bottom: 6px; border-radius: 8px; cursor: pointer;
+  background: color-mix(in srgb, var(--clr-accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--clr-accent) 45%, transparent);
+  color: var(--clr-text, #fff); font-size: 12px; font-weight: 600; font-family: inherit;
+}
+.sc-dock-yt-connect-btn:hover { background: color-mix(in srgb, var(--clr-accent) 28%, transparent); }
+.sc-dock-yt-library {
+  max-height: 180px; overflow-y: auto; margin-bottom: 8px; border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+}
+.sc-dock-yt-lib-hdr { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; opacity: .5; padding: 6px 8px 2px; }
+.sc-dock-yt-lib-loading { font-size: 11px; opacity: .55; padding: 10px 8px; }
+.sc-dock-yt-lib-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: none; border: none; cursor: pointer; padding: 5px 8px; color: var(--clr-text, #fff);
+  font-size: 12px; font-family: inherit;
+}
+.sc-dock-yt-lib-item:hover { background: color-mix(in srgb, var(--clr-accent) 14%, transparent); }
+.sc-dock-yt-lib-item img { width: 28px; height: 28px; border-radius: 5px; flex: none; object-fit: cover; }
+.sc-dock-yt-lib-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
