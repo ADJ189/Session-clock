@@ -7,10 +7,14 @@
 // existing PKCE flow in integrations.ts.
 //
 // Deliberately does NOT attempt YouTube Music audio-only playback.
-// YouTube has no official audio-only/PIP-friendly SDK; the only
-// ToS-compliant path is the standard IFrame Player API, which YouTube
-// requires to stay visible. See nowplaying.ts for why this project
-// already treats YouTube Music as "manual now-playing only".
+// YouTube has no official audio-only/PIP-friendly SDK, and YouTube
+// Music itself has no official public API at all — the only
+// ToS-compliant path for actual playback is the standard IFrame
+// Player API, which YouTube requires to stay visible. What IS official
+// is the read-only YouTube Data API v3, used below to let a user
+// connect their Google account and browse their real Liked videos +
+// playlists — that covers the "log in and pick from your library" part
+// of the ask without an unofficial client extracting/hiding streams.
 //
 // Pops out via the Document Picture-in-Picture API (same API this
 // project already uses for the mini clock) so it survives tab
@@ -196,7 +200,12 @@ function dockMarkup(): string {
       </div>
     </div>
     <div data-role="pane-youtube" class="sc-dock-pane sc-hidden">
-      <input data-role="yt-input" class="sc-dock-yt-input" placeholder="Paste a YouTube video or playlist URL" />
+      <div data-role="yt-connect-row" class="sc-dock-yt-connect">
+        <button data-role="yt-connect" class="sc-dock-yt-connect-btn">Connect YouTube</button>
+        <span data-role="yt-connect-note" class="sc-dock-yt-note" style="margin:0;">Reads your Liked videos + playlists (official YouTube Data API, read-only). Playback still runs through YouTube's own visible player below — this app doesn't do audio-only extraction.</span>
+      </div>
+      <div data-role="yt-library" class="sc-dock-yt-library sc-hidden"></div>
+      <input data-role="yt-input" class="sc-dock-yt-input" placeholder="…or paste a YouTube video or playlist URL" />
       <div data-role="yt-banner" class="sc-dock-yt-banner sc-hidden">
         <div class="sc-dock-yt-art" data-role="yt-art"></div>
         <div class="sc-dock-info">
@@ -338,16 +347,94 @@ function wireDockEvents(el: HTMLElement): void {
   });
   el.querySelector('[data-role="yt-next"]')?.addEventListener('click', () => ytPlayers.get(el)?.nextVideo?.());
   el.querySelector('[data-role="yt-prev"]')?.addEventListener('click', () => ytPlayers.get(el)?.previousVideo?.());
+
+  const connectBtn = el.querySelector<HTMLElement>('[data-role="yt-connect"]');
+  connectBtn?.addEventListener('click', () => loadYouTubeLibrary(el));
+  if (Integrations.isYouTubeConnected()) loadYouTubeLibrary(el);
+}
+
+/** Fetches the signed-in user's Liked videos + own playlists via the
+ *  official YouTube Data API (see integrations.ts) and renders them as
+ *  a clickable library list. Clicking an item hands its video/playlist
+ *  id to the same compliant mountYouTubePlayer() used for pasted URLs —
+ *  there's no separate "extracted stream" code path. */
+async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
+  const connectRow = root.querySelector<HTMLElement>('[data-role="yt-connect-row"]');
+  const connectBtn = root.querySelector<HTMLButtonElement>('[data-role="yt-connect"]');
+  const libraryEl = root.querySelector<HTMLElement>('[data-role="yt-library"]');
+  if (!libraryEl) return;
+
+  if (!Integrations.isYouTubeConnected()) {
+    if (connectBtn) connectBtn.textContent = 'Connecting…';
+    const clientId = localStorage.getItem('sc_google_client_id') ?? prompt('Google OAuth client ID (from Google Cloud Console — see wiki for setup):')?.trim();
+    if (!clientId) { if (connectBtn) connectBtn.textContent = 'Connect YouTube'; return; }
+    const ok = await Integrations.googleLogin(clientId);
+    if (connectBtn) connectBtn.textContent = 'Connect YouTube';
+    if (!ok) return;
+  }
+
+  if (connectRow) connectRow.classList.add('sc-hidden');
+  libraryEl.classList.remove('sc-hidden');
+  libraryEl.innerHTML = '<div class="sc-dock-yt-lib-loading">Loading your library…</div>';
+
+  const [liked, playlists] = await Promise.all([
+    Integrations.youtubeGetLikedVideos(15),
+    Integrations.youtubeGetMyPlaylists(15),
+  ]);
+
+  if (!liked.length && !playlists.length) {
+    libraryEl.innerHTML = '<div class="sc-dock-yt-lib-loading">Nothing found — try pasting a URL below instead.</div>';
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  const section = (label: string) => {
+    const h = document.createElement('div'); h.className = 'sc-dock-yt-lib-hdr'; h.textContent = label;
+    frag.appendChild(h);
+  };
+  if (playlists.length) {
+    section('Your playlists');
+    for (const p of playlists) {
+      const row = document.createElement('button'); row.className = 'sc-dock-yt-lib-item';
+      row.innerHTML = `<img loading="lazy" src="${p.thumbnail}" alt="" /><span>${p.title}</span>`;
+      row.addEventListener('click', () => mountYouTubePlayer(root, `https://www.youtube.com/playlist?list=${p.id}`));
+      frag.appendChild(row);
+    }
+  }
+  if (liked.length) {
+    section('Liked videos');
+    for (const v of liked) {
+      const row = document.createElement('button'); row.className = 'sc-dock-yt-lib-item';
+      row.innerHTML = `<img loading="lazy" src="${v.thumbnail}" alt="" /><span>${v.title}</span>`;
+      row.addEventListener('click', () => mountYouTubePlayer(root, `https://www.youtube.com/watch?v=${v.videoId}`));
+      frag.appendChild(row);
+    }
+  }
+  libraryEl.innerHTML = '';
+  libraryEl.appendChild(frag);
+}
+
+/** Cached DOM refs per dock root — renderDock() runs every second off
+ *  the poll timer, so querying five selectors twice a second (main dock
+ *  + PIP clone) adds up; look them up once at wire-time instead. */
+interface DockRefs { art: HTMLElement | null; title: HTMLElement | null; artist: HTMLElement | null; fill: HTMLElement | null; playBtn: HTMLElement | null; }
+const dockRefs = new WeakMap<HTMLElement, DockRefs>();
+function cacheDockRefs(root: HTMLElement): DockRefs {
+  const refs: DockRefs = {
+    art: root.querySelector('[data-role="art"]'),
+    title: root.querySelector('[data-role="title"]'),
+    artist: root.querySelector('[data-role="artist"]'),
+    fill: root.querySelector('[data-role="fill"]'),
+    playBtn: root.querySelector('[data-role="play"]'),
+  };
+  dockRefs.set(root, refs);
+  return refs;
 }
 
 function renderDock(): void {
   const roots = [dockEl, pipWindow?.document.querySelector('.sc-music-dock') as HTMLElement | null].filter(Boolean) as HTMLElement[];
   for (const root of roots) {
-    const art = root.querySelector<HTMLElement>('[data-role="art"]');
-    const title = root.querySelector<HTMLElement>('[data-role="title"]');
-    const artist = root.querySelector<HTMLElement>('[data-role="artist"]');
-    const fill = root.querySelector<HTMLElement>('[data-role="fill"]');
-    const playBtn = root.querySelector<HTMLElement>('[data-role="play"]');
+    const { art, title, artist, fill, playBtn } = dockRefs.get(root) ?? cacheDockRefs(root);
     if (art) art.style.backgroundImage = state.artUrl ? `url(${state.artUrl})` : '';
     if (title && state.title) title.textContent = state.title;
     if (artist && state.title) artist.textContent = state.artist;

@@ -390,6 +390,61 @@ export async function youtubeSearchFocusPlaylists(): Promise<Array<{ id: string;
   } catch { return []; }
 }
 
+// Signed-in user's own YouTube library, via the official YouTube Data
+// API v3 — same Google OAuth connection as above, read-only scope.
+// Deliberately NOT youtubei.js/InnerTube: that's YouTube's private,
+// undocumented client API, and using it to sign a user's account in
+// through an unofficial client and pull raw stream URLs (so audio can
+// play with the real player hidden) is exactly the kind of ToS
+// circumvention this project has turned down twice already — it risks
+// the user's own account being flagged, and it's not something this
+// app should ship as a feature.
+//
+// The real constraint underneath the request: YouTube Music itself has
+// no official public API at all — everything ytmusicapi/youtubei.js-style
+// tools do for "Music" specifically is unofficial. What IS official and
+// documented is the plain YouTube Data API v3, which can read a user's
+// regular "Liked videos" playlist (id "LL") and their own playlists —
+// close enough to a personal library for most people's ambient/focus
+// music, and it plays back through the same compliant IFrame pane
+// already in musicdock.ts instead of a hidden/extracted stream.
+export interface YtLibraryItem { videoId: string; title: string; thumbnail: string; }
+export interface YtLibraryPlaylist { id: string; title: string; thumbnail: string; }
+
+export async function youtubeGetLikedVideos(maxResults = 25): Promise<YtLibraryItem[]> {
+  const token = await ensureFreshGoogleToken();
+  if (!token) return [];
+  try {
+    const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=LL&maxResults=${maxResults}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const d = await res.json();
+    return (d.items ?? [])
+      .filter((i: any) => i.snippet?.resourceId?.videoId)
+      .map((i: any) => ({
+        videoId: i.snippet.resourceId.videoId,
+        title: i.snippet.title ?? 'Untitled',
+        thumbnail: i.snippet.thumbnails?.default?.url ?? '',
+      }));
+  } catch { return []; }
+}
+
+export async function youtubeGetMyPlaylists(maxResults = 25): Promise<YtLibraryPlaylist[]> {
+  const token = await ensureFreshGoogleToken();
+  if (!token) return [];
+  try {
+    const res = await fetch(`https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=${maxResults}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const d = await res.json();
+    return (d.items ?? []).map((i: any) => ({
+      id: i.id,
+      title: i.snippet?.title ?? 'Untitled',
+      thumbnail: i.snippet?.thumbnails?.default?.url ?? '',
+    }));
+  } catch { return []; }
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // 3. GOOGLE CALENDAR
 // ─────────────────────────────────────────────────────────────────────
