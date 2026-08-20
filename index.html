@@ -172,7 +172,7 @@
     </div>
     <div id="focusInputWrap">
       <span id="focusTag">Working on</span>
-      <input id="focusInput" type="text" placeholder="what are you working on?" maxlength="60" autocomplete="off"/>
+      <input id="focusInput" type="text" placeholder="what are you working on?" aria-label="What are you working on?" maxlength="60" autocomplete="off"/>
     </div>
     <div class="session-controls">
       <button class="btn btn-primary" id="btnStart">
@@ -234,7 +234,7 @@
   <div class="sc-modal">
     <div class="modal-header">
       <h2>🎨 Custom Theme</h2>
-      <button class="modal-close" onclick="SC.modals.close('themeBuilderOverlay')">
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('themeBuilderOverlay')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
@@ -256,7 +256,7 @@
       <h2>🎵 Sound Mixer</h2>
       <div class="mixer-header-actions">
         <button class="mixer-night-toggle" id="mixerNightToggle" title="Night mode">🌙</button>
-        <button class="modal-close" onclick="SC.modals.close('soundOverlay')">
+        <button class="modal-close" aria-label="Close" onclick="SC.modals.close('soundOverlay')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </div>
@@ -266,7 +266,7 @@
       <div class="sound-master">
         <div class="sound-master-row">
           <span class="sound-master-lbl">Master</span>
-          <input type="range" class="sc-range master-vol-slider" id="volSlider" min="0" max="200" value="70">
+          <input type="range" class="sc-range master-vol-slider" id="volSlider" aria-label="Master volume" min="0" max="200" value="70">
           <span class="sound-vol-pct" id="volLabel">70%</span>
         </div>
         <div class="mixer-vu-row">
@@ -275,7 +275,7 @@
         </div>
         <div class="sound-master-row" style="margin-top:10px">
           <span class="sound-master-lbl">Fade out</span>
-          <input type="range" class="sc-range" id="fadeSlider" min="0" max="60" value="0">
+          <input type="range" class="sc-range" id="fadeSlider" aria-label="Fade out duration" min="0" max="60" value="0">
           <span class="sound-vol-pct" id="fadeLabel">Off</span>
         </div>
       </div>
@@ -297,7 +297,7 @@
   <div class="sc-modal sc-modal--narrow">
     <div class="modal-header">
       <h2>⌨️ Shortcuts</h2>
-      <button class="modal-close" onclick="SC.modals.close('kbOverlay')">
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('kbOverlay')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
@@ -309,7 +309,7 @@
   <div class="sc-modal">
     <div class="modal-header">
       <h2>🍅 Pomodoro</h2>
-      <button class="modal-close" onclick="SC.modals.close('pomOverlay')">
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('pomOverlay')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
@@ -335,7 +335,7 @@
   <div class="sc-modal sc-modal--settings">
     <div class="modal-header">
       <h2>⚙️ Settings</h2>
-      <button class="modal-close" onclick="SC.modals.close('settingsOverlay')">
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('settingsOverlay')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
@@ -349,7 +349,7 @@
   <div class="sc-modal sc-modal--settings">
     <div class="modal-header">
       <h2>🔐 Your Data</h2>
-      <button class="modal-close" onclick="SC.modals.close('dataOverlay')">
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('dataOverlay')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
@@ -362,7 +362,7 @@
   <div class="sc-modal sc-modal--narrow">
     <div class="modal-header">
       <h2>📱 Handoff</h2>
-      <button class="modal-close" onclick="SC.modals.close('qrOverlay')">
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('qrOverlay')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
@@ -477,7 +477,7 @@
   <div class="cmd-modal" id="cmdModal" role="dialog" aria-label="Command Palette">
     <div class="cmd-input-wrap">
       <svg class="cmd-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="cmdInput" class="cmd-input" placeholder="Search themes, actions, or type / for secrets…" autocomplete="off" spellcheck="false">
+      <input id="cmdInput" class="cmd-input" placeholder="Search themes, actions, or type / for secrets…" aria-label="Search themes, actions, or type / for secrets" autocomplete="off" spellcheck="false">
       <button class="cmd-secrets-btn" id="cmdSecretsBtn" title="Show all easter eggs">🥚 Secrets</button>
       <kbd class="cmd-esc-hint">ESC</kbd>
     </div>
