@@ -99,6 +99,7 @@ function build() {
   _input.type = 'text';
   _input.className = 'palette-input';
   _input.placeholder = 'Search commands, themes, easter eggs…';
+  _input.setAttribute('aria-label', 'Search commands, themes, easter eggs');
   _input.setAttribute('autocomplete', 'off');
   _input.setAttribute('spellcheck', 'false');
   _input.addEventListener('input', () => render(_input!.value));

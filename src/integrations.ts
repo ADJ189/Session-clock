@@ -902,6 +902,7 @@ function codeLine(text: string): HTMLElement {
 function input(placeholder: string, type = 'text'): HTMLInputElement {
   const el = document.createElement('input');
   el.type = type; el.placeholder = placeholder;
+  el.setAttribute('aria-label', placeholder);
   el.style.cssText = 'width:100%;padding:9px 13px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.74rem;margin-bottom:8px;box-sizing:border-box;';
   return el;
 }

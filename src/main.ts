@@ -358,9 +358,13 @@ function buildDataPanel() {
   incogInfo.append(incogLbl, incogDesc);
   const incogToggle = document.createElement('button');
   incogToggle.className = 'settings-toggle' + (Privacy.isIncognito() ? ' on' : '');
+  incogToggle.setAttribute('role', 'switch');
+  incogToggle.setAttribute('aria-checked', String(Privacy.isIncognito()));
+  incogToggle.setAttribute('aria-label', 'Incognito Sessions');
   incogToggle.addEventListener('click', () => {
     Privacy.setIncognito(!Privacy.isIncognito());
     incogToggle.classList.toggle('on', Privacy.isIncognito());
+    incogToggle.setAttribute('aria-checked', String(Privacy.isIncognito()));
     showToast(Privacy.isIncognito() ? '🕵 Incognito mode on' : 'Incognito mode off');
   });
   incogRow.append(incogInfo, incogToggle);
@@ -374,9 +378,13 @@ function buildDataPanel() {
   clearInfo.append(clearLbl, clearDesc);
   const clearToggle = document.createElement('button');
   clearToggle.className = 'settings-toggle' + (Privacy.isAutoClear() ? ' on' : '');
+  clearToggle.setAttribute('role', 'switch');
+  clearToggle.setAttribute('aria-checked', String(Privacy.isAutoClear()));
+  clearToggle.setAttribute('aria-label', 'Auto-Clear on Close');
   clearToggle.addEventListener('click', () => {
     Privacy.setAutoClear(!Privacy.isAutoClear());
     clearToggle.classList.toggle('on', Privacy.isAutoClear());
+    clearToggle.setAttribute('aria-checked', String(Privacy.isAutoClear()));
     showToast(Privacy.isAutoClear() ? 'Auto-clear enabled' : 'Auto-clear disabled');
   });
   clearRow.append(clearInfo, clearToggle);
@@ -944,7 +952,7 @@ function makeFallbackLogo(t: Theme): SVGElement | HTMLElement {
   cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
   cx2.fillText(t.name.slice(0,2).toUpperCase(), 16, 11);
   const img = document.createElement('img');
-  img.src = cv.toDataURL(); img.style.cssText = 'width:32px;height:22px;display:block';
+  img.src = cv.toDataURL(); img.alt = ''; img.style.cssText = 'width:32px;height:22px;display:block';
   return img;
 }
 
@@ -1445,6 +1453,7 @@ function makeSoundTrack(
     slider.type = 'range'; slider.className = 'track-vol-slider';
     slider.min = '0'; slider.max = '200'; slider.value = String(vol);
     slider.dataset.id = id;
+    slider.setAttribute('aria-label', `${name} volume`);
     slider.style.setProperty('--val', Math.min(100, vol / 2) + '%');
     const pct = document.createElement('span'); pct.className = 'sound-vol-pct';
     pct.id = 'tvp_' + id; pct.textContent = vol + '%';
@@ -1966,6 +1975,7 @@ function buildColorRows() {
     const lbl = document.createElement('label');
     lbl.style.cssText = 'font-size:.5rem;opacity:.4;letter-spacing:.08em;text-transform:uppercase;';
     lbl.textContent = label;
+    lbl.htmlFor = id;
     const inp = document.createElement('input'); inp.id = id;
     inp.style.cssText = 'padding:6px 8px;border-radius:7px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:var(--clr-text);font-family:monospace;font-size:.68rem;width:100%;box-sizing:border-box;';
     inp.value = value;
@@ -2141,6 +2151,9 @@ function buildSettingsUI(activeTab = 'general') {
     const dsc  = document.createElement('span'); dsc.className = 'settings-row-desc'; dsc.textContent = dText;
     info.append(top, dsc);
     const tog  = document.createElement('button'); tog.className = 'settings-toggle' + (on ? ' on' : ''); tog.id = btnId;
+    tog.setAttribute('role', 'switch');
+    tog.setAttribute('aria-checked', String(on));
+    tog.setAttribute('aria-label', lText);
     row.append(info, tog); return row;
   };
 
@@ -2149,6 +2162,7 @@ function buildSettingsUI(activeTab = 'general') {
       const btn = e.currentTarget as HTMLButtonElement;
       const wasOn = btn.classList.contains('on');
       btn.classList.toggle('on');
+      btn.setAttribute('aria-checked', String(!wasOn));
       // Ripple animation on enable
       if (!wasOn) {
         const rip = document.createElement('span'); rip.className = 'toggle-ripple';
@@ -2258,6 +2272,7 @@ function buildSettingsUI(activeTab = 'general') {
     const npRow = document.createElement('div'); npRow.className = 'settings-row';
     const npInput = document.createElement('input'); npInput.type = 'text'; npInput.className = 'np-manual-input';
     npInput.placeholder = "What's playing? (any player — song, artist, or soundtrack)";
+    npInput.setAttribute('aria-label', "What's playing");
     npInput.value = localStorage.getItem('sc_nowplaying_manual') || '';
     npRow.appendChild(npInput);
     npSec.appendChild(npRow);
@@ -2311,6 +2326,7 @@ function buildSettingsUI(activeTab = 'general') {
     intTop.appendChild(intLbl);
     intInfo.appendChild(intTop);
     const intSelect = document.createElement('select'); intSelect.className = 'settings-select';
+    intSelect.setAttribute('aria-label', 'Remind me after');
     [30, 45, 60, 90, 120].forEach(m => {
       const opt = document.createElement('option'); opt.value = String(m); opt.textContent = `${m} min`;
       if ((parseInt(localStorage.getItem('sc_break_reminder_mins') || '90', 10)) === m) opt.selected = true;
@@ -2403,6 +2419,7 @@ function buildSettingsUI(activeTab = 'general') {
     qualDesc.textContent = `Auto-detected: ${getTier().toUpperCase()}`;
     qualInfo.append(qualTop, qualDesc);
     const qualSelect = document.createElement('select'); qualSelect.className = 'settings-select';
+    qualSelect.setAttribute('aria-label', 'Render Quality');
     (['auto','high','med','low'] as const).forEach(v => {
       const opt = document.createElement('option');
       opt.value = v === 'auto' ? '' : v; opt.textContent = v === 'auto' ? 'Auto' : v.charAt(0).toUpperCase() + v.slice(1);

@@ -624,10 +624,12 @@ export function buildCountdownUI(container: HTMLElement, onSet: (label: string, 
 
   const labelInput = document.createElement('input');
   labelInput.placeholder = 'Label (e.g. "Exam", "Meeting", "End of day")';
+  labelInput.setAttribute('aria-label', 'Countdown label');
   labelInput.style.cssText = 'width:100%;padding:10px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.78rem;margin-bottom:12px;box-sizing:border-box;';
 
   const dateInput = document.createElement('input');
   dateInput.type = 'datetime-local';
+  dateInput.setAttribute('aria-label', 'Countdown target date and time');
   dateInput.style.cssText = 'width:100%;padding:10px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.78rem;margin-bottom:16px;box-sizing:border-box;color-scheme:dark;';
   // Default to end of today
   const now = new Date();
@@ -763,6 +765,7 @@ export function buildWorldClockUI(container: HTMLElement) {
   pickerLabel.textContent = 'Add timezone (up to 5)';
 
   const select = document.createElement('select');
+  select.setAttribute('aria-label', 'Add timezone (up to 5)');
   select.style.cssText = 'width:100%;padding:8px 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.74rem;margin-bottom:8px;';
   const defaultOpt = document.createElement('option'); defaultOpt.value = ''; defaultOpt.textContent = '— Select timezone —';
   select.appendChild(defaultOpt);
