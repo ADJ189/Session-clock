@@ -2275,8 +2275,8 @@ function drawRickMorty(dt: number, t: Theme) {
   for (let i = 0; i < 60; i++) {
     const o = i * 4;
     rmParticles[o] += rmParticles[o+2]!; rmParticles[o+1] += rmParticles[o+3]!;
-    if (rmParticles[o]! < 0 || rmParticles[o]! > W) rmParticles[o+2]! * -1;
-    if (rmParticles[o+1]! < 0 || rmParticles[o+1]! > H) rmParticles[o+3]! * -1;
+    if (rmParticles[o]! < 0 || rmParticles[o]! > W) rmParticles[o+2] = rmParticles[o+2]! * -1;
+    if (rmParticles[o+1]! < 0 || rmParticles[o+1]! > H) rmParticles[o+3] = rmParticles[o+3]! * -1;
     if (rmParticles[o]! < 0) rmParticles[o] = W;
     if (rmParticles[o]! > W) rmParticles[o] = 0;
     if (rmParticles[o+1]! < 0) rmParticles[o+1] = H;
