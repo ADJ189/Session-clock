@@ -8,9 +8,12 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix"
   },
   "devDependencies": {
+    "oxlint": "^1.79.0",
     "typescript": "^7.0.2",
     "vite": "^6.3.5"
   }
