@@ -2,6 +2,19 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.5.0] — Minimal Centre mode, GitHub star/support celebration, removed the sync pill
+
+### Added
+- **Minimal Session Panel (Centre mode)** — when Clock Position is set to Centre, the session timer now shrinks and docks to the side (bottom-right on narrow screens) instead of stacking under the clock, and the day-progress bar + quote hide, so the clock stays the obvious focal point. New Settings → Display → **Minimal Session Panel** toggle (on by default) lets you keep the old full-stacked layout in Centre mode if you'd rather have it.
+- **GitHub star/support celebration** — clicking the GitHub icon in the top bar now shows a small colourful animated card (avatar with a spinning accent ring, gradient title, confetti via the existing Easter-egg confetti function) with **Star on GitHub** and **Support the project** buttons before opening GitHub, plus a plain "Just take me to GitHub →" link for anyone who'd rather skip it. Closes on Escape, backdrop click, or the × — it's a moment, not a wall.
+  - ⚠️ **Needs your input:** the Support button currently points to `https://github.com/sponsors/ADJ189` as a placeholder — swap it for wherever you actually want support to go (GitHub Sponsors once set up, Ko-fi, Buy Me a Coffee, etc.) in `index.html` (`#ghBtnDonate`).
+
+### Removed
+- **The sync status pill** ("Syncing…" / "Synced · ±Xms" / "Local clock") — removed per request. The underlying sync-trust logic it fed is untouched (the UTC pill in the top bar still reflects NTP vs local-clock trust), and the "time for a break" pulse hint that used to flash on this pill now flashes on the session status line instead, so that feature still works with the pill gone.
+
+### Verification
+`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing count, 0 errors), `vite build` all pass. No visual/browser testing was possible in this environment — worth a quick look at Centre mode and the GitHub card before shipping.
+
 ## [1.4.2] — Every theme now has its own background: 35 themes were silently falling back to generic particles
 
 A full theme-by-theme audit, prompted by a direct ask to check every theme's rendering, intro, and settings against each other. The finding: of 96 themes, **35 had no dedicated background renderer wired up** — they compiled fine and worked, but silently fell back to the generic drifting-particle background (`drawParticles`) instead of the bespoke scene/symbol treatment every other theme gets. This was verified mechanically (cross-referencing every theme's `bgType` against the `DRAW` dispatch table in `renderer.ts`, not by eyeballing), so it's a solid finding, not a guess.
