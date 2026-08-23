@@ -304,6 +304,46 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   boondocks(dt,t)       { drawBoondocks(dt, t); },
   archer(dt,t)          { drawArcher(dt, t); },
   bobsburgers(dt,t)     { drawBobsBurgers(dt, t); },
+
+  // ── F1 teams (extended) ──
+  alpine(dt,t)   { drawF1Bg(t,'alpine'); },
+  rbf1(dt,t)     { drawF1Bg(t,'rbf1'); },
+  williams(dt,t) { drawF1Bg(t,'williams'); },
+
+  // ── Media themes (backed by generic vignette + bespoke symbol) ──
+  adventuretime(dt,t) { drawMediaBg(t); drawParticles(dt, t); drawSymbol('adventuretime', t); },
+  andor(dt,t)         { drawMediaBg(t); drawSymbol('andor', t); },
+  chernobyl(dt,t)     { drawMediaBg(t); drawSymbol('chernobyl', t); },
+  cowboybebop(dt,t)   { drawMediaBg(t); drawSymbol('cowboybebop', t); },
+  drivemovie(dt,t)    { drawMediaBg(t); drawSymbol('drivemovie', t); },
+  fargo(dt,t)         { drawMediaBg(t); drawSymbol('fargo', t); },
+  ghostshell(dt,t)    { drawMediaBg(t); drawSymbol('ghostshell', t); },
+  grandbudapest(dt,t) { drawMediaBg(t); drawSymbol('grandbudapest', t); },
+  gravityfalls(dt,t)  { drawMediaBg(t); drawSymbol('gravityfalls', t); },
+  jjk(dt,t)           { drawMediaBg(t); drawSymbol('jjk', t); },
+  johnwick(dt,t)      { drawMediaBg(t); drawSymbol('johnwick', t); },
+  madmen(dt,t)        { drawMediaBg(t); drawSymbol('madmen', t); },
+  nocountry(dt,t)     { drawMediaBg(t); drawSymbol('nocountry', t); },
+  se7en(dt,t)         { drawMediaBg(t); drawSymbol('se7en', t); },
+  spiderverse(dt,t)   { drawMediaBg(t); drawSymbol('spiderverse', t); },
+  thebatman(dt,t)     { drawMediaBg(t); drawSymbol('thebatman', t); },
+  truedetective(dt,t) { drawMediaBg(t); drawSymbol('truedetective', t); },
+  twinpeaks(dt,t)     { drawMediaBg(t); drawSymbol('twinpeaks', t); },
+  vinlandsaga(dt,t)   { drawMediaBg(t); drawSymbol('vinlandsaga', t); },
+  whiplash(dt,t)      { drawMediaBg(t); drawSymbol('whiplash', t); },
+  yourname(dt,t)      { drawMediaBg(t); drawSymbol('yourname', t); },
+
+  // ── Bespoke atmospheric scenes ──
+  bioluminescence(dt,t) { drawBioluminescence(t); },
+  cabinsnow(dt,t)       { drawCabinSnow(t); },
+  coffeerain(dt,t)      { drawCoffeeRain(t); },
+  ghibli(dt,t)           { drawGhibli(t); },
+  greenhouse(dt,t)       { drawGreenhouse(t); },
+  lavalamp(dt,t)         { drawLavaLamp(t); },
+  midnightlibrary(dt,t)  { drawMidnightLibrary(t); },
+  smpte(dt,t)            { drawSMPTE(t); },
+  vinylwarmth(dt,t)      { drawVinylWarmth(t); },
+  zengarden(dt,t)        { drawZenGarden(t); },
 };
 
 // ── Background animations ─────────────────────────────────────────────
@@ -382,6 +422,131 @@ function drawCandy(t: Theme) {
 
 function drawNordic() { /* clean white/grey — baseBg is enough */ }
 function drawLemon()  { /* yellow baseBg is enough */ }
+
+// ── Deep Bioluminescence — drifting glowing motes ───────────────────────
+function drawBioluminescence(t: Theme) {
+  if (!shouldDrawGlow()) return;
+  const p = pool;
+  for (let i = 0; i < poolN; i += 2) {
+    const o = i * PSTRIDE;
+    const glow = .3 + .25 * Math.sin(tick * 1.2 + i);
+    const g = c.createRadialGradient(p[o]!, p[o+1]!, 0, p[o]!, p[o+1]!, p[o+4]! * 4);
+    g.addColorStop(0, `${t.accent}${Math.round(glow*80).toString(16).padStart(2,'0')}`);
+    g.addColorStop(1, 'transparent');
+    c.fillStyle = g; c.beginPath(); c.arc(p[o]!, p[o+1]!, p[o+4]! * 4, 0, Math.PI * 2); c.fill();
+  }
+}
+
+// ── Northern Cabin — falling snow + warm window glow ─────────────────────
+function drawCabinSnow(t: Theme) {
+  const p = pool;
+  c.fillStyle = 'rgba(255,255,255,.55)';
+  for (let i = 0; i < poolN; i++) {
+    const o = i * PSTRIDE;
+    p[o+1] += 0.4 + p[o+4]! * 0.3;
+    p[o] += Math.sin(tick * 0.6 + i) * 0.2;
+    if (p[o+1] > H + 5) { p[o+1] = -5; p[o] = rnd(W); }
+    c.globalAlpha = p[o+5]! * 0.5; c.beginPath(); c.arc(p[o]!, p[o+1]!, p[o+4]! * 0.6, 0, Math.PI * 2); c.fill();
+  }
+  c.globalAlpha = 1;
+  if (shouldDrawGlow()) {
+    const g = c.createRadialGradient(W*.78, H*.72, 0, W*.78, H*.72, W*.22);
+    g.addColorStop(0, `${t.accent}1c`); g.addColorStop(1, 'transparent');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+}
+
+// ── Coffee Shop Rain — droplets on glass ─────────────────────────────────
+function drawCoffeeRain(t: Theme) {
+  const p = pool;
+  c.strokeStyle = t.accent2 ?? t.accent; c.lineWidth = 1;
+  for (let i = 0; i < poolN; i++) {
+    const o = i * PSTRIDE;
+    p[o+1] += 2.2 + p[o+4]! * 0.6;
+    if (p[o+1] > H + 5) { p[o+1] = -5; p[o] = rnd(W); }
+    c.globalAlpha = p[o+5]! * 0.3;
+    c.beginPath(); c.moveTo(p[o]!, p[o+1]!); c.lineTo(p[o]!, p[o+1]! + 8); c.stroke();
+  }
+  c.globalAlpha = 1;
+}
+
+// ── Studio Ghibli — drifting soot-sprite motes ───────────────────────────
+function drawGhibli(t: Theme) {
+  const p = pool;
+  for (let i = 0; i < poolN; i += 2) {
+    const o = i * PSTRIDE;
+    p[o+1] -= 0.15; p[o] += Math.sin(tick * 0.5 + i) * 0.3;
+    if (p[o+1] < -5) { p[o+1] = H + 5; p[o] = rnd(W); }
+    c.fillStyle = t.accent2 ?? t.accent; c.globalAlpha = p[o+5]! * 0.4;
+    c.beginPath(); c.arc(p[o]!, p[o+1]!, p[o+4]! * 0.7, 0, Math.PI * 2); c.fill();
+  }
+  c.globalAlpha = 1;
+}
+
+// ── Greenhouse — swaying leaf silhouettes ────────────────────────────────
+function drawGreenhouse(t: Theme) {
+  if (!shouldDrawGlow()) return;
+  c.save(); c.globalAlpha = .08; c.fillStyle = t.accent;
+  for (let i = 0; i < 6; i++) {
+    const x = (i / 6) * W + Math.sin(tick * 0.3 + i) * 12, y = H * 0.15 + (i % 2) * H * 0.1;
+    c.save(); c.translate(x, y); c.rotate(Math.sin(tick * 0.3 + i) * 0.15);
+    c.beginPath(); c.ellipse(0, 0, 26, 12, 0, 0, Math.PI * 2); c.fill(); c.restore();
+  }
+  c.restore();
+}
+
+// ── Lava Lamp — rising blobs ──────────────────────────────────────────
+function drawLavaLamp(t: Theme) {
+  const p = pool;
+  for (let i = 0; i < poolN; i += 2) {
+    const o = i * PSTRIDE;
+    p[o+1] -= 0.5 + Math.sin(tick * 0.4 + i) * 0.3;
+    p[o] += Math.sin(tick * 0.25 + i * 1.7) * 0.5;
+    if (p[o+1] < -20) { p[o+1] = H + 20; p[o] = rnd(W); }
+    const r = p[o+4]! * 2.6;
+    const g = c.createRadialGradient(p[o]!, p[o+1]!, 0, p[o]!, p[o+1]!, r);
+    g.addColorStop(0, `${t.accent}55`); g.addColorStop(1, 'transparent');
+    c.fillStyle = g; c.beginPath(); c.arc(p[o]!, p[o+1]!, r, 0, Math.PI * 2); c.fill();
+  }
+}
+
+// ── Midnight Library — drifting pages ────────────────────────────────────
+function drawMidnightLibrary(t: Theme) {
+  const p = pool;
+  for (let i = 0; i < poolN; i += 3) {
+    const o = i * PSTRIDE;
+    p[o+1] -= 0.2; p[o] += Math.sin(tick * 0.4 + i) * 0.25;
+    if (p[o+1] < -10) { p[o+1] = H + 10; p[o] = rnd(W); }
+    c.save(); c.translate(p[o]!, p[o+1]!); c.rotate(Math.sin(tick * 0.3 + i) * 0.3);
+    c.fillStyle = t.accent; c.globalAlpha = p[o+5]! * 0.3;
+    c.fillRect(-4, -5, 8, 10);
+    c.restore();
+  }
+  c.globalAlpha = 1;
+}
+
+// ── Vinyl Warmth — spinning record grooves ───────────────────────────────
+function drawVinylWarmth(t: Theme) {
+  if (!shouldDrawGlow()) return;
+  const cx = W * .5, cy = H * .5, R = Math.min(W, H) * .32;
+  c.save(); c.translate(cx, cy); c.rotate(tick * .15);
+  c.strokeStyle = t.accent; c.lineWidth = 1;
+  for (let r = R * .3; r < R; r += R * .06) { c.globalAlpha = .05; c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.stroke(); }
+  c.restore();
+}
+
+// ── Zen Garden — raked sand lines ────────────────────────────────────────
+function drawZenGarden(t: Theme) {
+  if (!shouldDrawGlow()) return;
+  const cx = W * .5, cy = H * .58;
+  c.save(); c.strokeStyle = t.accent; c.lineWidth = 1;
+  for (let r = 20; r < Math.min(W, H) * .45; r += 14) {
+    c.globalAlpha = .07; c.beginPath();
+    c.arc(cx, cy, r, Math.PI * .1 + Math.sin(tick * .05) * .02, Math.PI * .9 + Math.sin(tick * .05) * .02);
+    c.stroke();
+  }
+  c.restore();
+}
 
 // ── Midnight — deep purple glow + shooting stars ──────────────────────
 interface ShootingStar { x: number; y: number; len: number; speed: number; angle: number; alpha: number; life: number; maxLife: number; }
@@ -797,6 +962,9 @@ function drawF1Bg(t: Theme, teamId: string) {
     mercedes:    () => drawF1Streaks(t, 1),
     mclaren:     () => drawF1Streaks(t, 1.2),
     astonmartin: () => drawF1Streaks(t, 0.7),
+    alpine:      () => drawF1Streaks(t, 0.9),
+    rbf1:        () => drawF1Streaks(t, 1.1),
+    williams:    () => drawF1Streaks(t, 0.85),
   };
   fns[teamId]?.();
   drawF1Symbol(teamId);
@@ -921,6 +1089,146 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     const g=c.createRadialGradient(0,0,0,0,0,R); g.addColorStop(0,`rgba(120,88,0,${breath})`); g.addColorStop(1,'transparent');
     c.fillStyle=g; c.beginPath(); c.arc(0,0,R,0,Math.PI*2); c.fill(); c.restore();
   },
+  adventuretime(t) {
+    const cx=W*.5,cy=H*.6,R=Math.min(W,H)*.15,breath=.05+.015*Math.sin(tick*.7);
+    c.save(); c.translate(cx,cy);
+    c.strokeStyle=t.accent; c.lineWidth=1.6; c.globalAlpha=breath*1.1;
+    c.beginPath(); c.moveTo(-R,R*.4); c.lineTo(-R*.3,-R*.7); c.lineTo(R*.3,-R*.3); c.lineTo(R,R*.4); c.stroke();
+    c.restore();
+  },
+  andor(t) {
+    const cx=W*.5,cy=H*.4,R=Math.min(W,H)*.5,sweep=(Math.sin(tick*.12)*.5+.5);
+    c.save();
+    const g=c.createRadialGradient(cx-R+sweep*R*2,cy,0,cx-R+sweep*R*2,cy,R*.35);
+    g.addColorStop(0,`${t.accent}14`); g.addColorStop(1,'transparent');
+    c.fillStyle=g; c.fillRect(0,0,W,H); c.restore();
+  },
+  chernobyl(t) {
+    const cx=W*.5,cy=H*.52,R=Math.min(W,H)*.13,breath=.045+.018*Math.sin(tick*.45);
+    c.save(); c.translate(cx,cy); c.rotate(tick*.03);
+    c.fillStyle=t.accent; c.globalAlpha=breath;
+    for(let i=0;i<3;i++){const a=(i/3)*Math.PI*2;c.save();c.rotate(a);c.beginPath();c.moveTo(0,0);c.arc(0,0,R,-.32,.32);c.closePath();c.fill();c.restore();}
+    c.restore();
+  },
+  cowboybebop(t) {
+    const cx=W*.6,cy=H*.55,breath=.05+.015*Math.sin(tick*.4);
+    c.save(); c.translate(cx,cy); c.globalAlpha=breath; c.strokeStyle=t.accent; c.lineWidth=1.4;
+    for(let i=0;i<4;i++){const r=(Math.min(W,H)*.05)+i*Math.min(W,H)*.035+((tick*8)%(Math.min(W,H)*.035));c.beginPath();c.arc(0,0,r,0,Math.PI*2);c.globalAlpha=breath*(1-i*.2);c.stroke();}
+    c.restore();
+  },
+  drivemovie(t) {
+    const y=H*.7,breath=.06+.02*Math.sin(tick*.6);
+    c.save(); c.strokeStyle=t.accent; c.lineWidth=2; c.globalAlpha=breath;
+    c.beginPath(); c.moveTo(0,y); c.lineTo(W,y); c.stroke();
+    c.globalAlpha=breath*.6; c.strokeStyle=t.accent2 ?? t.accent;
+    c.beginPath(); c.moveTo(0,y+3); c.lineTo(W,y+3); c.stroke();
+    c.restore();
+  },
+  fargo(t) {
+    const cx=W*.5,cy=H*.65,R=Math.min(W,H)*.09,breath=.05+.015*Math.sin(tick*.35);
+    c.save(); c.translate(cx,cy);
+    c.fillStyle=t.accent2 ?? '#c0392b'; c.globalAlpha=breath*.9;
+    c.beginPath(); c.arc(0,0,R*.18,0,Math.PI*2); c.fill();
+    c.restore();
+  },
+  ghostshell(t) {
+    if (!shouldDrawGlow()) return;
+    const cols = 12; c.save(); c.globalAlpha=.05+.02*Math.sin(tick*.5);
+    c.strokeStyle=t.accent; c.lineWidth=1;
+    for(let i=0;i<cols;i++){const x=(i/cols)*W;c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
+    c.restore();
+  },
+  grandbudapest(t) {
+    const cx=W*.5,cy=H*.42,R=Math.min(W,H)*.28,breath=.05+.015*Math.sin(tick*.3);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent; c.lineWidth=1.3; c.globalAlpha=breath;
+    c.strokeRect(-R,-R*.6,R*2,R*1.2);
+    for(let i=1;i<4;i++){c.beginPath();c.moveTo(-R+i*R*.5,-R*.6);c.lineTo(-R+i*R*.5,R*.6);c.stroke();}
+    c.restore();
+  },
+  gravityfalls(t) {
+    const cx=W*.5,cy=H*.5,R=Math.min(W,H)*.13,breath=.05+.018*Math.sin(tick*.5);
+    c.save(); c.translate(cx,cy);
+    c.strokeStyle=t.accent; c.lineWidth=1.5; c.globalAlpha=breath*1.1;
+    c.beginPath(); c.moveTo(0,-R); c.lineTo(R*.87,R*.5); c.lineTo(-R*.87,R*.5); c.closePath(); c.stroke();
+    c.beginPath(); c.arc(0,-R*.05,R*.16,0,Math.PI*2); c.globalAlpha=breath*.8; c.fillStyle=t.accent; c.fill();
+    c.restore();
+  },
+  jjk(t) {
+    const cx=W*.5,cy=H*.5,R=Math.min(W,H)*.16,breath=.05+.02*Math.sin(tick*.9);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent; c.lineWidth=1.3;
+    for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2+tick*.2,len=R*(.5+.5*Math.sin(tick*1.3+i));c.beginPath();c.moveTo(Math.cos(a)*R*.3,Math.sin(a)*R*.3);c.lineTo(Math.cos(a)*len,Math.sin(a)*len);c.globalAlpha=breath;c.stroke();}
+    c.restore();
+  },
+  johnwick(t) {
+    const cx=W*.55,cy=H*.55,R=Math.min(W,H)*.06,spin=tick*1.1,breath=.5+.5*Math.sin(tick*.8);
+    c.save(); c.translate(cx,cy); c.rotate(spin); c.scale(Math.cos(spin)*.4+.6,1);
+    c.fillStyle=t.accent; c.globalAlpha=.05+breath*.06;
+    c.beginPath(); c.arc(0,0,R,0,Math.PI*2); c.fill(); c.restore();
+  },
+  madmen(t) {
+    if (!shouldDrawGlow()) return;
+    c.save(); c.globalAlpha=.02+Math.random()*.02;
+    c.fillStyle='#ffffff';
+    for(let i=0;i<80;i++){c.fillRect(Math.random()*W,Math.random()*H,1,1);}
+    c.restore();
+  },
+  nocountry(t) {
+    const cx=W*.4,cy=H*.62,R=Math.min(W,H)*.045,breath=.04+.015*Math.sin(tick*.4);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent2 ?? t.accent; c.lineWidth=1; c.globalAlpha=breath;
+    c.beginPath(); c.arc(0,0,R,0,Math.PI*2); c.stroke(); c.restore();
+  },
+  se7en(t) {
+    const cx=W*.5,cy=H*.6,R=Math.min(W,H)*.14,breath=.045+.015*Math.sin(tick*.3);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent; c.lineWidth=1.4; c.globalAlpha=breath;
+    c.strokeRect(-R*.7,-R*.7,R*1.4,R*1.4); c.restore();
+  },
+  spiderverse(t) {
+    if (!shouldDrawGlow()) return;
+    c.save(); c.globalAlpha=.06;
+    const step=14;
+    for(let y=0;y<H;y+=step){for(let x=(y/step)%2===0?0:step/2;x<W;x+=step){c.fillStyle=(x+y)%(step*2)===0?t.accent:(t.accent2??t.accent);c.beginPath();c.arc(x,y,1.3,0,Math.PI*2);c.fill();}}
+    c.restore();
+  },
+  thebatman(t) {
+    const sweep=(Math.sin(tick*.15)*.5+.5),cx=W*(.2+sweep*.6),cy=H*.15;
+    c.save();
+    const g=c.createRadialGradient(cx,cy,0,cx,H*1.1,H*.9);
+    g.addColorStop(0,`${t.accent}12`); g.addColorStop(1,'transparent');
+    c.fillStyle=g; c.fillRect(0,0,W,H); c.restore();
+  },
+  truedetective(t) {
+    const cx=W*.5,cy=H*.5,breath=.05+.015*Math.sin(tick*.35);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent; c.lineWidth=1.2; c.globalAlpha=breath;
+    c.beginPath();
+    for(let a=0;a<Math.PI*6;a+=.1){const r=a*3;c.lineTo(Math.cos(a+tick*.05)*r,Math.sin(a+tick*.05)*r);}
+    c.stroke(); c.restore();
+  },
+  twinpeaks(t) {
+    const breath=.06+.02*Math.sin(tick*.3);
+    c.save(); c.globalAlpha=breath; c.fillStyle=t.accent;
+    for(let i=0;i<7;i++){const x=(i/7)*W,w=W/7*.55,fold=Math.sin(tick*.4+i)*6;c.beginPath();c.moveTo(x+fold,0);c.lineTo(x+w+fold,0);c.lineTo(x+w*.7+fold,H);c.lineTo(x+w*.3+fold,H);c.closePath();c.fill();}
+    c.restore();
+  },
+  vinlandsaga(t) {
+    const cx=W*.55,cy=H*.68,breath=.05+.015*Math.sin(tick*.3);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent; c.lineWidth=1.4; c.globalAlpha=breath;
+    c.beginPath(); c.moveTo(-W*.18,0); c.quadraticCurveTo(0,-H*.03,W*.18,0); c.stroke();
+    c.beginPath(); c.moveTo(0,0); c.lineTo(0,-H*.1); c.stroke();
+    c.restore();
+  },
+  whiplash(t) {
+    const cx=W*.5,cy=H*.5,R=Math.min(W,H)*.16,hit=(Math.sin(tick*2.2)*.5+.5);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent2 ?? t.accent; c.lineWidth=1.2;
+    for(let i=0;i<3;i++){c.beginPath();c.arc(0,0,R*(.5+i*.25)+hit*4,0,Math.PI*2);c.globalAlpha=(.05+hit*.05)*(1-i*.25);c.stroke();}
+    c.restore();
+  },
+  yourname(t) {
+    const cx=(Math.sin(tick*.08)*.5+.5)*W,cy=H*.18+Math.cos(tick*.08)*20;
+    c.save(); c.strokeStyle=t.accent; c.lineWidth=1.6; c.globalAlpha=.12;
+    c.beginPath(); c.moveTo(cx-W*.16,cy-40); c.lineTo(cx,cy); c.stroke();
+    c.fillStyle=t.accent; c.beginPath(); c.arc(cx,cy,2.4,0,Math.PI*2); c.fill();
+    c.restore();
+  },
 };
 
 // ── F1 animated symbol overlays ───────────────────────────────────────
@@ -958,6 +1266,24 @@ function drawF1Symbol(teamId: string) {
       const cx=W*.5,cy=H*.53,R=Math.min(W,H)*.13,breath=.038+.01*Math.sin(tick*.5);
       c.save(); c.translate(cx,cy); c.strokeStyle='rgba(206,220,0,1)'; c.lineWidth=1.1;
       for(let i=0;i<5;i++){const y=-R*.12+i*R*.06;[[- R*.9+i*R*.05,-R*.22],[R*.9-i*R*.05,R*.22]].forEach(([x1,x2])=>{c.beginPath();c.moveTo(x1,y);c.quadraticCurveTo((x1+x2)/2,-R*.3,x2,-R*.05);c.globalAlpha=breath*(.9-i*.08);c.stroke();});}
+      c.restore();
+    },
+    alpine() {
+      const cx=W*.5,cy=H*.53,R=Math.min(W,H)*.13,breath=.04+.012*Math.sin(tick*.55);
+      c.save(); c.translate(cx,cy); c.strokeStyle='rgba(255,45,138,1)'; c.lineWidth=1.6; c.globalAlpha=breath*1.1;
+      c.beginPath(); c.moveTo(-R*.8,R*.1); c.lineTo(0,-R*.6); c.lineTo(R*.8,R*.1); c.stroke();
+      c.restore();
+    },
+    rbf1() {
+      const cx=W*.5,cy=H*.53,R=Math.min(W,H)*.12,breath=.04+.012*Math.sin(tick*.5);
+      c.save(); c.translate(cx,cy); c.strokeStyle='rgba(232,16,42,1)'; c.lineWidth=1.4; c.globalAlpha=breath;
+      c.strokeRect(-R*.55,-R*.4,R*1.1,R*.8);
+      c.restore();
+    },
+    williams() {
+      const cx=W*.5,cy=H*.53,R=Math.min(W,H)*.12,breath=.04+.012*Math.sin(tick*.6);
+      c.save(); c.translate(cx,cy); c.strokeStyle='rgba(0,160,224,1)'; c.lineWidth=1.4; c.globalAlpha=breath*1.05;
+      c.beginPath(); c.arc(0,0,R*.75,0,Math.PI*2); c.stroke();
       c.restore();
     },
   };
