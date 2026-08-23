@@ -99,8 +99,6 @@ export function setIncognito(v: boolean) {
   _incognito = v;
   if (!v) _memoryLog.length = 0; // clear on disable
 }
-export function getMemoryLog() { return _memoryLog; }
-export function pushMemoryLog(entry: unknown) { _memoryLog.push(entry); }
 
 // ── Auto-clear on close ───────────────────────────────────────────────
 let _autoClear = localStorage.getItem('sc_auto_clear') === '1';

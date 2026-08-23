@@ -30,10 +30,6 @@ export function registerItems(items: CmdItem[]) {
   _items = items;
 }
 
-export function addItems(items: CmdItem[]) {
-  _items = [..._items, ...items];
-}
-
 // ── Open / close ──────────────────────────────────────────────────────
 export function open(prefill = '') {
   if (_isOpen) { input().focus(); return; }

@@ -1173,12 +1173,6 @@ export function adaptOnWorkStart() {
   clearTimeout(adaptiveDuckTimer);
   adaptiveDuckTimer = window.setTimeout(() => { if (masterGain) masterGain.gain.value = orig; }, 8000);
 }
-export function adaptOnWorkNearEnd() {
-  if (trackNodes['fire']) {
-    const cur = trackNodes['fire'].gain.gain.value;
-    trackNodes['fire'].gain.gain.value = Math.min(1, cur * 1.18);
-  }
-}
 export function adaptOnBreak() {
   clearTimeout(adaptiveDuckTimer);
   if (masterGain) masterGain.gain.value = masterVol;
@@ -1251,8 +1245,6 @@ export function playChime() {
 }
 
 // Legacy compat
-export const currentId: string | null = null;
 export function stop()               { SOUNDS.forEach(s => stopTrack(s.id)); }
 export function play(id: string)     { playTrack(id); }
 export function toggle(id: string)   { toggleTrack(id); }
-export function setVolume(v: number) { setMasterVolume(v); }

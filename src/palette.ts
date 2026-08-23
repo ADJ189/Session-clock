@@ -26,13 +26,6 @@ export function registerCommands(cmds: PaletteCommand[]) {
   _commands = cmds;
 }
 
-export function addCommand(cmd: PaletteCommand) {
-  // Replace if id exists, otherwise add
-  const idx = _commands.findIndex(c => c.id === cmd.id);
-  if (idx >= 0) _commands[idx] = cmd;
-  else _commands.push(cmd);
-}
-
 // ── Fuzzy match ───────────────────────────────────────────────────────
 function fuzzyScore(query: string, target: string): number {
   if (!query) return 1;

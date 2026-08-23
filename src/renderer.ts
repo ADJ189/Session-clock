@@ -120,7 +120,6 @@ export function setBreathing(active: boolean) {
   breathingActive = active;
   breathingStart  = active ? performance.now() / 1000 : 0;
 }
-export function isBreathing() { return breathingActive; }
 
 export function resize() {
   W = bgCanvas.width  = tCanvas.width  = window.innerWidth;

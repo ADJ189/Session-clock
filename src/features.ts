@@ -681,33 +681,6 @@ export function buildCountdownUI(container: HTMLElement, onSet: (label: string, 
 // ─────────────────────────────────────────────────────────────────────
 // 10. BETTER EMPTY STATES
 // ─────────────────────────────────────────────────────────────────────
-export function buildEmptyState(
-  icon: string,
-  title: string,
-  body: string,
-  ctaLabel?: string,
-  ctaCb?: () => void
-): HTMLElement {
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'text-align:center;padding:40px 24px;opacity:.7;';
-
-  const ic = document.createElement('div'); ic.style.cssText = 'font-size:2.5rem;margin-bottom:12px;'; ic.textContent = icon;
-  const h  = document.createElement('div'); h.style.cssText = 'font-size:.82rem;font-weight:700;margin-bottom:6px;'; h.textContent = title;
-  const b  = document.createElement('div'); b.style.cssText = 'font-size:.66rem;opacity:.6;line-height:1.6;max-width:280px;margin:0 auto;'; b.textContent = body;
-
-  wrap.append(ic, h, b);
-
-  if (ctaLabel && ctaCb) {
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-primary';
-    btn.style.cssText = 'margin:16px auto 0;display:flex;';
-    btn.textContent = ctaLabel;
-    btn.addEventListener('click', ctaCb);
-    wrap.appendChild(btn);
-  }
-
-  return wrap;
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 12. WORLD CLOCK WIDGET

@@ -268,43 +268,6 @@ export async function spotifyNowPlaying(): Promise<{ track: string; artist: stri
   } catch { return null; }
 }
 
-export async function spotifyTogglePlay(): Promise<void> {
-  const token = await ensureFreshToken('spotify');
-  if (!token) return;
-  try {
-    const state = await fetch('https://api.spotify.com/v1/me/player', { headers: { Authorization: `Bearer ${token}` } });
-    if (!state.ok) return;
-    const d = await state.json();
-    const endpoint = d.is_playing ? 'pause' : 'play';
-    await fetch(`https://api.spotify.com/v1/me/player/${endpoint}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
-  } catch { /**/ }
-}
-
-export async function spotifySearchFocusPlaylists(): Promise<Array<{ id: string; name: string; uri: string }>> {
-  const token = await ensureFreshToken('spotify');
-  if (!token) return [];
-  const query = encodeURIComponent(FOCUS_PLAYLIST_SEARCHES[Math.floor(Math.random() * FOCUS_PLAYLIST_SEARCHES.length)]!);
-  try {
-    const res = await fetch(`https://api.spotify.com/v1/search?q=${query}&type=playlist&limit=6`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const d = await res.json();
-    return (d.playlists?.items ?? []).map((p: any) => ({ id: p.id, name: p.name, uri: p.uri }));
-  } catch { return []; }
-}
-
-export async function spotifyPlayPlaylist(uri: string): Promise<void> {
-  const token = await ensureFreshToken('spotify');
-  if (!token) return;
-  try {
-    await fetch('https://api.spotify.com/v1/me/player/play', {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ context_uri: uri }),
-    });
-  } catch { /**/ }
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // GOOGLE (shared by YouTube + Calendar) — Google Identity Services
 // ─────────────────────────────────────────────────────────────────────
@@ -373,22 +336,6 @@ async function ensureFreshGoogleToken(): Promise<string | null> {
 // 2. YOUTUBE (via the shared Google connection above)
 // ─────────────────────────────────────────────────────────────────────
 export function isYouTubeConnected(): boolean { return isGoogleConnected(); }
-
-export async function youtubeSearchFocusPlaylists(): Promise<Array<{ id: string; title: string; url: string }>> {
-  const token = await ensureFreshGoogleToken();
-  if (!token) return [];
-  const q = encodeURIComponent(FOCUS_PLAYLIST_SEARCHES[Math.floor(Math.random() * FOCUS_PLAYLIST_SEARCHES.length)]!);
-  try {
-    const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=playlist&maxResults=6&q=${q}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const d = await res.json();
-    return (d.items ?? []).map((i: any) => ({
-      id: i.id?.playlistId, title: i.snippet?.title ?? 'Untitled',
-      url: `https://www.youtube.com/playlist?list=${i.id?.playlistId}`,
-    }));
-  } catch { return []; }
-}
 
 // Signed-in user's own YouTube library, via the official YouTube Data
 // API v3 — same Google OAuth connection as above, read-only scope.
@@ -555,16 +502,6 @@ export async function getTodoistTasks(): Promise<TodoistTask[]> {
   } catch { return []; }
 }
 
-export async function completeTodoistTask(id: string): Promise<void> {
-  const creds = load('todoist');
-  if (!creds?.token) return;
-  try {
-    await fetch(`https://api.todoist.com/rest/v2/tasks/${id}/close`, {
-      method: 'POST', headers: { Authorization: `Bearer ${creds.token}` },
-    });
-  } catch { /**/ }
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // 6. LINEAR
 // ─────────────────────────────────────────────────────────────────────
@@ -572,23 +509,6 @@ export function saveLinearCredentials(token: string) { save('linear', { token })
 export function isLinearConnected() { return !!load('linear')?.token; }
 
 export interface LinearIssue { id: string; title: string; state: string; priority: number; url: string; }
-
-export async function getLinearIssues(): Promise<LinearIssue[]> {
-  const creds = load('linear');
-  if (!creds?.token) return [];
-  try {
-    const res = await fetch('https://api.linear.app/graphql', {
-      method: 'POST',
-      headers: { Authorization: creds.token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: `{ viewer { assignedIssues(first:10, filter:{state:{type:{nin:["completed","cancelled"]}}}) { nodes { id title state{name} priority url } } } }` }),
-    });
-    const d = await res.json();
-    return (d.data?.viewer?.assignedIssues?.nodes ?? []).map((i: any) => ({
-      id: i.id, title: i.title, state: i.state?.name ?? '',
-      priority: i.priority ?? 0, url: i.url ?? '',
-    }));
-  } catch { return []; }
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 7. GITHUB

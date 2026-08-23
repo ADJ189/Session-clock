@@ -470,6 +470,3 @@ async function popOut(): Promise<void> {
   renderDock();
   win.addEventListener('pagehide', () => { pipWindow = null; }, { once: true });
 }
-
-export function isConnected(): boolean { return Integrations.isSpotifyConnected(); }
-export function getState(): Readonly<DockState> { return state; }

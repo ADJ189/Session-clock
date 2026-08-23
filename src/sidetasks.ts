@@ -72,7 +72,3 @@ async function calendarCard(): Promise<string> {
 function card(icon: string, title: string, rowsHtml: string): string {
   return `<div class="sc-side-card"><h4>${icon} ${title}</h4>${rowsHtml || '<div class="sc-side-empty">Nothing due</div>'}</div>`;
 }
-
-export function stopSideStack(): void {
-  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-}

@@ -72,7 +72,6 @@ let _dailyForecast: Array<{ date: string; minTemp: number; maxTemp: number; code
 export function getSunTimes() { return sunTimes; }
 export function getWeatherCode() { return _currentWeatherCode; }
 export function getCurrentTemp() { return _currentTemp; }
-export function getCurrentLocation() { return _currentLocation; }
 export function getWeatherDesc() { return _currentWeatherDesc; }
 export function getFeelsLike() { return _currentFeelsLike; }
 export function getWind() { return _currentWind; }

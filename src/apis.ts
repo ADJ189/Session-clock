@@ -70,13 +70,6 @@ export function updateMediaState(state: 'playing' | 'paused' | 'none') {
   navigator.mediaSession.playbackState = state;
 }
 
-export function updateMediaSessionTrack(name: string) {
-  if (!('mediaSession' in navigator) || !_mediaSessionActive) return;
-  if (navigator.mediaSession.metadata) {
-    navigator.mediaSession.metadata.title = name || 'Ambient Sounds';
-  }
-}
-
 export function clearMediaSession() {
   if (!('mediaSession' in navigator)) return;
   navigator.mediaSession.metadata = null;
@@ -292,44 +285,7 @@ export function canShare() {
   return 'share' in navigator;
 }
 
-export async function shareCard(canvas: HTMLCanvasElement, task: string, minutes: number): Promise<boolean> {
-  const title = `${minutes}m focused${task ? ` on ${task}` : ''} — Session Clock`;
-  const text  = `I just finished a ${minutes}-minute deep focus session${task ? ` on "${task}"` : ''}.`;
-
-  if (canShare()) {
-    try {
-      // Try sharing as file (mobile)
-      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png', 0.92));
-      if (!blob) throw new Error('Canvas toBlob returned null — canvas may be tainted');
-      const file = new File([blob], 'session-clock-focus.png', { type: 'image/png' });
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title, text, files: [file] });
-        return true;
-      }
-      // Fallback: share URL only
-      await navigator.share({ title, text, url: window.location.href });
-      return true;
-    } catch (e: unknown) {
-      if (e instanceof Error && e.name !== 'AbortError') throw e;
-      return false; // user cancelled
-    }
-  }
-  return false; // not supported
-}
-
 // ── Clipboard ─────────────────────────────────────────────────────────
-export async function copyCardToClipboard(canvas: HTMLCanvasElement): Promise<boolean> {
-  try {
-    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png', 0.92));
-    if (!blob) return false; // canvas tainted or toBlob failed
-    await navigator.clipboard.write([
-      new ClipboardItem({ 'image/png': blob }),
-    ]);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 // ── Battery Status ────────────────────────────────────────────────────
 let _batteryLevel = 1;
@@ -339,8 +295,6 @@ type BatteryCb = (level: number, charging: boolean) => void;
 let _batteryCb: BatteryCb | null = null;
 
 export function onBatteryChange(cb: BatteryCb) { _batteryCb = cb; }
-export function getBatteryLevel() { return _batteryLevel; }
-export function isOnBattery() { return _onBattery; }
 
 export async function initBattery(): Promise<void> {
   if (_batteryInitialised || !('getBattery' in navigator)) return;
