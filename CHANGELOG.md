@@ -2,6 +2,24 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.4.1] — Full codebase audit: dead-code removal, verified clean build
+
+A maintenance pass — no user-facing feature changes. `tsc --noEmit`, `oxlint .`, and `vite build` all run clean before and after.
+
+### Removed
+- **24 confirmed-dead exported functions/values**, deleted after a repo-wide reference check (grep across every `.ts` file, `functions/`, `public/`, and `index.html` confirmed zero call sites outside the declaration): `palette.ts` (`addCommand`), `features.ts` (`buildEmptyState`), `sound.ts` (`adaptOnWorkNearEnd`, `currentId`, `setVolume`), `weather.ts` (`getCurrentLocation`), `integrations.ts` (`spotifyTogglePlay`, `spotifySearchFocusPlaylists`, `spotifyPlayPlaylist`, `youtubeSearchFocusPlaylists`, `completeTodoistTask`, `getLinearIssues`), `apis.ts` (`updateMediaSessionTrack`, `shareCard`, `copyCardToClipboard`, `getBatteryLevel`, `isOnBattery`), `renderer.ts` (`isBreathing`), `cmdpalette.ts` (`addItems`), `sidetasks.ts` (`stopSideStack`), `musicdock.ts` (`isConnected`, `getState`), `privacy.ts` (`getMemoryLog`, `pushMemoryLog`). These were superseded internal implementations left exported after earlier refactors (e.g. `spotifyTogglePlay`/`spotifyPlayPlaylist` predate the current `musicdock.ts` playback path, which calls the Web Playback SDK transport directly).
+
+### Verified (no change needed)
+- **Bundle size**: Rollup was already tree-shaking the 24 dead exports out of the production bundle (423.78 kB → 423.69 kB gzip-compressed JS, effectively a wash) — the value here is source-level, not bytes-on-the-wire.
+- **iOS/Android touch handling**: the custom-theme gradient/hue color pickers use `touch-action: none` in CSS rather than a non-passive `touchmove` + `preventDefault()`, which is the more efficient pattern (avoids blocking the compositor thread on scroll) — confirmed this is intentional, not a bug.
+- **PWA/mobile meta tags**: `viewport-fit=cover`, `apple-mobile-web-app-*` tags, `100dvh` with a `100vh` fallback, and per-platform capability flags (`platform.ts`) are all already in place and correct.
+- **No leftover `console.log`/`console.debug`, no stray `TODO`/`FIXME` beyond one pre-existing tracked item.**
+
+### Known backlog (flagged, not changed this pass — see below)
+- `main.ts` statically imports every feature module (`cmdpalette`, `easter`, `integrations`, `musicdock`, `sidetasks`, `weatherpage`, etc.), so all ~4,200 lines of it plus its dependents ship in one 423 kB (124 kB gzip) chunk, versus `qr`/`share`/`litclock` which are already lazily `import()`-ed. Several of these (`easter`, `weatherpage`) are read from inside the boot/tick path, so splitting them safely means restructuring init order, not just adding `import()` — left as a follow-up rather than risking a blind refactor of the app's entry point without a browser to test against.
+- No `Content-Security-Policy` is set (`public/_headers` has the other standard security headers — `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP/CORP — but not CSP). Given how many external origins this app legitimately talks to (Spotify Web Playback SDK, YouTube IFrame API, Google Identity Services, the Notion/GitHub/Todoist/Linear OAuth proxy, Nominatim, weather API), a CSP needs to be built against a real enumerated allow-list and tested live rather than guessed at.
+- `oxlint` still reports 147 pre-existing warnings (mostly `no-unused-vars`/`no-new-array`, intentionally downgraded from error in `.oxlintrc.json` per an earlier decision — see that file's comments) — unchanged this pass, left as incremental cleanup.
+
 ## [1.4.0] — Head-tracked spatial audio, 4 new ambient sounds, sound-engine fixes
 
 ### Added

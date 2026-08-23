@@ -43,6 +43,8 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 - **Fixed a mobile layout bug**: the header could overlap itself on phone-width screens; it now collapses sensibly, and a long-standing bug where gyroscope parallax never actually worked on iPhone/iPad (missing the required iOS motion-permission request) is fixed.
 - **Haptic Feedback** setting for Pomodoro start/complete, on devices that support it.
 - **Hide Seconds / Hide Milliseconds**, and **per-clock-style center mode** — Digital, Analogue, Flip, Word, Minimal, and Segment clocks now each remember their own Top/Centre preference and scale properly (larger, sharper canvases) when centered, instead of sharing one global setting tuned only for the digital clock.
+
+*1.4.1 was a maintenance-only pass — 24 confirmed-dead exported functions removed after a full repo audit, no behavior changes. See [Changelog](CHANGELOG.md#141--full-codebase-audit-dead-code-removal-verified-clean-build) for the full audit notes, including a couple of flagged-but-not-yet-done items (further code-splitting of `main.ts`, a real CSP).*
 - **New animated splash intro** and **app icon** using the new hourglass logo — the inner triangle spins while sources load and eases to a stop once ready.
 - **Music dock**: real in-page Spotify playback (Web Playback SDK), pop-out via Document Picture-in-Picture, optional auto-sync with focus/break, plus a YouTube tab via the official IFrame Player API.
 - **Focus sidebar task cards**: compact GitHub, Notion, Todoist, and Calendar cards next to the music dock.
