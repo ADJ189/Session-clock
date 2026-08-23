@@ -143,8 +143,6 @@ const DOM = {
   greeting:       $('greeting'),
   quoteText:      $('quoteText'),
   litMeta:        $('litMeta'),
-  syncDot:        $('syncDot'),
-  syncLabel:      $('syncLabel'),
   focusInput:     $<HTMLInputElement>('focusInput'),
   focusInputWrap: $('focusInputWrap'),
   themePanel:     $('themePanel'),
@@ -278,6 +276,49 @@ function applyClockPosition(pos: 'top' | 'center', mode: ClockMode = clockMode) 
     (el as HTMLElement).classList.toggle('center-active', pos === 'center');
     (el as HTMLElement).textContent = pos === 'center' ? '⊞ Centred' : '⊟ Top';
   });
+}
+
+// Centre mode's minimal session panel — shrinks and side-docks the session
+// card and hides the day-progress bar/quote so the clock is the obvious
+// focal point. On by default; a Display-tab toggle lets someone keep the
+// full stacked layout even in Centre mode if they prefer it.
+let centerMinimal = localStorage.getItem('sc_center_minimal') !== '0';
+function applyCenterMinimal(on: boolean) {
+  centerMinimal = on;
+  localStorage.setItem('sc_center_minimal', on ? '1' : '0');
+  document.body.classList.toggle('center-minimal', on);
+}
+
+// GitHub star/support celebration — intercepts the topbar GitHub link so
+// clicking it shows a small animated "star us" moment (with confetti)
+// before following through, instead of navigating away instantly.
+function wireGithubCelebration() {
+  const link = document.querySelector<HTMLAnchorElement>('.topbar-icon-btn[href*="github.com"]');
+  const overlay = $('ghOverlay');
+  if (!link || !overlay) return;
+
+  const closeIt = () => overlay.classList.remove('open');
+  const proceedTo = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    closeIt();
+  };
+
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    overlay.classList.add('open');
+    Easter.fireConfetti();
+    setTimeout(() => Easter.fireConfetti(), 350);
+  });
+
+  $('ghClose')?.addEventListener('click', closeIt);
+  $('ghSkip')?.addEventListener('click', (e) => { e.preventDefault(); proceedTo(link.href); });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeIt(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) closeIt(); });
+
+  // Star/Support links keep their normal target="_blank" navigation —
+  // just close the modal shortly after so it doesn't linger.
+  $('ghBtnStar')?.addEventListener('click', () => setTimeout(closeIt, 400));
+  $('ghBtnDonate')?.addEventListener('click', () => setTimeout(closeIt, 400));
 }
 
 // Hide seconds / milliseconds — applies across every clock style via a
@@ -546,18 +587,11 @@ function applyTheme(theme: Theme, instant = false) {
   runTransition(theme.transition ?? 'defaultFade', doApply);
 }
 
-// ── Sync UI ────────────────────────────────────────────────────────────
-function updateSyncDisplay(state: 'syncing' | 'ok' | 'failed', rtt?: number) {
-  if (!DOM.syncDot) return;
-  if (state === 'syncing') {
-    DOM.syncDot.style.background = '#f59e0b'; DOM.syncLabel.textContent = 'Syncing…';
-  } else if (state === 'ok') {
-    DOM.syncDot.style.background = currentTheme.accent;
-    const ms = Math.abs(Math.round(clockOffset));
-    DOM.syncLabel.textContent = `Synced · ±${ms}ms${rtt != null ? ` · ${Math.round(rtt)}ms RTT` : ''}`;
+// ── Sync state (drives the UTC/trust pill; no separate visual pill) ─────
+function updateSyncDisplay(state: 'syncing' | 'ok' | 'failed') {
+  if (state === 'ok') {
     Features.setSyncTrust('ntp');
-  } else {
-    DOM.syncDot.style.background = '#ef4444'; DOM.syncLabel.textContent = 'Local clock';
+  } else if (state === 'failed') {
     Features.setSyncTrust('offline');
   }
 }
@@ -2377,6 +2411,7 @@ function buildSettingsUI(activeTab = 'general') {
     });
     clockPosRow.append(cpInfo, cpSeg);
     layoutSec.appendChild(clockPosRow);
+    layoutSec.appendChild(makeRow('Minimal Session Panel', 'In Centre mode, shrink the session timer, dock it to the side, and hide the day-progress bar and quote — keeps the clock the focal point', 'toggleCenterMinimal', centerMinimal));
 
     // Digits — independent hide-seconds / hide-milliseconds
     const digitsSec = makeSection('Digits');
@@ -2467,6 +2502,7 @@ function buildSettingsUI(activeTab = 'general') {
     }
     wireToggle('toggleHideSeconds', (on) => applyHideSeconds(on));
     wireToggle('toggleHideMs', (on) => applyHideMs(on));
+    wireToggle('toggleCenterMinimal', (on) => applyCenterMinimal(on));
   }
 
   // ══ PRIVACY ══════════════════════════════════════════════════════════
@@ -3007,7 +3043,7 @@ function checkSmartBreak() {
   showToast(`🧘 You've been focused for ${mins}+ minutes — a short break helps.`, 6500);
   APIs.sendNotification('Time for a quick break?', `You've been focused for ${mins}+ minutes. Stretch, hydrate, rest your eyes for a moment.`, 'break-reminder');
 
-  const pill = document.querySelector<HTMLElement>('.sync-pill');
+  const pill = document.querySelector<HTMLElement>('.session-status-line');
   if (pill) {
     pill.classList.add('break-hint');
     pill.title = `You've been focused for ${mins}+ minutes — consider a short break`;
@@ -3378,6 +3414,7 @@ function init() {
   resize();
   window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
   applyClockPosition(getClockPosition(clockMode));
+  applyCenterMinimal(centerMinimal);
   buildPanel();
   updatePanelHeight();
   updateClockCanvas();
@@ -3579,6 +3616,8 @@ function init() {
       });
     });
   }
+
+  wireGithubCelebration();
 
   const lastId = localStorage.getItem('sc_last_theme');
   applyTheme(lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0], true);
