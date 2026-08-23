@@ -2,6 +2,27 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.4.2] — Every theme now has its own background: 35 themes were silently falling back to generic particles
+
+A full theme-by-theme audit, prompted by a direct ask to check every theme's rendering, intro, and settings against each other. The finding: of 96 themes, **35 had no dedicated background renderer wired up** — they compiled fine and worked, but silently fell back to the generic drifting-particle background (`drawParticles`) instead of the bespoke scene/symbol treatment every other theme gets. This was verified mechanically (cross-referencing every theme's `bgType` against the `DRAW` dispatch table in `renderer.ts`, not by eyeballing), so it's a solid finding, not a guess.
+
+Two things were already correct and NOT part of the gap, worth calling out because they could easily have been assumed broken too:
+- **Every theme already had a bespoke intro `transition`** (the animation that plays when you switch to it) — only `8bit` and `smpte` didn't, both now fixed (`glitch` and `flash` respectively, both reusing existing transition code).
+- **Two of the 35 "missing" themes weren't actually missing** — `8bit` and `smpte` (SMPTE Timeline) each already had a real, unused renderer function sitting in the file (`draw8Bit`, and a genuinely sophisticated `drawSMPTE` that draws your actual focus-log clips onto a broadcast-style timeline), just never wired into the dispatch table. Found and wired those up instead of duplicating them.
+
+### Added — background renderers for 35 themes
+- **3 F1 team liveries** (Alpine, Racing Bulls, Williams) — extended the existing `drawF1Bg`/`drawF1Symbol` team-fns pattern used by the other 5 F1 themes, using each team's own accent colors.
+- **20 movie/TV/anime themes** (Andor, Chernobyl, Cowboy Bebop, Drive, Fargo, Ghost in the Shell, Grand Budapest Hotel, Gravity Falls, Jujutsu Kaisen, John Wick, Mad Men, No Country for Old Men, Se7en, Spider-Verse, The Batman, True Detective, Twin Peaks, Vinland Saga, Whiplash, Your Name, Adventure Time) — each now gets `drawMediaBg` (the same subtle accent vignette every other cinematic theme uses) plus a new bespoke `SYMBOLS` entry: a small animated motif specific to that title (e.g. a sweeping bat-signal beam for The Batman, a slow spiral for True Detective, halftone comic dots for Spider-Verse, falling snow + a blood-red dot for Fargo).
+- **11 atmosphere-only themes** (8-BIT — wired to the existing renderer, Deep Bioluminescence, Northern Cabin, Coffee Shop Rain, Studio Ghibli, Greenhouse, Lava Lamp, Midnight Library, SMPTE Timeline — wired to the existing renderer, Vinyl Warmth, Zen Garden) — new standalone scene functions matching their name (drifting glow motes, falling snow with a warm window glow, rain on glass, rising lava blobs, raked zen-garden sand lines, spinning vinyl grooves, etc.), following the same lightweight canvas patterns already used by Aurora/Forest/Ocean/Midnight.
+
+### Verified while auditing (confirmed correct, no change needed)
+- `THEME_CATEGORIES` (nat/tv/movie/f1/anime/animation) — all 96 themes use a valid category, none orphaned.
+- The `grain`/`scanlines`/`lb` (letterbox)/`hdr` per-theme flags are all consistently read and applied in `main.ts` for every theme, regardless of category.
+- No other pre-built-but-unwired functions exist elsewhere in `renderer.ts` (checked systematically, not just for the two found above).
+
+### Verification
+`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing count, 0 errors), and `vite build` all pass. Bundle grew ~2.2 kB gzip for 34 genuinely new render functions — expected, and small. **Note:** this environment can't render a browser canvas, so every new function was checked for correctness the way the rest of the file was (types, structure, reused proven helpers/gradient patterns) but not visually screenshotted — worth a quick look through the theme picker after pulling this in, in case any motif needs a color or timing tweak.
+
 ## [1.4.1] — Full codebase audit: dead-code removal, verified clean build
 
 A maintenance pass — no user-facing feature changes. `tsc --noEmit`, `oxlint .`, and `vite build` all run clean before and after.
