@@ -1188,19 +1188,49 @@ document.addEventListener('keydown', e => {
 // ── Display modes ──────────────────────────────────────────────────────
 let kioskOn = false, presentOn = false;
 
+// Cross-browser Fullscreen API shim. The unprefixed API only landed in
+// Safari 16.4 (Mar 2023) — this repo's own build target list includes
+// safari14, so on anything between 14 and 16.3 `requestFullscreen` is
+// simply undefined and the old code's `?.()` silently did nothing (no
+// error, no fallback, kiosk mode just never actually went fullscreen —
+// only the CSS chrome-hiding half of it worked). iOS Safari specifically
+// still has no Fullscreen API for non-<video> elements at all, on any
+// version, by Apple platform policy — that's not fixable from web code,
+// so this shim degrades to "no-op" there exactly like before, but now
+// every other engine/version combination that *can* go fullscreen does.
+function requestFS(el: HTMLElement): Promise<void> {
+  const fn = (el.requestFullscreen || (el as any).webkitRequestFullscreen
+    || (el as any).mozRequestFullScreen || (el as any).msRequestFullscreen) as
+    ((this: HTMLElement) => Promise<void> | void) | undefined;
+  return Promise.resolve(fn?.call(el));
+}
+function exitFS(): Promise<void> {
+  const fn = (document.exitFullscreen || (document as any).webkitExitFullscreen
+    || (document as any).mozCancelFullScreen || (document as any).msExitFullscreen) as
+    ((this: Document) => Promise<void> | void) | undefined;
+  return Promise.resolve(fn?.call(document));
+}
+function currentFSElement(): Element | null {
+  return document.fullscreenElement || (document as any).webkitFullscreenElement
+    || (document as any).mozFullScreenElement || (document as any).msFullscreenElement || null;
+}
 
 function toggleKiosk() {
   kioskOn = !kioskOn;
   document.body.classList.toggle('kiosk', kioskOn);
-  if (kioskOn) document.documentElement.requestFullscreen?.().catch(() => {});
-  else document.exitFullscreen?.().catch(() => {});
+  if (kioskOn) requestFS(document.documentElement).catch(() => {});
+  else exitFS().catch(() => {});
 }
 // Sync kioskOn if user exits fullscreen via browser Escape (bypasses toggleKiosk)
-document.addEventListener('fullscreenchange', () => {
-  if (!document.fullscreenElement && kioskOn) {
-    kioskOn = false;
-    document.body.classList.remove('kiosk');
-  }
+// Also listen for the -webkit- prefixed event (older Safari never fires the
+// unprefixed 'fullscreenchange').
+['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    if (!currentFSElement() && kioskOn) {
+      kioskOn = false;
+      document.body.classList.remove('kiosk');
+    }
+  });
 });
 function togglePresent() {
   presentOn = !presentOn;
