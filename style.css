@@ -119,7 +119,7 @@ body {
   position: absolute; top: calc(100% + 10px); left: 0;
   width: 220px; z-index: 400;
   display: flex; gap: 10px; align-items: flex-start;
-  background: rgba(18,16,28,.96); backdrop-filter: blur(10px);
+  background: rgba(18,16,28,.96); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border: 1px solid rgba(255,255,255,.1); border-radius: 14px;
   padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.4);
   opacity: 0; transform: translateY(-4px) scale(.97);
@@ -1584,7 +1584,7 @@ body.drag-over::after {
   position: fixed; inset: 0; z-index: 9998;
   display: flex; align-items: center; justify-content: center;
   font-size: 1.4rem; font-weight: 700; color: var(--clr-text);
-  background: rgba(0,0,0,.75); backdrop-filter: blur(8px);
+  background: rgba(0,0,0,.75); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   letter-spacing: .04em; pointer-events: none;
 }
 
