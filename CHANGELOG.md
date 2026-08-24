@@ -160,5 +160,13 @@ A maintenance pass — no user-facing feature changes. `tsc --noEmit`, `oxlint .
 
 ## Earlier versions [0.1 - 0.9]
 
-- 63-theme baseline, SvelteKit fork, weather module . 
-- Initial svelte config , re written to typescript . 
+- 63-theme baseline, SvelteKit fork, weather module .
+- background audio .
+- Initial svelte config , re written to typescript .
+- Cloudflare pages hosted.
+- Deploy to github , but replaced with cloudflare pages .
+- f1 , movies ,tv show themes implementations.
+- integration of spotify , youtube , google notes , todolist , notion .
+- 
+- "Forgot to LOG everything before". ( too invested in the project ) .
+  
