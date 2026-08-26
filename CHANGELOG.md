@@ -2,6 +2,22 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.6.1] — Spotify connect button was missing, minimizable Integrations dialog, real playlist/queue support
+
+The Spotify pane in the music dock had static "Not connected" text but no actual button to connect with — a real gap, now fixed — plus two follow-ups: the Integrations dialog can now be minimized instead of only closed, and YouTube's Liked Videos (which has no real playlist ID) now supports next/prev through a local queue instead of silently doing nothing.
+
+### Added
+- **Connect Spotify button** — the dock's Spotify pane now shows a real "Connect Spotify" button when not connected (using the one-click default-app flow from `src/authconfig.ts`, falling back to a manual Client ID prompt), and swaps to the live player automatically once connected.
+- **Minimizable Integrations dialog** — a new minimize (–) button collapses the dialog to a small pill docked bottom-right instead of only closing it; click the pill to restore. Useful since connecting Spotify/Google briefly navigates away and back.
+- **Local playback queue for Liked Videos** (`ytQueue` in `musicdock.ts`) — YouTube has no shareable playlist ID for "Liked videos," so next/prev previously did nothing there. Clicking into Liked videos now starts a local queue that next/prev advance through (wrapping at either end), while real playlists keep using YouTube's own native playlist navigation, which is more robust when a real playlist ID exists.
+
+### Fixed
+- **Spotify Playback SDK never initialized after connecting** — `initSpotifyPlayback()` was only called once at page load, before the OAuth redirect's token had landed, so the SDK device silently never came up until the user manually reloaded. Now called again right after the OAuth callback resolves.
+- **YouTube player rebuilt from scratch on every click** — `mountYouTubePlayer` now reuses the existing player instance (`loadVideoById`/`loadPlaylist`) when one exists instead of tearing down and recreating the iframe, so switching tracks/playlists is instant with no blank-player flash.
+
+### Verification
+`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing count, 0 errors), `vite build` all pass. No visual/browser testing was possible in this environment — worth a click-through of connect → play → next/prev on both tabs, and the minimize/restore pill, before shipping.
+
 ## [1.6.0] — Synced lyrics, OS media controls, one-click music sign-in, real README screenshot
 
 Looked at two desktop YouTube Music clients (Limusic, Zuno — both Rust/Tauri apps) for ideas worth borrowing for the music dock. Their actual playback approach — pulling raw audio via YouTube's internal, non-public API and decoding it with mpv/ffmpeg — is deliberately **not** replicated here: this project is a static site with no server process to run mpv/ffmpeg against, and doing it "for real" means extracting streams in a way that's outside YouTube's terms, which the existing YouTube integration (official read-only Data API + required-visible IFrame player, see the comment at the top of `musicdock.ts`) was already built to avoid. Everything else genuinely useful about those two apps — synced lyrics, OS-level media key/lock-screen integration, a collapsible mini player, and low-friction sign-in — carries over below, built entirely on public web APIs.

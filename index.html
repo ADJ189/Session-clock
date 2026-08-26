@@ -463,9 +463,12 @@
 <!-- Integrations Modal -->
 <div class="sc-overlay" id="integrationsOverlay">
   <div class="sc-modal sc-modal--integrations">
-    <div class="modal-header">
+    <div class="modal-header" id="integrationsHeader">
       <h2>🔗 Integrations</h2>
-      <button class="modal-close" onclick="document.getElementById('integrationsOverlay').classList.remove('open')">✕</button>
+      <div class="modal-header-actions">
+        <button class="modal-minimize" id="integrationsMinimize" aria-label="Minimize" title="Minimize">–</button>
+        <button class="modal-close" id="integrationsClose" aria-label="Close">✕</button>
+      </div>
     </div>
     <div id="integrationsContent" style="max-height:76vh;overflow-y:auto;"></div>
   </div>
