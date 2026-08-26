@@ -20,6 +20,8 @@
 // token-paste fallback remains available for anyone who'd rather not
 // register an OAuth app at all.
 
+import { DEFAULT_SPOTIFY_CLIENT_ID, DEFAULT_GOOGLE_CLIENT_ID } from './authconfig';
+
 // ─────────────────────────────────────────────────────────────────────
 // TYPES
 // ─────────────────────────────────────────────────────────────────────
@@ -578,19 +580,15 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
       desc: 'Show now-playing, control playback, and launch focus playlists.',
       connected: isSpotifyConnected,
       setupForm(wrap) {
-        wrap.append(
-          para('Create a free app at developer.spotify.com → Dashboard → Create App, add this exact Redirect URI, then paste the Client ID:'),
-          codeLine(redirectUri()),
-        );
-        const inp = input('Client ID', 'text');
-        inp.value = localStorage.getItem('sc_spotify_client_id') ?? '';
-        const btn = connectBtn('Connect with Spotify');
-        btn.addEventListener('click', async () => {
-          const id = inp.value.trim();
-          if (!id) { cb.showToast('Enter a Client ID first'); return; }
-          await spotifyLogin(id);
-        });
-        wrap.append(inp, btn);
+        if (DEFAULT_SPOTIFY_CLIENT_ID) {
+          // App ships its own registered Spotify app — one click, no
+          // setup required from the visitor.
+          const btn = connectBtn('Connect with Spotify');
+          btn.addEventListener('click', () => spotifyLogin(DEFAULT_SPOTIFY_CLIENT_ID));
+          wrap.append(btn, ...manualTokenToggle(() => spotifySelfHostForm(cb, wrap)));
+          return;
+        }
+        spotifySelfHostForm(cb, wrap);
       },
     },
     {
@@ -771,6 +769,20 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
 // Shared "Connect with Google" block used by both the YouTube and
 // Google Calendar cards, since they're one underlying connection.
 function googleSetupNodes(cb: IntegrationPanelCallbacks, forFeature: string): HTMLElement[] {
+  if (DEFAULT_GOOGLE_CLIENT_ID) {
+    const btn = connectBtn(`Connect Google for ${forFeature}`);
+    btn.addEventListener('click', async () => {
+      const ok = await googleLogin(DEFAULT_GOOGLE_CLIENT_ID);
+      cb.showToast(ok ? '✅ Google connected' : 'Google sign-in failed or was cancelled');
+    });
+    const selfHostSlot = document.createElement('div');
+    const toggle = manualTokenToggle(() => selfHostSlot.append(...googleSelfHostNodes(cb, forFeature)));
+    return [btn, ...toggle, selfHostSlot];
+  }
+  return googleSelfHostNodes(cb, forFeature);
+}
+
+function googleSelfHostNodes(cb: IntegrationPanelCallbacks, forFeature: string): HTMLElement[] {
   const p = para(`Create an OAuth Client ID (type "Web application") at console.cloud.google.com → Credentials, add this exact Authorized redirect URI, then paste the Client ID:`);
   const code = codeLine(redirectUri());
   const inp = input('Client ID', 'text');
@@ -783,6 +795,39 @@ function googleSetupNodes(cb: IntegrationPanelCallbacks, forFeature: string): HT
     cb.showToast(ok ? '✅ Google connected' : 'Google sign-in failed or was cancelled');
   });
   return [p, code, inp, btn];
+}
+
+function spotifySelfHostForm(cb: IntegrationPanelCallbacks, wrap: HTMLElement): void {
+  wrap.append(
+    para('Create a free app at developer.spotify.com → Dashboard → Create App, add this exact Redirect URI, then paste the Client ID:'),
+    codeLine(redirectUri()),
+  );
+  const inp = input('Client ID', 'text');
+  inp.value = localStorage.getItem('sc_spotify_client_id') ?? '';
+  const btn = connectBtn('Connect with Spotify');
+  btn.addEventListener('click', async () => {
+    const id = inp.value.trim();
+    if (!id) { cb.showToast('Enter a Client ID first'); return; }
+    await spotifyLogin(id);
+  });
+  wrap.append(inp, btn);
+}
+
+// Small "use your own app instead" collapsible link, shown under the
+// one-click default-app button so self-hosters/power users can still
+// register and use their own OAuth Client ID instead of the site's.
+function manualTokenToggle(onOpen: () => void): HTMLElement[] {
+  const toggle = document.createElement('button');
+  toggle.textContent = 'use your own app instead ▾';
+  toggle.style.cssText = 'background:none;border:none;color:inherit;opacity:.4;font-size:.6rem;cursor:pointer;padding:8px 0;';
+  let opened = false;
+  toggle.addEventListener('click', () => {
+    if (opened) return;
+    opened = true;
+    onOpen();
+    toggle.remove();
+  });
+  return [toggle];
 }
 
 // Collapsible "paste a token instead" fallback for OAuth-only cards, for

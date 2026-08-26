@@ -16,12 +16,28 @@
 // playlists — that covers the "log in and pick from your library" part
 // of the ask without an unofficial client extracting/hiding streams.
 //
+// (A native mpv+ffmpeg pipeline — the approach desktop clients like
+// Limusic/Zuno use — was considered and deliberately left out: it
+// needs a real process to launch mpv/ffmpeg against, which a static
+// Cloudflare Pages site has no server for, and doing it "properly"
+// means extracting audio streams straight from YouTube's internal
+// (non-public) API, same as those two apps do — that's the one piece
+// of their design this project won't copy. Everything else useful
+// about them — synced lyrics, OS-level media controls, a collapsible
+// mini player, one-click sign-in — is copied below, built on APIs
+// that are actually public.)
+//
 // Pops out via the Document Picture-in-Picture API (same API this
 // project already uses for the mini clock) so it survives tab
-// switches and sits above other windows.
+// switches and sits above other windows. Publishes now-playing state
+// to the OS via the MediaSession API (lock-screen art, hardware media
+// keys) and offers synced lyrics via LRCLIB (src/lyrics.ts) — the
+// same lyrics source Limusic/Zuno fall back to, browser-native here.
 
 import * as Integrations from './integrations';
 import * as Pom from './pomodoro';
+import { DEFAULT_GOOGLE_CLIENT_ID } from './authconfig';
+import * as Lyrics from './lyrics';
 
 let sdkReady: Promise<void> | null = null;
 let player: any = null;
@@ -133,6 +149,13 @@ const AUTOSYNC_KEY = 'sc_music_autosync';
 export function isAutoSyncEnabled(): boolean { return localStorage.getItem(AUTOSYNC_KEY) === '1'; }
 export function setAutoSyncEnabled(v: boolean): void { localStorage.setItem(AUTOSYNC_KEY, v ? '1' : '0'); }
 
+// Mini-player "capsule" mode (see .sc-music-dock--capsule in style.css,
+// inspired by Zuno's morphing capsule mini player) — collapses the dock
+// to just artwork, expanding on hover/focus. Persisted like autosync.
+const CAPSULE_KEY = 'sc_music_capsule';
+export function isCapsuleEnabled(): boolean { return localStorage.getItem(CAPSULE_KEY) === '1'; }
+export function setCapsuleEnabled(v: boolean): void { localStorage.setItem(CAPSULE_KEY, v ? '1' : '0'); }
+
 export async function notifyFocusPhase(phase: 'work' | 'break' | 'idle', active: boolean): Promise<void> {
   if (!isAutoSyncEnabled() || !player) return;
   if (phase === 'work' && active) {
@@ -181,6 +204,7 @@ function dockMarkup(): string {
     <div class="sc-dock-tabs">
       <button data-role="tab-spotify" class="active">Spotify</button>
       <button data-role="tab-youtube">YouTube</button>
+      <button data-role="collapse" aria-label="Collapse to mini player" title="Collapse to mini player" style="flex:none;">▸</button>
     </div>
     <div data-role="pane-spotify" class="sc-dock-pane">
       <div class="sc-dock-row">
@@ -194,10 +218,12 @@ function dockMarkup(): string {
           <button data-role="prev" aria-label="Previous">⏮</button>
           <button data-role="play" aria-label="Play/Pause">▶</button>
           <button data-role="next" aria-label="Next">⏭</button>
+          <button data-role="lyrics" aria-label="Lyrics" title="Lyrics">🎤</button>
           <button data-role="autosync" aria-label="Auto-play with focus sessions" title="Auto-play with focus sessions">🔁</button>
           <button data-role="pip" aria-label="Pop out" title="Pop out">⧉</button>
         </div>
       </div>
+      <div data-role="lyrics-panel" class="sc-dock-lyrics sc-hidden"></div>
     </div>
     <div data-role="pane-youtube" class="sc-dock-pane sc-hidden">
       <div data-role="yt-connect-row" class="sc-dock-yt-connect">
@@ -216,8 +242,10 @@ function dockMarkup(): string {
           <button data-role="yt-prev" aria-label="Previous">⏮</button>
           <button data-role="yt-play" aria-label="Play/Pause">▶</button>
           <button data-role="yt-next" aria-label="Next">⏭</button>
+          <button data-role="yt-lyrics" aria-label="Lyrics" title="Lyrics">🎤</button>
         </div>
       </div>
+      <div data-role="yt-lyrics-panel" class="sc-dock-lyrics sc-hidden"></div>
       <div data-role="yt-player" class="sc-dock-yt-player"></div>
       <p class="sc-dock-yt-note">Standard YouTube embed — plays via YouTube's own official IFrame Player API, so it stays visible per YouTube's terms. No audio-only or stream-extraction mode is offered here.</p>
     </div>`;
@@ -269,6 +297,26 @@ function renderYtBanner(root: HTMLElement): void {
   if (title) title.textContent = info.title || 'Loading…';
   if (channel) channel.textContent = info.channel || '';
   if (playBtn) playBtn.textContent = info.isPlaying ? '⏸' : '▶';
+  updateYtMediaSession(root, info);
+}
+
+function updateYtMediaSession(root: HTMLElement, info: YtNowPlaying): void {
+  const ms = (navigator as any).mediaSession;
+  if (!ms || !info.title) return;
+  ms.metadata = new (window as any).MediaMetadata({
+    title: info.title,
+    artist: info.channel,
+    artwork: info.videoId ? [{ src: `https://i.ytimg.com/vi/${info.videoId}/hqdefault.jpg`, sizes: '480x360', type: 'image/jpeg' }] : [],
+  });
+  ms.playbackState = info.isPlaying ? 'playing' : 'paused';
+  const p = ytPlayers.get(root);
+  try {
+    ms.setActionHandler('play', () => p?.playVideo?.());
+    ms.setActionHandler('pause', () => p?.pauseVideo?.());
+    ms.setActionHandler('previoustrack', () => p?.previousVideo?.());
+    ms.setActionHandler('nexttrack', () => p?.nextVideo?.());
+    ms.setActionHandler('seekto', (d: { seekTime?: number }) => { if (typeof d.seekTime === 'number') p?.seekTo?.(d.seekTime, true); });
+  } catch { /* best-effort */ }
 }
 
 async function mountYouTubePlayer(root: HTMLElement, url: string): Promise<void> {
@@ -310,6 +358,8 @@ function wireDockEvents(el: HTMLElement): void {
   el.querySelector('[data-role="next"]')?.addEventListener('click', () => next());
   el.querySelector('[data-role="prev"]')?.addEventListener('click', () => prev());
   el.querySelector('[data-role="pip"]')?.addEventListener('click', () => popOut());
+  el.querySelector('[data-role="lyrics"]')?.addEventListener('click', () => toggleLyricsPanel(el, 'spotify'));
+  el.querySelector('[data-role="yt-lyrics"]')?.addEventListener('click', () => toggleLyricsPanel(el, 'youtube'));
 
   const autosyncBtn = el.querySelector<HTMLElement>('[data-role="autosync"]');
   if (autosyncBtn) {
@@ -318,6 +368,17 @@ function wireDockEvents(el: HTMLElement): void {
       const next = !isAutoSyncEnabled();
       setAutoSyncEnabled(next);
       autosyncBtn.classList.toggle('active', next);
+    });
+  }
+
+  const collapseBtn = el.querySelector<HTMLElement>('[data-role="collapse"]');
+  if (collapseBtn) {
+    el.classList.toggle('sc-music-dock--capsule', isCapsuleEnabled());
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const shouldCollapse = !el.classList.contains('sc-music-dock--capsule');
+      el.classList.toggle('sc-music-dock--capsule', shouldCollapse);
+      setCapsuleEnabled(shouldCollapse);
     });
   }
 
@@ -366,7 +427,12 @@ async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
 
   if (!Integrations.isYouTubeConnected()) {
     if (connectBtn) connectBtn.textContent = 'Connecting…';
-    const clientId = localStorage.getItem('sc_google_client_id') ?? prompt('Google OAuth client ID (from Google Cloud Console — see wiki for setup):')?.trim();
+    // Prefer the site's own registered app (one click, no setup) —
+    // only ask the visitor to paste their own Client ID when the site
+    // hasn't configured a default one (see src/authconfig.ts).
+    const clientId = localStorage.getItem('sc_google_client_id')
+      || DEFAULT_GOOGLE_CLIENT_ID
+      || prompt('Google OAuth client ID (from Google Cloud Console — see wiki for setup):')?.trim();
     if (!clientId) { if (connectBtn) connectBtn.textContent = 'Connect YouTube'; return; }
     const ok = await Integrations.googleLogin(clientId);
     if (connectBtn) connectBtn.textContent = 'Connect YouTube';
@@ -431,6 +497,71 @@ function cacheDockRefs(root: HTMLElement): DockRefs {
   return refs;
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Synced lyrics panel — shared by both tabs, backed by lyrics.ts
+// (LRCLIB). Purely display: looked up by title/artist/duration, never
+// tied to how the audio itself is being played.
+// ─────────────────────────────────────────────────────────────────────
+interface LyricsPanelState { open: boolean; key: string; result: Lyrics.LyricsResult | null; lineEls: HTMLElement[]; }
+const lyricsState = new WeakMap<HTMLElement, LyricsPanelState>();
+let ytLyricsPoll: number | null = null;
+
+async function toggleLyricsPanel(root: HTMLElement, kind: 'spotify' | 'youtube'): Promise<void> {
+  const panel = root.querySelector<HTMLElement>(kind === 'spotify' ? '[data-role="lyrics-panel"]' : '[data-role="yt-lyrics-panel"]');
+  if (!panel) return;
+  const willOpen = panel.classList.contains('sc-hidden');
+  panel.classList.toggle('sc-hidden', !willOpen);
+  if (!willOpen) return;
+
+  const track = kind === 'spotify' ? state.title : (ytNowPlaying.get(root)?.title ?? '');
+  const artist = kind === 'spotify' ? state.artist : (ytNowPlaying.get(root)?.channel ?? '');
+  const durationSec = kind === 'spotify' ? state.durationMs / 1000 : (ytPlayers.get(root)?.getDuration?.() ?? 0);
+  const key = `${kind}:${track}:${artist}`;
+
+  const st = lyricsState.get(panel) ?? { open: false, key: '', result: null, lineEls: [] };
+  st.open = true;
+  lyricsState.set(panel, st);
+
+  if (st.key !== key) {
+    panel.innerHTML = '<div class="sc-dock-lyrics-loading">Looking up lyrics…</div>';
+    const result = track ? await Lyrics.getLyrics(track, artist, durationSec) : null;
+    st.key = key; st.result = result;
+    if (!result) {
+      panel.innerHTML = '<div class="sc-dock-lyrics-loading">No lyrics found for this track.</div>';
+      st.lineEls = [];
+    } else if (result.synced.length) {
+      panel.innerHTML = '';
+      st.lineEls = result.synced.map((line) => {
+        const p = document.createElement('p');
+        p.className = 'sc-dock-lyrics-line';
+        p.textContent = line.text;
+        panel.appendChild(p);
+        return p;
+      });
+    } else {
+      panel.innerHTML = `<div class="sc-dock-lyrics-plain">${result.plain.replace(/\n/g, '<br>')}</div>`;
+      st.lineEls = [];
+    }
+  }
+
+  if (kind === 'youtube') {
+    if (ytLyricsPoll) clearInterval(ytLyricsPoll);
+    ytLyricsPoll = window.setInterval(() => {
+      if (panel.classList.contains('sc-hidden')) { if (ytLyricsPoll) clearInterval(ytLyricsPoll); ytLyricsPoll = null; return; }
+      const t = ytPlayers.get(root)?.getCurrentTime?.() ?? 0;
+      highlightLyricsLine(panel, t);
+    }, 500);
+  }
+}
+
+function highlightLyricsLine(panel: HTMLElement, currentSec: number): void {
+  const st = lyricsState.get(panel);
+  if (!st?.result?.synced.length || !st.lineEls.length) return;
+  const idx = Lyrics.activeLineIndex(st.result.synced, currentSec);
+  st.lineEls.forEach((el, i) => el.classList.toggle('active', i === idx));
+  if (idx >= 0) st.lineEls[idx]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
 function renderDock(): void {
   const roots = [dockEl, pipWindow?.document.querySelector('.sc-music-dock') as HTMLElement | null].filter(Boolean) as HTMLElement[];
   for (const root of roots) {
@@ -440,7 +571,41 @@ function renderDock(): void {
     if (artist && state.title) artist.textContent = state.artist;
     if (fill && state.durationMs) fill.style.width = `${(state.progressMs / state.durationMs) * 100}%`;
     if (playBtn) playBtn.textContent = state.isPlaying ? '⏸' : '▶';
+
+    const lyricsPanel = root.querySelector<HTMLElement>('[data-role="lyrics-panel"]');
+    if (lyricsPanel && !lyricsPanel.classList.contains('sc-hidden')) {
+      highlightLyricsLine(lyricsPanel, state.progressMs / 1000);
+    }
   }
+  updateMediaSession();
+}
+
+/**
+ * Publishes now-playing metadata + transport actions to the OS via the
+ * MediaSession API — lock-screen art/title, hardware media keys, and
+ * Bluetooth/headset controls, the same integration point native apps
+ * like Limusic/Zuno get from libmpv/MPRIS/SMTC, exposed to any browser
+ * tab for free. Web-standard, no native binary required.
+ */
+function updateMediaSession(): void {
+  const ms = (navigator as any).mediaSession;
+  if (!ms || !state.title) return;
+  ms.metadata = new (window as any).MediaMetadata({
+    title: state.title,
+    artist: state.artist,
+    artwork: state.artUrl ? [{ src: state.artUrl, sizes: '512x512', type: 'image/jpeg' }] : [],
+  });
+  ms.playbackState = state.isPlaying ? 'playing' : 'paused';
+  try {
+    ms.setActionHandler('play', () => togglePlay());
+    ms.setActionHandler('pause', () => togglePlay());
+    ms.setActionHandler('previoustrack', () => prev());
+    ms.setActionHandler('nexttrack', () => next());
+    ms.setActionHandler('seekto', (details: { seekTime?: number }) => {
+      if (typeof details.seekTime === 'number') seek(details.seekTime * 1000);
+    });
+    if (state.durationMs) ms.setPositionState?.({ duration: state.durationMs / 1000, position: Math.min(state.progressMs / 1000, state.durationMs / 1000) });
+  } catch { /* not all handlers are supported everywhere — best-effort */ }
 }
 
 /**
