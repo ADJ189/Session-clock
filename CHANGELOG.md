@@ -2,6 +2,20 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.6.0] — Synced lyrics, OS media controls, one-click music sign-in, real README screenshot
+
+Looked at two desktop YouTube Music clients (Limusic, Zuno — both Rust/Tauri apps) for ideas worth borrowing for the music dock. Their actual playback approach — pulling raw audio via YouTube's internal, non-public API and decoding it with mpv/ffmpeg — is deliberately **not** replicated here: this project is a static site with no server process to run mpv/ffmpeg against, and doing it "for real" means extracting streams in a way that's outside YouTube's terms, which the existing YouTube integration (official read-only Data API + required-visible IFrame player, see the comment at the top of `musicdock.ts`) was already built to avoid. Everything else genuinely useful about those two apps — synced lyrics, OS-level media key/lock-screen integration, a collapsible mini player, and low-friction sign-in — carries over below, built entirely on public web APIs.
+
+### Added
+- **Synced lyrics** (`src/lyrics.ts`) — a 🎤 button on both the Spotify and YouTube tabs looks up line-synced lyrics via [LRCLIB](https://lrclib.net), the same free public lyrics database Limusic/Zuno use, matched on title + artist + duration to avoid grabbing the wrong cut of a song. The active line highlights and auto-scrolls in time with playback (polled from the Spotify SDK's position for Spotify, from the YouTube IFrame API's `getCurrentTime()` for YouTube). Falls back to plain unsynced lyrics, or a "not found" message, with results cached per track for the session.
+- **OS-level media controls** via the [MediaSession API](https://developer.mozilla.org/en-US/docs/Web/API/MediaSession) — lock-screen/notification now-playing info (title, artist, artwork) and hardware/Bluetooth media keys (play, pause, next, previous, seek) now work for both the Spotify and YouTube tabs, the browser-native equivalent of the MPRIS/SMTC integration native apps like Limusic/Zuno get from mpv.
+- **Collapsible mini-player capsule** — a new ▸ button shrinks the dock down to just album art (Zuno's "morphing capsule" mini player, redone in plain CSS); hover or focus to expand it back out. State persists across reloads.
+- **One-click music sign-in** (`src/authconfig.ts`) — if you register your own Spotify app and Google OAuth client and drop their (public, non-secret) Client IDs into `src/authconfig.ts`, visitors to your deployed site get a real "Connect with Spotify" / "Connect Google" button with zero setup of their own. Leave a field blank and that integration quietly falls back to the existing "paste your own Client ID" form — a collapsed "use your own app instead ▾" link keeps that option available either way, so self-hosters aren't locked out.
+- **Real UI screenshot in the README** (`public/preview.png`) — replaces the SVG mockup that sat below the banner with an actual screenshot of the app.
+
+### Verification
+`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing count, 0 errors), `vite build` all pass. LRCLIB and MediaSession calls are try/caught and degrade silently (no lyrics found / API unsupported), so neither feature can break existing playback. No visual/browser testing was possible in this environment — worth a quick look at the lyrics panel timing and the capsule hover transition before shipping.
+
 ## [1.5.0] — Minimal Centre mode, GitHub star/support celebration, removed the sync pill
 
 ### Added

@@ -2,7 +2,7 @@
 
 <img src="public/readme-banner.svg" width="900" alt="Session Clock — A cinematic focus timer. Every theme is a world." />
 
-<img src="public/og-preview.svg" width="900" alt="Session Clock preview — clock, themes, and sound mixer" />
+<img src="public/preview.png" width="900" alt="Session Clock app preview — Good Night clock view, session timer, and the Spotify/YouTube music dock" />
 
 [![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Session-clock/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Session-clock/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)

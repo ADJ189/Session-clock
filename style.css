@@ -5154,6 +5154,42 @@ body.weather-fog.weather-overlay-on::after {
 .sc-dock-yt-lib-item img { width: 28px; height: 28px; border-radius: 5px; flex: none; object-fit: cover; }
 .sc-dock-yt-lib-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ── Synced lyrics panel (src/lyrics.ts, LRCLIB) — shared markup for
+   both the Spotify and YouTube tabs. Auto-scrolling line list with the
+   active line picked out, same idea as Limusic/Zuno's side lyrics
+   panel, minus the word-by-word timing (LRCLIB is line-level only). */
+.sc-dock-lyrics {
+  max-height: 170px; overflow-y: auto; margin-top: 8px; padding: 8px 4px;
+  border-radius: 10px; background: rgba(255,255,255,0.04); scroll-behavior: smooth;
+}
+.sc-dock-lyrics-line {
+  margin: 0; padding: 4px 8px; font-size: 12px; line-height: 1.5; opacity: 0.45;
+  transition: opacity 0.25s, color 0.25s; text-align: center;
+}
+.sc-dock-lyrics-line.active { opacity: 1; color: var(--clr-accent, #fff); font-weight: 600; }
+.sc-dock-lyrics-loading, .sc-dock-lyrics-plain { font-size: 11.5px; opacity: 0.55; padding: 8px; line-height: 1.6; }
+
+/* ── Mini-player capsule ─────────────────────────────────────────
+   Collapsed state for the dock: art + a title marquee only, expands
+   on hover/focus. Applied by JS (musicdock.ts) by toggling this class
+   on .sc-music-dock, inspired by Zuno's "morphing capsule" mini
+   player — pure CSS, no extra libraries. */
+.sc-music-dock--capsule { width: 56px; height: 56px; padding: 6px; cursor: pointer; overflow: hidden; transition: width 0.3s ease; }
+.sc-music-dock--capsule:hover, .sc-music-dock--capsule:focus-within { width: 300px; }
+.sc-music-dock--capsule .sc-dock-tabs,
+.sc-music-dock--capsule .sc-dock-lyrics,
+.sc-music-dock--capsule[class] .sc-dock-controls button:not([data-role="play"]) { display: none; }
+.sc-music-dock--capsule:hover .sc-dock-tabs,
+.sc-music-dock--capsule:focus-within .sc-dock-tabs,
+.sc-music-dock--capsule:hover .sc-dock-controls button,
+.sc-music-dock--capsule:focus-within .sc-dock-controls button { display: unset; }
+.sc-music-dock--capsule .sc-dock-row { gap: 0; }
+.sc-music-dock--capsule:hover .sc-dock-row,
+.sc-music-dock--capsule:focus-within .sc-dock-row { gap: 10px; }
+.sc-music-dock--capsule .sc-dock-info { width: 0; opacity: 0; transition: opacity 0.2s; }
+.sc-music-dock--capsule:hover .sc-dock-info,
+.sc-music-dock--capsule:focus-within .sc-dock-info { width: auto; opacity: 1; }
+
 /* ════════════════════════════════════════════════════════════
    GITHUB STAR / SUPPORT CELEBRATION
    Shown before following the topbar GitHub link — a small,
