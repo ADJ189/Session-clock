@@ -3766,6 +3766,7 @@ function init() {
   if (intContent) {
     Integrations.buildIntegrationsPanel(intContent, { showToast });
   }
+  wireIntegrationsMinimize();
 
   // Focus sidebar — music dock + connected-service task cards. Fixed
   // position, self-contained; nothing here reaches back into main.ts
@@ -3785,6 +3786,11 @@ function init() {
       if (result) {
         const name = result.provider[0]!.toUpperCase() + result.provider.slice(1);
         showToast(`✅ ${name} connected!`, 4000);
+        // Spotify's Web Playback SDK device wasn't live yet at the
+        // isSpotifyConnected() check above (token lands here, after
+        // the redirect) — bring it up now instead of waiting for the
+        // user to reload the page themselves to see anything play.
+        if (result.provider === 'spotify') MusicDock.initSpotifyPlayback().then(() => MusicDock.refreshDockConnectionState());
       }
       if (intContent) Integrations.buildIntegrationsPanel(intContent, { showToast });
     });
@@ -3902,7 +3908,35 @@ function init() {
 function openIntegrations() {
   const el = document.getElementById('integrationsContent');
   if (el) Integrations.buildIntegrationsPanel(el, { showToast });
+  document.getElementById('integrationsOverlay')?.classList.remove('minimized');
   openModal('integrationsOverlay');
+}
+
+/** Minimize/restore/close wiring for the Integrations dialog — the one
+ *  dialog in the app that's worth keeping parked rather than fully
+ *  closed, since connecting Spotify/Google briefly navigates away
+ *  (OAuth redirect) and losing the panel's open state on return would
+ *  be annoying. Click the minimize button (or the collapsed pill
+ *  itself) to toggle; the header stays visible either way. */
+function wireIntegrationsMinimize(): void {
+  const overlay = document.getElementById('integrationsOverlay');
+  const header = document.getElementById('integrationsHeader');
+  const minimizeBtn = document.getElementById('integrationsMinimize');
+  const closeBtn = document.getElementById('integrationsClose');
+  if (!overlay || !header || !minimizeBtn || !closeBtn) return;
+
+  const setMinimized = (min: boolean) => {
+    overlay.classList.toggle('minimized', min);
+    minimizeBtn.textContent = min ? '▢' : '–';
+    minimizeBtn.title = min ? 'Restore' : 'Minimize';
+  };
+  minimizeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setMinimized(!overlay.classList.contains('minimized'));
+  });
+  // Clicking anywhere on the collapsed pill restores it too, not just the tiny button.
+  header.addEventListener('click', () => { if (overlay.classList.contains('minimized')) setMinimized(false); });
+  closeBtn.addEventListener('click', () => { overlay.classList.remove('open'); setMinimized(false); });
 }
 
 function buildLanguageUI(container: HTMLElement) {

@@ -36,7 +36,7 @@
 
 import * as Integrations from './integrations';
 import * as Pom from './pomodoro';
-import { DEFAULT_GOOGLE_CLIENT_ID } from './authconfig';
+import { DEFAULT_GOOGLE_CLIENT_ID, DEFAULT_SPOTIFY_CLIENT_ID } from './authconfig';
 import * as Lyrics from './lyrics';
 
 let sdkReady: Promise<void> | null = null;
@@ -207,7 +207,11 @@ function dockMarkup(): string {
       <button data-role="collapse" aria-label="Collapse to mini player" title="Collapse to mini player" style="flex:none;">▸</button>
     </div>
     <div data-role="pane-spotify" class="sc-dock-pane">
-      <div class="sc-dock-row">
+      <div data-role="spotify-connect-row" class="sc-dock-yt-connect">
+        <button data-role="spotify-connect" class="sc-dock-yt-connect-btn">Connect Spotify</button>
+        <span class="sc-dock-yt-note" style="margin:0;">Requires Spotify Premium. Turns this browser tab into a real Spotify Connect device via Spotify's official Web Playback SDK — full track audio, no separate popup needed.</span>
+      </div>
+      <div data-role="spotify-player-row" class="sc-dock-row sc-hidden">
         <div class="sc-dock-art" data-role="art"></div>
         <div class="sc-dock-info">
           <div class="sc-dock-title" data-role="title">Not connected</div>
@@ -319,11 +323,38 @@ function updateYtMediaSession(root: HTMLElement, info: YtNowPlaying): void {
   } catch { /* best-effort */ }
 }
 
+/** Local playback queue — used for "Liked videos" (which has no real
+ *  YouTube playlist ID to hand the IFrame API) so next/prev still work
+ *  there exactly like they do for a real playlist. Real playlists
+ *  (from "Your playlists", or a pasted playlist URL) instead cue
+ *  natively via listType:'playlist' below and let YouTube's own player
+ *  handle next/prev — that's the more robust path when a genuine
+ *  playlist ID exists, so this queue is only a fallback for when one
+ *  doesn't. */
+interface YtQueue { ids: string[]; index: number; }
+const ytQueue = new WeakMap<HTMLElement, YtQueue>();
+
+/**
+ * Loads a video or playlist into the dock's YouTube player. Reuses an
+ * already-mounted player instance via loadVideoById/loadPlaylist
+ * instead of tearing down and recreating the iframe on every click —
+ * faster switches, no flash of a blank player, and it's what lets
+ * next/prev feel instant instead of a full reload each time.
+ */
 async function mountYouTubePlayer(root: HTMLElement, url: string): Promise<void> {
-  const target = root.querySelector<HTMLElement>('[data-role="yt-player"]');
-  if (!target) return;
   const { videoId, listId } = extractYouTubeId(url);
   if (!videoId && !listId) return;
+  ytQueue.delete(root); // any local queue is superseded by whatever's being loaded now
+
+  const existing = ytPlayers.get(root);
+  if (existing?.loadVideoById) {
+    if (listId) existing.loadPlaylist?.({ listType: 'playlist', list: listId });
+    else existing.loadVideoById(videoId);
+    return;
+  }
+
+  const target = root.querySelector<HTMLElement>('[data-role="yt-player"]');
+  if (!target) return;
   await loadYouTubeIframeApi();
   target.innerHTML = '';
   const mount = document.createElement('div');
@@ -347,10 +378,39 @@ async function mountYouTubePlayer(root: HTMLElement, url: string): Promise<void>
           isPlaying: e.data === YTState.PLAYING,
         });
         renderYtBanner(root);
+        // A local queue (Liked videos) has no native "next" of its own —
+        // when a queued video ends, advance the queue ourselves.
+        if (e.data === YTState.ENDED) advanceYtQueue(root, 1);
       },
     },
   });
   ytPlayers.set(root, player);
+}
+
+/** Advances the local queue (see ytQueue above) by `delta` and loads
+ *  the resulting video, wrapping around at either end so repeat/loop
+ *  works the same way a real playlist would. No-op if this root has
+ *  no local queue — callers fall back to the native player controls
+ *  in that case (see the yt-next/yt-prev handlers below). */
+function advanceYtQueue(root: HTMLElement, delta: number): boolean {
+  const q = ytQueue.get(root);
+  if (!q || !q.ids.length) return false;
+  q.index = (q.index + delta + q.ids.length) % q.ids.length;
+  const id = q.ids[q.index];
+  const existing = ytPlayers.get(root);
+  if (id && existing?.loadVideoById) existing.loadVideoById(id);
+  return true;
+}
+
+/** Starts local-queue playback (see ytQueue above) at `startIndex` —
+ *  used when the user clicks into "Liked videos", which YouTube has
+ *  no single shareable playlist ID for. */
+function playYtQueue(root: HTMLElement, ids: string[], startIndex: number): void {
+  const id = ids[startIndex];
+  if (!id) return;
+  mountYouTubePlayer(root, `https://www.youtube.com/watch?v=${id}`).then(() => {
+    ytQueue.set(root, { ids, index: startIndex });
+  });
 }
 
 function wireDockEvents(el: HTMLElement): void {
@@ -406,12 +466,52 @@ function wireDockEvents(el: HTMLElement): void {
     const YTState = (window as any).YT?.PlayerState;
     if (p.getPlayerState() === YTState?.PLAYING) p.pauseVideo(); else p.playVideo();
   });
-  el.querySelector('[data-role="yt-next"]')?.addEventListener('click', () => ytPlayers.get(el)?.nextVideo?.());
-  el.querySelector('[data-role="yt-prev"]')?.addEventListener('click', () => ytPlayers.get(el)?.previousVideo?.());
+  el.querySelector('[data-role="yt-next"]')?.addEventListener('click', () => {
+    if (advanceYtQueue(el, 1)) return;
+    ytPlayers.get(el)?.nextVideo?.();
+  });
+  el.querySelector('[data-role="yt-prev"]')?.addEventListener('click', () => {
+    if (advanceYtQueue(el, -1)) return;
+    ytPlayers.get(el)?.previousVideo?.();
+  });
 
   const connectBtn = el.querySelector<HTMLElement>('[data-role="yt-connect"]');
   connectBtn?.addEventListener('click', () => loadYouTubeLibrary(el));
   if (Integrations.isYouTubeConnected()) loadYouTubeLibrary(el);
+
+  el.querySelector<HTMLElement>('[data-role="spotify-connect"]')?.addEventListener('click', () => connectSpotify(el));
+  refreshDockConnectionState(el);
+}
+
+/**
+ * Prefers the site's own registered Spotify app (see src/authconfig.ts)
+ * for a real one-click connect — falls back to asking for a personal
+ * Client ID (same fallback pattern the YouTube connect button already
+ * uses above) when the site hasn't configured a default one, so the
+ * dock never dead-ends with no way to connect.
+ */
+async function connectSpotify(root: HTMLElement): Promise<void> {
+  const btn = root.querySelector<HTMLButtonElement>('[data-role="spotify-connect"]');
+  const clientId = localStorage.getItem('sc_spotify_client_id')
+    || DEFAULT_SPOTIFY_CLIENT_ID
+    || prompt('Spotify Client ID (from developer.spotify.com/dashboard — see Settings → Integrations for full setup steps):')?.trim();
+  if (!clientId) return;
+  if (btn) btn.textContent = 'Connecting…';
+  await Integrations.spotifyLogin(clientId); // redirects away — nothing after this line runs
+}
+
+/** Swaps each pane between its "Connect …" prompt and the live player
+ *  UI based on current connection state. Called on mount, and again
+ *  from main.ts right after a successful OAuth round-trip — Spotify's
+ *  token lands after this module's initial mount/render, so the
+ *  connect button doesn't flip to the player until this re-runs. */
+export function refreshDockConnectionState(root?: HTMLElement): void {
+  const roots = root ? [root] : [dockEl, pipWindow?.document.querySelector('.sc-music-dock') as HTMLElement | null].filter(Boolean) as HTMLElement[];
+  for (const r of roots) {
+    const connected = Integrations.isSpotifyConnected();
+    r.querySelector('[data-role="spotify-connect-row"]')?.classList.toggle('sc-hidden', connected);
+    r.querySelector('[data-role="spotify-player-row"]')?.classList.toggle('sc-hidden', !connected);
+  }
 }
 
 /** Fetches the signed-in user's Liked videos + own playlists via the
@@ -469,12 +569,16 @@ async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
   }
   if (liked.length) {
     section('Liked videos');
-    for (const v of liked) {
+    const likedIds = liked.map((v) => v.videoId);
+    liked.forEach((v, i) => {
       const row = document.createElement('button'); row.className = 'sc-dock-yt-lib-item';
       row.innerHTML = `<img loading="lazy" src="${v.thumbnail}" alt="" /><span>${v.title}</span>`;
-      row.addEventListener('click', () => mountYouTubePlayer(root, `https://www.youtube.com/watch?v=${v.videoId}`));
+      // Liked videos has no real playlist ID YouTube will hand back to
+      // us, so next/prev through it runs on the local queue (see
+      // playYtQueue) instead of the native player.nextVideo().
+      row.addEventListener('click', () => playYtQueue(root, likedIds, i));
       frag.appendChild(row);
-    }
+    });
   }
   libraryEl.innerHTML = '';
   libraryEl.appendChild(frag);
