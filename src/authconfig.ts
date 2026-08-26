@@ -26,5 +26,5 @@
 // put a client *secret* here. Secrets belong server-side only (see
 // functions/api/oauth/token.ts for providers that need one).
 
-export const DEFAULT_SPOTIFY_CLIENT_ID = '';
-export const DEFAULT_GOOGLE_CLIENT_ID = '';
+export const DEFAULT_SPOTIFY_CLIENT_ID = '8297269533124a99813bfa8a0ec2f146';
+export const DEFAULT_GOOGLE_CLIENT_ID = '194129492690-jt58gdjd9mjcdllulacgk8dbe7tefp0r.apps.googleusercontent.com';
