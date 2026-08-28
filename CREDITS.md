@@ -1,9 +1,9 @@
 # Credits
 
-Session Clock is built with zero runtime dependencies (see `package.json`)
-— all 96 canvas themes, the sound engine, and the UI are original code.
-The pieces below are the third-party services and assets it talks to or
-draws on at build/runtime.
+Session Clock is built with a single small runtime dependency (see
+`package.json`) — all 101 canvas themes, the sound engine, and the UI
+are original code. The pieces below are the third-party services,
+libraries, and assets it talks to or draws on at build/runtime.
 
 ## Fonts
 
@@ -13,6 +13,14 @@ Loaded from [Google Fonts](https://fonts.google.com), each under the
 Inter · Cinzel · Orbitron · Comfortaa · Josefin Sans · Fraunces ·
 Bebas Neue · Playfair Display · Special Elite · Nunito · IM Fell English ·
 Teko · Lora · Press Start 2P
+
+## Animation
+
+- **[anime.js](https://animejs.com)** (MIT License) — powers a small
+  set of micro-interactions (`src/motion.ts`): the elastic "pop" when
+  a theme is selected, the settings-panel row stagger, and the toast
+  entrance. Lazy-loaded on first use so it never sits in the
+  critical-path bundle.
 
 ## Data & APIs (used only when you opt in)
 
@@ -37,7 +45,7 @@ Teko · Lora · Press Start 2P
 
 ## Design
 
-The hourglass wordmark, all 96 theme renderers, the sound synthesis
+The hourglass wordmark, all 101 theme renderers, the sound synthesis
 engine, and the overall visual design are original work by
 [@ADJ189](https://github.com/ADJ189).
 
@@ -45,3 +53,4 @@ engine, and the overall visual design are original work by
 
 If you're a maintainer of something used here and would like a credit
 adjusted (name, link, wording), please open an issue or PR — happy to fix it.
+
