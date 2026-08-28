@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<meta name="description" content="Session Clock — 96 animated themes, Pomodoro, ambient sound mixer, and more.">
+<meta name="description" content="Session Clock — 101 animated themes, Pomodoro, ambient sound mixer, and more.">
 <meta name="theme-color" content="#06030f">
 <meta name="color-scheme" content="dark light">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta property="og:title" content="Session Clock">
-<meta property="og:description" content="A cinematic focus timer with 96 animated themes, Pomodoro, and an ambient sound mixer.">
+<meta property="og:description" content="A cinematic focus timer with 101 animated themes, Pomodoro, and an ambient sound mixer.">
 <meta property="og:type" content="website">
 <title>Session Clock</title>
 <link rel="manifest" href="/manifest.json">
@@ -21,7 +21,7 @@
 <meta property="og:site_name" content="Session Clock">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Session Clock">
-<meta name="twitter:description" content="A cinematic focus timer with 96 animated themes, Pomodoro, and an ambient sound mixer.">
+<meta name="twitter:description" content="A cinematic focus timer with 101 animated themes, Pomodoro, and an ambient sound mixer.">
 <meta name="twitter:image" content="/og-preview.svg">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -376,6 +376,22 @@
       </button>
     </div>
     <div id="dataContent"></div>
+  </div>
+</div>
+
+<!-- Legal: Privacy Policy / Terms of Service -->
+<div class="sc-overlay" id="legalOverlay">
+  <div class="sc-modal sc-modal--settings">
+    <div class="modal-header">
+      <div>
+        <h2 id="legalTitle">📄 Privacy Policy</h2>
+        <p class="legal-updated" id="legalUpdated"></p>
+      </div>
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('legalOverlay')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="legalContent"></div>
   </div>
 </div>
 

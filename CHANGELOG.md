@@ -2,6 +2,20 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.7.0] — Privacy Policy & Terms of Service, anime.js micro-interactions, 5 new themes
+
+### Added
+- **Privacy Policy & Terms of Service** — added as a new "Legal" section in Settings → Privacy (`src/legal.ts`, new `legalOverlay` modal), and mirrored as [`PRIVACY.md`](PRIVACY.md) and [`TERMS.md`](TERMS.md) at the repo root. Content is generated from the app's actual data-handling code (`src/privacy.ts`'s `DATA_CATEGORIES`, the OAuth relay functions) rather than boilerplate, so it accurately reflects that everything is stored in `localStorage`, no analytics run anywhere, and the only server-side code is a stateless OAuth token-exchange proxy that logs nothing.
+- **anime.js micro-interactions** (`src/motion.ts`, new dependency: [anime.js](https://animejs.com) v4) — dynamically imported on first use so it never sits in the critical-path bundle. Three touches: an elastic "pop" when a theme swatch/card is selected, a staggered fade+rise when a Settings pane or the new Legal modal is rebuilt, and a spring entrance for toast notifications. Layered on top of the app's existing CSS spring transitions, not replacing them.
+- **5 new themes** (96 → 101): Hannibal, Slow Horses, The Boys, Ted Lasso, For All Mankind — each with its own dedicated canvas renderer (`src/renderer.ts` DRAW + SYMBOLS entries), not the generic particle fallback.
+
+### Changed
+- Theme-count references across `README.md`, `index.html`, and `public/manifest.json` updated from 96 to 101.
+- `CREDITS.md` updated to reflect the new anime.js dependency and 101 themes.
+
+### Verification
+`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing baseline, 0 errors), `vite build` all pass, and anime.js confirmed to land in its own lazy-loaded chunk rather than the main bundle. No visual/browser testing was possible in this environment — worth checking the new themes render correctly, the pop/stagger/bounce animations feel right, and the Legal modal reads well before shipping.
+
 ## [1.6.1] — Spotify connect button was missing, minimizable Integrations dialog, real playlist/queue support
 
 The Spotify pane in the music dock had static "Not connected" text but no actual button to connect with — a real gap, now fixed — plus two follow-ups: the Integrations dialog can now be minimized instead of only closed, and YouTube's Liked Videos (which has no real playlist ID) now supports next/prev through a local queue instead of silently doing nothing.
