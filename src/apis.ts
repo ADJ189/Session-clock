@@ -195,16 +195,13 @@ async function enterDocumentPiP(
       clock.textContent = `${h}:${m}:${s}`;
       // Show Pomodoro timer if running
       const sesEl = document.getElementById('sessionTimer');
-      const sesText = sesEl ? sesEl.textContent : '';
-      const pomMap = {
-        hasSession: `⏱ ${sesText}`,
-        noSession: ''
-      };
-      const statusKey = (sesEl && sesText !== '00:00:00') ? 'hasSession' : 'noSession';
-      pom.textContent = pomMap[statusKey]
-      
+      if (sesEl && sesEl.textContent !== '00:00:00') {
+        pom.textContent = `⏱ ${sesEl.textContent}`;
+      } else {
+        pom.textContent = '';
+      }
       _pipRafId = requestAnimationFrame(updatePip);
-     };
+    };
     _pipRafId = requestAnimationFrame(updatePip);
 
     _pipWindow.addEventListener('pagehide', () => {
