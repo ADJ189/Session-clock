@@ -181,7 +181,7 @@ async function enterDocumentPiP(
     _pipWindow.document.body.appendChild(wrap);
 
     // Drive PiP clock from main window
-    function updatePip() {
+    const updatePip = () => {
       if (!_pipWindow || _pipWindow.closed) { cancelAnimationFrame(_pipRafId); _pipWindow = null; return; }
       const t = new Date(); const h = t.getHours() % 12 || 12;
       const m = String(t.getMinutes()).padStart(2,'0');
@@ -195,7 +195,7 @@ async function enterDocumentPiP(
         pom.textContent = '';
       }
       _pipRafId = requestAnimationFrame(updatePip);
-    }
+     };
     _pipRafId = requestAnimationFrame(updatePip);
 
     _pipWindow.addEventListener('pagehide', () => {
