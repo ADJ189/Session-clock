@@ -136,6 +136,12 @@ export async function enterPiP(
   }
 }
 
+/**
+ * Opens a Document Picture-in-Picture window displaying the current clock and session timer.
+ *
+ * @param clockEl - The clock element associated with the current session
+ * @param theme - Colors used to style the Picture-in-Picture window
+ */
 async function enterDocumentPiP(
   clockEl: HTMLElement,
   theme: { accent: string; text: string; baseBg: string[] },
