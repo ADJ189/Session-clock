@@ -30,6 +30,8 @@ import * as SideTasks from './sidetasks';
 import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
 import { applyPlatformClasses, bindGlobalHaptics, CAPS, haptic, requestMotionPermission, subscribeOrientation } from './platform';
 import * as Palette from './palette';
+import * as Motion from './motion';
+import * as Legal from './legal';
 
 // ── Platform detection ───────────────────────────────────────────────
 // Runs first, synchronously, before anything else touches the DOM — CSS
@@ -378,6 +380,52 @@ function togglePrivacy() {
 // ── Data Management Panel ─────────────────────────────────────────────
 function openDataPanel() { buildDataPanel(); openModal('dataOverlay'); }
 
+// ── Legal Panel (Privacy Policy / Terms of Service) ────────────────────
+function openLegalPanel(doc: 'privacy' | 'terms') {
+  buildLegalPanel(doc);
+  openModal('legalOverlay');
+}
+
+function buildLegalPanel(doc: 'privacy' | 'terms') {
+  const el = $('legalContent');
+  const titleEl = $('legalTitle');
+  const updatedEl = $('legalUpdated');
+  if (!el) return;
+  el.innerHTML = '';
+
+  const tabBar = document.createElement('div'); tabBar.className = 'legal-tab-bar';
+  (['privacy', 'terms'] as const).forEach(d => {
+    const b = document.createElement('button');
+    b.className = 'legal-tab' + (d === doc ? ' active' : '');
+    b.textContent = d === 'privacy' ? 'Privacy Policy' : 'Terms of Service';
+    b.addEventListener('click', () => buildLegalPanel(d));
+    tabBar.appendChild(b);
+  });
+  el.appendChild(tabBar);
+
+  const doc_ = Legal.LEGAL_DOCS[doc];
+  if (titleEl) titleEl.textContent = doc_.title;
+  if (updatedEl) updatedEl.textContent = `Last updated: ${doc_.updated}`;
+
+  const body = document.createElement('div'); body.className = 'legal-body';
+  doc_.sections.forEach(sec => {
+    const h = document.createElement('h3'); h.className = 'legal-section-title'; h.textContent = sec.heading;
+    body.appendChild(h);
+    sec.paragraphs.forEach(p => {
+      const para = document.createElement('p'); para.className = 'legal-paragraph'; para.textContent = p;
+      body.appendChild(para);
+    });
+    if (sec.bullets?.length) {
+      const ul = document.createElement('ul'); ul.className = 'legal-bullets';
+      sec.bullets.forEach(li => { const item = document.createElement('li'); item.textContent = li; ul.appendChild(item); });
+      body.appendChild(ul);
+    }
+  });
+  el.appendChild(body);
+
+  void Motion.staggerIn(body, '.legal-section-title, .legal-paragraph, .legal-bullets');
+}
+
 function buildDataPanel() {
   const el = $('dataContent');
   if (!el) return;
@@ -569,7 +617,12 @@ function applyTheme(theme: Theme, instant = false) {
     }
 
     updateSyncDisplay(synced ? 'ok' : 'failed');
-    document.querySelectorAll<HTMLElement>('.nat-btn,.media-card').forEach(b => b.classList.toggle('active', b.dataset.id === theme.id));
+    document.querySelectorAll<HTMLElement>('.nat-btn,.media-card').forEach(b => {
+      const isNowActive = b.dataset.id === theme.id;
+      const wasActive = b.classList.contains('active');
+      b.classList.toggle('active', isNowActive);
+      if (isNowActive && !wasActive && !instant) void Motion.popIn(b);
+    });
     lastQKey = '';
     localStorage.setItem('sc_last_theme', theme.id);
     if (!applyingRemoteTheme) bcBroadcast('theme', { id: theme.id });
@@ -2553,6 +2606,17 @@ function buildSettingsUI(activeTab = 'general') {
     dataBtnSec.appendChild(dataBtn);
     paneWrap.appendChild(dataBtnSec);
 
+    const legalSec = makeSection('Legal');
+    const privacyBtn = document.createElement('button'); privacyBtn.className = 'settings-action-btn settings-action-btn--full';
+    privacyBtn.textContent = '📄 Privacy Policy';
+    privacyBtn.addEventListener('click', () => openLegalPanel('privacy'));
+    legalSec.appendChild(privacyBtn);
+    const termsBtn = document.createElement('button'); termsBtn.className = 'settings-action-btn settings-action-btn--full';
+    termsBtn.textContent = '📃 Terms of Service';
+    termsBtn.addEventListener('click', () => openLegalPanel('terms'));
+    legalSec.appendChild(termsBtn);
+    paneWrap.appendChild(legalSec);
+
     // Privacy mode toggle with lock animation
     wireToggle('togglePrivacyS', (on) => {
       togglePrivacy();
@@ -2569,6 +2633,8 @@ function buildSettingsUI(activeTab = 'general') {
   // Add bottom padding so last row isn't flush against modal edge
   const pad = document.createElement('div'); pad.style.height = '12px';
   el.appendChild(pad);
+
+  void Motion.staggerIn(paneWrap, '.settings-section-title, .settings-row, .settings-action-btn');
 }
 
 
@@ -3192,6 +3258,7 @@ function showToast(msg: string, duration = 3500) {
   toast.textContent = msg;
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add('visible'));
+  void Motion.bounceIn(toast);
   setTimeout(() => {
     toast.classList.remove('visible');
     setTimeout(() => toast.remove(), 400);

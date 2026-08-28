@@ -332,6 +332,11 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   vinlandsaga(dt,t)   { drawMediaBg(t); drawSymbol('vinlandsaga', t); },
   whiplash(dt,t)      { drawMediaBg(t); drawSymbol('whiplash', t); },
   yourname(dt,t)      { drawMediaBg(t); drawSymbol('yourname', t); },
+  hannibal(dt,t)      { drawMediaBg(t); drawSymbol('hannibal', t); },
+  slowhorses(dt,t)    { drawMediaBg(t); drawSymbol('slowhorses', t); },
+  theboys(dt,t)       { drawMediaBg(t); drawSymbol('theboys', t); },
+  tedlasso(dt,t)      { drawMediaBg(t); drawSymbol('tedlasso', t); },
+  forallmankind(dt,t) { drawMediaBg(t); drawSymbol('forallmankind', t); },
 
   // ── Bespoke atmospheric scenes ──
   bioluminescence(dt,t) { drawBioluminescence(t); },
@@ -1227,6 +1232,54 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     c.save(); c.strokeStyle=t.accent; c.lineWidth=1.6; c.globalAlpha=.12;
     c.beginPath(); c.moveTo(cx-W*.16,cy-40); c.lineTo(cx,cy); c.stroke();
     c.fillStyle=t.accent; c.beginPath(); c.arc(cx,cy,2.4,0,Math.PI*2); c.fill();
+    c.restore();
+  },
+  hannibal(t) {
+    // A single antler-like fork, breathing slowly — elegant and restrained.
+    const cx=W*.5,cy=H*.6,R=Math.min(W,H)*.16,breath=.05+.015*Math.sin(tick*.28);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent2 ?? t.accent; c.lineWidth=1.2; c.globalAlpha=breath;
+    [-1,1].forEach(side=>{
+      c.beginPath(); c.moveTo(0,0); c.lineTo(side*R*.4,-R*.9);
+      c.moveTo(side*R*.18,-R*.45); c.lineTo(side*R*.55,-R*.75);
+      c.moveTo(side*R*.28,-R*.7); c.lineTo(side*R*.6,-R*.95);
+      c.stroke();
+    });
+    c.restore();
+  },
+  slowhorses(t) {
+    // Low London fog drifting across, muted and unglamorous.
+    const breath=.05+.018*Math.sin(tick*.22);
+    c.save(); c.globalAlpha=breath; c.fillStyle=t.accent;
+    for(let i=0;i<3;i++){
+      const y=H*(.55+i*.12), x=((tick*6+i*80)%(W+200))-100;
+      c.beginPath(); c.ellipse(x,y,W*.22,H*.03,0,0,Math.PI*2); c.fill();
+    }
+    c.restore();
+  },
+  theboys(t) {
+    // A cracked star-badge flash — satirical, blunt.
+    const cx=W*.72,cy=H*.28,R=Math.min(W,H)*.07,hit=(Math.sin(tick*1.6)*.5+.5);
+    c.save(); c.translate(cx,cy); c.rotate(tick*.05); c.strokeStyle=t.accent; c.lineWidth=1.4; c.globalAlpha=.06+hit*.06;
+    c.beginPath();
+    for(let i=0;i<5;i++){const a=(i/5)*Math.PI*2-Math.PI/2;const x=Math.cos(a)*R,y=Math.sin(a)*R;i===0?c.moveTo(x,y):c.lineTo(x,y);}
+    c.closePath(); c.stroke();
+    c.restore();
+  },
+  tedlasso(t) {
+    // A simple soccer ball outline, warm and unhurried.
+    const cx=W*.28,cy=H*.68,R=Math.min(W,H)*.06,breath=.06+.02*Math.sin(tick*.4);
+    c.save(); c.translate(cx,cy); c.strokeStyle=t.accent2 ?? t.accent; c.lineWidth=1.2; c.globalAlpha=breath;
+    c.beginPath(); c.arc(0,0,R,0,Math.PI*2); c.stroke();
+    for(let i=0;i<5;i++){const a=(i/5)*Math.PI*2;c.beginPath();c.moveTo(0,0);c.lineTo(Math.cos(a)*R*.6,Math.sin(a)*R*.6);c.stroke();}
+    c.restore();
+  },
+  forallmankind(t) {
+    // A satellite tracing a slow, quiet orbit.
+    const cx=W*.5,cy=H*.42,R=Math.min(W,H)*.22,a=tick*.12;
+    c.save(); c.strokeStyle=t.accent; c.lineWidth=.9; c.globalAlpha=.08;
+    c.beginPath(); c.ellipse(cx,cy,R,R*.32,0,0,Math.PI*2); c.stroke();
+    const px=cx+Math.cos(a)*R,py=cy+Math.sin(a)*R*.32;
+    c.fillStyle=t.accent2 ?? t.accent; c.globalAlpha=.5; c.beginPath(); c.arc(px,py,1.8,0,Math.PI*2); c.fill();
     c.restore();
   },
 };
