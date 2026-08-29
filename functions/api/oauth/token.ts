@@ -30,6 +30,15 @@ const PROVIDERS: Record<string, { tokenUrl: string; basicAuth?: boolean }> = {
   linear:  { tokenUrl: 'https://api.linear.app/oauth/token' },
 };
 
+interface TokenRequestBody {
+  provider?: string;
+  code?: string;
+  redirect_uri?: string;
+  code_verifier?: string;
+  grant_type?: string;
+  refresh_token?: string;
+}
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -37,38 +46,63 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-export const onRequestPost: PagesFunction<Env> = async (ctx) => {
-  let body: any;
-  try { body = await ctx.request.json(); } catch { return json({ error: 'invalid_request' }, 400); }
-
-  const { provider, code, redirect_uri, code_verifier, grant_type, refresh_token } = body ?? {};
-  const cfg = provider ? PROVIDERS[provider as string] : undefined;
-  if (!cfg) return json({ error: 'unknown_provider' }, 400);
-
-  const idKey = `${(provider as string).toUpperCase()}_CLIENT_ID` as keyof Env;
-  const secretKey = `${(provider as string).toUpperCase()}_CLIENT_SECRET` as keyof Env;
-  const clientId = ctx.env[idKey];
-  const clientSecret = ctx.env[secretKey];
-  if (!clientId || !clientSecret) {
-    return json({ error: 'not_configured', message: `Set ${idKey} and ${secretKey} as Pages secrets to enable ${provider} OAuth.` }, 501);
+async function parseBody(request: Request): Promise<TokenRequestBody | null> {
+  try {
+    const body = await request.json();
+    return (body && typeof body === 'object') ? body as TokenRequestBody : null;
+  } catch {
+    return null;
   }
+}
 
-  const params = new URLSearchParams({ grant_type: grant_type ?? 'authorization_code' });
-  if (code) params.set('code', code);
-  if (redirect_uri) params.set('redirect_uri', redirect_uri);
-  if (code_verifier) params.set('code_verifier', code_verifier);
-  if (refresh_token) params.set('refresh_token', refresh_token);
+function resolveCredentials(env: Env, provider: string): { clientId: string; clientSecret: string } | null {
+  const idKey = `${provider.toUpperCase()}_CLIENT_ID` as keyof Env;
+  const secretKey = `${provider.toUpperCase()}_CLIENT_SECRET` as keyof Env;
+  const clientId = env[idKey];
+  const clientSecret = env[secretKey];
+  return (clientId && clientSecret) ? { clientId, clientSecret } : null;
+}
 
+function buildTokenParams(body: TokenRequestBody): URLSearchParams {
+  const params = new URLSearchParams({ grant_type: body.grant_type ?? 'authorization_code' });
+  if (body.code) params.set('code', body.code);
+  if (body.redirect_uri) params.set('redirect_uri', body.redirect_uri);
+  if (body.code_verifier) params.set('code_verifier', body.code_verifier);
+  if (body.refresh_token) params.set('refresh_token', body.refresh_token);
+  return params;
+}
+
+function buildHeaders(cfg: { basicAuth?: boolean }, clientId: string, clientSecret: string, params: URLSearchParams): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/x-www-form-urlencoded',
     Accept: 'application/json',
   };
   if (cfg.basicAuth) {
-    headers['Authorization'] = 'Basic ' + btoa(`${clientId}:${clientSecret}`);
+    headers['Authorization'] = `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
   } else {
     params.set('client_id', clientId);
     params.set('client_secret', clientSecret);
   }
+  return headers;
+}
+
+export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+  const body = await parseBody(ctx.request);
+  if (!body) return json({ error: 'invalid_request' }, 400);
+
+  const provider = body.provider ?? '';
+  const cfg = PROVIDERS[provider];
+  if (!cfg) return json({ error: 'unknown_provider' }, 400);
+
+  const creds = resolveCredentials(ctx.env, provider);
+  if (!creds) {
+    const idKey = `${provider.toUpperCase()}_CLIENT_ID`;
+    const secretKey = `${provider.toUpperCase()}_CLIENT_SECRET`;
+    return json({ error: 'not_configured', message: `Set ${idKey} and ${secretKey} as Pages secrets to enable ${provider} OAuth.` }, 501);
+  }
+
+  const params = buildTokenParams(body);
+  const headers = buildHeaders(cfg, creds.clientId, creds.clientSecret, params);
 
   try {
     const upstream = await fetch(cfg.tokenUrl, { method: 'POST', headers, body: params });
