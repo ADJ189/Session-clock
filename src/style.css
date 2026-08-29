@@ -1,0 +1,424 @@
+/* ---------------------------------------------------------------------
+   Tokens
+   Palette: near-black neutral surfaces (monochrome-inspired restraint)
+   plus a single accent that isn't picked by hand — it's sampled live from
+   whatever's playing (see visual/colorbridge.ts). --accent-h/-s/-l are
+   registered below specifically so the browser can interpolate them on
+   its own compositor thread when a track changes (LiMusic's technique
+   for its artwork tint) instead of a JS animation loop.
+   Motion: two durations + one easing curve, reused everywhere, matching
+   Session Clock's existing "Apple/Instagram spring" restraint.
+------------------------------------------------------------------------ */
+
+@property --accent-h {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 210;
+}
+@property --accent-s {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 40%;
+}
+@property --accent-l {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 50%;
+}
+
+:root {
+  --bg: #0b0b0c;
+  --surface: #141416;
+  --surface-raised: #1c1c1f;
+  --border: rgb(255 255 255 / 8%);
+  --text: #f4f4f5;
+  --text-dim: #9a9aa2;
+
+  --accent: hsl(var(--accent-h) var(--accent-s) var(--accent-l));
+  --accent-soft: hsl(var(--accent-h) var(--accent-s) 14%);
+
+  --radius: 10px;
+  --duration-fast: 140ms;
+  --duration-normal: 260ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+  --font-ui: -apple-system, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-normal: 0.01ms;
+  }
+  /* The accent crossfade itself is exempt above this block on purpose —
+     reduced motion means "no motion sickness triggers," not "no color."
+     A near-instant transition-duration still satisfies that. */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------
+   Shell layout
+------------------------------------------------------------------------ */
+
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  grid-template-rows: 1fr auto;
+  height: 100vh;
+}
+
+.sidebar {
+  grid-row: 1 / 2;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar__brand {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0 10px 16px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--text-dim);
+  text-align: left;
+  transition-property: background-color, color;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-out);
+}
+
+.nav-item:hover {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.main {
+  grid-row: 1 / 2;
+  overflow-y: auto;
+  padding: 24px 28px 100px;
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.search-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px hsl(var(--accent-h) var(--accent-s) var(--accent-l) / 20%);
+}
+
+.track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.track-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: background-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+
+.track-row:hover {
+  background: var(--surface-raised);
+  transform: translateX(2px);
+}
+
+.track-row.playing {
+  background: var(--accent-soft);
+}
+
+.track-row img {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface-raised);
+}
+
+.track-row__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.track-row__artist {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.track-row__duration {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------
+   Now Playing bar — the signature element. Its background is a subtle
+   wash of the live accent color, and because --accent-h/-s/-l are
+   registered as animatable, changing them on a track change crossfades
+   on its own — no JS driving the transition frame by frame.
+------------------------------------------------------------------------ */
+
+.now-playing {
+  grid-column: 1 / -1;
+  grid-row: 2 / 3;
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, hsl(var(--accent-h) var(--accent-s) var(--accent-l) / 10%), transparent 60%),
+    var(--surface);
+  transition: background var(--duration-normal) var(--ease-out);
+}
+
+.now-playing__track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.now-playing__art {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface-raised);
+  flex-shrink: 0;
+}
+
+.now-playing__meta {
+  min-width: 0;
+}
+
+/* Marquee only activates via the .overflowing class, added in JS once we
+   measure that the title actually clips — most titles never need it. */
+.marquee {
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.marquee__inner {
+  display: inline-block;
+}
+
+.marquee.overflowing .marquee__inner {
+  animation: marquee-scroll 9s linear infinite;
+  animation-delay: 1.2s;
+}
+
+@keyframes marquee-scroll {
+  0%,
+  10% {
+    transform: translateX(0);
+  }
+  90%,
+  100% {
+    transform: translateX(calc(-100% + 200px));
+  }
+}
+
+.now-playing__title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.now-playing__artist {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.transport {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.transport__buttons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.transport__buttons button {
+  color: var(--text-dim);
+  transition: color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+
+.transport__buttons button:hover {
+  color: var(--text);
+}
+
+.transport__buttons button:active {
+  transform: scale(0.9);
+}
+
+.transport__buttons button.primary {
+  color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.transport__buttons button.primary:hover {
+  transform: scale(1.06);
+}
+
+.transport__buttons button.active {
+  color: var(--accent);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress__track {
+  flex: 1;
+  height: 3px;
+  background: var(--border);
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+}
+
+.progress__fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 999px;
+  /* Width changes every ~500ms from timeupdate — animate it so it reads as
+     a continuous glide instead of a series of jumps. */
+  transition: width 500ms linear;
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+}
+
+.volume input[type='range'] {
+  width: 90px;
+  accent-color: var(--accent);
+}
+
+/* ---------------------------------------------------------------------
+   Queue drawer
+------------------------------------------------------------------------ */
+
+.queue-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 68px;
+  width: 320px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  padding: 18px;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+.queue-drawer.open {
+  transform: translateX(0);
+}
+
+.queue-drawer h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 0 0 12px;
+}
+
+/* IFrame surface for the YouTube backend — kept off-screen at 1x1 rather
+   than display:none, since some embedded players pause/stall content
+   that's fully removed from layout. */
+.yt-surface {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  bottom: 0;
+  right: 0;
+  opacity: 0;
+  pointer-events: none;
+}
