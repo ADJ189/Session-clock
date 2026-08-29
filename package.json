@@ -1,23 +1,23 @@
 {
-  "name": "music-player",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "session-clock",
+  "version": "1.7.1",
+  "description": "Beautiful animated clock — 101+ themes, Pomodoro, ambient sound, literary clock, focus log.",
+  "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
+    "oxlint": "^1.79.0",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^6.3.5"
   },
   "dependencies": {
-    "dexie": "^4.4.5"
-  },
-  "type": "module"
+    "animejs": "^4.5.0"
+  }
 }
