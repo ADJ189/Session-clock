@@ -2,6 +2,23 @@
 
 All notable changes to Session Clock are documented here.
 
+## [1.7.1] — anime.js star-burst for the GitHub celebration, DeepSource cleanup
+
+### Added
+- **anime.js GitHub star-celebration** (`src/motion.ts`, `githubCelebration()`) — fires alongside the existing canvas confetti when the topbar GitHub link is clicked, not replacing it: the avatar ring now draws itself in with a stroke-dashoffset sweep, and 12 small star shapes (reusing the "Star on GitHub" button's own SVG path) burst outward from the avatar and fade — themed around "starring" rather than generic confetti.
+- Every `Motion` export (`popIn`, `staggerIn`, `bounceIn`, `githubCelebration`) now checks the app's own Reduce Motion setting and the OS `prefers-reduced-motion` before running — previously these new animations had no reduced-motion gate at all.
+- `.deepsource.toml` — enables the JavaScript (TypeScript dialect) and Secrets analyzers explicitly, excludes `dist/`, `node_modules/`, `.wrangler/`, and documents (for future maintainers) which of DeepSource's findings are false positives vs. real.
+
+### Fixed (DeepSource findings)
+- `src/apis.ts` — replaced 4 `any` casts with real ambient types for the Battery Status, Document Picture-in-Picture, and iOS `DeviceMotionEvent.requestPermission` APIs (new `src/webapi.d.ts`); removed a non-null assertion on `canvas.getContext('2d')!` with a real null check; fixed an unused `catch (e)` binding; commented the two genuinely-empty `catch {}` blocks.
+- `src/cmdpalette.ts` — removed an unused `Theme` import and an unused `modal` variable; replaced 4 non-null-assertion DOM lookups with a `must()` helper that throws a clear error instead of silently trusting `!`.
+- `functions/api/oauth/token.ts` — removed the last `any`, changed a string concatenation to a template literal, and split the 14-branch handler into `parseBody`/`resolveCredentials`/`buildTokenParams`/`buildHeaders` to bring cyclomatic complexity down.
+- The 2 "hardcoded credential" Secrets findings (`sc_google_client_id`, `sc_sound_presets`) are false positives — both are localStorage key *names*, not credential values. Left as-is in code; documented in `.deepsource.toml` for dismissal from the dashboard.
+- The remaining ~1900 JS-0067 ("function declaration in global scope") / JS-C1002 ("variable name too small") findings are a rule/architecture mismatch, not real bugs — this project is `"type": "module"`, so top-level functions are already module-scoped. Left as-is rather than restructuring ~90 files into IIFEs for a purely cosmetic change; documented the rationale in `.deepsource.toml`.
+
+### Verification
+`tsc --noEmit` and `vite build` both pass. `oxlint .` warnings went from 147 → 144 (no new warnings introduced, some overlapped with the fixes above). No visual/browser testing was possible in this environment — worth a quick click on the GitHub topbar link to confirm the star-burst looks right before shipping.
+
 ## [1.7.0] — Privacy Policy & Terms of Service, anime.js micro-interactions, 5 new themes
 
 ### Added
