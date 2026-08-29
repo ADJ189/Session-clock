@@ -310,6 +310,7 @@ function wireGithubCelebration() {
     overlay.classList.add('open');
     Easter.fireConfetti();
     setTimeout(() => Easter.fireConfetti(), 350);
+    void Motion.githubCelebration(document.querySelector('.gh-avatar'));
   });
 
   $('ghClose')?.addEventListener('click', closeIt);

@@ -438,7 +438,7 @@ function setupDeviceShake() {
 
   // iOS 13+ requires explicit permission via a user gesture.
   // Check if the API requires permission (only exists on iOS 13+).
-  if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+  if (typeof (DeviceMotionEvent as unknown as DeviceMotionEventConstructor).requestPermission === 'function') {
     // Show a button so the user can grant permission from a tap (gesture required).
     const btn = document.createElement('button');
     btn.id = 'deviceShakePermBtn';
@@ -456,7 +456,7 @@ function setupDeviceShake() {
 
     btn.addEventListener('click', async () => {
       try {
-        const result = await (DeviceMotionEvent as any).requestPermission();
+        const result = await (DeviceMotionEvent as unknown as DeviceMotionEventConstructor).requestPermission?.();
         if (result === 'granted') {
           attachDeviceMotionListener();
           _showToast('📳 Shake to shuffle theme enabled!', 2500);

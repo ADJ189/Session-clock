@@ -2,8 +2,6 @@
 // Ctrl+K / Cmd+K opens a VS Code-style search palette.
 // Commands are grouped: Themes · Easter Eggs · Actions · Settings
 
-import type { Theme } from './types';
-
 export interface CmdItem {
   id:       string;
   name:     string;
@@ -20,10 +18,16 @@ let _activeIdx = 0;
 let _filtered: CmdItem[] = [];
 let _lastQuery = '';
 
-const overlay = () => document.getElementById('cmdOverlay')!;
-const modal   = () => document.getElementById('cmdModal')!;
-const input   = () => document.getElementById('cmdInput') as HTMLInputElement;
-const results = () => document.getElementById('cmdResults')!;
+// These IDs are static markup in index.html (always present), so a lookup
+// failure means the DOM structure changed — better to fail loudly than
+// silently trust a non-null assertion.
+function must<T extends Element>(el: T | null, id: string): T {
+  if (!el) throw new Error(`cmdpalette: expected #${id} to exist in the DOM`);
+  return el;
+}
+const overlay = () => must(document.getElementById('cmdOverlay'), 'cmdOverlay');
+const input   = () => must(document.getElementById('cmdInput'), 'cmdInput') as HTMLInputElement;
+const results = () => must(document.getElementById('cmdResults'), 'cmdResults');
 
 // ── Register commands ─────────────────────────────────────────────────
 export function registerItems(items: CmdItem[]) {

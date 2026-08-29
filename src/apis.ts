@@ -102,7 +102,7 @@ export async function acquireWakeLock(): Promise<void> {
 }
 
 export async function releaseWakeLock(): Promise<void> {
-  try { await wakeLock?.release(); } catch {}
+  try { await wakeLock?.release(); } catch { /* already released or unsupported */ }
   wakeLock = null;
 }
 
@@ -147,7 +147,8 @@ async function enterDocumentPiP(
   theme: { accent: string; text: string; baseBg: string[] },
 ): Promise<void> {
   try {
-    const api = (window as any).documentPictureInPicture;
+    const api = window.documentPictureInPicture;
+    if (!api) { await enterCanvasPiP(theme); return; }
     _pipWindow = await api.requestWindow({ width: 320, height: 180 });
     if (!_pipWindow) return;
 
@@ -207,8 +208,8 @@ async function enterDocumentPiP(
     _pipWindow.addEventListener('pagehide', () => {
       cancelAnimationFrame(_pipRafId); _pipWindow = null;
     });
-  } catch (e) {
-    // Fall back to canvas PiP
+  } catch {
+    // Document PiP unsupported or denied — fall back to canvas PiP
     await enterCanvasPiP(theme);
   }
 }
@@ -219,7 +220,8 @@ async function enterCanvasPiP(
   // Canvas→MediaStream→Video PiP (works in all browsers)
   _pipCanvas = document.createElement('canvas');
   _pipCanvas.width = 320; _pipCanvas.height = 180;
-  _pipCtx = _pipCanvas.getContext('2d')!;
+  _pipCtx = _pipCanvas.getContext('2d');
+  if (!_pipCtx) { _pipCanvas = null; return; } // canvas 2D context unavailable — nothing to draw into
 
   const stream = _pipCanvas.captureStream(30);
   _pipVideo = document.createElement('video');
@@ -276,12 +278,12 @@ async function enterCanvasPiP(
 
 export async function exitPiP(): Promise<void> {
   cancelAnimationFrame(_pipRafId);
-  if (_pipWindow && !(_pipWindow as any).closed) {
-    try { _pipWindow.close(); } catch {}
+  if (_pipWindow && !_pipWindow.closed) {
+    try { _pipWindow.close(); } catch { /* window already gone */ }
   }
   _pipWindow = null;
   if (document.pictureInPictureElement) {
-    try { await document.exitPictureInPicture(); } catch {}
+    try { await document.exitPictureInPicture(); } catch { /* nothing to exit */ }
   }
   _pipVideo = null; _pipCanvas = null; _pipCtx = null;
 }
@@ -306,7 +308,8 @@ export async function initBattery(): Promise<void> {
   if (_batteryInitialised || !('getBattery' in navigator)) return;
   _batteryInitialised = true;
   try {
-    const bat = await (navigator as any).getBattery();
+    const bat = await navigator.getBattery?.();
+    if (!bat) return;
     const update = () => {
       _batteryLevel = bat.level;
       _onBattery    = !bat.charging;
