@@ -1,21 +1,10 @@
 {
-  "name": "Session Clock",
-  "short_name": "Session Clock",
-  "description": "A cinematic focus timer with 101 animated themes, Pomodoro, ambient sound mixer, and zero backend.",
+  "name": "Session Clock · Music",
+  "short_name": "SC Music",
+  "description": "A local-first, cinematic music player companion to Session Clock.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#06030f",
-  "theme_color": "#06030f",
-  "orientation": "any",
-  "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
-  ],
-  "categories": ["productivity", "utilities"],
-  "screenshots": [
-    { "src": "og-preview.svg", "sizes": "1200x630", "type": "image/svg+xml", "form_factor": "wide" }
-  ],
-  "shortcuts": [
-    { "name": "Start Session", "url": "/?start=1", "description": "Start a focus session immediately" }
-  ]
+  "background_color": "#0b0b0c",
+  "theme_color": "#0b0b0c",
+  "icons": []
 }

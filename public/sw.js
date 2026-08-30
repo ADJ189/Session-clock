@@ -1,39 +1,43 @@
-// Session Clock Service Worker — offline cache strategy
-const CACHE = 'session-clock-v6';
-const PRECACHE = ['/', '/index.html', '/splash-base.png', '/splash-triangle.png'];
+// App-shell caching only, per the plan's own caching strategy (see
+// README): the shell/CSS/JS get cached aggressively, but this worker
+// never touches audio, YouTube API responses, or the IFrame player --
+// those go straight to the network every time, on purpose. Caching a
+// "playable audio" response would be the wrong kind of persistence for
+// content this app doesn't have redistribution rights to.
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
+const CACHE_NAME = 'session-clock-music-shell-v1';
+const SHELL_ASSETS = ['/', '/manifest.json'];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS)));
+  self.skipWaiting();
 });
 
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ).then(() => self.clients.claim()));
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+  );
+  self.clients.claim();
 });
 
-self.addEventListener('fetch', e => {
-  // Network-first for API calls, cache-first for assets
-  const url = new URL(e.request.url);
-  if (url.origin !== location.origin) {
-    // External — network with cache fallback
-    e.respondWith(
-      fetch(e.request).then(r => {
-        const clone = r.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-        return r;
-      }).catch(() => caches.match(e.request))
-    );
-    return;
-  }
-  // Same-origin — cache first, then network
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      const net = fetch(e.request).then(r => {
-        caches.open(CACHE).then(c => c.put(e.request, r.clone()));
-        return r;
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // Never intercept anything cross-origin (YouTube API, thumbnails,
+  // the IFrame player, Google auth) -- only cache same-origin shell assets.
+  if (url.origin !== self.location.origin) return;
+  if (event.request.method !== 'GET') return;
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        if (response.ok && (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname === '/')) {
+          const copy = response.clone();
+          void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
       });
-      return cached || net;
     })
   );
 });
