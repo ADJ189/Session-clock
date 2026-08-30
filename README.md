@@ -1,112 +1,126 @@
-<div align="center">
+# Session Clock · Music
 
-<img src="public/readme-banner.svg" width="900" alt="Session Clock — A cinematic focus timer. Every theme is a world." />
+Full player, not just a shell: playback, library, playlists, lyrics,
+visualizer, PWA. Typechecked (`npm run typecheck`) and buildable
+(`npm run build`) end to end. Not wired to a live audio source yet — see
+"What's stubbed."
 
-<img src="public/preview.png" width="900" alt="Session Clock app preview — Good Night clock view, session timer, and the Spotify/YouTube music dock" />
+## What was borrowed, and from where
 
-[![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Session-clock/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Session-clock/actions)
-[![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Zero deps](https://img.shields.io/badge/runtime_deps-0-22c55e?style=flat-square)](package.json)
-[![PWA](https://img.shields.io/badge/PWA-ready-8b5cf6?style=flat-square)](public/manifest.json)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
-[![CodeQL](https://img.shields.io/badge/CodeQL-clean-16a34a?style=flat-square)](https://github.com/ADJ189/Session-clock/security)
+**LiMusic (`limusic-master`)** — the animatable-artwork-tint technique:
+registering `--accent-h/-s/-l` as typed CSS `@property` values so the
+browser's own compositor interpolates the color crossfade, instead of a
+JS `requestAnimationFrame` loop rewriting root variables every frame.
+Also borrowed the general shell shape (persistent now-playing bar,
+slide-in side drawer, marquee for overflowing titles).
 
-[**Open App →**](https://accurate-time.pages.dev/)&nbsp;&nbsp;·&nbsp;&nbsp;[**Wiki →**](https://github.com/ADJ189/Session-clock/wiki)&nbsp;&nbsp;·&nbsp;&nbsp;[Issues](https://github.com/ADJ189/Session-clock/issues)
+**Monochrome (`monochrome-main`)** — the restraint: near-black neutral
+surfaces, one `cubic-bezier(0.2, 0, 0, 1)` easing curve and two duration
+tokens reused on every transition instead of one-off values per
+component, letting the sampled accent color be the one un-restrained
+element.
 
-</div>
+Neither repo's YouTube-stream-handling code was used — see "What's
+intentionally not here."
 
----
+## Feature coverage
 
-Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 101 animated canvas themes (each with its own bespoke intro transition), a synthesized ambient sound mixer with crossfade scenes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
+- **Playback**: play/pause, prev/next, seek (click-to-seek progress bar),
+  ±10s skip, mute, playback speed (0.75×–2×), volume, shuffle
+  (Fisher–Yates, anchors the currently-playing track), repeat
+  (off/all/one), persistent queue (debounced writes to IndexedDB).
+- **Discovery**: debounced, `AbortController`-cancelled search against the
+  official YouTube Data API v3, with a follow-up batched `videos.list`
+  call to fill in real durations. Recent searches are stored and shown as
+  chips.
+- **Library**: liked songs, playlists (create/rename/delete, add/remove
+  track, via a lightweight prompt-based picker), listening history,
+  "continue listening" (deduped, most-recent-first).
+- **Lyrics**: paste-your-own LRC text, synced via Liricle, active-line
+  highlighting, auto-scroll, click-to-seek. No third-party lyrics API is
+  wired in — see `lyrics/provider.ts` for why.
+- **Player experience**: mini-player mode, a queue/lyrics side drawer,
+  keyboard shortcuts (space, ←/→ seek, N/P, M mute, S shuffle, R repeat,
+  L like, Q queue, / search), Media Session integration (lock-screen/OS
+  media controls, progressive enhancement -- no-ops where unsupported),
+  a cinematic ambient canvas background behind the whole shell.
+- **PWA**: manifest + service worker caching the app shell (HTML/CSS/JS)
+  cache-first; explicitly never intercepts cross-origin requests
+  (YouTube API, thumbnails, the IFrame player), so nothing about the music
+  source itself is cached.
 
-| | |
-|---|---|
-| **Themes** | 101 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
-| **Sound Mixer** | 17 synthesized ambient tracks · crossfade scenes · night mode · live VU meter |
-| **Now Playing** | Matches ~30 soundtracks against Spotify (or any player, manually) and switches theme |
-| **Modes** | Pomodoro (fully custom cycles) · **Zen** · **Calm** · **Focus** · Kiosk · PiP · Voice |
-| **Intelligence** | Streaks · Velocity · **Flow Intensity** · Configurable break reminders |
-| **Always on Top** | Document PiP — mini clock floats over other apps |
-| **Languages** | EN ES FR DE JA KO PT HI |
-| **Privacy** | Zero backend · localStorage only · No tracking |
+## Where the animation and workers actually earn their place
 
-**[→ Full documentation on the Wiki](https://github.com/ADJ189/Session-clock/wiki)** &nbsp;·&nbsp; **[→ Changelog](CHANGELOG.md)**
+- `visual/colorbridge.ts` + `workers/artwork.worker.ts`: artwork decode
+  and pixel sampling run entirely off the main thread. The registered
+  custom properties mean the resulting color crossfade costs nothing on
+  the main thread. Stale worker responses (from a track you've since
+  skipped past) are discarded.
+- `library/history.ts` + `workers/data.worker.ts`: the "continue
+  listening" dedup only goes to a worker once history has enough rows
+  (300+) that the postMessage round-trip is actually cheaper than a
+  direct main-thread loop -- see the file's header comment for why that
+  threshold exists instead of always using the worker.
+- `player/analyser.ts`: a real Web Audio `AnalyserNode` reads actual
+  frequency data for `audio-url` playback. For the YouTube IFrame
+  backend, there's a hard browser boundary -- the iframe's audio lives in
+  a separate, cross-origin browsing context that Web Audio has no access
+  to. Rather than fake reactive data, that path uses a clearly-labeled
+  ambient pulse (`isRealAudioData: false`) instead of pretending to
+  analyze audio it can't see.
+- `player/engine.ts`: queue-state writes are debounced (400ms); history
+  is trimmed in batches past 2000 rows, not checked on every write.
+- `ui/shell.ts`: search is debounced (300ms) with in-flight cancellation.
+- `visual/canvas.ts`: the ambient canvas stops entirely when the tab is
+  hidden and respects `prefers-reduced-motion` (bars go flat, particles
+  stop, rather than quietly ignoring the setting).
 
----
+## What's intentionally not here
 
-## What's New in 1.4.0
+`music/provider.ts` and `music/providers/youtube.ts` document this
+directly: there's no code path that fetches or deciphers a raw/adaptive
+YouTube stream URL. Search and metadata go through the official YouTube
+Data API v3; playback resolves to an `'iframe'` source that mounts
+YouTube's own official IFrame Player (video stays attached, per YouTube's
+terms) -- same approach already used in Session Clock's `musicdock.ts`.
 
-- **Head-tracked spatial audio** — turn your phone and the ambient soundstage stays anchored in place, like AirPods spatial audio. Built on the existing 3D Spatial Audio panning engine.
-- **4 new ambient sounds**: White Noise, Pink Noise, Rain on Roof, and Airplane Cabin — the mixer now has 17 tracks total.
-- **Fixed two sounds that silently ignored their own volume slider** (Forest's bird chirps, Fireplace's crackle) — both now respond to per-track volume and spatial panning correctly.
-- **Platform-aware optimizations** — a real OS/browser-engine detection layer now backs the app, so features that only exist on some platforms (haptic vibration, Document Picture-in-Picture pop-outs, iOS's gyroscope permission prompt) behave correctly instead of silently failing or showing a dead button.
-- **Fixed a mobile layout bug**: the header could overlap itself on phone-width screens; it now collapses sensibly, and a long-standing bug where gyroscope parallax never actually worked on iPhone/iPad (missing the required iOS motion-permission request) is fixed.
-- **Haptic Feedback** setting for Pomodoro start/complete, on devices that support it.
-- **Hide Seconds / Hide Milliseconds**, and **per-clock-style center mode** — Digital, Analogue, Flip, Word, Minimal, and Segment clocks now each remember their own Top/Centre preference and scale properly (larger, sharper canvases) when centered, instead of sharing one global setting tuned only for the digital clock.
+Lyrics are user-supplied rather than pulled from a third-party lyrics API
+for the same underlying reason most "free" lyrics endpoints are
+themselves unofficial/scraped services -- see `lyrics/provider.ts`.
 
-*1.4.1 was a maintenance-only pass (24 dead exports removed, no behavior changes). 1.4.2 gave 35 of the 96 themes — including Fargo, Ghibli, John Wick, The Batman, and Zen Garden — their own background renderer for the first time; they'd been silently falling back to a generic particle background since they were added. 1.5.0 added a Minimal Session Panel for Centre mode, a GitHub star/support celebration on the topbar link, and removed the sync status pill. See [Changelog](CHANGELOG.md#150--minimal-centre-mode-github-starsupport-celebration-removed-the-sync-pill) for details — note it flags one thing that needs your input (the support/donate link is a placeholder).*
-- **New animated splash intro** and **app icon** using the new hourglass logo — the inner triangle spins while sources load and eases to a stop once ready.
-- **Music dock**: real in-page Spotify playback (Web Playback SDK), pop-out via Document Picture-in-Picture, optional auto-sync with focus/break, plus a YouTube tab via the official IFrame Player API.
-- **Focus sidebar task cards**: compact GitHub, Notion, Todoist, and Calendar cards next to the music dock.
-- **33 new themes** across TV, film, anime, animation, F1, and ambient categories — Fargo, Twin Peaks, The Batman, Your Name, Studio Ghibli, Spider-Verse, Zen Garden, and more. Each has its own bespoke canvas intro transition, not a generic fade.
-- **7 new ambient sounds** (Wind, Snowfall, Keyboard, Library, Spaceship, Campfire, Waves & Rocks) — synthesized entirely in-browser, no audio files.
-- **Sound Mixer redesign**: live output meter, night mode, crossfade Scenes that blend your ambient mix as Pomodoro moves between focus and break.
-- **Now Playing → Theme**: recognizes soundtracks from what's currently playing (Spotify, or type it in manually for any player) and switches the theme to match.
-- **Custom Pomodoro cycles**, configurable break reminders, an opt-in idle nudge, Calm Mode, Focus Mode, and an always-on-top mini clock.
-- Removed leftover Token Shop remnants (dead UI from an early, since-removed feature). Fixed theme picker icons not rendering, rain/fireplace sounds silently failing to autoplay, a dead "Smart Break Reminder" toggle, and a handful of memory leaks.
+## What's stubbed / next steps
 
-See [CHANGELOG.md](CHANGELOG.md) for the full list.
+- `getStoredYouTubeToken()` in `main.ts` reads a placeholder settings key.
+  Wire it to Session Clock's existing `ensureFreshToken()` /
+  `integrations.ts` OAuth flow.
+- Search suggestions are local (your own recent searches), not a live
+  YouTube suggest API -- that's a separate, undocumented endpoint with
+  its own quota/ToS questions, kept out for the same reason as the
+  stream-extraction layer.
+- No album/artist pages yet -- search results and playlists are
+  track-level only.
+- `public/manifest.json` has no icons yet.
 
----
+## Structure
 
-## Quick Start
-
-```bash
-git clone https://github.com/ADJ189/Session-clock
-cd Session-clock
-npm install && npm run dev       # localhost:5173
-npm run typecheck                # strict TypeScript check
-npm run build                    # production → dist/
 ```
-
-Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The included workflow handles `typecheck → build → deploy` automatically.
-
----
-
-## Key Shortcuts
-
-`Space` start/pause &nbsp;·&nbsp; `Z` Zen Mode &nbsp;·&nbsp; `T` next theme &nbsp;·&nbsp; `Ctrl+K` command palette &nbsp;·&nbsp; `Esc` exit
-
-**[→ All shortcuts on the Wiki](https://github.com/ADJ189/Session-clock/wiki/Keyboard-Shortcuts)**
-
----
-
-## Secret Themes
-
-🎮 **8-BIT** — `↑↑↓↓←→←→BA` &nbsp;·&nbsp; 🔥 **Phoenix** — 100 sessions &nbsp;·&nbsp; 🍳 **The Bear** — type `thebear`
-
-**[→ All easter eggs on the Wiki](https://github.com/ADJ189/Session-clock/wiki/Easter-Eggs)**
-
----
-
-## Contributing
-
-Bug reports and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md)
-for setup, project layout, and how to configure OAuth for local dev.
-Third-party fonts, APIs, and tooling are listed in [CREDITS.md](CREDITS.md).
-
-## License
-
-[AGPL-3.0](LICENSE) — free to use and fork; modifications must be open-sourced.
-
----
-
-<div align="center">
-<sub>28 modules · 1 runtime dep (anime.js) · 101 themes · 17 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
-
----
-
-Made with ❤️ by **ADJ189**
-
-*"Focus is the art of knowing what to ignore."*
-</div>
+src/
+  core/types.ts                domain types
+  music/provider.ts             MusicProvider interface
+  music/providers/youtube.ts    the only provider implementation
+  player/queue.ts                shuffle/repeat/remove, provider-agnostic
+  player/backends.ts             AudioBackend + YouTubeIframeBackend
+  player/engine.ts               orchestrates provider + queue + backend
+  player/analyser.ts             real FFT (audio) / ambient fallback (iframe)
+  player/media-session.ts        OS/lock-screen media controls
+  library/likes.ts, playlists.ts, history.ts
+  lyrics/provider.ts, sync.ts    user-supplied LRC + Liricle sync
+  storage/db.ts                   Dexie/IndexedDB schema
+  visual/colorbridge.ts           drives the animated accent color
+  visual/canvas.ts                ambient cinematic background
+  workers/artwork.worker.ts       off-thread dominant-color extraction
+  workers/data.worker.ts          off-thread history dedup (large lists only)
+  ui/shell.ts, keyboard.ts        DOM, views, wiring, shortcuts
+public/
+  manifest.json, sw.js            PWA shell caching
+```
