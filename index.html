@@ -1,14 +1,533 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b0b0c" />
-    <link rel="manifest" href="/manifest.json" />
-    <title>Session Clock · Music</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta name="description" content="Session Clock — 101 animated themes, Pomodoro, ambient sound mixer, and more.">
+<meta name="theme-color" content="#06030f">
+<meta name="color-scheme" content="dark light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<meta property="og:title" content="Session Clock">
+<meta property="og:description" content="A cinematic focus timer with 101 animated themes, Pomodoro, and an ambient sound mixer.">
+<meta property="og:type" content="website">
+<title>Session Clock</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/logo.png" type="image/png">
+<link rel="icon" href="/icon-512.png" sizes="512x512" type="image/png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta property="og:image" content="/og-preview.svg">
+<meta property="og:url" content="https://accurate-time.pages.dev/">
+<meta property="og:site_name" content="Session Clock">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Session Clock">
+<meta name="twitter:description" content="A cinematic focus timer with 101 animated themes, Pomodoro, and an ambient sound mixer.">
+<meta name="twitter:image" content="/og-preview.svg">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Session Clock">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,300;1,14..32,400&family=Cinzel:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Comfortaa:wght@300;400;700&family=Josefin+Sans:wght@100;300;400;600&family=Fraunces:ital,wght@0,100;0,700;1,400&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Special+Elite&family=Nunito:wght@300;400;600;700;800&family=IM+Fell+English:ital@0;1&family=Teko:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Press+Start+2P&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,300;1,14..32,400&family=Cinzel:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Comfortaa:wght@300;400;700&family=Josefin+Sans:wght@100;300;400;600&family=Fraunces:ital,wght@0,100;0,700;1,400&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Special+Elite&family=Nunito:wght@300;400;600;700;800&family=IM+Fell+English:ital@0;1&family=Teko:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Press+Start+2P&display=swap"></noscript>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Splash screen — shown instantly (inline, no extra request) while the
+     module bundle and fonts load, and removed once the first frame is
+     ready (with a short minimum hold so it doesn't just flash). Fallback
+     timer below guards against it ever getting stuck or overstaying. -->
+<div id="splashScreen" role="status" aria-label="Loading Session Clock">
+  <div class="splash-mark-wrap">
+    <img class="splash-mark-base" alt="" aria-hidden="true" src="/splash-base.png">
+    <img class="splash-mark-triangle" alt="" aria-hidden="true" src="/splash-triangle.png">
+  </div>
+  <div class="splash-title">Session Clock</div>
+  <div class="splash-dots"><span></span><span></span><span></span></div>
+</div>
+<script>
+  // Marks when the splash first appeared, so main.ts can hold it for a
+  // short minimum time (feels intentional) without ever overstaying.
+  window.__splashT0 = performance.now();
+  // Hard ceiling: whatever happens, the splash is gone by ~1.5s.
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var s = document.getElementById('splashScreen');
+      if (s && !s.classList.contains('splash-hide')) {
+        s.classList.add('splash-hide');
+        setTimeout(function () { s.remove(); }, 400);
+      }
+    }, 1500);
+  });
+</script>
+
+<!-- Canvas layers -->
+<canvas id="bgCanvas"></canvas>
+<div id="overlay"></div>
+<div id="vignette"></div>
+<div id="hdrBloom"></div>
+<div id="scanlines"></div>
+<div id="grain"></div>
+<div id="letterboxTop"></div>
+<div id="letterboxBot"></div>
+<canvas id="transCanvas"></canvas>
+
+<!-- Top bar -->
+<header class="topbar">
+  <div class="topbar-left">
+    <button class="topbar-themes-btn" id="topbarThemesBtn" title="Themes">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      Themes
+    </button>
+    <div class="weather-support-wrap">
+      <div id="weatherPill" class="topbar-pill">
+        <span id="weatherIcon" class="weather-icon-default">
+          <svg viewBox="0 0 24 16" width="17" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6.5 13.5a4.2 4.2 0 0 1-.4-8.38A5 5 0 0 1 15.7 4.1 4 4 0 0 1 17.5 12" />
+            <path d="M6.5 13.5h11" />
+          </svg>
+        </span>
+        <span id="weatherText">--°</span>
+      </div>
+      <div class="support-card" role="note">
+        <img class="support-avatar" src="https://github.com/ADJ189.png?size=64" alt="" width="30" height="30" loading="lazy" referrerpolicy="no-referrer">
+        <div class="support-card-body">
+          <div class="support-card-name">ADJ189</div>
+          <div class="support-card-msg">Enjoying Session Clock? A star helps other people find it.</div>
+          <a class="support-card-star" href="https://github.com/ADJ189/Session-clock" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L2 9.7l7.1-.6z"/></svg>
+            Star on GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="info-strip">
+      <div class="info-slide" id="infoSlide">
+        <span class="info-dot"></span>
+        <span id="infoLabel">Session Clock</span>
+      </div>
+    </div>
+  </div>
+  <div id="showBadge" class="showbadge"></div>
+  <div class="topbar-right">
+    <div class="utc-pill" id="utcPill">UTC --:--:--</div>
+    <button class="clock-pos-pill" id="clockPosPill" title="Toggle clock position">⊟ Top</button>
+    <a class="topbar-icon-btn" href="https://github.com/ADJ189/Session-clock" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" title="GitHub">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836a9.59 9.59 0 012.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+    </a>
+    <button class="topbar-icon-btn cmd-trigger-btn" id="btnCmdPalette" title="Command palette · Ctrl+K · Type / for secrets">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span class="cmd-btn-label">⌘K</span>
+    </button>
+    <button class="topbar-icon-btn" id="btnKbShortcuts" title="Keyboard shortcuts (?)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- Main -->
+<main class="main" id="mainUI">
+  <p class="greeting" id="greeting">Good morning</p>
+
+  <div class="clock-block" id="clock-block-wrap">
+    <div class="clock-row">
+      <span class="digit-pair" id="digitHr">--</span>
+      <span class="clock-colon colon">:</span>
+      <span class="digit-pair" id="digitMin">--</span>
+      <span class="clock-colon colon sep-sec">:</span>
+      <span class="digit-pair" id="digitSec">--</span>
+      <div class="ampm-stack">
+        <span class="ampm" id="ampmDis">--</span>
+        <span class="seconds-ms" id="secMs">.---</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- hidden for JS compat -->
+  <div id="timeDis" style="display:none" aria-hidden="true"></div>
+
+  <p class="date-display" id="dateDis">—</p>
+
+  <div class="progress-wrap">
+    <div class="progress-labels">
+      <span>Day Progress</span>
+      <span id="dayPct">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <div class="session-card">
+    <div class="pom-mode-pill" id="pomModePill">🍅 Pomodoro</div>
+    <div class="session-label" id="sessionLabel">Session Timer</div>
+    <div id="pomRingWrap">
+      <svg id="pomRingSvg" width="0" height="0" viewBox="0 0 120 120" style="display:none">
+        <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="3"/>
+        <circle id="pomRingArc" cx="60" cy="60" r="54" fill="none" stroke="var(--clr-accent)"
+                stroke-width="3" stroke-linecap="round" stroke-dasharray="339.3" stroke-dashoffset="0"
+                transform="rotate(-90 60 60)" style="transition:stroke-dashoffset .5s linear,stroke .5s"/>
+      </svg>
+      <div class="session-timer" id="sessionTimer">00:00:00</div>
+    </div>
+    <div id="focusInputWrap">
+      <span id="focusTag">Working on</span>
+      <input id="focusInput" type="text" placeholder="what are you working on?" aria-label="What are you working on?" maxlength="60" autocomplete="off"/>
+    </div>
+    <div class="session-controls">
+      <button class="btn btn-primary" id="btnStart">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Start
+      </button>
+      <button class="btn btn-ghost" id="btnReset">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        Reset
+      </button>
+      <button class="btn btn-icon" id="btnPomToggle" title="Pomodoro">🍅</button>
+    </div>
+    <!-- Smart status line -->
+    <div class="session-status-line" id="sessionStatusLine">Ready to focus</div>
+    <!-- Distraction counter (visible during sessions) -->
+    <div class="distraction-row" id="distractionRow" style="display:none">
+      <button class="distraction-btn" id="btnDistraction" title="Log a distraction">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Distraction
+      </button>
+      <span class="distraction-count" id="distractionCount">0 today</span>
+    </div>
+  </div>
+
+  <div class="quote-area">
+    <p class="quote-text" id="quoteText"></p>
+    <p class="lit-meta" id="litMeta"></p>
+  </div>
+</main>
+
+<!-- Theme panel -->
+<div id="themePanel">
+  <button id="panelToggle" aria-label="Toggle themes">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    Themes
+    <span id="panelChevron">▾</span>
+  </button>
+  <div class="panel-body">
+    <div id="themePanelRows"></div>
+  </div>
+</div>
+
+<!-- Quick-action dock — independent of the theme panel's collapsed state -->
+<div class="feat-dock" id="featBar"></div>
+
+<!-- Reappears whenever the theme panel is collapsed/hidden, so there's always a way back in -->
+<button id="themesRevealBtn" aria-label="Show themes">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+  Themes
+</button>
+
+<!-- MODALS -->
+<div class="sc-overlay" id="themeBuilderOverlay">
+  <div class="sc-modal">
+    <div class="modal-header">
+      <h2>🎨 Custom Theme</h2>
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('themeBuilderOverlay')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <h3>Colors</h3>
+    <div id="colorRows"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="SC.themeBuilder.preview()">Preview</button>
+      <button class="btn btn-ghost" onclick="SC.themeBuilder.save()">Save</button>
+      <button class="btn btn-ghost" onclick="SC.themeBuilder.reset()">Reset</button>
+    </div>
+    <h3>Saved Themes</h3>
+    <div class="saved-theme-row" id="savedThemeRow"></div>
+  </div>
+</div>
+
+<div class="sc-overlay" id="soundOverlay">
+  <div class="sc-modal sc-modal--mixer">
+    <div class="modal-header">
+      <h2>🎵 Sound Mixer</h2>
+      <div class="mixer-header-actions">
+        <button class="mixer-night-toggle" id="mixerNightToggle" title="Night mode">🌙</button>
+        <button class="modal-close" aria-label="Close" onclick="SC.modals.close('soundOverlay')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="sound-mixer">
+      <div class="sound-tracks" id="soundGrid"></div>
+      <div class="sound-master">
+        <div class="sound-master-row">
+          <span class="sound-master-lbl">Master</span>
+          <input type="range" class="sc-range master-vol-slider" id="volSlider" aria-label="Master volume" min="0" max="200" value="70">
+          <span class="sound-vol-pct" id="volLabel">70%</span>
+        </div>
+        <div class="mixer-vu-row">
+          <span class="sound-master-lbl">Output</span>
+          <div class="mixer-vu-track"><div class="mixer-vu-fill" id="mixerVuFill"></div></div>
+        </div>
+        <div class="sound-master-row" style="margin-top:10px">
+          <span class="sound-master-lbl">Fade out</span>
+          <input type="range" class="sc-range" id="fadeSlider" aria-label="Fade out duration" min="0" max="60" value="0">
+          <span class="sound-vol-pct" id="fadeLabel">Off</span>
+        </div>
+      </div>
+      <div class="mixer-scenes">
+        <div class="mixer-scenes-hdr">
+          <span class="sound-master-lbl">🎬 Crossfade Scenes</span>
+          <label class="mixer-scene-auto"><input type="checkbox" id="mixerAutoCrossfade"> Auto-switch with Pomodoro</label>
+        </div>
+        <div class="mixer-scenes-row">
+          <button class="scene-btn" id="sceneFocusBtn">💼 Save Focus mix</button>
+          <button class="scene-btn" id="sceneBreakBtn">☕ Save Break mix</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sc-overlay" id="kbOverlay">
+  <div class="sc-modal sc-modal--narrow">
+    <div class="modal-header">
+      <h2>⌨️ Shortcuts</h2>
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('kbOverlay')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="kb-grid" id="kbGrid"></div>
+  </div>
+</div>
+
+<div class="sc-overlay" id="pomOverlay">
+  <div class="sc-modal">
+    <div class="modal-header">
+      <h2>🍅 Pomodoro</h2>
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('pomOverlay')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <h3>Work duration</h3>
+    <div class="pill-group" id="pomWorkBtns"></div>
+    <h3>Short break</h3>
+    <div class="pill-group" id="pomBreakBtns"></div>
+    <h3>Long break duration</h3>
+    <div class="pill-group" id="pomLongBreakMinBtns"></div>
+    <h3>Long break after</h3>
+    <div class="pill-group" id="pomLongBtns"></div>
+    <h3>Custom cycle</h3>
+    <div class="pom-custom-row" id="pomCustomRow">
+      <label>Work <input type="number" id="pomCustomWork" min="1" max="180" step="1"> min</label>
+      <label>Break <input type="number" id="pomCustomBreak" min="1" max="90" step="1"> min</label>
+      <label>Long break <input type="number" id="pomCustomLong" min="1" max="120" step="1"> min</label>
+    </div>
+    <p class="pom-today">Completed today: <strong><span id="pomCountToday">0</span></strong></p>
+  </div>
+</div>
+
+<div class="sc-overlay" id="settingsOverlay">
+  <div class="sc-modal sc-modal--settings">
+    <div class="modal-header">
+      <h2>⚙️ Settings</h2>
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('settingsOverlay')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="settingsTabBar"></div>
+    <div id="settingsContent"></div>
+  </div>
+</div>
+
+<!-- GitHub star/support celebration — shown before following the GitHub link -->
+<div class="sc-overlay gh-overlay" id="ghOverlay">
+  <div class="sc-modal sc-modal--narrow gh-modal">
+    <button class="modal-close" id="ghClose" aria-label="Close">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="gh-avatar-wrap">
+      <img class="gh-avatar" src="https://github.com/ADJ189.png?size=96" alt="" width="72" height="72" loading="lazy" referrerpolicy="no-referrer">
+      <svg class="gh-avatar-ring" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46"/></svg>
+    </div>
+    <p class="gh-eyebrow">Made by ADJ</p>
+    <h2 class="gh-title">Enjoying Session Clock?</h2>
+    <p class="gh-body">One click keeps this project going — a star helps people find it, and every bit of support means it stays free, ad-free, and actively built on.</p>
+    <div class="gh-actions">
+      <a class="btn btn-primary gh-btn-star" id="ghBtnStar" href="https://github.com/ADJ189/Session-clock" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L2 9.7l7.1-.6z"/></svg>
+        Star on GitHub
+      </a>
+      <a class="btn btn-ghost gh-btn-donate" id="ghBtnDonate" href="https://github.com/sponsors/ADJ189" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">
+        ☕ Support the project
+      </a>
+    </div>
+    <button class="gh-skip" id="ghSkip">Just take me to GitHub →</button>
+  </div>
+</div>
+
+
+<!-- Data Management -->
+<div class="sc-overlay" id="dataOverlay">
+  <div class="sc-modal sc-modal--settings">
+    <div class="modal-header">
+      <h2>🔐 Your Data</h2>
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('dataOverlay')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="dataContent"></div>
+  </div>
+</div>
+
+<!-- Legal: Privacy Policy / Terms of Service -->
+<div class="sc-overlay" id="legalOverlay">
+  <div class="sc-modal sc-modal--settings">
+    <div class="modal-header">
+      <div>
+        <h2 id="legalTitle">📄 Privacy Policy</h2>
+        <p class="legal-updated" id="legalUpdated"></p>
+      </div>
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('legalOverlay')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="legalContent"></div>
+  </div>
+</div>
+
+<!-- QR Handoff -->
+<div class="sc-overlay" id="qrOverlay">
+  <div class="sc-modal sc-modal--narrow">
+    <div class="modal-header">
+      <h2>📱 Handoff</h2>
+      <button class="modal-close" aria-label="Close" onclick="SC.modals.close('qrOverlay')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="qr-body">
+      <canvas id="qrCanvas" width="200" height="200"></canvas>
+      <p class="qr-label" id="qrLabel">Scan to continue this session on another device</p>
+      <p class="qr-url" id="qrUrl"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Animedoro Theater Mode -->
+<div id="theaterOverlay" class="theater-overlay">
+  <div class="theater-content">
+    <div class="theater-icon">🎬</div>
+    <h2 class="theater-title">Session Complete</h2>
+    <p class="theater-subtitle">You've earned <strong id="theaterMinutes">20</strong> minutes</p>
+    <p class="theater-desc">Step away from the desk. Watch an episode. Play a game. You earned it.</p>
+    <div class="theater-timer" id="theaterTimer">20:00</div>
+    <div class="theater-actions">
+      <button class="btn btn-primary" id="theaterSkip">Skip Break</button>
+    </div>
+  </div>
+</div>
+
+<div id="kbHint">Press <kbd>?</kbd> for shortcuts · <kbd>Ctrl+K</kbd> for commands</div>
+
+<!-- Session Rating Modal -->
+<div class="sc-overlay" id="ratingOverlay">
+  <div class="sc-modal sc-modal--rating">
+    <div class="modal-header"><h2>Session complete 🎉</h2></div>
+    <div id="ratingContent"></div>
+  </div>
+</div>
+
+<!-- Onboarding Modal -->
+<div class="sc-overlay" id="onboardOverlay">
+  <div class="sc-modal sc-modal--onboard">
+    <div id="onboardContent"></div>
+  </div>
+</div>
+
+<!-- Session Templates Modal -->
+<div class="sc-overlay" id="templatesOverlay">
+  <div class="sc-modal sc-modal--templates">
+    <div class="modal-header">
+      <h2>Session Templates</h2>
+      <button class="modal-close" onclick="document.getElementById('templatesOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div id="templatesContent"></div>
+  </div>
+</div>
+
+<!-- Countdown Mode Modal -->
+<div class="sc-overlay" id="countdownOverlay">
+  <div class="sc-modal sc-modal--countdown">
+    <div class="modal-header">
+      <h2>⏳ Deadline Countdown</h2>
+      <button class="modal-close" onclick="document.getElementById('countdownOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div id="countdownContent"></div>
+  </div>
+</div>
+
+<!-- World Clock Modal -->
+<div class="sc-overlay" id="worldClockOverlay">
+  <div class="sc-modal sc-modal--worldclock">
+    <div class="modal-header">
+      <h2>🌍 World Clock</h2>
+      <button class="modal-close" onclick="document.getElementById('worldClockOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div id="worldClockContent"></div>
+  </div>
+</div>
+
+<!-- Integrations Modal -->
+<div class="sc-overlay" id="integrationsOverlay">
+  <div class="sc-modal sc-modal--integrations">
+    <div class="modal-header" id="integrationsHeader">
+      <h2>🔗 Integrations</h2>
+      <div class="modal-header-actions">
+        <button class="modal-minimize" id="integrationsMinimize" aria-label="Minimize" title="Minimize">–</button>
+        <button class="modal-close" id="integrationsClose" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div id="integrationsContent" style="max-height:76vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Language Modal -->
+<div class="sc-overlay" id="languageOverlay">
+  <div class="sc-modal sc-modal--language">
+    <div class="modal-header">
+      <h2>🌐 Language</h2>
+      <button class="modal-close" onclick="document.getElementById('languageOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div id="languageContent" style="padding:16px;"></div>
+  </div>
+</div>
+
+<!-- Zen Mode overlay — breathing rings -->
+<div id="zenOverlay">
+  <div class="zen-ring"></div>
+  <div class="zen-ring"></div>
+  <div class="zen-ring"></div>
+</div>
+<div id="zenExitHint">Press Esc to exit Zen Mode</div>
+
+<script type="module" src="src/main.ts"></script>
+</body>
 </html>
+
+<!-- Command Palette -->
+<div class="cmd-overlay" id="cmdOverlay">
+  <div class="cmd-modal" id="cmdModal" role="dialog" aria-label="Command Palette">
+    <div class="cmd-input-wrap">
+      <svg class="cmd-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="cmdInput" class="cmd-input" placeholder="Search themes, actions, or type / for secrets…" aria-label="Search themes, actions, or type / for secrets" autocomplete="off" spellcheck="false">
+      <button class="cmd-secrets-btn" id="cmdSecretsBtn" title="Show all easter eggs">🥚 Secrets</button>
+      <kbd class="cmd-esc-hint">ESC</kbd>
+    </div>
+    <div class="cmd-results" id="cmdResults"></div>
+    <div class="cmd-footer">
+      <span><kbd>↑↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> select</span>
+      <span><kbd>Esc</kbd> close</span>
+      <span class="cmd-footer-tip">Type <code>/</code> to filter secrets · <code>Ctrl+K</code> anywhere to open</span>
+    </div>
+  </div>
+</div>
