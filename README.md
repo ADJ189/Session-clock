@@ -4,7 +4,6 @@
 
 <img src="public/preview.png" width="900" alt="Session Clock app preview — Good Night clock view, session timer, and the Spotify/YouTube music dock" />
 
-[![CI/CD](https://img.shields.io/github/actions/workflow/status/ADJ189/Session-clock/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Session-clock/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Zero deps](https://img.shields.io/badge/runtime_deps-0-22c55e?style=flat-square)](package.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-8b5cf6?style=flat-square)](public/manifest.json)
@@ -34,28 +33,9 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 
 ---
 
-## What's New in 1.4.0
+## Latest Version : 1.7.1
 
-- **Head-tracked spatial audio** — turn your phone and the ambient soundstage stays anchored in place, like AirPods spatial audio. Built on the existing 3D Spatial Audio panning engine.
-- **4 new ambient sounds**: White Noise, Pink Noise, Rain on Roof, and Airplane Cabin — the mixer now has 17 tracks total.
-- **Fixed two sounds that silently ignored their own volume slider** (Forest's bird chirps, Fireplace's crackle) — both now respond to per-track volume and spatial panning correctly.
-- **Platform-aware optimizations** — a real OS/browser-engine detection layer now backs the app, so features that only exist on some platforms (haptic vibration, Document Picture-in-Picture pop-outs, iOS's gyroscope permission prompt) behave correctly instead of silently failing or showing a dead button.
-- **Fixed a mobile layout bug**: the header could overlap itself on phone-width screens; it now collapses sensibly, and a long-standing bug where gyroscope parallax never actually worked on iPhone/iPad (missing the required iOS motion-permission request) is fixed.
-- **Haptic Feedback** setting for Pomodoro start/complete, on devices that support it.
-- **Hide Seconds / Hide Milliseconds**, and **per-clock-style center mode** — Digital, Analogue, Flip, Word, Minimal, and Segment clocks now each remember their own Top/Centre preference and scale properly (larger, sharper canvases) when centered, instead of sharing one global setting tuned only for the digital clock.
-
-*1.4.1 was a maintenance-only pass (24 dead exports removed, no behavior changes). 1.4.2 gave 35 of the 96 themes — including Fargo, Ghibli, John Wick, The Batman, and Zen Garden — their own background renderer for the first time; they'd been silently falling back to a generic particle background since they were added. 1.5.0 added a Minimal Session Panel for Centre mode, a GitHub star/support celebration on the topbar link, and removed the sync status pill. See [Changelog](CHANGELOG.md#150--minimal-centre-mode-github-starsupport-celebration-removed-the-sync-pill) for details — note it flags one thing that needs your input (the support/donate link is a placeholder).*
-- **New animated splash intro** and **app icon** using the new hourglass logo — the inner triangle spins while sources load and eases to a stop once ready.
-- **Music dock**: real in-page Spotify playback (Web Playback SDK), pop-out via Document Picture-in-Picture, optional auto-sync with focus/break, plus a YouTube tab via the official IFrame Player API.
-- **Focus sidebar task cards**: compact GitHub, Notion, Todoist, and Calendar cards next to the music dock.
-- **33 new themes** across TV, film, anime, animation, F1, and ambient categories — Fargo, Twin Peaks, The Batman, Your Name, Studio Ghibli, Spider-Verse, Zen Garden, and more. Each has its own bespoke canvas intro transition, not a generic fade.
-- **7 new ambient sounds** (Wind, Snowfall, Keyboard, Library, Spaceship, Campfire, Waves & Rocks) — synthesized entirely in-browser, no audio files.
-- **Sound Mixer redesign**: live output meter, night mode, crossfade Scenes that blend your ambient mix as Pomodoro moves between focus and break.
-- **Now Playing → Theme**: recognizes soundtracks from what's currently playing (Spotify, or type it in manually for any player) and switches the theme to match.
-- **Custom Pomodoro cycles**, configurable break reminders, an opt-in idle nudge, Calm Mode, Focus Mode, and an always-on-top mini clock.
-- Removed leftover Token Shop remnants (dead UI from an early, since-removed feature). Fixed theme picker icons not rendering, rain/fireplace sounds silently failing to autoplay, a dead "Smart Break Reminder" toggle, and a handful of memory leaks.
-
-See [CHANGELOG.md](CHANGELOG.md) for the full list.
+Check [CHANGELOG.md](CHANGELOG.md) for the version details.
 
 ---
 
