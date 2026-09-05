@@ -23,6 +23,48 @@
   --radius-lg:   18px;
   --radius-md:   12px;
   --radius-sm:   8px;
+
+  /* ── Motion system ──────────────────────────────────────────────
+     A small shared vocabulary of easing curves instead of one-off
+     cubic-bezier() values scattered per rule. Named after motion.dev's
+     own published tokens (https://motion.dev — the "smooth/snap/
+     enter/exit" set), which is also the easing language Apple's own
+     web properties read as using: fast, confident entrances and quick
+     exits, with overshoot reserved for things that should feel
+     tactile (buttons, toggles, swatches) rather than structural
+     things like a panel opening.
+       enter  — starts fast, settles smoothly. Use for anything
+                appearing (panels, modals, toasts, fades-in).
+       exit   — mirror of enter, starts slow and leaves quickly. Use
+                for anything disappearing.
+       smooth — even, natural ease-in-out. Use for state changes that
+                aren't entering or leaving anything (color/opacity
+                shifts, ambient pulses).
+       snap   — a real spring: slight anticipation, one small
+                overshoot, settles. Use for presses and toggles —
+                anything that should feel physically flicked. */
+  --ease-enter:  cubic-bezier(.24,1,.32,1);
+  --ease-exit:   cubic-bezier(.64,0,.8,0);
+  --ease-smooth: cubic-bezier(.72,0,.16,1);
+  --ease-snap:   cubic-bezier(.34,1.56,.64,1);
+  --dur-fast:    150ms;
+  --dur-base:    240ms;
+  --dur-slow:    420ms;
+}
+/* True damped-spring easing (a physically simulated bounce, expressed as
+   a linear() timing function — see motion.dev's spring token) for the
+   handful of places a slightly springier settle earns its keep, e.g. the
+   theme/settings panels opening. Kept separate from --ease-snap because
+   linear() easing isn't supported pre-Safari 17.2/Firefox 112/Chrome
+   113 — @supports below only applies it on engines that can render it,
+   everything else quietly keeps --ease-snap. */
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, 0.4005, 0.8613, 1.0429, 1.0528, 1.0214, 1.0015, 0.9965, 0.9977, 0.9994, 1.0001, 1);
+  }
+}
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root { --ease-spring: var(--ease-snap); }
 }
 
 /* ── Reset ── */
@@ -506,11 +548,11 @@ body.theme-flash::after {
     0 24px 64px rgba(0,0,0,.7),
     0 0 0 1px rgba(255,255,255,.04);
   transition:
-    transform .48s cubic-bezier(.2,1.1,.38,1),
-    opacity   .34s cubic-bezier(.22,1,.36,1),
-    filter    .34s cubic-bezier(.22,1,.36,1),
-    -webkit-backdrop-filter .4s cubic-bezier(.22,1,.36,1),
-    backdrop-filter .4s cubic-bezier(.22,1,.36,1);
+    transform .48s var(--ease-spring),
+    opacity   .34s var(--ease-enter),
+    filter    .34s var(--ease-enter),
+    -webkit-backdrop-filter .4s var(--ease-enter),
+    backdrop-filter .4s var(--ease-enter);
   display: flex; flex-direction: column; align-items: center;
   will-change: transform, opacity;
 }
@@ -1760,6 +1802,31 @@ body.light-theme .settings-select option { background: #f1f5f9; }
 }
 .data-nuke-btn { color: #fca5a5 !important; border-color: rgba(239,68,68,.25) !important; }
 
+/* ── Hold-to-confirm ─────────────────────────────────────────────────
+   Destructive actions (clear a data category, delete everything) use a
+   deliberate press-and-hold instead of a native confirm() popup — a
+   fill sweeps left-to-right while held; letting go early cancels it.
+   See Motion.bindHoldToConfirm() in src/motion.ts. */
+.hold-confirm-btn {
+  position: relative; isolation: isolate; overflow: hidden;
+  -webkit-user-select: none; user-select: none;
+}
+.hold-confirm-fill {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  transform: scaleX(0); transform-origin: left center;
+  background: linear-gradient(90deg, rgba(239,68,68,.32), rgba(239,68,68,.55));
+  transition: transform .05s linear;
+}
+.hold-confirm-btn.holding .hold-confirm-fill { transition: none; }
+.hold-confirm-label { position: relative; z-index: 1; display: inline-block; transition: transform .15s var(--ease-snap, cubic-bezier(.34,1.56,.64,1)); }
+.hold-confirm-btn.holding .hold-confirm-label { transform: scale(.96); }
+.hold-confirm-btn.hold-confirmed { animation: holdConfirmFlash .3s ease; }
+@keyframes holdConfirmFlash {
+  0%   { filter: brightness(1); }
+  35%  { filter: brightness(1.7); }
+  100% { filter: brightness(1); }
+}
+
 /* PiP button active state */
 #btnPiP.on { background: var(--clr-btn-bg); color: var(--clr-accent); border-color: var(--clr-accent); }
 
@@ -1883,7 +1950,7 @@ body.light-theme .settings-select option { background: #f1f5f9; }
 .settings-toggle::after {
   content: ''; position: absolute; top: 3px; left: 3px;
   width: 22px; height: 22px; border-radius: 50%; background: #fff;
-  transition: transform .28s cubic-bezier(.34,1.56,.64,1);
+  transition: transform .28s var(--ease-snap);
   box-shadow: 0 1px 6px rgba(0,0,0,.35), 0 0 0 .5px rgba(0,0,0,.08);
   z-index: 1;
 }
@@ -1974,14 +2041,14 @@ body.light-theme .settings-action-btn { background: rgba(0,0,0,.04); border-colo
 body.light-theme .mixer-launch-card { background: linear-gradient(135deg, color-mix(in srgb, var(--clr-accent) 14%, transparent), rgba(0,0,0,.03)); }
 
 /* ── Settings fluidity — directional slide + stagger on tab switch ── */
-.settings-tab-btn { transition: opacity .25s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.2,1.34,.4,1); }
+.settings-tab-btn { transition: opacity .25s var(--ease-enter), transform .3s var(--ease-snap); }
 .settings-tab-btn:active { transform: scale(.93); }
 
 @keyframes paneSlideIn {
   from { opacity: 0; transform: translateX(var(--pane-slide-x, 14px)) scale(.985); }
   to   { opacity: 1; transform: translateX(0) scale(1); }
 }
-#settingsContent.pane-sliding { animation: paneSlideIn .38s cubic-bezier(.22,1,.36,1); }
+#settingsContent.pane-sliding { animation: paneSlideIn .38s var(--ease-spring); }
 #settingsContent .settings-section {
   animation: paneRowIn .4s cubic-bezier(.2,1.1,.38,1) backwards;
 }
@@ -2264,7 +2331,7 @@ body.theme-deathnote .digit-pair {
   display: flex; align-items: flex-start; justify-content: center;
   padding-top: 12vh;
   opacity: 0; pointer-events: none;
-  transition: opacity .18s;
+  transition: opacity .2s var(--ease-enter);
 }
 .cmd-overlay.open { opacity: 1; pointer-events: all; }
 
@@ -2275,10 +2342,11 @@ body.theme-deathnote .digit-pair {
   border-radius: 16px;
   box-shadow: 0 32px 80px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05);
   overflow: hidden;
-  transform: scale(.97) translateY(-8px);
-  transition: transform .2s cubic-bezier(.34,1.56,.64,1);
+  transform: scale(.94) translateY(-10px);
+  filter: blur(4px);
+  transition: transform .32s var(--ease-spring), filter .22s var(--ease-enter);
 }
-.cmd-overlay.open .cmd-modal { transform: scale(1) translateY(0); }
+.cmd-overlay.open .cmd-modal { transform: scale(1) translateY(0); filter: blur(0); }
 
 /* Input */
 .cmd-input-wrap {
@@ -3376,8 +3444,8 @@ body.clock-center .session-card {
   0%   { opacity: 1; transform: translateX(0); }
   100% { opacity: 0; transform: translateX(16px) scale(.95); }
 }
-.toast { animation: toastIn .32s cubic-bezier(.16,1,.3,1) forwards; }
-.toast.hiding { animation: toastOut .22s ease forwards; }
+.toast { animation: toastIn .32s var(--ease-enter) forwards; }
+.toast.hiding { animation: toastOut .22s var(--ease-exit) forwards; }
 
 /* Modal entrance is handled by the transition on .sc-modal / .sc-overlay.open .sc-modal above — no separate keyframe needed. */
 
@@ -3549,6 +3617,27 @@ body.light-theme .color-swatch-pill.active { background: var(--clr-btn-bg); }
   border-radius: 99px;
 }
 .btn-primary:hover::before { opacity: 0; }
+/* Kokonut "Button Shiny"-style light sweep — a single diagonal glint
+   passes across the button on hover-in, Apple-CTA-like rather than a
+   constant shimmer loop. Separate layer from ::before (the spinning
+   conic ring used for the running-session state) so the two never
+   fight for the same pseudo-element. */
+.btn-primary::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.35) 50%, transparent 60%);
+  transform: translateX(-120%);
+  opacity: 0;
+}
+.btn-primary:hover::after {
+  opacity: 1;
+  animation: btnShineSweep .85s var(--ease-smooth);
+}
+@keyframes btnShineSweep {
+  from { transform: translateX(-120%); }
+  to   { transform: translateX(120%); }
+}
 .btn-primary:active {
   transform: scale(.93);
   transition: transform .08s cubic-bezier(.4,0,.2,1);

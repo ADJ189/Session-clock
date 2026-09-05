@@ -9,6 +9,22 @@ All notable changes to Session Clock are documented here.
 > `1.76` below is the first release under this scheme, since this update
 > bundles several larger changes together.
 
+## [1.81] — Shared motion system, hold-to-confirm destructive actions, Spotlight-style command palette
+
+A full pass over every place in the app that animates something, checked against how [motion.dev](https://motion.dev), [Kokonut UI](https://kokonutui.com), and Apple's own product pages approach motion, then applied where it actually improved something rather than just for its own sake.
+
+### Added
+- **Shared motion-system tokens** (`style.css` `:root`) — `--ease-enter`/`--ease-exit`/`--ease-smooth`/`--ease-snap` (named after and matching motion.dev's own published easing tokens) plus `--ease-spring`, a real damped-harmonic-oscillator curve expressed as a CSS `linear()` easing (motion.dev's "spring" token) with an automatic `@supports` fallback to `--ease-snap` on engines that don't support `linear()` easing yet (pre-Safari 17.2/Firefox 112/Chrome 113). Applied to the theme panel, settings pane slide, toasts, and the toggle switch so these no longer carry one-off hand-tuned `cubic-bezier()` values.
+- **Hold-to-confirm destructive actions** (`Motion.bindHoldToConfirm()`, `src/motion.ts`) — replaced the native `confirm()` popup on "Clear [category]" and "Delete Everything" (Settings → Privacy) with a press-and-hold gesture: a fill sweeps across the button while held, and only a *completed* hold fires the action; releasing early cancels with a spring snap-back. Inspired by Kokonut UI's HoldButton pattern. The hold timing itself is plain `requestAnimationFrame`, not anime.js, so it keeps working even if anime.js fails to load — anime.js only adds the cancel snap-back.
+- **Command palette redesigned as a Spotlight-style pop** — now blurs and scales in (from `blur(4px) scale(.94)` to sharp/full-size) rather than a flat scale, closer to macOS Spotlight/Alfred, using the new `--ease-spring` token.
+- **Shiny-button hover sweep** on `.btn-primary` (Kokonut UI's "Button Shiny" pattern) — a single diagonal light glint passes across the Start/Pause button on hover-in, separate from the existing spinning conic-gradient ring used during an active session so the two effects never collide.
+
+### Changed
+- Theme panel open/close, settings-pane tab switch, and toast in/out now use the shared easing tokens instead of inline `cubic-bezier()` values.
+
+### Verification
+`tsc --noEmit`, `oxlint .` (144 warnings, same pre-existing baseline, 0 errors), `vite build` all pass. No visual/browser testing was possible in this environment — worth checking the command palette's blur-in, the hold-to-confirm buttons' fill/cancel/complete states, and the Start/Pause button's hover sweep before shipping.
+
 ## [1.76] — Redesigned intro screen, 24-hour time, spacious/animated Themes tab, 2 new themes, cross-browser hardening
 
 ### Added
