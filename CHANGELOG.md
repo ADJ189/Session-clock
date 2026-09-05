@@ -2,6 +2,30 @@
 
 All notable changes to Session Clock are documented here.
 
+> **Versioning note (starting this release):** version numbers are now a
+> plain two-decimal `x.xx`, bumped by **+0.05** for a larger update (new
+> features, redesigns, multiple significant changes bundled together) and
+> **+0.01** for a minor patch or small fix. `1.71` (previously `1.7.1`) →
+> `1.76` below is the first release under this scheme, since this update
+> bundles several larger changes together.
+
+## [1.76] — Redesigned intro screen, 24-hour time, spacious/animated Themes tab, 2 new themes, cross-browser hardening
+
+### Added
+- **Redesigned splash/intro screen** — replaced the static icon + bouncing dots with a calmer, more Apple-like entrance: a soft pulsing ambient glow behind the mark, the mark itself mounted on a frosted "app card" with a spring pop-in, and a slim indeterminate progress line instead of dots. The dismissal is now animated too — `Motion.splashExit()` (`src/motion.ts`) eases the mark up and out while the whole screen softly scales and blurs away, using the app's existing lazy-loaded anime.js — with the original plain CSS opacity fade kept as the fallback if anime.js fails to load or Reduce Motion is on.
+- **24-Hour Time** — new Settings → Digits toggle and command-palette entry. Applies to Digital, Minimal, Flip, and Segment clock styles (the Analogue face stays 12-hour, since that's how an analogue dial reads; Terminal already always showed 24-hour and is unaffected).
+- **2 new themes** (101 → 103): **Lanterns** (HBO/DC) — a faceted power-ring symbol that pulses like an oath recharging, plus a dedicated `ringcharge` intro transition (a green ring contracting inward through a construct lattice); **YOU** — a small, restrained watching-eye motif with a slow drifting gaze, plus a quiet `whisperfade` iris-close intro transition, deliberately understated to match the show's tone.
+- **Cross-browser/engine hardening** (`src/platform.ts`) — real browser detection (Safari/Chrome/Edge/Samsung Internet/Opera/Firefox) alongside the existing OS/engine detection, plus genuine feature probes (`CSS.supports` checks for `backdrop-filter` and `100dvh`, not UA-sniffing) so fallbacks are based on what a browser can actually do. Added a **Settings → Compatibility** panel showing a live OS/engine/browser/feature summary, plus a manual "Force Simplified Surfaces" override for anyone whose device technically supports blur but renders it slowly.
+- Global `-webkit-tap-highlight-color: transparent` and `touch-action: manipulation` on buttons/toggles/sliders/cards — removes the grey tap-flash and the ~300ms double-tap-zoom delay some mobile browsers (Safari, Samsung Internet) still apply by default.
+- A solid-background fallback (`html.no-backdrop-filter` / `html.force-no-backdrop-filter`) for the topbar, modals, theme panel, command palette, feature dock, and side cards, for the rare engine with no `backdrop-filter` support at all.
+
+### Changed
+- **Themes tab** — more spacious layout across both the natural-swatch grid and the TV/Movie/Anime/F1 media-card grids (bigger gaps, padding, and swatch/card size), springier hover and press transforms with real `:active` states for touch, a subtle logo-scale on card hover, and a staggered anime.js pop-in (`Motion.staggerIn`) when switching tabs.
+- Theme-count references across `README.md`, `index.html`, `public/manifest.json`, and `CREDITS.md` updated from 101 to 103.
+
+### Verification
+`tsc --noEmit`, `oxlint .`, and `vite build` — see repo for current results. No visual/browser testing was possible in this environment — worth checking the new splash animation timing, the Lanterns/YOU theme renders, the 24-hour toggle across each clock style, and the Compatibility panel's detected values before shipping.
+
 ## [1.7.1] — anime.js star-burst for the GitHub celebration, DeepSource cleanup
 
 ### Added

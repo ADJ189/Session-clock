@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<meta name="description" content="Session Clock — 101 animated themes, Pomodoro, ambient sound mixer, and more.">
+<meta name="description" content="Session Clock — 103 animated themes, Pomodoro, ambient sound mixer, and more.">
 <meta name="theme-color" content="#06030f">
 <meta name="color-scheme" content="dark light">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta property="og:title" content="Session Clock">
-<meta property="og:description" content="A cinematic focus timer with 101 animated themes, Pomodoro, and an ambient sound mixer.">
+<meta property="og:description" content="A cinematic focus timer with 103 animated themes, Pomodoro, and an ambient sound mixer.">
 <meta property="og:type" content="website">
 <title>Session Clock</title>
 <link rel="manifest" href="/manifest.json">
@@ -21,7 +21,7 @@
 <meta property="og:site_name" content="Session Clock">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Session Clock">
-<meta name="twitter:description" content="A cinematic focus timer with 101 animated themes, Pomodoro, and an ambient sound mixer.">
+<meta name="twitter:description" content="A cinematic focus timer with 103 animated themes, Pomodoro, and an ambient sound mixer.">
 <meta name="twitter:image" content="/og-preview.svg">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -36,14 +36,19 @@
 <!-- Splash screen — shown instantly (inline, no extra request) while the
      module bundle and fonts load, and removed once the first frame is
      ready (with a short minimum hold so it doesn't just flash). Fallback
-     timer below guards against it ever getting stuck or overstaying. -->
+     timer below guards against it ever getting stuck or overstaying.
+     Apple-style: one calm focal mark, no spinner — a slim indeterminate
+     line stands in for "still working" instead of bouncing dots. -->
 <div id="splashScreen" role="status" aria-label="Loading Session Clock">
-  <div class="splash-mark-wrap">
-    <img class="splash-mark-base" alt="" aria-hidden="true" src="/splash-base.png">
-    <img class="splash-mark-triangle" alt="" aria-hidden="true" src="/splash-triangle.png">
+  <div class="splash-glow" aria-hidden="true"></div>
+  <div class="splash-mark-card">
+    <div class="splash-mark-wrap">
+      <img class="splash-mark-base" alt="" aria-hidden="true" src="/splash-base.png">
+      <img class="splash-mark-triangle" alt="" aria-hidden="true" src="/splash-triangle.png">
+    </div>
   </div>
   <div class="splash-title">Session Clock</div>
-  <div class="splash-dots"><span></span><span></span><span></span></div>
+  <div class="splash-progress" aria-hidden="true"><span class="splash-progress-fill"></span></div>
 </div>
 <script>
   // Marks when the splash first appeared, so main.ts can hold it for a

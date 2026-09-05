@@ -1,7 +1,7 @@
 # Credits
 
 Session Clock is built with a single small runtime dependency (see
-`package.json`) — all 101 canvas themes, the sound engine, and the UI
+`package.json`) — all 103 canvas themes, the sound engine, and the UI
 are original code. The pieces below are the third-party services,
 libraries, and assets it talks to or draws on at build/runtime.
 
@@ -45,7 +45,7 @@ Teko · Lora · Press Start 2P
 
 ## Design
 
-The hourglass wordmark, all 101 theme renderers, the sound synthesis
+The hourglass wordmark, all 103 theme renderers, the sound synthesis
 engine, and the overall visual design are original work by
 [@ADJ189](https://github.com/ADJ189).
 

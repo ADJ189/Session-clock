@@ -45,6 +45,15 @@ body {
   overscroll-behavior: none;
   /* Prevent callout on long press on iOS */
   -webkit-touch-callout: none;
+  /* Chrome/Android's grey tap-flash and the ~300ms double-tap-zoom delay on
+     mobile Safari/Chrome both read as "laggy" on an app that's mostly
+     buttons — remove the flash and let taps register immediately. Inputs
+     are excluded below so text selection/caret placement still works. */
+  -webkit-tap-highlight-color: transparent;
+}
+button, .btn, [role="button"], input[type="range"], input[type="checkbox"],
+.panel-tab, .nat-btn, .media-card, .feat-btn, .settings-toggle, .pill {
+  touch-action: manipulation;
 }
 
 /* ── Canvas layers ── */
@@ -67,6 +76,29 @@ body {
 }
 #letterboxTop { top: 0; }
 #letterboxBot { bottom: 0; }
+
+/* Engines/versions with no backdrop-filter support at all (rare now, but
+   still true of some in-app WebViews and very old Firefox/Android
+   browsers) — html.no-backdrop-filter is set once at boot by
+   platform.ts's CSS.supports() check. Swap the "frosted glass" look for
+   a plain, more opaque surface so text over it stays legible instead of
+   sitting on a half-transparent background with no blur to soften it. */
+html.no-backdrop-filter .topbar,
+html.no-backdrop-filter .sc-modal,
+html.no-backdrop-filter #themePanel,
+html.no-backdrop-filter .cmd-overlay,
+html.no-backdrop-filter .feat-dock,
+html.no-backdrop-filter .sc-side-card,
+html.force-no-backdrop-filter .topbar,
+html.force-no-backdrop-filter .sc-modal,
+html.force-no-backdrop-filter #themePanel,
+html.force-no-backdrop-filter .cmd-overlay,
+html.force-no-backdrop-filter .feat-dock,
+html.force-no-backdrop-filter .sc-side-card {
+  background: rgba(6,4,14,.94) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 
 /* ════════════════════════════════════════════════════════════
    TOP BAR
@@ -1452,57 +1484,61 @@ body:has([data-theme="terminal"]) .btn,
 .tab-content.active { display: block; animation: tabFadeIn .22s ease; }
 @keyframes tabFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-/* Natural swatch grid */
+/* Natural swatch grid — given more breathing room and a springier press */
 .nat-grid {
   display: flex; flex-wrap: wrap; justify-content: center;
-  gap: 8px; padding: 6px 8px 4px; max-width: 600px; margin: 0 auto;
+  gap: 14px; padding: 14px 16px 10px; max-width: 620px; margin: 0 auto;
 }
 .nat-btn {
-  width: 28px; height: 28px; border-radius: 50%;
+  width: 34px; height: 34px; border-radius: 50%;
   border: 2.5px solid transparent; cursor: pointer; outline: none; flex-shrink: 0;
-  transition: transform .2s cubic-bezier(.34,1.56,.64,1), border-color .2s, box-shadow .2s;
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1), border-color .2s, box-shadow .2s;
   position: relative;
 }
-.nat-btn:hover  { transform: scale(1.35); }
-.nat-btn.active { border-color: rgba(255,255,255,.9); box-shadow: 0 0 0 2px rgba(255,255,255,.18), 0 0 12px rgba(255,255,255,.14); transform: scale(1.2); }
+.nat-btn:hover   { transform: scale(1.32); }
+.nat-btn:active  { transform: scale(0.9); transition-duration: .08s; }
+.nat-btn.active  { border-color: rgba(255,255,255,.9); box-shadow: 0 0 0 2px rgba(255,255,255,.18), 0 0 14px rgba(255,255,255,.16); transform: scale(1.22); }
 .nat-tip {
-  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
-  background: rgba(0,0,0,.82); color: #fff; font-size: .56rem; font-weight: 700;
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) translateY(3px);
+  background: rgba(0,0,0,.85); color: #fff; font-size: .58rem; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
-  padding: 3px 7px; border-radius: 5px; pointer-events: none;
-  opacity: 0; transition: opacity .15s; font-family: inherit;
+  padding: 4px 9px; border-radius: 6px; pointer-events: none;
+  opacity: 0; transition: opacity .18s cubic-bezier(.16,1,.3,1), transform .18s cubic-bezier(.16,1,.3,1);
+  font-family: inherit;
 }
-.nat-btn:hover .nat-tip { opacity: 1; }
+.nat-btn:hover .nat-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* Sub-label inside tabs */
 .tab-sub-label {
   font-size: .5rem; letter-spacing: .22em; text-transform: uppercase; font-weight: 800;
-  opacity: .3; color: var(--clr-text); padding: 8px 0 4px 4px;
+  opacity: .3; color: var(--clr-text); padding: 12px 0 6px 6px;
 }
 
-/* Media grid — 2-column cards */
+/* Media grid — 2-column cards, generous gutters that scale up on wider tabs */
 .media-grid {
   display: grid; grid-template-columns: repeat(2, 1fr);
-  gap: 6px; padding: 4px 8px 8px; max-width: 600px; margin: 0 auto;
+  gap: 12px; padding: 10px 14px 16px; max-width: 640px; margin: 0 auto;
 }
-@media (min-width: 600px) { .media-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 800px) { .media-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 600px) { .media-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; } }
+@media (min-width: 800px) { .media-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; } }
 
 .media-card {
-  display: flex; align-items: center; gap: 7px;
-  padding: 7px 10px 7px 7px; border-radius: 10px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px 12px 10px; border-radius: 14px;
   border: 1px solid rgba(255,255,255,.08); cursor: pointer; outline: none;
   background: rgba(255,255,255,.04);
-  transition: background .18s, border-color .18s, transform .14s, box-shadow .18s;
+  transition: background .2s cubic-bezier(.16,1,.3,1), border-color .2s, transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s cubic-bezier(.16,1,.3,1);
   text-align: left; width: 100%;
 }
-.media-card:hover  { background: rgba(255,255,255,.1); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.3); }
-.media-card.active { border-color: rgba(255,255,255,.45); box-shadow: 0 0 0 1px rgba(255,255,255,.15); }
-.media-card-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
-.media-logo { width: 32px; height: 22px; border-radius: 4px; flex-shrink: 0; overflow: hidden; }
+.media-card:hover   { background: rgba(255,255,255,.1); transform: translateY(-3px) scale(1.015); box-shadow: 0 8px 22px rgba(0,0,0,.32); }
+.media-card:active  { transform: translateY(-1px) scale(0.98); transition-duration: .08s; }
+.media-card.active  { border-color: rgba(255,255,255,.45); box-shadow: 0 0 0 1px rgba(255,255,255,.15), 0 4px 16px rgba(0,0,0,.25); }
+.media-card-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.media-logo { width: 36px; height: 25px; border-radius: 5px; flex-shrink: 0; overflow: hidden; transition: transform .22s cubic-bezier(.34,1.56,.64,1); }
+.media-card:hover .media-logo { transform: scale(1.06); }
 .media-logo svg { width: 100%; height: 100%; display: block; }
-.media-name { font-size: .6rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255,255,255,.82); line-height: 1.2; }
-.media-sub  { font-size: .46rem; font-weight: 500; letter-spacing: .07em; opacity: .42; text-transform: uppercase; line-height: 1.2; }
+.media-name { font-size: .62rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255,255,255,.82); line-height: 1.25; }
+.media-sub  { font-size: .48rem; font-weight: 500; letter-spacing: .07em; opacity: .42; text-transform: uppercase; line-height: 1.25; }
 
 /* ════════════════════════════════════════════════════════════
    FLOW STATE
@@ -1805,6 +1841,24 @@ body.light-theme .settings-select option { background: #f1f5f9; }
   padding: 2px 7px; border-radius: 99px;
   background: var(--clr-accent)22; color: var(--clr-accent);
   border: 1px solid var(--clr-accent)44; flex-shrink: 0;
+}
+
+/* Compatibility diagnostics — read-only OS/engine/browser/feature summary */
+.settings-compat-grid {
+  display: flex; flex-direction: column; gap: 1px;
+  margin: 0 22px 4px; border-radius: 10px; overflow: hidden;
+  background: rgba(255,255,255,.03);
+}
+.settings-compat-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 8px 12px;
+}
+.settings-compat-label {
+  font-size: .62rem; opacity: .45; color: var(--clr-text);
+}
+.settings-compat-value {
+  font-size: .66rem; font-weight: 600; color: var(--clr-text);
+  font-family: monospace; text-align: right;
 }
 
 /* iOS-style toggle — polished */
@@ -2576,6 +2630,10 @@ body.clock-center .minimal-ap { font-size: clamp(1.2rem, 4.2vw, 3.4rem); }
    at the larger size rather than being CSS-upscaled and going blurry. */
 
 /* ── Hide seconds / milliseconds — applies across every clock style ──── */
+body.use-24h .ampm-stack,
+body.use-24h #minimalAP {
+  display: none;
+}
 body.hide-seconds #digitSec,
 body.hide-seconds .sep-sec,
 body.hide-seconds .flip-sep-sec {
@@ -4991,23 +5049,45 @@ body.weather-fog.weather-overlay-on::after {
 
 /* ── Splash screen ─────────────────────────────────────────────────
    Inline (not an external asset) so it paints before any JS/fonts
-   arrive — that's the whole point, it covers the load gap itself. */
+   arrive — that's the whole point, it covers the load gap itself.
+   Apple-style: one calm centred mark on a soft ambient glow, a
+   restrained spring entrance, and a slim indeterminate line instead
+   of bouncing dots. The exit (scale+blur+fade) is finished off by
+   anime.js once the JS bundle is live — see hideSplash() in main.ts —
+   this CSS transition is only the guaranteed fallback. */
 #splashScreen {
   position: fixed; inset: 0; z-index: 100000;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px;
+  gap: 22px;
   background: #06030f;
   opacity: 1;
-  transition: opacity .4s ease;
+  transition: opacity .5s cubic-bezier(.16,1,.3,1);
+  overflow: hidden;
 }
 #splashScreen.splash-hide { opacity: 0; pointer-events: none; }
 
+.splash-glow {
+  position: absolute; left: 50%; top: 50%;
+  width: min(70vw, 480px); aspect-ratio: 1;
+  transform: translate(-50%, -50%) scale(.85);
+  background: radial-gradient(circle, rgba(110,231,183,.16), rgba(110,231,183,0) 70%);
+  animation: splashGlowPulse 2.8s cubic-bezier(.45,0,.55,1) infinite;
+  pointer-events: none;
+}
+
+.splash-mark-card {
+  position: relative;
+  padding: 18px;
+  border-radius: 28px;
+  background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.01));
+  box-shadow: 0 1px 0 rgba(255,255,255,.08) inset, 0 20px 60px rgba(0,0,0,.45);
+  animation: splashCardIn .7s cubic-bezier(.16,1,.3,1) both;
+}
 .splash-mark-wrap {
   position: relative;
-  width: min(42vw, 200px);
+  width: min(30vw, 132px);
   aspect-ratio: 664 / 693;
-  filter: drop-shadow(0 0 36px rgba(110,231,183,.35));
-  animation: splashPopIcon .6s cubic-bezier(.16,1,.3,1) both;
+  filter: drop-shadow(0 0 30px rgba(110,231,183,.4));
 }
 .splash-mark-base, .splash-mark-triangle {
   position: absolute; inset: 0;
@@ -5017,27 +5097,35 @@ body.weather-fog.weather-overlay-on::after {
 .splash-mark-triangle {
   /* centroid of the isolated inner triangle within the cropped mark */
   transform-origin: 49.5% 40.9%;
-  animation: splashTriSpin .55s linear infinite;
+  animation: splashTriSpin .9s cubic-bezier(.65,0,.35,1) infinite;
   will-change: transform;
 }
 .splash-title {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: .8rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
-  color: #6ee7b7; opacity: .85;
-  animation: splashPopWordmark .6s cubic-bezier(.16,1,.3,1) .15s both;
+  font-size: .82rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  color: #eef7f2; opacity: .92;
+  animation: splashPopWordmark .6s cubic-bezier(.16,1,.3,1) .22s both;
 }
-.splash-dots { display: flex; gap: 6px; }
-.splash-dots span {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: #6ee7b7; opacity: .3;
-  animation: splashDot 1s ease-in-out infinite;
+.splash-progress {
+  width: 84px; height: 3px; border-radius: 99px;
+  background: rgba(255,255,255,.1);
+  overflow: hidden;
+  animation: splashPopWordmark .6s cubic-bezier(.16,1,.3,1) .34s both;
 }
-.splash-dots span:nth-child(2) { animation-delay: .15s; }
-.splash-dots span:nth-child(3) { animation-delay: .3s; }
+.splash-progress-fill {
+  display: block; width: 40%; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, rgba(110,231,183,0), #6ee7b7, rgba(110,231,183,0));
+  animation: splashProgressSlide 1.15s cubic-bezier(.45,0,.55,1) infinite;
+}
 
-@keyframes splashPopIcon {
-  0%   { opacity: 0; transform: scale(.72); }
-  100% { opacity: 1; transform: scale(1); }
+@keyframes splashCardIn {
+  0%   { opacity: 0; transform: scale(.7) translateY(10px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes splashGlowPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(.85); opacity: .7; }
+  50%      { transform: translate(-50%, -50%) scale(1);   opacity: 1;  }
 }
 @keyframes splashPopWordmark {
   0%   { opacity: 0; transform: translateY(8px); }
@@ -5046,12 +5134,19 @@ body.weather-fog.weather-overlay-on::after {
 @keyframes splashTriSpin {
   to { transform: rotate(360deg); }
 }
-@keyframes splashDot {
-  0%, 100% { opacity: .3; transform: translateY(0); }
-  50%      { opacity: 1;  transform: translateY(-3px); }
+@keyframes splashProgressSlide {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(340%); }
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .splash-mark-wrap, .splash-title, .splash-mark-triangle, .splash-dots span { animation: none; }
+  .splash-glow, .splash-mark-card, .splash-mark-triangle,
+  .splash-title, .splash-progress, .splash-progress-fill {
+    animation: none !important;
+  }
+  .splash-mark-card { opacity: 1; transform: none; }
+  .splash-title, .splash-progress { opacity: 1; transform: none; }
+  .splash-progress-fill { transform: translateX(0); width: 100%; }
 }
 
 /* ── Music dock + side task cards (see src/musicdock.ts, src/sidetasks.ts) ──

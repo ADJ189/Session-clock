@@ -16,11 +16,11 @@
 
 ---
 
-Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 101 animated canvas themes (each with its own bespoke intro transition), a synthesized ambient sound mixer with crossfade scenes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
+Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 103 animated canvas themes (each with its own bespoke intro transition), a synthesized ambient sound mixer with crossfade scenes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
 
 | | |
 |---|---|
-| **Themes** | 101 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
+| **Themes** | 103 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
 | **Sound Mixer** | 17 synthesized ambient tracks · crossfade scenes · night mode · live VU meter |
 | **Now Playing** | Matches ~30 soundtracks against Spotify (or any player, manually) and switches theme |
 | **Modes** | Pomodoro (fully custom cycles) · **Zen** · **Calm** · **Focus** · Kiosk · PiP · Voice |
@@ -82,7 +82,7 @@ Third-party fonts, APIs, and tooling are listed in [CREDITS.md](CREDITS.md).
 ---
 
 <div align="center">
-<sub>28 modules · 1 runtime dep (anime.js) · 101 themes · 17 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
+<sub>28 modules · 1 runtime dep (anime.js) · 103 themes · 17 ambient sounds · 20+ easter eggs · 8 languages · Flow Intensity</sub>
 
 ---
 
