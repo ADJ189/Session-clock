@@ -71,6 +71,39 @@ export async function bounceIn(el: Element | null | undefined): Promise<void> {
 }
 
 /**
+ * Splash-screen exit — a calmer, more deliberate dismissal than a flat
+ * opacity fade: the mark eases up and out while the whole screen
+ * scales down a hair and softens, Apple-style. Falls back to the plain
+ * CSS opacity transition already on #splashScreen (via splash-hide) if
+ * anime.js fails to load or reduce-motion is on — this only enhances it.
+ */
+export async function splashExit(screenEl: Element | null | undefined, markEl: Element | null | undefined): Promise<void> {
+  if (!screenEl || reducedMotion()) return;
+  await ensureAnime();
+  if (!_animate) return;
+  // Hand full control to anime.js — avoid the CSS opacity transition on
+  // #splashScreen (from .splash-hide) fighting this JS-driven one.
+  (screenEl as HTMLElement).style.transition = 'none';
+  if (markEl) {
+    _animate(markEl, {
+      translateY: [0, -14],
+      scale: [1, 0.92],
+      opacity: [1, 0],
+      duration: 420,
+      ease: 'inQuad',
+    });
+  }
+  _animate(screenEl, {
+    scale: [1, 1.04],
+    filter: ['blur(0px)', 'blur(6px)'],
+    opacity: [1, 0],
+    duration: 460,
+    delay: 60,
+    ease: 'outQuad',
+  });
+}
+
+/**
  * GitHub "star us" celebration — fired once when the star-support modal
  * opens. Two anime.js-driven touches, layered on top of the existing
  * canvas confetti (`Easter.fireConfetti`), which is left untouched:

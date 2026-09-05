@@ -337,6 +337,8 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   theboys(dt,t)       { drawMediaBg(t); drawSymbol('theboys', t); },
   tedlasso(dt,t)      { drawMediaBg(t); drawSymbol('tedlasso', t); },
   forallmankind(dt,t) { drawMediaBg(t); drawSymbol('forallmankind', t); },
+  lanterns(dt,t)      { drawMediaBg(t); drawSymbol('lanterns', t); },
+  you(dt,t)           { drawMediaBg(t); drawSymbol('you', t); },
 
   // ── Bespoke atmospheric scenes ──
   bioluminescence(dt,t) { drawBioluminescence(t); },
@@ -1280,6 +1282,38 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     c.beginPath(); c.ellipse(cx,cy,R,R*.32,0,0,Math.PI*2); c.stroke();
     const px=cx+Math.cos(a)*R,py=cy+Math.sin(a)*R*.32;
     c.fillStyle=t.accent2 ?? t.accent; c.globalAlpha=.5; c.beginPath(); c.arc(px,py,1.8,0,Math.PI*2); c.fill();
+    c.restore();
+  },
+  lanterns(t) {
+    // A power-ring lantern symbol — a faceted glowing icon pulsing like an
+    // oath being recharged, plus a slow drift of faint construct sparks.
+    const cx=W*.5,cy=H*.4,R=Math.min(W,H)*.09,pulse=.55+.25*Math.sin(tick*.9);
+    c.save(); c.translate(cx,cy);
+    c.shadowColor=t.accent; c.shadowBlur=14*pulse;
+    c.strokeStyle=t.accent; c.lineWidth=1.6; c.globalAlpha=.16+pulse*.12;
+    c.beginPath();
+    for(let i=0;i<7;i++){const a=(i/7)*Math.PI*2-Math.PI/2;const x=Math.cos(a)*R,y=Math.sin(a)*R;i===0?c.moveTo(x,y):c.lineTo(x,y);}
+    c.closePath(); c.stroke();
+    c.shadowBlur=0;
+    c.restore();
+    c.save(); c.fillStyle=t.accent; c.globalAlpha=.1;
+    for(let i=0;i<3;i++){
+      const a=tick*.25+i*2.1, d=R*2.4+i*10;
+      const sx=cx+Math.cos(a)*d, sy=cy+Math.sin(a)*d*.6;
+      c.beginPath(); c.arc(sx,sy,1.4,0,Math.PI*2); c.fill();
+    }
+    c.restore();
+  },
+  you(t) {
+    // A single unblinking watching eye — small, off-centre, unsettling by
+    // restraint rather than spectacle, with a slow drifting gaze.
+    const cx=W*.68,cy=H*.3,rw=Math.min(W,H)*.05,blink=Math.max(0,Math.sin(tick*.18));
+    const lookX=Math.sin(tick*.07)*rw*.3, lookY=Math.cos(tick*.05)*rw*.15;
+    c.save(); c.translate(cx,cy); c.globalAlpha=.09+blink*.04;
+    c.strokeStyle=t.accent; c.lineWidth=1;
+    c.beginPath(); c.ellipse(0,0,rw,rw*.55,0,0,Math.PI*2); c.stroke();
+    c.fillStyle=t.accent2 ?? t.accent; c.globalAlpha=.14;
+    c.beginPath(); c.arc(lookX,lookY,rw*.32,0,Math.PI*2); c.fill();
     c.restore();
   },
 };
@@ -3067,5 +3101,17 @@ const TRANS: Record<string, (cb: () => void) => void> = {
   lavablob(cb) {
     let p=0,called=false;const blobs=[...Array(6)].map(()=>({x:rnd(W),y:rnd(H),r:rnd(30)+20,vx:rndpm(.3),vy:rndpm(.3)}));
     const go=()=>{p+=.016;tc.fillStyle=`rgba(10,4,16,${Math.min(.92,p*1.3)})`;tc.fillRect(0,0,W,H);blobs.forEach((b,i)=>{b.x+=b.vx;b.y+=b.vy;b.r=Math.min(b.r+.6,90);const bg=tc.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r);bg.addColorStop(0,i%2===0?`rgba(255,106,42,${.35*(1-p*.4)})`:`rgba(168,58,240,${.3*(1-p*.4)})`);bg.addColorStop(1,'transparent');tc.fillStyle=bg;tc.fillRect(0,0,W,H);});if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  // Lanterns — a power ring charging up: a bright green ring contracts
+  // inward while a faint construct-lattice sweeps past behind it.
+  ringcharge(cb) {
+    let p=0,called=false;
+    const go=()=>{p+=.017;tc.fillStyle=`rgba(1,8,5,${Math.min(.94,p*1.3)})`;tc.fillRect(0,0,W,H);const R=Math.min(W,H)*.42*(1-Math.min(1,p*1.5));tc.save();tc.translate(W*.5,H*.5);tc.beginPath();tc.arc(0,0,Math.max(2,R),0,Math.PI*2);tc.strokeStyle=`rgba(0,232,122,${.85*(1-p*.3)})`;tc.lineWidth=4;tc.shadowColor='rgba(0,232,122,.9)';tc.shadowBlur=18;tc.stroke();tc.shadowBlur=0;for(let i=0;i<6;i++){const a=i/6*Math.PI*2+p*3;tc.beginPath();tc.moveTo(Math.cos(a)*R*.5,Math.sin(a)*R*.5);tc.lineTo(Math.cos(a)*R,Math.sin(a)*R);tc.strokeStyle=`rgba(0,232,122,${.3*(1-p)})`;tc.lineWidth=1;tc.stroke();}tc.restore();if(!called&&p>=.52){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  // YOU — a slow, quiet iris-close, like being watched through a narrowing
+  // gap; deliberately understated rather than flashy, to match the show's tone.
+  whisperfade(cb) {
+    let p=0,called=false;
+    const go=()=>{p+=.011;const R=Math.sqrt(W*W+H*H)*.6*(1-easeIO(Math.min(1,p*1.3)));tc.clearRect(0,0,W,H);tc.fillStyle='rgba(2,2,2,.97)';tc.beginPath();tc.rect(0,0,W,H);tc.arc(W*.5,H*.5,Math.max(0,R),0,Math.PI*2,true);tc.fill('evenodd');if(!called&&p>=.5){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
 };

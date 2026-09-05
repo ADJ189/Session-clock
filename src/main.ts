@@ -28,7 +28,7 @@ import * as NowPlaying from './nowplaying';
 import * as MusicDock from './musicdock';
 import * as SideTasks from './sidetasks';
 import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
-import { applyPlatformClasses, bindGlobalHaptics, CAPS, haptic, requestMotionPermission, subscribeOrientation } from './platform';
+import { applyPlatformClasses, bindGlobalHaptics, CAPS, haptic, requestMotionPermission, subscribeOrientation, platformSummary } from './platform';
 import * as Palette from './palette';
 import * as Motion from './motion';
 import * as Legal from './legal';
@@ -40,6 +40,10 @@ import * as Legal from './legal';
 // of the wrong layout.
 applyPlatformClasses();
 bindGlobalHaptics();
+// Persisted "Force Simplified Surfaces" override — applied here, before
+// first paint, same as the platform-detected classes above, so a user who
+// turned this on doesn't see one frame of frosted glass before it flips off.
+document.documentElement.classList.toggle('force-no-backdrop-filter', localStorage.getItem('sc_force_no_blur') === '1');
 
 // ── Audio autoplay-policy unlock ────────────────────────────────────────
 // Must run inside the very first real user gesture on the page, otherwise
@@ -114,6 +118,8 @@ const LOGOS: Record<string, string> = {
   bettercallsaul:  `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0c0a00"/><rect x="4" y="6" width="24" height="12" rx="1.5" fill="none" stroke="#c8a800" stroke-width=".7" opacity=".7"/><text x="16" y="14" text-anchor="middle" font-size="5" fill="#c8a800" font-family="serif" font-weight="bold" opacity=".9">BCS</text><line x1="4" y1="11" x2="28" y2="11" stroke="#c8a800" stroke-width=".3" opacity=".3"/></svg>`,
   peakyblinders:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#080400"/><path d="M8 18 Q16 4 24 18" fill="none" stroke="#c87000" stroke-width="1.2" opacity=".8"/><line x1="6" y1="12" x2="26" y2="12" stroke="#c87000" stroke-width=".4" opacity=".4"/><circle cx="16" cy="10" r="3" fill="none" stroke="#f0a030" stroke-width=".6" opacity=".6"/><rect x="14" y="9" width="4" height="2" rx=".3" fill="#c87000" opacity=".5"/></svg>`,
   thewire:         `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#050505"/><line x1="4" y1="11" x2="28" y2="11" stroke="#889944" stroke-width="1" opacity=".8"/><circle cx="8" cy="11" r="2" fill="#889944" opacity=".7"/><circle cx="16" cy="11" r="2" fill="#889944" opacity=".7"/><circle cx="24" cy="11" r="2" fill="#889944" opacity=".7"/><text x="16" y="19" text-anchor="middle" font-size="3.5" fill="#889944" opacity=".5" font-family="sans-serif" letter-spacing=".5">THE WIRE</text></svg>`,
+  lanterns:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#020806"/><polygon points="16,4 21,8 19,15 13,15 11,8" fill="none" stroke="#00e87a" stroke-width="1" opacity=".85"/><circle cx="16" cy="10" r="1.6" fill="#00e87a" opacity=".8"/><text x="16" y="20.5" text-anchor="middle" font-size="3" fill="#00e87a" opacity=".55" font-family="sans-serif" letter-spacing="1">LANTERNS</text></svg>`,
+  you:             `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#050505"/><ellipse cx="16" cy="11" rx="9" ry="5" fill="none" stroke="#e8e8e8" stroke-width=".8" opacity=".8"/><circle cx="16" cy="11" r="2.2" fill="#8b1a1a" opacity=".85"/><text x="16" y="20" text-anchor="middle" font-size="4.5" fill="#e8e8e8" opacity=".6" font-family="sans-serif" font-weight="700" letter-spacing="2">YOU</text></svg>`,
   succession:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060606"/><rect x="6" y="5" width="20" height="14" rx="1" fill="none" stroke="#b09060" stroke-width=".6" opacity=".6"/><text x="16" y="14" text-anchor="middle" font-size="4.5" fill="#b09060" font-family="serif" font-weight="bold" opacity=".8">ROY</text><line x1="6" y1="8" x2="26" y2="8" stroke="#b09060" stroke-width=".3" opacity=".3"/></svg>`,
   lost:            `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#010810"/><circle cx="16" cy="9" r="6" fill="none" stroke="#2288cc" stroke-width=".7" opacity=".7"/><text x="16" y="12" text-anchor="middle" font-size="5" fill="#2288cc" font-family="sans-serif" font-weight="bold" opacity=".8">4</text><text x="7" y="19" text-anchor="middle" font-size="3" fill="#2288cc" opacity=".5" font-family="monospace">8 15 16 23 42</text></svg>`,
   shogun:          `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060200"/><circle cx="24" cy="5" r="4" fill="none" stroke="#cc2200" stroke-width=".8" opacity=".8"/><circle cx="24" cy="5" r="2" fill="#cc2200" opacity=".6"/><line x1="4" y1="18" x2="20" y2="18" stroke="#cc2200" stroke-width=".5" opacity=".4"/><text x="12" y="14" text-anchor="middle" font-size="5" fill="#cc2200" font-family="serif" opacity=".7">将</text></svg>`,
@@ -330,6 +336,17 @@ function wireGithubCelebration() {
 // every render path.
 let hideSeconds = localStorage.getItem('sc_hide_seconds') === '1';
 let hideMs = localStorage.getItem('sc_hide_ms') === '1';
+// 24-hour time — same body-class approach as hide-seconds/hide-ms so CSS
+// and every render path (digital/minimal/flip/segment) can react without
+// threading a flag through each function signature.
+let use24Hour = localStorage.getItem('sc_24h') === '1';
+function applyUse24Hour(on: boolean) {
+  use24Hour = on;
+  localStorage.setItem('sc_24h', on ? '1' : '0');
+  document.body.classList.toggle('use-24h', on);
+  updateClockCanvas();
+  showToast(on ? '24-hour time on' : '12-hour time on');
+}
 function applyHideSeconds(on: boolean) {
   hideSeconds = on;
   localStorage.setItem('sc_hide_seconds', on ? '1' : '0');
@@ -713,7 +730,8 @@ function renderFrame(ts: number) {
   const now = new Date(Date.now() + clockOffset);
   const ms = now.getMilliseconds(), sec = now.getSeconds(), min = now.getMinutes(), hr = now.getHours();
   const hr12 = hr % 12 || 12;
-  const hrStr = p2(hr12), minStr = p2(min), secStr = p2(sec);
+  const is24 = use24Hour || currentTheme.id === 'terminal';
+  const hrStr = p2(is24 ? hr : hr12), minStr = p2(min), secStr = p2(sec);
 
   // Route to correct clock renderer
   switch (clockMode) {
@@ -726,7 +744,7 @@ function renderFrame(ts: number) {
       tickDigit(DOM.digitHr, hrStr);
       tickDigit(DOM.digitMin, minStr);
       tickDigit(DOM.digitSec, secStr);
-      DOM.ampmDis.textContent = hr >= 12 ? 'PM' : 'AM';
+      DOM.ampmDis.textContent = is24 ? '' : (hr >= 12 ? 'PM' : 'AM');
       // Clamp to 50ms steps — prevents layout thrash from 60fps ms updates
       const newSecMs = '.' + p3(Math.floor(ms / 50) * 50);
       if (DOM.secMs.textContent !== newSecMs) DOM.secMs.textContent = newSecMs;
@@ -738,11 +756,6 @@ function renderFrame(ts: number) {
     const smpteStr = ':' + p2(frame);
     if (DOM.secMs.textContent !== smpteStr) DOM.secMs.textContent = smpteStr;
   }
-  // Terminal: show 24hr time
-  if (currentTheme.id === 'terminal' && clockMode === 'digital') {
-    tickDigit(DOM.digitHr, p2(hr));
-  }
-
   const newTimeDis = `${hrStr}:${minStr}:${secStr}`;
   if (DOM.timeDis.textContent !== newTimeDis) DOM.timeDis.textContent = newTimeDis;
   const dp = ((hr * 3600 + min * 60 + sec) * 1000 + ms) / 864e5 * 100;
@@ -959,10 +972,11 @@ function renderWord(hr: number, min: number) {
 
 // MINIMAL — just the hour, enormous
 function renderMinimal(hr12: number, hr: number) {
+  const is24 = use24Hour || currentTheme.id === 'terminal';
   const el = document.getElementById('minimalHr');
   const ap = document.getElementById('minimalAP');
-  if (el) el.textContent = String(hr12);
-  if (ap) ap.textContent = hr >= 12 ? 'PM' : 'AM';
+  if (el) el.textContent = String(is24 ? hr : hr12);
+  if (ap) ap.textContent = is24 ? '' : (hr >= 12 ? 'PM' : 'AM');
 }
 
 // SEGMENT — 7-segment style per digit
@@ -1185,6 +1199,11 @@ function switchPanelTab(id: string) {
   activePanelTab = id;
   document.querySelectorAll<HTMLElement>('.panel-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
   document.querySelectorAll<HTMLElement>('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tab === id));
+  // A tasteful staggered pop-in for the grid that just became visible — the
+  // CSS tabFadeIn keyframe still handles the container-level fade, this
+  // adds a per-swatch/per-card cascade on top of it.
+  const active = document.querySelector<HTMLElement>('.tab-content.active');
+  void Motion.staggerIn(active, '.nat-btn, .media-card');
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
@@ -2501,6 +2520,7 @@ function buildSettingsUI(activeTab = 'general') {
     const digitsSec = makeSection('Digits');
     digitsSec.appendChild(makeRow('Hide Seconds', 'Drop the seconds digits/hand across every clock style — just hours and minutes', 'toggleHideSeconds', localStorage.getItem('sc_hide_seconds') === '1'));
     digitsSec.appendChild(makeRow('Hide Milliseconds', 'Hide the fractional-second readout under the clock (kept even with seconds shown, unless this is on)', 'toggleHideMs', localStorage.getItem('sc_hide_ms') === '1'));
+    digitsSec.appendChild(makeRow('24-Hour Time', 'Show hours as 00–23 with no AM/PM — applies to Digital, Minimal, Flip and Segment styles', 'toggle24Hour', use24Hour));
     paneWrap.appendChild(layoutSec);
     paneWrap.appendChild(digitsSec);
 
@@ -2558,6 +2578,29 @@ function buildSettingsUI(activeTab = 'general') {
     perfSec.appendChild(qualityRow);
     paneWrap.appendChild(perfSec);
 
+    // ── Compatibility — read-only diagnostics + one manual override for
+    // browsers/engines whose blur rendering is technically supported but
+    // slow or glitchy in practice (a real report can't always be told
+    // apart from "unsupported" by feature-detection alone). ─────────────
+    const compatSec = makeSection('Compatibility');
+    const compatInfo = document.createElement('div'); compatInfo.className = 'settings-compat-grid';
+    platformSummary().forEach(({ label, value }) => {
+      const row = document.createElement('div'); row.className = 'settings-compat-row';
+      const l = document.createElement('span'); l.className = 'settings-compat-label'; l.textContent = label;
+      const v = document.createElement('span'); v.className = 'settings-compat-value'; v.textContent = value;
+      row.append(l, v);
+      compatInfo.appendChild(row);
+    });
+    compatSec.appendChild(compatInfo);
+    compatSec.appendChild(makeRow('Force Simplified Surfaces', 'Skip frosted-glass blur on panels/modals in favor of a plain background — useful if blur renders slow or glitchy on this device', 'toggleForceNoBlur', document.documentElement.classList.contains('force-no-backdrop-filter')));
+    paneWrap.appendChild(compatSec);
+
+    wireToggle('toggleForceNoBlur', (on) => {
+      document.documentElement.classList.toggle('force-no-backdrop-filter', on);
+      localStorage.setItem('sc_force_no_blur', on ? '1' : '0');
+      showToast(on ? 'Simplified surfaces on' : 'Frosted glass restored');
+    });
+
     wireToggle('toggleCalmMode', (on) => applyCalmMode(on));
     wireToggle('toggleFocusModeS', (on) => applyFocusMode(on));
     wireToggle('toggleReduceMotion', (on) => {
@@ -2586,6 +2629,7 @@ function buildSettingsUI(activeTab = 'general') {
     }
     wireToggle('toggleHideSeconds', (on) => applyHideSeconds(on));
     wireToggle('toggleHideMs', (on) => applyHideMs(on));
+    wireToggle('toggle24Hour', (on) => applyUse24Hour(on));
     wireToggle('toggleCenterMinimal', (on) => applyCenterMinimal(on));
   }
 
@@ -3404,6 +3448,7 @@ function buildPaletteCommands() {
     { id:'privacy',       icon:'🔒',  label:'Toggle Privacy Mode',              group:'Display', action: togglePrivacy },
     { id:'wake_lock',     icon:'💡',  label:'Toggle Wake Lock',                 group:'Display', action: async () => { await APIs.setWakeLock(!APIs.isWakeLockEnabled()); showToast(APIs.isWakeLockEnabled()?'Screen stays on':'Wake lock off'); } },
     { id:'reduce_motion', icon:'✨',  label:'Toggle Reduce Motion',             group:'Display', action: () => { const on=!document.body.classList.contains('reduced-motion'); document.body.classList.toggle('reduced-motion',on); localStorage.setItem('sc_reduce_motion',on?'1':'0'); showToast(on?'Reduced motion on':'Full animations on'); } },
+    { id:'use_24h', icon:'🕛', label:'Toggle 24-Hour Time', group:'Display', action: () => applyUse24Hour(!use24Hour) },
     { id:'next_theme',    icon:'🔀',  label:'Random Theme',                     group:'Display', action: () => { applyTheme(THEMES[Math.floor(Math.random()*THEMES.length)]!); } },
     { id:'cycle_theme',   icon:'➡',  label:'Next Theme',            hint:'T',  group:'Display', action: () => { const i=THEMES.indexOf(currentTheme); applyTheme(THEMES[(i+1)%THEMES.length]!); } },
   );
@@ -3480,6 +3525,7 @@ function hideSplash() {
     }
 
     el.classList.add('splash-hide');
+    void Motion.splashExit(el, el.querySelector('.splash-mark-card'));
     el.addEventListener('transitionend', () => el.remove(), { once: true });
     // Belt-and-suspenders: remove even if transitionend never fires.
     setTimeout(() => el.remove(), 600);
@@ -3584,6 +3630,7 @@ function init() {
   // rest up lazily, only when the Display settings tab is opened)
   document.body.classList.toggle('hide-seconds', hideSeconds);
   document.body.classList.toggle('hide-ms', hideSeconds || hideMs);
+  document.body.classList.toggle('use-24h', use24Hour);
 
   // Ripple position tracking — track cursor for CSS ::after ripple
   document.addEventListener('mousedown', e => {

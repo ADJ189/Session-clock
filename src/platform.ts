@@ -7,6 +7,7 @@
 
 export type OSFamily = 'ios' | 'ipados' | 'android' | 'macos' | 'windows' | 'linux' | 'other';
 export type Engine = 'webkit' | 'blink' | 'gecko' | 'other';
+export type Browser = 'safari' | 'chrome' | 'edge' | 'samsung' | 'opera' | 'firefox' | 'other';
 
 function detectOS(): OSFamily {
   const ua = navigator.userAgent;
@@ -34,12 +35,51 @@ function detectEngine(): Engine {
   return 'other';
 }
 
+// Distinct from Engine: several browsers share Blink/WebKit but still have
+// their own UI chrome, update cadence and occasional per-browser bugs (e.g.
+// Samsung Internet's own dark-mode auto-invert, Firefox Android's address
+// bar behaving differently from desktop). Ordered so the more specific UA
+// token is checked before the generic engine name it also contains.
+function detectBrowser(): Browser {
+  const ua = navigator.userAgent;
+  if (/SamsungBrowser\//.test(ua)) return 'samsung';
+  if (/Edg\//.test(ua)) return 'edge';
+  if (/OPR\/|Opera/.test(ua)) return 'opera';
+  if (/Firefox\//.test(ua)) return 'firefox';
+  if (/CriOS\/|Chrome\/|Chromium\//.test(ua)) return 'chrome';
+  if (/Safari\//.test(ua)) return 'safari';
+  return 'other';
+}
+
 export const OS: OSFamily = detectOS();
 export const ENGINE: Engine = detectEngine();
+export const BROWSER: Browser = detectBrowser();
 export const IS_APPLE = OS === 'ios' || OS === 'ipados' || OS === 'macos';
 export const IS_TOUCH = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 export const IS_STANDALONE =
   matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+
+/** Real feature probes (not UA sniffing) for the handful of CSS/JS features
+ * that still vary enough across engines/versions to need a JS-level check
+ * and a fallback path, rather than trusting a blanket "modern browser"
+ * assumption. */
+function detectFeatureFlags() {
+  let backdropFilter = false;
+  let dvh = false;
+  try {
+    backdropFilter = CSS.supports('backdrop-filter', 'blur(1px)') || CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
+  } catch { /* CSS.supports itself is missing on some very old engines */ }
+  try {
+    dvh = CSS.supports('height', '100dvh');
+  } catch { /* same */ }
+  return {
+    backdropFilter,
+    dvh,
+    requestIdleCallback: 'requestIdleCallback' in window,
+    hasSafeArea: CSS.supports?.('padding: env(safe-area-inset-top)') ?? false,
+  };
+}
+export const FEATURES = detectFeatureFlags();
 
 export const CAPS = {
   // Vibration API — Android Chrome/Firefox support it; iOS Safari (and thus
@@ -58,12 +98,30 @@ export const CAPS = {
 /** Sets classes on <html> once at boot — call as early as possible. */
 export function applyPlatformClasses(): void {
   const cl = document.documentElement.classList;
-  cl.add(`platform-${OS}`, `engine-${ENGINE}`);
+  cl.add(`platform-${OS}`, `engine-${ENGINE}`, `browser-${BROWSER}`);
   cl.toggle('is-apple', IS_APPLE);
   cl.toggle('is-touch', IS_TOUCH);
   cl.toggle('is-standalone', IS_STANDALONE);
   cl.toggle('no-vibration', !CAPS.vibration);
   cl.toggle('no-doc-pip', !CAPS.documentPiP);
+  cl.toggle('no-backdrop-filter', !FEATURES.backdropFilter);
+  cl.toggle('no-dvh', !FEATURES.dvh);
+}
+
+/** Small, human-readable summary for a Settings/diagnostics panel — lets
+ * someone reporting a rendering bug see exactly what Session Clock detected
+ * about their browser instead of guessing from a screenshot. */
+export function platformSummary(): { label: string; value: string }[] {
+  return [
+    { label: 'OS',              value: OS },
+    { label: 'Engine',          value: ENGINE },
+    { label: 'Browser',         value: BROWSER },
+    { label: 'Standalone/PWA',  value: IS_STANDALONE ? 'Yes' : 'No' },
+    { label: 'Touch input',     value: IS_TOUCH ? 'Yes' : 'No' },
+    { label: 'Backdrop blur',   value: FEATURES.backdropFilter ? 'Supported' : 'Unsupported (fallback active)' },
+    { label: 'Dynamic viewport',value: FEATURES.dvh ? 'Supported' : 'Unsupported (100vh fallback)' },
+    { label: 'Haptics',         value: CAPS.vibration ? 'Supported' : 'Unsupported (WebKit/iOS has none)' },
+  ];
 }
 
 /**
