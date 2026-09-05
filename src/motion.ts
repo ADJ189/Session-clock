@@ -176,3 +176,76 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
   });
 }
 
+
+/**
+ * Press-and-hold-to-confirm for destructive actions — replaces a native
+ * confirm() dialog (jarring, and trivially misclicked through) with a
+ * deliberate hold gesture: a fill sweeps across the button while held,
+ * and only a *completed* hold fires the action. Releasing early cancels
+ * cleanly with a quick snap-back. Inspired by Kokonut UI's HoldButton
+ * pattern. The hold timing itself is plain rAF, not anime.js — it must
+ * keep working even if anime.js never loads; anime.js only adds the
+ * spring-eased cancel snap-back. Expects the button to contain a
+ * `.hold-confirm-fill` element.
+ */
+export function bindHoldToConfirm(
+  btn: HTMLElement,
+  onConfirm: () => void,
+  opts: { duration?: number; onStart?: () => void; onCancel?: () => void } = {},
+): void {
+  const duration = opts.duration ?? 800;
+  const fill = btn.querySelector<HTMLElement>('.hold-confirm-fill');
+  if (!fill) return;
+  let raf = 0, startT = 0, curP = 0, active = false;
+
+  const setFill = (p: number) => { curP = p; fill.style.transform = `scaleX(${Math.max(0, Math.min(1, p))})`; };
+
+  const finish = () => {
+    active = false;
+    btn.classList.remove('holding');
+    btn.classList.add('hold-confirmed');
+    setTimeout(() => { btn.classList.remove('hold-confirmed'); setFill(0); }, 300);
+    onConfirm();
+  };
+
+  const step = (ts: number) => {
+    if (!active) return;
+    const p = (ts - startT) / duration;
+    setFill(p);
+    if (p >= 1) { finish(); return; }
+    raf = requestAnimationFrame(step);
+  };
+
+  const cancel = () => {
+    if (!active) return;
+    active = false;
+    cancelAnimationFrame(raf);
+    btn.classList.remove('holding');
+    const from = curP;
+    setFill(0);
+    void ensureAnime().then(() => {
+      if (!_animate) return;
+      _animate(fill, { scaleX: [from, 0], duration: 260, ease: 'outQuad' });
+    });
+    opts.onCancel?.();
+  };
+
+  const start = (e: PointerEvent) => {
+    if (active || (btn as HTMLButtonElement).disabled) return;
+    e.preventDefault();
+    active = true;
+    btn.classList.add('holding');
+    startT = performance.now();
+    opts.onStart?.();
+    raf = requestAnimationFrame(step);
+  };
+
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('pointerup', cancel);
+  btn.addEventListener('pointerleave', cancel);
+  btn.addEventListener('pointercancel', cancel);
+  // Suppress the synthetic click most browsers fire after pointerup so a
+  // completed or cancelled hold never *also* triggers a plain onclick
+  // handler wired to the same button elsewhere.
+  btn.addEventListener('click', (e) => e.preventDefault());
+}

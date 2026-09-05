@@ -522,14 +522,17 @@ function buildDataPanel() {
     const right = document.createElement('div'); right.className = 'data-cat-right';
     const sizeEl = document.createElement('span'); sizeEl.className = 'data-cat-size';
     sizeEl.textContent = size > 0 ? Privacy.formatBytes(size) : 'empty';
-    const delBtn = document.createElement('button'); delBtn.className = 'data-del-btn';
-    delBtn.textContent = 'Clear'; delBtn.disabled = size === 0;
-    delBtn.addEventListener('click', () => {
-      if (!confirm(`Clear "${cat.label}"? This cannot be undone.`)) return;
+    const delBtn = document.createElement('button'); delBtn.className = 'data-del-btn hold-confirm-btn';
+    delBtn.disabled = size === 0;
+    const delFill = document.createElement('span'); delFill.className = 'hold-confirm-fill';
+    const delLabel = document.createElement('span'); delLabel.className = 'hold-confirm-label'; delLabel.textContent = 'Hold to Clear';
+    delBtn.append(delFill, delLabel);
+    Motion.bindHoldToConfirm(delBtn, () => {
+      haptic(18);
       Privacy.deleteCategory(cat);
       showToast(`${cat.icon} ${cat.label} cleared`);
       buildDataPanel(); // rebuild
-    });
+    }, { onStart: () => haptic(6) });
     right.append(sizeEl, delBtn);
     row.append(left, right);
     el.appendChild(row);
@@ -541,14 +544,16 @@ function buildDataPanel() {
   exportBtn.textContent = '⬇ Export All Data';
   exportBtn.addEventListener('click', () => { Privacy.exportAllData(); showToast('Data exported as JSON'); });
 
-  const nukeBtn = document.createElement('button'); nukeBtn.className = 'btn btn-ghost data-nuke-btn';
-  nukeBtn.textContent = '🗑 Delete Everything';
-  nukeBtn.addEventListener('click', () => {
-    if (!confirm('Delete ALL Session Clock data? This cannot be undone.')) return;
+  const nukeBtn = document.createElement('button'); nukeBtn.className = 'btn btn-ghost data-nuke-btn hold-confirm-btn';
+  const nukeFill = document.createElement('span'); nukeFill.className = 'hold-confirm-fill';
+  const nukeLabel = document.createElement('span'); nukeLabel.className = 'hold-confirm-label'; nukeLabel.textContent = '🗑 Hold to Delete Everything';
+  nukeBtn.append(nukeFill, nukeLabel);
+  Motion.bindHoldToConfirm(nukeBtn, () => {
+    haptic(24);
     Privacy.deleteAll();
     showToast('All data deleted');
     buildDataPanel();
-  });
+  }, { duration: 1100, onStart: () => haptic(6) });
 
   actions.append(exportBtn, nukeBtn);
   el.appendChild(actions);
