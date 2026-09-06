@@ -5593,6 +5593,21 @@ body.weather-fog.weather-overlay-on::after {
   to { background-position: 300% center; }
 }
 
+.gh-stats {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin: 0 0 18px; opacity: 0;
+}
+.gh-stats[hidden] { display: none; }
+.gh-stat { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.gh-stat-num {
+  font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--clr-text);
+}
+.gh-stat-label {
+  font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; opacity: .55;
+}
+.gh-stat-divider { width: 1px; height: 22px; background: rgba(255,255,255,.14); }
+
 .gh-actions {
   display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
   opacity: 0;
@@ -5631,13 +5646,14 @@ body.weather-fog.weather-overlay-on::after {
 .gh-overlay.open .gh-eyebrow       { animation: ghFadeUp .5s ease .3s forwards; }
 .gh-overlay.open .gh-title         { animation: ghFadeUp .5s ease .38s forwards, ghGradientShift 5s linear infinite; }
 .gh-overlay.open .gh-body          { animation: ghFadeUp .5s ease .46s forwards; }
+.gh-overlay.open .gh-stats         { animation: ghFadeUp .5s ease .50s forwards; }
 .gh-overlay.open .gh-actions       { animation: ghFadeUp .5s ease .54s forwards; }
 .gh-overlay.open .gh-btn-star      { animation: ghPulse 2.4s ease-in-out 1.2s infinite; }
 .gh-overlay.open .gh-skip          { animation: ghFadeUp .5s ease .62s forwards; }
 
 @media (prefers-reduced-motion: reduce) {
   .gh-overlay.open .gh-avatar, .gh-overlay.open .gh-eyebrow, .gh-overlay.open .gh-title,
-  .gh-overlay.open .gh-body, .gh-overlay.open .gh-actions, .gh-overlay.open .gh-skip,
+  .gh-overlay.open .gh-body, .gh-overlay.open .gh-stats, .gh-overlay.open .gh-actions, .gh-overlay.open .gh-skip,
   .gh-overlay.open .gh-avatar-ring circle, .gh-overlay.open .gh-btn-star {
     animation: none !important; opacity: .9 !important; transform: none !important;
   }
