@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Session Clock</title>
+<meta name="description" content="Session Clock Privacy Policy — a local-first focus timer app.">
+<meta name="robots" content="index, follow">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    background: #0b0a17;
+    color: #e9e8f2;
+    font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; }
+  header { margin-bottom: 32px; }
+  .eyebrow {
+    font-size: .7rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase;
+    color: #a78bfa; margin: 0 0 10px;
+  }
+  h1 { font-size: 1.9rem; font-weight: 800; letter-spacing: -.01em; margin: 0 0 6px; }
+  .updated { font-size: .8rem; opacity: .55; margin: 0; }
+  nav.crumbs { margin-top: 18px; font-size: .8rem; }
+  nav.crumbs a { color: #60a5fa; text-decoration: none; }
+  nav.crumbs a:hover { text-decoration: underline; }
+  section { margin: 0 0 30px; }
+  h2 { font-size: 1.05rem; font-weight: 700; margin: 0 0 10px; }
+  p { margin: 0 0 12px; opacity: .88; }
+  ul { margin: 8px 0 12px; padding-left: 20px; opacity: .88; }
+  li { margin-bottom: 4px; }
+  footer { border-top: 1px solid rgba(255,255,255,.1); padding-top: 20px; font-size: .78rem; opacity: .6; }
+  footer a { color: #a78bfa; }
+  a { color: #a78bfa; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <p class="eyebrow">Session Clock</p>
+      <h1>Privacy Policy</h1>
+      <p class="updated">Last updated 2026-08-28</p>
+      <nav class="crumbs"><a href="/">← Back to the app</a> &nbsp;·&nbsp; <a href="/terms/">View Terms of Service →</a></nav>
+    </header>
+    <section>
+      <h2>The short version</h2>
+      <p>Session Clock is a local-first app. Your session log, streaks, theme choices, sound presets, and every other setting are stored only in your browser's localStorage, on your own device. Nothing about how you use the app — what you time, when, or for how long — is sent to any server we run, tracked, or sold. There is no analytics script and no ad network anywhere in this app.</p>
+    </section>
+    <section>
+      <h2>What is stored, and where</h2>
+      <p>Everything the app remembers about you — focus sessions, streaks and velocity scores, theme and Pomodoro preferences, sound-mixer presets, custom themes, and the Privacy/Incognito/Auto-clear flags themselves — lives entirely in your browser's localStorage. You can inspect exactly what is stored, its size, and delete any category (or all of it) at any time from Settings → Privacy → View &amp; Manage My Data, or export it as a JSON file for your own records.</p>
+      <ul>
+        <li>Focus Sessions — task names, durations, dates</li>
+        <li>Focus Intelligence — streak, velocity, Pomodoro counts</li>
+        <li>Preferences — theme, clock mode, quality, Pomodoro config</li>
+        <li>Audio — saved sound presets, spatial audio setting</li>
+        <li>Custom Themes — colours you've created</li>
+        <li>System — privacy flag, focus lock, breathing/sleep settings</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Optional third-party connections</h2>
+      <p>Some features are entirely opt-in and only activate if you explicitly connect them: Spotify (Now Playing + playback), YouTube/Google (Liked videos, playlists, Calendar), Notion, GitHub, Todoist, and Linear (side-task cards), and OpenStreetMap/Nominatim (city search for the weather pill). If you never connect these, no data is exchanged with them at all.</p>
+      <p>When you do connect one, authentication uses the provider's standard OAuth flow (PKCE where supported). For providers that require a client secret (Notion, GitHub, Todoist, Linear), the token exchange is relayed through a small, stateless Cloudflare Pages Function that we run — it passes the exchange through and does not log, store, or retain your tokens or any response data. Access tokens themselves are then kept only in your browser's local storage, the same as everything else.</p>
+      <p>Enabling "Privacy Mode" in Settings disables weather lookups, time sync, and Google Fonts loading, so the app runs fully offline-capable with zero outbound requests beyond loading the app itself.</p>
+    </section>
+    <section>
+      <h2>Incognito sessions &amp; auto-clear</h2>
+      <p>Turning on Incognito Sessions keeps that session's data in memory only — it is never written to localStorage and disappears when the tab closes. Auto-Clear on Close wipes your focus log, streak, velocity, and Pomodoro-count data automatically when you close the tab, while keeping your preferences intact.</p>
+    </section>
+    <section>
+      <h2>Cookies &amp; tracking</h2>
+      <p>Session Clock does not use cookies, does not run any analytics or telemetry SDK, does not use fingerprinting, and does not share or sell data to anyone — because it does not collect any data centrally to begin with. The only network requests the app makes are: loading the app itself and its assets, the optional weather/city-search lookup, optional Google Fonts (skipped entirely in Privacy Mode), and the optional third-party integrations described above, only after you connect them.</p>
+    </section>
+    <section>
+      <h2>Children's privacy</h2>
+      <p>Session Clock is a general-purpose productivity tool and is not directed at children. Because the app stores data only on the device it runs on and collects nothing centrally, we have no way to knowingly collect personal information from anyone, including children.</p>
+    </section>
+    <section>
+      <h2>Changes to this policy</h2>
+      <p>If this policy changes, the updated version will be published here and in PRIVACY.md in the project repository, with a new "Last updated" date. Continued use of the app after a change means you accept the revised policy.</p>
+    </section>
+    <section>
+      <h2>Contact</h2>
+      <p>Session Clock is an independent, open-source project. Questions or concerns about privacy can be raised as an issue on the GitHub repository.</p>
+    </section>
+    <footer>
+      Session Clock is an independent, open-source project (AGPLv3).
+      Mirrored in <a href="https://github.com/ADJ189/Session-clock/blob/main/PRIVACY.md">PRIVACY.md</a> in the repository.
+    </footer>
+  </div>
+</body>
+</html>
