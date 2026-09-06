@@ -178,6 +178,47 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
 
 
 /**
+ * Spotlight-style modal pop — blur+scale entrance used by the command
+ * palette; reused here for the redone GitHub support box so it reads as
+ * one deliberate "surface arriving," Apple-style, instead of individual
+ * elements fading up on separate CSS delays. Call once when the overlay
+ * gains `.open`; safe to layer on top of the existing CSS keyframes
+ * already on the card (they simply run underneath/alongside).
+ */
+export async function modalSpotlightIn(modalEl: Element | null | undefined): Promise<void> {
+  if (!modalEl || reducedMotion()) return;
+  await ensureAnime();
+  if (!_animate) return;
+  _animate(modalEl, {
+    scale: [0.92, 1],
+    filter: ['blur(6px)', 'blur(0px)'],
+    opacity: [0, 1],
+    duration: 420,
+    ease: 'outCubic',
+  });
+}
+
+/**
+ * Count up a stat number from 0 to a target integer — used for the
+ * GitHub support box's live star/fork counts so they feel freshly
+ * fetched rather than just appearing. Writes the rounded value into the
+ * element's text content on every tick; safe to call with `to: 0`.
+ */
+export async function countUp(el: Element | null | undefined, to: number): Promise<void> {
+  if (!el) return;
+  if (reducedMotion()) { el.textContent = String(to); return; }
+  await ensureAnime();
+  if (!_animate) { el.textContent = String(to); return; }
+  const obj = { n: 0 };
+  _animate(obj, {
+    n: to,
+    duration: 900,
+    ease: 'outExpo',
+    onUpdate: () => { el.textContent = String(Math.round(obj.n)); },
+  });
+}
+
+/**
  * Press-and-hold-to-confirm for destructive actions — replaces a native
  * confirm() dialog (jarring, and trivially misclicked through) with a
  * deliberate hold gesture: a fill sweeps across the button while held,

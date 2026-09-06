@@ -31,6 +31,7 @@ import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from
 import { applyPlatformClasses, bindGlobalHaptics, CAPS, haptic, requestMotionPermission, subscribeOrientation, platformSummary } from './platform';
 import * as Palette from './palette';
 import * as Motion from './motion';
+import * as GitHubStats from './github';
 import * as Legal from './legal';
 
 // ── Platform detection ───────────────────────────────────────────────
@@ -317,6 +318,18 @@ function wireGithubCelebration() {
     Easter.fireConfetti();
     setTimeout(() => Easter.fireConfetti(), 350);
     void Motion.githubCelebration(document.querySelector('.gh-avatar'));
+    void Motion.modalSpotlightIn($('ghOverlay')?.querySelector('.gh-modal'));
+
+    // Live star/fork counts — purely decorative, so a failed/slow fetch
+    // just leaves the stat row hidden rather than showing a placeholder.
+    void GitHubStats.fetchRepoStats().then((stats) => {
+      if (!stats) return;
+      const row = $('ghStats');
+      if (!row) return;
+      row.hidden = false;
+      void Motion.countUp($('ghStatStars'), stats.stars);
+      void Motion.countUp($('ghStatForks'), stats.forks);
+    });
   });
 
   $('ghClose')?.addEventListener('click', closeIt);

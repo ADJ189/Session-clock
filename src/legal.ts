@@ -5,7 +5,12 @@
 // approach used elsewhere in this app (see the weather city-search fix).
 //
 // This content is mirrored in /PRIVACY.md and /TERMS.md at the repo
-// root. If you edit one, update the other to match.
+// root, and as standalone static pages at /public/privacy/index.html and
+// /public/terms/index.html (served at yourdomain.com/privacy/ and
+// /terms/ — needed for Google OAuth consent-screen verification, which
+// requires a plain public URL rather than content gated behind app JS).
+// If you edit this file, regenerate those two static pages to match —
+// they are plain HTML mirrors of this same data, not auto-built from it.
 
 export interface LegalSection {
   heading: string;
