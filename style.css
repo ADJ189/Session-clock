@@ -50,6 +50,16 @@
   --dur-fast:    150ms;
   --dur-base:    240ms;
   --dur-slow:    420ms;
+
+  /* The topbar is `position: fixed`, so it's taken out of normal flow —
+     anything in `.main` needs to clear it manually via padding-top, and
+     on a phone with a notch/camera cutout/gesture-nav display (basically
+     every current Android and iOS device — this page sets
+     viewport-fit=cover, which draws edge-to-edge under those cutouts by
+     design) that clearance also has to grow by env(safe-area-inset-top),
+     or the topbar itself — and the clock content below it — render
+     partly under the cutout/status bar instead of below it. */
+  --topbar-h: calc(48px + env(safe-area-inset-top, 0px));
 }
 /* True damped-spring easing (a physically simulated bounce, expressed as
    a linear() timing function — see motion.dev's spring token) for the
@@ -147,9 +157,10 @@ html.force-no-backdrop-filter .sc-side-card {
 ════════════════════════════════════════════════════════════ */
 .topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  height: 52px;
+  height: var(--topbar-h);
+  padding-top: env(safe-area-inset-top, 0px); /* pushes the 52px content row below any notch/cutout/status bar */
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 16px 0 14px;
+  padding-left: 14px; padding-right: 16px;
   background: rgba(0,0,0,.2);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
   backdrop-filter: blur(32px) saturate(1.6);
@@ -303,7 +314,7 @@ html.force-no-backdrop-filter .sc-side-card {
   position: relative; z-index: 10;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: clamp(5px, 1.4vh, 16px);
-  width: 100%; padding: 60px 16px 20px;
+  width: 100%; padding: calc(var(--topbar-h) + 8px) 16px 20px;
   padding-bottom: max(20px, calc(var(--panel-h, 0px) + 20px));
   text-align: center;
 }
@@ -1123,7 +1134,7 @@ body:has(#themePanel.collapsed) #themesRevealBtn { opacity: 1; transform: transl
 
 /* ── Mobile ── */
 @media (max-width: 600px) {
-  .topbar          { height: 46px; padding: 0 12px; }
+  .topbar          { height: var(--topbar-h); padding: env(safe-area-inset-top, 0px) 12px 0; }
   .info-strip      { max-width: 160px; }
   .media-name      { font-size: .56rem; }
   .media-logo      { width: 26px; height: 18px; }
@@ -1150,7 +1161,7 @@ body:has(#themePanel.collapsed) #themesRevealBtn { opacity: 1; transform: transl
      closer to centre, so instead of overlapping them it now renders as
      its own slim strip just under the header. */
   .showbadge {
-    top: 46px; left: 12px; right: 12px;
+    top: calc(var(--topbar-h) - 2px); left: 12px; right: 12px;
     transform: translateY(-10px); text-align: center;
     white-space: normal; font-size: .52rem; letter-spacing: .18em;
   }
@@ -1590,7 +1601,7 @@ body.flow-state .digit-pair { text-shadow: var(--glow), 0 0 80px var(--clr-accen
 body.flow-state .session-card { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.06); }
 
 .flow-badge {
-  position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-8px);
+  position: fixed; top: calc(var(--topbar-h) + 8px); left: 50%; transform: translateX(-50%) translateY(-8px);
   z-index: 150; opacity: 0; pointer-events: none;
   font-size: .58rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
   padding: 5px 16px; border-radius: 99px;
@@ -2650,16 +2661,23 @@ body.light-theme .break-suggestion { background: rgba(0,0,0,.03); border-color: 
    CLOCK POSITION — CENTER MODE
 ════════════════════════════════════════════════════════════ */
 
-/* Default top mode: normal layout */
+/* Default top mode: normal layout — clearance is the topbar's real
+   height (including any safe-area notch inset) plus a little breathing
+   room, not a flat guess. The flat 40px this replaced was already
+   shorter than the topbar's own 48-52px on an ordinary phone with no
+   notch at all — on a notched/cutout Android or iOS device it was
+   shorter still relative to the now-taller topbar, so the greeting/
+   date/clock stack started underneath the fixed topbar instead of
+   below it. */
 body.clock-top .main {
   justify-content: flex-start;
-  padding-top: 40px;
+  padding-top: calc(var(--topbar-h) + 16px);
 }
 
 /* Centre mode — true viewport centring accounting for topbar + panel */
 body.clock-center .main {
   justify-content: center;
-  min-height: calc(100svh - 52px);   /* subtract topbar */
+  min-height: calc(100svh - var(--topbar-h));   /* subtract topbar */
   padding-top: 0;
   padding-bottom: max(36px, calc(var(--panel-h, 0px) + 36px));
   gap: clamp(4px, 1.5vh, 14px);
@@ -2669,7 +2687,7 @@ body.clock-center .main {
 body.clock-center #mainUI {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center;
-  min-height: calc(100svh - 52px);
+  min-height: calc(100svh - var(--topbar-h));
 }
 
 /* In center mode the clock scales larger */
@@ -2908,7 +2926,7 @@ body.light-theme .btn-ghost { background: rgba(0,0,0,.05); border-color: rgba(0,
 
 /* Topbar — refined */
 .topbar {
-  height: 52px;
+  height: var(--topbar-h);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -2944,13 +2962,113 @@ body.light-theme .settings-seg { background: rgba(0,0,0,.06); }
   overflow: hidden;
   display: flex; flex-direction: column;
   padding: 0;
+  /* First-run first impression — a touch more opaque than the standard
+     .sc-modal so it reads cleanly over any theme's background, notably
+     high-contrast media themes with strong color blocking behind it. */
+  background: color-mix(in srgb, var(--clr-panel, #0e0c1e) 92%, #000 8%);
 }
 .sc-modal--onboard .modal-header { display: none; }
 
-/* Onboard card hover — light theme */
-body.light-theme .sc-modal--onboard button[style] {
-  color: var(--clr-text);
+/* ── Structure ─────────────────────────────────────────────── */
+.ob-wrapper { position: relative; display: flex; flex-direction: column; height: 100%; }
+.ob-body    { flex: 1; padding: 8px 26px 8px; overflow-y: auto; display: flex; flex-direction: column; }
+.ob-nav     { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 26px 26px; }
+
+.ob-skip-all {
+  position: absolute; top: 18px; right: 20px; z-index: 2;
+  font-size: .62rem; font-weight: 600; letter-spacing: .05em;
+  opacity: .32; background: none; border: none; color: var(--clr-text);
+  cursor: pointer; padding: 6px 9px; border-radius: 8px;
+  transition: opacity .18s var(--ease-enter), background .18s var(--ease-enter);
 }
+.ob-skip-all:hover { opacity: .65; background: rgba(255,255,255,.06); }
+
+/* ── Progress dots ─────────────────────────────────────────── */
+.ob-dots { display: flex; gap: 6px; justify-content: center; padding: 24px 0 4px; }
+.ob-dot {
+  height: 6px; border-radius: 99px; width: 6px;
+  background: rgba(255,255,255,.16);
+  transition: width .38s var(--ease-spring), background-color .3s var(--ease-enter);
+}
+.ob-dot.active { width: 22px; background: var(--clr-accent); box-shadow: 0 0 10px var(--clr-accent); }
+.ob-dot.done   { background: rgba(255,255,255,.32); }
+
+/* ── Step 1 icon — echoes the splash screen's mark treatment so the
+   very first thing a new visitor sees and this onboarding icon feel
+   like the same product, not two different UI kits stitched together. ── */
+.ob-icon-badge {
+  width: 76px; height: 76px; margin: 18px auto 6px; border-radius: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.015));
+  box-shadow: 0 1px 0 rgba(255,255,255,.1) inset, 0 16px 40px rgba(0,0,0,.35);
+  position: relative;
+  animation: obIconPop .6s var(--ease-spring) both;
+}
+.ob-icon-badge::after {
+  content: ''; position: absolute; inset: -14px; border-radius: 30px; z-index: -1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--clr-accent) 35%, transparent), transparent 72%);
+  animation: obGlowPulse 2.6s ease-in-out infinite;
+}
+.ob-icon { font-size: 2.1rem; line-height: 1; filter: drop-shadow(0 0 14px color-mix(in srgb, var(--clr-accent) 55%, transparent)); }
+@keyframes obIconPop {
+  0%   { opacity: 0; transform: scale(.6) translateY(6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes obGlowPulse {
+  0%, 100% { opacity: .55; transform: scale(.92); }
+  50%      { opacity: .9;  transform: scale(1); }
+}
+
+/* ── Type ──────────────────────────────────────────────────── */
+.ob-heading {
+  font-size: 1.32rem; font-weight: 800; letter-spacing: -.015em;
+  margin: 14px 0 6px; text-align: center; color: var(--clr-text);
+}
+.ob-desc {
+  font-size: .74rem; line-height: 1.65; opacity: .5; margin: 0 0 22px;
+  text-align: center; color: var(--clr-text);
+}
+
+/* ── Option grid/cards — same spacious, springy language as the
+   Themes tab swatches/media cards, not a generic grey button grid. ── */
+.ob-grid { display: grid; gap: 10px; margin-bottom: 6px; }
+.ob-card {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 16px 8px 13px; border-radius: var(--radius-md);
+  background: rgba(255,255,255,.04); border: 1.5px solid rgba(255,255,255,.08);
+  cursor: pointer; color: inherit;
+  transition: background .2s var(--ease-enter), border-color .2s var(--ease-enter), transform .22s var(--ease-snap), box-shadow .22s var(--ease-enter);
+}
+.ob-card:hover {
+  background: rgba(255,255,255,.08);
+  border-color: color-mix(in srgb, var(--clr-accent) 55%, transparent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,.25);
+}
+.ob-card:active { transform: translateY(0) scale(.96); transition-duration: .08s; }
+.ob-card-icon  { font-size: 1.7rem; line-height: 1; }
+.ob-card-label { font-size: .74rem; font-weight: 700; letter-spacing: -.01em; }
+.ob-card-sub   { font-size: .58rem; opacity: .42; }
+
+/* ── Nav buttons ───────────────────────────────────────────── */
+.ob-btn-primary {
+  flex: 1; padding: 13px 0; border-radius: var(--radius-md); border: none;
+  background: var(--clr-accent); color: #06110c; font-weight: 700; font-size: .82rem;
+  cursor: pointer; position: relative; overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 8px 22px color-mix(in srgb, var(--clr-accent) 35%, transparent);
+  transition: transform .16s var(--ease-snap), box-shadow .2s var(--ease-enter), filter .15s;
+}
+.ob-btn-primary:hover  { filter: brightness(1.06); }
+.ob-btn-primary:active { transform: scale(.95); }
+.ob-btn-ghost {
+  font-size: .68rem; font-weight: 600; opacity: .42; background: none; border: none;
+  color: var(--clr-text); cursor: pointer; padding: 8px 6px; white-space: nowrap;
+  transition: opacity .18s var(--ease-enter);
+}
+.ob-btn-ghost:hover { opacity: .75; }
+
+body.light-theme .ob-card { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.08); }
+body.light-theme .ob-card:hover { background: rgba(0,0,0,.05); }
 
 /* Clock position pill in topbar */
 #clockPosPill {
@@ -3707,7 +3825,7 @@ body.session-running .btn-primary {
 
 /* ── Topbar — Dialed minimal strip ─────────────────────────── */
 .topbar {
-  height: 48px;
+  height: var(--topbar-h);
 }
 .topbar-icon-btn {
   width: 32px; height: 32px; border-radius: 8px;
@@ -4279,7 +4397,7 @@ body.flow-deep #flowBar {
 
 /* Flow badge — refined */
 .flow-badge {
-  position: fixed; top: 60px; right: 16px; z-index: 500;
+  position: fixed; top: calc(var(--topbar-h) + 8px); right: 16px; z-index: 500;
   font-size: .55rem; font-weight: 800; letter-spacing: .14em;
   text-transform: uppercase;
   padding: 5px 12px; border-radius: 99px;

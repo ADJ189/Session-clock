@@ -9,6 +9,18 @@ All notable changes to Session Clock are documented here.
 > `1.76` below is the first release under this scheme, since this update
 > bundles several larger changes together.
 
+## [1.86] — Fixed topbar/notch overlap bug, redesigned onboarding wizard
+
+### Fixed
+- **Content overlapping the topbar on notched/cutout phones** — the app never accounted for `env(safe-area-inset-top)` despite setting `viewport-fit=cover` (which draws edge-to-edge under a notch/camera-cutout/status-bar by design, and makes the page responsible for its own clearance). On a phone with any top-of-screen cutout, this could push the topbar's own icons under the cutout and, worse, leave the clock/greeting/date stack starting too high and overlapping the topbar and the theme tagline badge — the mess reported in-app. Root-caused to three separate places disagreeing about the topbar's real height (52px, 48px, and 46px-on-mobile were all live in different rules, with cascade order picking a different winner depending on viewport), none of which included the notch inset. Replaced all of them with one `--topbar-h: calc(48px + env(safe-area-inset-top, 0px))` custom property, and pointed every element that clears the topbar at it: the topbar itself, `.main`'s top padding in both Top and Center clock-position modes, the centered-mode min-height calc, the theme tagline badge (both its desktop-centered and mobile-strip positioning), and the Flow State badge (both its focus-mode-hidden and refined variants).
+- The Top-position clock layout specifically had a `padding-top: 40px` that was already shorter than the topbar's own height even before considering any notch — fixed to `calc(var(--topbar-h) + 16px)`.
+
+### Changed
+- **Redesigned the first-run onboarding wizard** (Welcome → Session length → Theme → Sound, `src/features.ts`) — it was built entirely with inline styles from before the app's current design language existed, so it looked like a generic, unstyled wizard bolted onto a polished app. Rebuilt against real CSS classes matching everywhere else: a glowing icon badge for the welcome step (same visual language as the redesigned splash mark), spacious springy option cards matching the Themes tab's swatch/media-card treatment, an accent-glow primary button, understated ghost-style skip links, progress dots that grow with the `--ease-spring` token, and a staggered anime.js entrance per step via the existing `Motion.staggerIn()`. The onboarding modal's background is also slightly more opaque than a standard `.sc-modal` now, so it stays legible over any theme's background on a new visitor's very first screen.
+
+### Verification
+`tsc --noEmit`, `oxlint .` (144 warnings, same pre-existing baseline, 0 errors), `vite build` all pass. No physical-device testing was possible in this environment — worth checking the topbar/clock clearance specifically on a notched Android phone and an iPhone with Dynamic Island, and clicking through all 4 onboarding steps, before shipping.
+
 ## [1.81] — Shared motion system, hold-to-confirm destructive actions, Spotlight-style command palette
 
 A full pass over every place in the app that animates something, checked against how [motion.dev](https://motion.dev), [Kokonut UI](https://kokonutui.com), and Apple's own product pages approach motion, then applied where it actually improved something rather than just for its own sake.
