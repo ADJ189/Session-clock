@@ -1368,6 +1368,29 @@ body.light-theme .info-strip .info-dot { box-shadow: 0 0 4px var(--clr-accent); 
 .cmb-label { font-size: .76rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .cmb-desc  { font-size: .62rem; opacity: .45; letter-spacing: .04em; text-align: center; }
 
+.preset-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+}
+.preset-card {
+  border: 1px solid rgba(255,255,255,.09); cursor: pointer; font-family: inherit;
+  border-radius: 14px; padding: 14px 12px; text-align: left;
+  background: rgba(255,255,255,.04); color: var(--clr-text);
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  transition: background .2s ease, border-color .2s ease, transform .3s cubic-bezier(.2,1.34,.4,1);
+}
+.preset-card:hover  { background: rgba(255,255,255,.1); border-color: var(--clr-accent); transform: translateY(-2px); }
+.preset-card:active { transform: translateY(0) scale(.97); }
+.preset-icon  { font-size: 1.5rem; line-height: 1; margin-bottom: 2px; }
+.preset-label { font-size: .74rem; font-weight: 700; }
+.preset-blurb { font-size: .6rem; opacity: .45; line-height: 1.4; }
+
+body.light-theme .preset-card { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.09); }
+body.light-theme .preset-card:hover { background: rgba(0,0,0,.09); }
+
+@media (max-width: 420px) {
+  .preset-grid { grid-template-columns: 1fr; }
+}
+
 .settings-row {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 12px 0;
@@ -3258,21 +3281,81 @@ body.light-theme .lang-btn--active { background: var(--clr-btn-bg); }
 }
 .int-connect-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
 .int-connect-btn:active { transform: scale(.97); }
-.int-badge {
-  font-size: .55rem; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; padding: 3px 9px; border-radius: 99px; flex-shrink: 0;
-  background: var(--clr-pill, rgba(255,255,255,.07));
+
+/* Grid of provider cards — each card owns a --int-accent custom
+   property (set inline per-provider in integrations.ts) used to tint
+   its icon tile, connected-state border, and status dot, so every
+   service reads with its own brand identity instead of one uniform
+   generic list row. */
+.int-grid {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px;
+}
+.int-card {
+  border-radius: 14px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.02);
+  transition: border-color .2s, background .2s;
+}
+.int-card--on { border-color: color-mix(in srgb, var(--int-accent) 45%, transparent); }
+.int-card--open { background: rgba(255,255,255,.035); }
+
+.int-card-header {
+  all: unset; box-sizing: border-box;
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 13px 16px; cursor: pointer;
+}
+.int-tile {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.05rem; line-height: 1;
+  background: color-mix(in srgb, var(--int-accent) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--int-accent) 35%, transparent);
+}
+.int-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.int-name { font-size: .78rem; font-weight: 700; color: var(--clr-text); }
+.int-desc { font-size: .6rem; opacity: .45; line-height: 1.4; color: var(--clr-text); }
+.int-status {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  font-size: .62rem; font-weight: 700; letter-spacing: .02em;
   color: var(--clr-text); opacity: .5;
-  border: 1px solid rgba(255,255,255,.1);
 }
-.int-badge--on {
-  background: var(--clr-btn-bg, rgba(110,231,183,.15));
-  color: var(--clr-accent);
-  border-color: var(--clr-accent);
-  opacity: 1;
+.int-card--on .int-status { opacity: 1; color: var(--int-accent); }
+.int-status-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; flex-shrink: 0;
 }
-body.light-theme .int-badge { background: rgba(0,0,0,.06); }
-body.light-theme .int-badge--on { background: var(--clr-btn-bg); }
+.int-card--on .int-status-dot { opacity: 1; box-shadow: 0 0 6px currentColor; }
+.int-chevron {
+  display: flex; color: var(--clr-text); opacity: .35; flex-shrink: 0;
+  transition: transform .25s ease;
+}
+.int-card-header[aria-expanded="true"] .int-chevron { transform: rotate(180deg); opacity: .7; }
+
+/* Smooth height animation without measuring scrollHeight in JS — the
+   0fr→1fr grid-template-rows trick lets `overflow: hidden` clip a
+   naturally-sized row, animating cleanly regardless of form content. */
+.int-form-outer {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows .3s ease;
+}
+.int-card--open .int-form-outer { grid-template-rows: 1fr; }
+.int-form {
+  overflow: hidden; min-height: 0;
+  padding: 0 16px; border-top: 0 solid transparent;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.int-card--open .int-form { padding: 2px 16px 16px; border-top-width: 1px; border-top-color: rgba(255,255,255,.06); }
+.int-disconnect-btn {
+  font-size: .62rem; color: #ef4444; background: none;
+  border: 1px solid rgba(239,68,68,.3); border-radius: 8px;
+  padding: 6px 14px; cursor: pointer; margin-top: 6px; align-self: flex-start;
+  transition: background .15s;
+}
+.int-disconnect-btn:hover { background: rgba(239,68,68,.1); }
+
+body.light-theme .int-card { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.08); }
+body.light-theme .int-card--open { background: rgba(0,0,0,.035); }
+body.light-theme .int-card--open .int-form { border-top-color: rgba(0,0,0,.07); }
 
 /* ════════════════════════════════════════════════════════════
    CINEMATIC UI REDESIGN
@@ -4111,100 +4194,6 @@ body.light-theme .panel-tab { color: var(--clr-text); }
 body.light-theme .panel-tab.active { color: var(--clr-accent); }
 
 /* ════════════════════════════════════════════════════════════
-   ZEN MODE — distraction-free study environment
-   Only: clock digits, session timer, one task label
-   Everything else fades into the void
-════════════════════════════════════════════════════════════ */
-
-body.zen-mode {
-  cursor: none;
-}
-body.zen-mode * { cursor: none !important; }
-
-/* Fade out everything except the essentials */
-body.zen-mode .topbar,
-body.zen-mode #themePanel,
-body.zen-mode .session-card .session-controls,
-body.zen-mode .session-card .progress-wrap,
-body.zen-mode .session-card .session-status-line,
-body.zen-mode .distraction-row,
-body.zen-mode #infoStrip,
-body.zen-mode #dateDisplay,
-body.zen-mode #dayPctRow,
-body.zen-mode .greeting,
-body.zen-mode .feat-dock,
-body.zen-mode #themesRevealBtn {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 1.2s ease;
-}
-
-/* Keep: clock, task, timer, zen exit hint */
-body.zen-mode .clock-block { opacity: 1 !important; }
-body.zen-mode #focusInputWrap { opacity: .35 !important; transition: opacity 1.2s; }
-body.zen-mode #focusInputWrap:hover { opacity: .7 !important; }
-body.zen-mode .session-timer { opacity: 1 !important; }
-body.zen-mode .session-card {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-
-/* Zen overlay — breathing ring around clock */
-#zenOverlay {
-  display: none;
-  position: fixed; inset: 0; z-index: 199;
-  pointer-events: none;
-  align-items: center; justify-content: center;
-}
-body.zen-mode #zenOverlay { display: flex; }
-
-.zen-ring {
-  position: absolute;
-  width: min(70vw, 70vh);
-  height: min(70vw, 70vh);
-  border-radius: 50%;
-  border: 1px solid rgba(var(--clr-accent-rgb, 110,231,183), .08);
-  animation: zenRingBreath 8s ease-in-out infinite;
-}
-.zen-ring:nth-child(2) {
-  width: min(82vw, 82vh);
-  height: min(82vw, 82vh);
-  border-color: rgba(var(--clr-accent-rgb, 110,231,183), .04);
-  animation-delay: 1s;
-}
-.zen-ring:nth-child(3) {
-  width: min(58vw, 58vh);
-  height: min(58vw, 58vh);
-  border-color: rgba(var(--clr-accent-rgb, 110,231,183), .06);
-  animation-delay: 2s;
-}
-@keyframes zenRingBreath {
-  0%, 100% { transform: scale(1);    opacity: .6; }
-  50%       { transform: scale(1.04); opacity: 1;  }
-}
-
-/* Zen exit hint — appears on mouse move, fades */
-#zenExitHint {
-  position: fixed;
-  bottom: 28px; left: 50%;
-  transform: translateX(-50%);
-  font-size: .54rem; font-weight: 700; letter-spacing: .18em;
-  text-transform: uppercase; color: var(--clr-text);
-  opacity: 0; pointer-events: none;
-  transition: opacity .4s ease;
-  z-index: 201;
-}
-body.zen-mode.zen-hinting #zenExitHint { opacity: .28; }
-
-/* Zen mode — cursor re-appears on move */
-body.zen-mode.zen-hinting { cursor: default; }
-body.zen-mode.zen-hinting * { cursor: default !important; }
-
-/* Reduce motion — no breathing rings */
-body.reduced-motion .zen-ring { animation: none; }
-
-/* ════════════════════════════════════════════════════════════
    VOICE TIMER BUTTON
 ════════════════════════════════════════════════════════════ */
 #voiceBtn {
@@ -4258,6 +4247,7 @@ body.zen-mode .session-card {
   pointer-events: none; align-items: center; justify-content: center;
 }
 body.zen-mode #zenOverlay { display: flex; }
+body.zen-mode.zen-no-rings #zenOverlay { display: none; }
 
 .zen-ring {
   position: absolute;
