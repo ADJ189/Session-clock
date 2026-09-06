@@ -567,16 +567,16 @@ export interface IntegrationPanelCallbacks {
 }
 
 export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPanelCallbacks) {
+  container.className = 'int-grid';
   while (container.firstChild) container.removeChild(container.firstChild);
-  container.style.cssText = 'padding:16px;display:flex;flex-direction:column;gap:16px;';
 
   const defs: Array<{
-    id: IntegrationId; icon: string; name: string; desc: string;
+    id: IntegrationId; icon: string; name: string; desc: string; color: string;
     connected: () => boolean;
     setupForm: (wrap: HTMLElement) => void;
   }> = [
     {
-      id: 'spotify', icon: '🎵', name: 'Spotify',
+      id: 'spotify', icon: '🎵', name: 'Spotify', color: '#1DB954',
       desc: 'Show now-playing, control playback, and launch focus playlists.',
       connected: isSpotifyConnected,
       setupForm(wrap) {
@@ -592,13 +592,13 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
       },
     },
     {
-      id: 'youtube', icon: '📺', name: 'YouTube',
+      id: 'youtube', icon: '📺', name: 'YouTube', color: '#FF0000',
       desc: 'Pull focus/study playlists from YouTube. Shares the Google connection below.',
       connected: isYouTubeConnected,
       setupForm(wrap) { wrap.append(...googleSetupNodes(cb, 'YouTube')); },
     },
     {
-      id: 'gcal', icon: '📅', name: 'Google Calendar',
+      id: 'gcal', icon: '📅', name: 'Google Calendar', color: '#4285F4',
       desc: 'Show upcoming events in the focus widget.',
       connected: isGCalConnected,
       setupForm(wrap) {
@@ -620,7 +620,7 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
       },
     },
     {
-      id: 'notion', icon: '📝', name: 'Notion',
+      id: 'notion', icon: '📝', name: 'Notion', color: '#787774',
       desc: 'See your Notion tasks in the focus sidebar.',
       connected: isNotionConnected,
       setupForm(wrap) {
@@ -658,7 +658,7 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
       },
     },
     {
-      id: 'todoist', icon: '✅', name: 'Todoist',
+      id: 'todoist', icon: '✅', name: 'Todoist', color: '#E44332',
       desc: "Show today's Todoist tasks in the focus sidebar.",
       connected: isTodoistConnected,
       setupForm(wrap) {
@@ -679,7 +679,7 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
       },
     },
     {
-      id: 'linear', icon: '🔷', name: 'Linear',
+      id: 'linear', icon: '🔷', name: 'Linear', color: '#5E6AD2',
       desc: 'Show your assigned Linear issues in the focus sidebar.',
       connected: isLinearConnected,
       setupForm(wrap) {
@@ -700,7 +700,7 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
       },
     },
     {
-      id: 'github', icon: '🐙', name: 'GitHub',
+      id: 'github', icon: '🐙', name: 'GitHub', color: '#8b8f98',
       desc: 'Show your assigned GitHub issues and PRs in the focus sidebar.',
       connected: isGithubConnected,
       setupForm(wrap) {
@@ -724,30 +724,47 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
 
   defs.forEach(def => {
     const isConn = def.connected();
+
     const card = document.createElement('div');
-    card.style.cssText = `border-radius:14px;border:1.5px solid ${isConn ? 'rgba(110,231,183,.3)' : 'rgba(255,255,255,.08)'};overflow:hidden;`;
+    card.className = 'int-card' + (isConn ? ' int-card--on' : '');
+    card.style.setProperty('--int-accent', def.color);
 
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;';
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'int-card-header';
+    header.setAttribute('aria-expanded', 'false');
 
-    const ic = document.createElement('span'); ic.style.cssText = 'font-size:1.4rem;flex-shrink:0;'; ic.textContent = def.icon;
-    const info = document.createElement('div'); info.style.cssText = 'flex:1;min-width:0;';
-    const nm = document.createElement('div'); nm.style.cssText = 'font-size:.78rem;font-weight:700;'; nm.textContent = def.name;
-    const ds = document.createElement('div'); ds.style.cssText = 'font-size:.6rem;opacity:.45;line-height:1.4;margin-top:2px;'; ds.textContent = def.desc;
+    const tile = document.createElement('span');
+    tile.className = 'int-tile';
+    tile.textContent = def.icon;
+
+    const info = document.createElement('span');
+    info.className = 'int-info';
+    const nm = document.createElement('span'); nm.className = 'int-name'; nm.textContent = def.name;
+    const ds = document.createElement('span'); ds.className = 'int-desc'; ds.textContent = def.desc;
     info.append(nm, ds);
 
-    const badge = document.createElement('span');
-    badge.className = isConn ? 'int-badge int-badge--on' : 'int-badge';
-    badge.textContent = isConn ? 'Connected' : 'Not connected';
+    const status = document.createElement('span');
+    status.className = 'int-status';
+    const dot = document.createElement('span'); dot.className = 'int-status-dot'; dot.setAttribute('aria-hidden', 'true');
+    status.append(dot, document.createTextNode(isConn ? 'Connected' : 'Connect'));
 
-    header.append(ic, info, badge);
+    const chevron = document.createElement('span');
+    chevron.className = 'int-chevron'; chevron.setAttribute('aria-hidden', 'true');
+    chevron.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
+    header.append(tile, info, status, chevron);
+
+    const formOuter = document.createElement('div');
+    formOuter.className = 'int-form-outer';
     const formWrap = document.createElement('div');
-    formWrap.style.cssText = 'display:none;padding:0 16px 14px;border-top:1px solid rgba(255,255,255,.06);';
+    formWrap.className = 'int-form';
+    formWrap.inert = true;
+    formOuter.appendChild(formWrap);
 
     if (isConn) {
       const disconnectBtn = document.createElement('button');
-      disconnectBtn.style.cssText = 'font-size:.62rem;color:#ef4444;background:none;border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:5px 14px;cursor:pointer;margin-top:8px;';
+      disconnectBtn.className = 'int-disconnect-btn';
       disconnectBtn.textContent = `Disconnect ${def.name}`;
       disconnectBtn.addEventListener('click', () => { disconnectAll(def.id); buildIntegrationsPanel(container, cb); cb.showToast(`${def.name} disconnected`); });
       formWrap.appendChild(disconnectBtn);
@@ -755,13 +772,18 @@ export function buildIntegrationsPanel(container: HTMLElement, cb: IntegrationPa
       def.setupForm(formWrap);
     }
 
-    let expanded = false;
     header.addEventListener('click', () => {
-      expanded = !expanded;
-      formWrap.style.display = expanded ? 'block' : 'none';
+      const expanded = header.getAttribute('aria-expanded') === 'true';
+      header.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      card.classList.toggle('int-card--open', !expanded);
+      // Keep the collapsed form out of tab order / screen-reader flow —
+      // it's still in the DOM (for the height-animation trick above),
+      // just visually clipped, so without this a keyboard/AT user could
+      // tab into fields that look invisible.
+      formWrap.toggleAttribute('inert', expanded);
     });
 
-    card.append(header, formWrap);
+    card.append(header, formOuter);
     container.appendChild(card);
   });
 }

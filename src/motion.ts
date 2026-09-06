@@ -24,7 +24,7 @@ function ensureAnime(): Promise<void> {
 }
 
 /** Mirrors the app's own reduce-motion setting (Settings toggle + OS preference). */
-function reducedMotion(): boolean {
+export function reducedMotion(): boolean {
   return localStorage.getItem('sc_reduce_motion') === '1' ||
     (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }

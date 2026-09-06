@@ -1,6 +1,8 @@
 // ── Easter Eggs & Secret Features ────────────────────────────────────
 // All self-contained. Imported and initialised once in main.ts.
 
+import { reducedMotion } from './motion';
+
 // ── 1. Konami Code → 8-bit theme ─────────────────────────────────────
 const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
 let konamiIdx = 0;
@@ -121,6 +123,11 @@ function triggerThemeEasterEgg(themeId: string, msg: string) {
 // ── Cyberpunk: full-screen RGB glitch ────────────────────────────────
 function triggerCyberpunkGlitch() {
   _applyThemeById('cyberpunk');
+  _showToast('🌆 Wake the f*** up, Samurai.', 4000);
+  // Rapid, high-contrast flashing bars — a real photosensitivity risk,
+  // and the app has no separate "reduce flashing" setting, so it rides
+  // on the same reduced-motion signal as everything else does.
+  if (reducedMotion()) return;
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;pointer-events:none;';
   document.body.appendChild(overlay);
@@ -141,7 +148,6 @@ function triggerCyberpunkGlitch() {
     }
     if (++frame > 18) { clearInterval(interval); overlay.remove(); }
   }, 60);
-  _showToast('🌆 Wake the f*** up, Samurai.', 4000);
 }
 
 // ── HAL 9000: "I'm sorry Dave" overlay ──────────────────────────────
@@ -186,6 +192,8 @@ function triggerTenetReverse() {
 // ── Evangelion: NERV alert screen ────────────────────────────────────
 function triggerEvaAlert() {
   _applyThemeById('evangelion');
+  _showToast('⚠️ Pattern Blue detected. Evangelion Unit-01, launch!', 5000);
+  if (reducedMotion()) return; // rapid red flashing — same call as the glitch effect above
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;pointer-events:none;';
   document.body.appendChild(overlay);
@@ -204,12 +212,13 @@ function triggerEvaAlert() {
     }
     if (++frame > 24) { clearInterval(interval); overlay.remove(); }
   }, 80);
-  _showToast('⚠️ Pattern Blue detected. Evangelion Unit-01, launch!', 5000);
 }
 
 // ── Akira: psychic blast screen shake ────────────────────────────────
 function triggerAkiraBlast() {
   _applyThemeById('akira');
+  _showToast('🏍 The power of Akira awakens!', 4000);
+  if (reducedMotion()) return; // rapid screen-shake is a motion-sickness trigger
   document.body.style.transition = 'transform .06s';
   let frame = 0;
   const shakes = [[-4,2],[4,-3],[-3,-4],[3,3],[-2,4],[2,-2],[0,0]];
@@ -222,7 +231,6 @@ function triggerAkiraBlast() {
       setTimeout(() => { document.body.style.transition = ''; }, 200);
     }
   }, 40);
-  _showToast('🏍 The power of Akira awakens!', 4000);
 }
 
 // ── One Piece: Luffy scream effect ────────────────────────────────────
@@ -293,6 +301,7 @@ export function triggerMatrixRain() {
 
 function triggerDreamSpin() {
   _showToast('🌀 "You\'re waiting for a train…"', 5000);
+  if (reducedMotion()) return; // a full-page 360° spin is a textbook vestibular trigger
   document.body.style.transition = 'transform 1.2s cubic-bezier(.65,0,.35,1)';
   document.body.style.transform  = 'rotate(360deg)';
   setTimeout(() => {

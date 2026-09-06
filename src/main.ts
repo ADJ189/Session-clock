@@ -1332,12 +1332,29 @@ function togglePresent() {
 let zenOn = false;
 let zenHintTimer: number | null = null;
 let zenMouseTimer: number | null = null;
+let zenSoundStartedByZen = false;
+
+function getZenDimDelayMs(): number {
+  const v = localStorage.getItem('sc_zen_dim_delay');
+  return v ? parseInt(v, 10) : 2500;
+}
 
 function toggleZen() {
   zenOn = !zenOn;
   document.body.classList.toggle('zen-mode', zenOn);
+  document.body.classList.toggle('zen-no-rings', localStorage.getItem('sc_zen_rings') === '0');
   if (zenOn) {
     showToast('🧘 Zen Mode — Press Esc to exit', 3000);
+    // Optional ambient sound — only start it if it isn't already playing,
+    // and only stop what we started (never interrupt a track the user
+    // had going before entering Zen).
+    const zenSoundId = localStorage.getItem('sc_zen_sound') || '';
+    if (zenSoundId && !Sound.isPlaying(zenSoundId)) {
+      Sound.play(zenSoundId);
+      zenSoundStartedByZen = true;
+    } else {
+      zenSoundStartedByZen = false;
+    }
     // Hide cursor until mouse moves
     zenMouseTimer = window.setTimeout(() => {}, 0);
     // Wake on mouse move
@@ -1346,7 +1363,7 @@ function toggleZen() {
       if (zenHintTimer) clearTimeout(zenHintTimer);
       zenHintTimer = window.setTimeout(() => {
         document.body.classList.remove('zen-hinting');
-      }, 2500);
+      }, getZenDimDelayMs());
     };
     (window as any).__zenMoveHandler = onMove;
     window.addEventListener('mousemove', onMove, { passive: true });
@@ -1356,6 +1373,11 @@ function toggleZen() {
     const h = (window as any).__zenMoveHandler;
     if (h) window.removeEventListener('mousemove', h);
     delete (window as any).__zenMoveHandler;
+    if (zenSoundStartedByZen) {
+      const zenSoundId = localStorage.getItem('sc_zen_sound') || '';
+      if (zenSoundId) Sound.stopTrack(zenSoundId);
+      zenSoundStartedByZen = false;
+    }
   }
 }
 
@@ -2330,6 +2352,54 @@ function buildSettingsUI(activeTab = 'general') {
 
   // ══ GENERAL ════════════════════════════════════════════════════════════
   if (activeTab === 'general') {
+    // ── Presets — one click to bundle several settings for a use case ──
+    const PRESETS: Array<{
+      id: string; icon: string; label: string; blurb: string;
+      work: number; brk: number; sound: string; smartBreak: boolean;
+      idleNudge: boolean; calm: boolean; reminderMins: number;
+    }> = [
+      { id: 'student',  icon: '📚', label: 'Student',        blurb: '25/5 Pomodoro · library ambience · break reminders', work: 25, brk: 5,  sound: 'library', smartBreak: true,  idleNudge: true,  calm: false, reminderMins: 60 },
+      { id: 'office',   icon: '💼', label: 'Office Worker',  blurb: '50/10 sessions · café ambience · fewer nudges',      work: 50, brk: 10, sound: 'cafe',    smartBreak: true,  idleNudge: false, calm: false, reminderMins: 90 },
+      { id: 'deepwork', icon: '🌙', label: 'Deep Work',      blurb: '90/15 long blocks · brown noise · no interruptions', work: 90, brk: 15, sound: 'brown',   smartBreak: false, idleNudge: false, calm: false, reminderMins: 120 },
+      { id: 'minimal',  icon: '🧘', label: 'Minimalist',     blurb: '25/5 · silent · Calm Mode · nothing else on',       work: 25, brk: 5,  sound: '',        smartBreak: false, idleNudge: false, calm: true,  reminderMins: 90 },
+    ];
+    const presetSec = makeSection('Presets');
+    const presetHint = document.createElement('p'); presetHint.className = 'settings-hint';
+    presetHint.textContent = 'Bundles Pomodoro timing, ambient sound, and a few Focus/Display settings for a use case. Anything can still be changed individually afterward.';
+    presetSec.appendChild(presetHint);
+    const presetGrid = document.createElement('div'); presetGrid.className = 'preset-grid';
+    PRESETS.forEach(p => {
+      const btn = document.createElement('button'); btn.className = 'preset-card';
+      const ic = document.createElement('span'); ic.className = 'preset-icon'; ic.textContent = p.icon;
+      const lb = document.createElement('span'); lb.className = 'preset-label'; lb.textContent = p.label;
+      const bl = document.createElement('span'); bl.className = 'preset-blurb'; bl.textContent = p.blurb;
+      btn.append(ic, lb, bl);
+      btn.addEventListener('click', () => {
+        Pom.setWorkMins(p.work);
+        Pom.setBreakMins(p.brk);
+        Sound.stop();
+        if (p.sound) Sound.play(p.sound);
+        localStorage.setItem('sc_smart_break', p.smartBreak ? '1' : '0');
+        localStorage.setItem('sc_idle_detect', p.idleNudge ? '1' : '0');
+        wireIdleListeners(p.idleNudge);
+        localStorage.setItem('sc_break_reminder_mins', String(p.reminderMins));
+        localStorage.setItem('sc_calm_mode', p.calm ? '1' : '0');
+        document.body.classList.toggle('calm-mode', p.calm);
+        if (p.calm) {
+          localStorage.setItem('sc_reduce_motion', '1');
+          document.body.classList.add('reduced-motion');
+          localStorage.setItem('sc_parallax', '0');
+          setTier('med');
+          invalidateCache();
+        }
+        showToast(`${p.icon} ${p.label} preset applied`, 3500);
+        buildSettingsUI(_lastSettingsTab);
+      });
+      presetGrid.appendChild(btn);
+    });
+    presetSec.appendChild(presetGrid);
+    paneWrap.appendChild(presetSec);
+
     const clockModes: { mode: ClockMode; label: string; icon: string; desc: string }[] = [
       { mode: 'digital',  label: 'Digital',  icon: '🔢', desc: 'Classic digits'   },
       { mode: 'analogue', label: 'Analogue', icon: '🕐', desc: 'Sweep hands'      },
@@ -2494,6 +2564,57 @@ function buildSettingsUI(activeTab = 'general') {
     focusSec.appendChild(makeRow('Idle Nudge', 'After 15 min with no input, a gentle "still there?" toast — never pauses or alters your timer', 'toggleIdleDetect', localStorage.getItem('sc_idle_detect') === '1'));
 
     paneWrap.appendChild(focusSec);
+
+    // ── Zen Mode customization ────────────────────────────────────────
+    const zenSec = makeSection('Zen Mode');
+
+    const zenSoundRow = document.createElement('div'); zenSoundRow.className = 'settings-row';
+    const zenSoundInfo = document.createElement('div'); zenSoundInfo.className = 'settings-row-info';
+    const zenSoundTop = document.createElement('div'); zenSoundTop.className = 'settings-row-top';
+    const zenSoundLbl = document.createElement('span'); zenSoundLbl.className = 'settings-row-label'; zenSoundLbl.textContent = 'Ambient Sound';
+    zenSoundTop.appendChild(zenSoundLbl);
+    const zenSoundDesc = document.createElement('span'); zenSoundDesc.className = 'settings-row-desc';
+    zenSoundDesc.textContent = 'Auto-plays when you enter Zen Mode, stops when you leave — only if nothing is already playing.';
+    zenSoundInfo.append(zenSoundTop, zenSoundDesc);
+    const zenSoundSelect = document.createElement('select'); zenSoundSelect.className = 'settings-select';
+    zenSoundSelect.setAttribute('aria-label', 'Zen Mode ambient sound');
+    const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = 'None';
+    zenSoundSelect.appendChild(noneOpt);
+    Sound.SOUNDS.forEach(s => {
+      const opt = document.createElement('option'); opt.value = s.id; opt.textContent = `${s.icon} ${s.name}`;
+      if ((localStorage.getItem('sc_zen_sound') || '') === s.id) opt.selected = true;
+      zenSoundSelect.appendChild(opt);
+    });
+    zenSoundSelect.addEventListener('change', () => {
+      if (zenSoundSelect.value) localStorage.setItem('sc_zen_sound', zenSoundSelect.value);
+      else localStorage.removeItem('sc_zen_sound');
+    });
+    zenSoundRow.append(zenSoundInfo, zenSoundSelect);
+    zenSec.appendChild(zenSoundRow);
+
+    const zenDelayRow = document.createElement('div'); zenDelayRow.className = 'settings-row';
+    const zenDelayInfo = document.createElement('div'); zenDelayInfo.className = 'settings-row-info';
+    const zenDelayTop = document.createElement('div'); zenDelayTop.className = 'settings-row-top';
+    const zenDelayLbl = document.createElement('span'); zenDelayLbl.className = 'settings-row-label'; zenDelayLbl.textContent = 'Cursor Auto-Hide';
+    zenDelayTop.appendChild(zenDelayLbl);
+    const zenDelayDesc = document.createElement('span'); zenDelayDesc.className = 'settings-row-desc';
+    zenDelayDesc.textContent = 'How long the cursor and a faint exit hint stay visible after you stop moving the mouse.';
+    zenDelayInfo.append(zenDelayTop, zenDelayDesc);
+    const zenDelaySelect = document.createElement('select'); zenDelaySelect.className = 'settings-select';
+    zenDelaySelect.setAttribute('aria-label', 'Zen Mode cursor auto-hide delay');
+    ([['1500', 'Fast · 1.5s'], ['2500', 'Normal · 2.5s'], ['4000', 'Slow · 4s']] as const).forEach(([ms, label]) => {
+      const opt = document.createElement('option'); opt.value = ms; opt.textContent = label;
+      if ((localStorage.getItem('sc_zen_dim_delay') || '2500') === ms) opt.selected = true;
+      zenDelaySelect.appendChild(opt);
+    });
+    zenDelaySelect.addEventListener('change', () => localStorage.setItem('sc_zen_dim_delay', zenDelaySelect.value));
+    zenDelayRow.append(zenDelayInfo, zenDelaySelect);
+    zenSec.appendChild(zenDelayRow);
+
+    zenSec.appendChild(makeRow('Breathing Rings', 'The slow pulsing rings around the clock while in Zen Mode', 'toggleZenRings', localStorage.getItem('sc_zen_rings') !== '0'));
+
+    paneWrap.appendChild(zenSec);
+    wireToggle('toggleZenRings', (on) => localStorage.setItem('sc_zen_rings', on ? '1' : '0'));
 
     const pomBtn = document.createElement('button'); pomBtn.className = 'settings-action-btn settings-action-btn--full';
     pomBtn.textContent = '⏱ Pomodoro Settings';
