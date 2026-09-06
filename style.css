@@ -5525,12 +5525,19 @@ body.weather-fog.weather-overlay-on::after {
    colourful, easy-to-dismiss interstitial, not a hard blocker.
 ════════════════════════════════════════════════════════════ */
 .gh-overlay .gh-modal {
-  padding: 30px 26px 24px;
+  padding: 34px 30px 26px;
   text-align: center;
   overflow: visible;
+  max-width: 340px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.08);
   background:
-    radial-gradient(120% 100% at 50% -10%, rgba(255,255,255,.08), transparent 60%),
-    var(--clr-panel, rgba(14,12,30,.94));
+    radial-gradient(120% 90% at 50% -20%, rgba(255,255,255,.07), transparent 55%),
+    var(--clr-panel, #0e0c1e);
+  box-shadow:
+    0 30px 70px -20px rgba(0,0,0,.6),
+    0 0 0 1px rgba(0,0,0,.2),
+    inset 0 1px 0 rgba(255,255,255,.06);
 }
 
 /* Bug fix: this button used to be a bare child of .gh-modal with no
@@ -5545,88 +5552,103 @@ body.weather-fog.weather-overlay-on::after {
 
 .gh-avatar-wrap {
   position: relative;
-  width: 84px; height: 84px;
-  margin: 4px auto 14px;
+  width: 100px; height: 100px;
+  margin: 2px auto 18px;
+}
+.gh-avatar-glow {
+  position: absolute; inset: 6px; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--clr-accent) 55%, transparent), transparent 72%);
+  filter: blur(14px);
+  opacity: 0;
 }
 .gh-avatar {
-  width: 72px; height: 72px; border-radius: 50%;
-  position: absolute; top: 6px; left: 6px;
-  border: 2px solid rgba(255,255,255,.15);
+  width: 76px; height: 76px; border-radius: 50%;
+  position: absolute; top: 12px; left: 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
   object-fit: cover;
-  opacity: 0; transform: scale(.6);
+  opacity: 0; transform: scale(.7);
 }
 .gh-avatar-ring {
-  position: absolute; inset: 0; width: 84px; height: 84px;
+  position: absolute; inset: 0; width: 100px; height: 100px;
   transform: rotate(-90deg);
 }
 .gh-avatar-ring circle {
   fill: none;
   stroke: var(--clr-accent);
-  stroke-width: 3; stroke-linecap: round;
+  stroke-width: 2; stroke-linecap: round;
   stroke-dasharray: 289; stroke-dashoffset: 289;
   opacity: 0;
 }
+.gh-badge {
+  position: absolute; right: 2px; bottom: 6px; width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: #16141f; color: var(--clr-text);
+  border: 1px solid rgba(255,255,255,.14); box-shadow: 0 4px 12px rgba(0,0,0,.4);
+  opacity: 0; transform: scale(.5);
+}
+@keyframes ghGlowIn   { to { opacity: .55; } }
 @keyframes ghAvatarIn { to { opacity: 1; transform: scale(1); } }
-@keyframes ghRingIn   { 0% { opacity: 1; stroke-dashoffset: 289; } 100% { opacity: 1; stroke-dashoffset: 40; } }
-@keyframes ghRingSpin { to { transform: rotate(270deg); } }
+@keyframes ghRingIn   { 0% { opacity: 1; stroke-dashoffset: 289; } 100% { opacity: .8; stroke-dashoffset: 60; } }
+@keyframes ghBadgeIn  { to { opacity: 1; transform: scale(1); } }
 
 .gh-eyebrow {
-  font-size: .6rem; font-weight: 800; letter-spacing: .22em; text-transform: uppercase;
-  opacity: 0; color: var(--clr-accent);
+  font-size: .68rem; font-weight: 600; letter-spacing: .02em;
+  opacity: 0; color: var(--clr-text); filter: brightness(.65);
 }
 .gh-title {
-  margin: 4px 0 10px; font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em;
-  background: linear-gradient(90deg, #f472b6, #fbbf24, #34d399, #60a5fa, #a78bfa);
-  background-size: 300% auto;
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  margin: 8px 0 12px; font-size: 1.32rem; font-weight: 700; letter-spacing: -.015em;
+  line-height: 1.25; color: var(--clr-text);
   opacity: 0;
 }
 .gh-body {
-  font-size: .76rem; line-height: 1.6; opacity: 0; color: var(--clr-text); filter: brightness(.85);
-  max-width: 360px; margin: 0 auto 18px;
+  font-size: .8rem; line-height: 1.6; opacity: 0; color: var(--clr-text); filter: brightness(.72);
+  max-width: 300px; margin: 0 auto 20px;
 }
 @keyframes ghFadeUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: .85; transform: translateY(0); }
-}
-@keyframes ghGradientShift {
-  to { background-position: 300% center; }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .gh-stats {
-  display: flex; align-items: center; justify-content: center; gap: 16px;
-  margin: 0 0 18px; opacity: 0;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin: 0 0 20px; opacity: 0;
 }
 .gh-stats[hidden] { display: none; }
-.gh-stat { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.gh-stat-num {
-  font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums;
-  color: var(--clr-text);
+.gh-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 999px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+  font-size: .74rem; font-weight: 600; color: var(--clr-text);
+  font-variant-numeric: tabular-nums;
 }
-.gh-stat-label {
-  font-size: .58rem; letter-spacing: .1em; text-transform: uppercase; opacity: .55;
-}
-.gh-stat-divider { width: 1px; height: 22px; background: rgba(255,255,255,.14); }
+.gh-chip svg { opacity: .7; flex: none; }
 
 .gh-actions {
-  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+  display: flex; flex-direction: column; gap: 8px;
   opacity: 0;
 }
-.gh-actions .btn { opacity: 1; }
+.gh-actions .btn { opacity: 1; width: 100%; justify-content: center; }
 .gh-btn-star {
-  box-shadow: 0 4px 22px color-mix(in srgb, var(--clr-accent) 45%, transparent);
+  position: relative; overflow: hidden;
+  box-shadow: 0 8px 24px -6px color-mix(in srgb, var(--clr-accent) 55%, transparent);
 }
-@keyframes ghPulse {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.045); }
+.gh-btn-star::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,.35) 50%, transparent 80%);
+  transform: translateX(-120%);
+}
+.gh-btn-star:hover::after { transform: translateX(120%); transition: transform .7s ease; }
+.gh-btn-donate {
+  background: transparent; border: 1px solid rgba(255,255,255,.14);
 }
 
 .gh-skip {
   display: block; margin: 16px auto 0; background: none; border: none; cursor: pointer;
-  font-size: .62rem; letter-spacing: .04em; color: var(--clr-text); opacity: 0;
-  text-decoration: underline; text-underline-offset: 3px; font-family: inherit;
+  font-size: .68rem; letter-spacing: .01em; color: var(--clr-text); opacity: 0; filter: brightness(.55);
+  text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; font-family: inherit;
 }
-.gh-skip:hover { opacity: .9 !important; }
+.gh-skip:hover { filter: brightness(.85); }
 
 /* Bug fix: these entrance animations previously lived on the base
    selectors above (.gh-avatar, .gh-eyebrow, etc.), which are always
@@ -5638,25 +5660,27 @@ body.weather-fog.weather-overlay-on::after {
    `.gh-overlay.open` means it only starts — and restarts every time —
    when the `open` class is actually added, i.e. when the card is
    genuinely shown. */
-.gh-overlay.open .gh-avatar        { animation: ghAvatarIn .6s cubic-bezier(.2,1.4,.4,1) .15s forwards; }
+.gh-overlay.open .gh-avatar-glow   { animation: ghGlowIn .8s ease .1s forwards; }
+.gh-overlay.open .gh-avatar        { animation: ghAvatarIn .6s cubic-bezier(.2,1.4,.4,1) .18s forwards; }
 .gh-overlay.open .gh-avatar-ring circle {
-  animation: ghRingIn 1s cubic-bezier(.22,1,.36,1) .1s forwards,
-             ghRingSpin 6s linear 1.1s infinite;
+  animation: ghRingIn .9s cubic-bezier(.22,1,.36,1) .15s forwards;
 }
-.gh-overlay.open .gh-eyebrow       { animation: ghFadeUp .5s ease .3s forwards; }
-.gh-overlay.open .gh-title         { animation: ghFadeUp .5s ease .38s forwards, ghGradientShift 5s linear infinite; }
-.gh-overlay.open .gh-body          { animation: ghFadeUp .5s ease .46s forwards; }
-.gh-overlay.open .gh-stats         { animation: ghFadeUp .5s ease .50s forwards; }
-.gh-overlay.open .gh-actions       { animation: ghFadeUp .5s ease .54s forwards; }
-.gh-overlay.open .gh-btn-star      { animation: ghPulse 2.4s ease-in-out 1.2s infinite; }
-.gh-overlay.open .gh-skip          { animation: ghFadeUp .5s ease .62s forwards; }
+.gh-overlay.open .gh-badge         { animation: ghBadgeIn .5s cubic-bezier(.2,1.4,.4,1) .5s forwards; }
+.gh-overlay.open .gh-eyebrow       { animation: ghFadeUp .5s ease .28s forwards; }
+.gh-overlay.open .gh-title         { animation: ghFadeUp .5s ease .34s forwards; }
+.gh-overlay.open .gh-body          { animation: ghFadeUp .5s ease .40s forwards; }
+.gh-overlay.open .gh-stats         { animation: ghFadeUp .5s ease .46s forwards; }
+.gh-overlay.open .gh-actions       { animation: ghFadeUp .5s ease .52s forwards; }
+.gh-overlay.open .gh-skip          { animation: ghFadeUp .5s ease .58s forwards; }
 
 @media (prefers-reduced-motion: reduce) {
-  .gh-overlay.open .gh-avatar, .gh-overlay.open .gh-eyebrow, .gh-overlay.open .gh-title,
+  .gh-overlay.open .gh-avatar-glow, .gh-overlay.open .gh-avatar, .gh-overlay.open .gh-badge,
+  .gh-overlay.open .gh-eyebrow, .gh-overlay.open .gh-title,
   .gh-overlay.open .gh-body, .gh-overlay.open .gh-stats, .gh-overlay.open .gh-actions, .gh-overlay.open .gh-skip,
-  .gh-overlay.open .gh-avatar-ring circle, .gh-overlay.open .gh-btn-star {
+  .gh-overlay.open .gh-avatar-ring circle {
     animation: none !important; opacity: .9 !important; transform: none !important;
   }
+  .gh-avatar-glow { opacity: .3 !important; }
 }
 
 /* ════════════════════════════════════════════════════════════
