@@ -12,6 +12,8 @@
 // 11. Break activity suggestions
 // 12. World clock widget
 
+import * as Motion from './motion';
+
 const $ = (id: string) => document.getElementById(id)!;
 
 // ─────────────────────────────────────────────────────────────────────
@@ -386,30 +388,29 @@ export function showOnboarding(cbs: OnboardCallbacks) {
 
   const renderStep = () => {
     container.innerHTML = '';
-    container.style.cssText = 'display:flex;flex-direction:column;height:100%;';
 
     // ── Progress dots ──
     const dots = document.createElement('div');
-    dots.style.cssText = 'display:flex;gap:6px;justify-content:center;padding:20px 0 0;';
+    dots.className = 'ob-dots';
     for (let i = 0; i < TOTAL_STEPS; i++) {
       const d = document.createElement('div');
-      d.style.cssText = `width:${i === step ? 20 : 6}px;height:6px;border-radius:99px;background:${i === step ? 'var(--clr-accent)' : 'rgba(255,255,255,.18)'};transition:all .3s;`;
+      d.className = 'ob-dot' + (i === step ? ' active' : i < step ? ' done' : '');
       dots.appendChild(d);
     }
 
     // ── Skip all link ── always visible top-right
     const skipAll = document.createElement('button');
-    skipAll.style.cssText = 'position:absolute;top:16px;right:18px;font-size:.6rem;opacity:.35;background:none;border:none;color:inherit;cursor:pointer;letter-spacing:.04em;padding:4px 8px;';
+    skipAll.className = 'ob-skip-all';
     skipAll.textContent = 'Skip all';
     skipAll.addEventListener('click', () => finish());
 
     // ── Content area ──
     const body = document.createElement('div');
-    body.style.cssText = 'flex:1;padding:16px 24px 8px;overflow-y:auto;';
+    body.className = 'ob-body';
 
     // ── Bottom nav ──
     const nav = document.createElement('div');
-    nav.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 24px 24px;gap:12px;';
+    nav.className = 'ob-nav';
 
     if (step === 0) renderWelcome(body, nav, goNext, finish);
     else if (step === 1) renderDuration(body, nav, (m) => { cbs.setDuration(m); goNext(); }, finish);
@@ -418,57 +419,56 @@ export function showOnboarding(cbs: OnboardCallbacks) {
 
     // Wrap with relative positioning for skip-all button
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:relative;display:flex;flex-direction:column;height:100%;';
+    wrapper.className = 'ob-wrapper';
     wrapper.append(skipAll, dots, body, nav);
     container.appendChild(wrapper);
+    // A gentle staggered entrance for whatever this step just put in —
+    // the same treatment the Themes tab and Settings panes already use,
+    // so onboarding doesn't feel like a different, plainer piece of UI.
+    void Motion.staggerIn(body, '.ob-card, .ob-icon-badge, .ob-heading, .ob-desc');
   };
   renderStep();
 }
 
 function obH(text: string): HTMLElement {
   const h = document.createElement('h2');
-  h.style.cssText = 'font-size:1.25rem;font-weight:800;margin:16px 0 4px;text-align:center;letter-spacing:-.01em;';
+  h.className = 'ob-heading';
   h.textContent = text; return h;
 }
 function obP(text: string): HTMLElement {
   const p = document.createElement('p');
-  p.style.cssText = 'font-size:.7rem;opacity:.46;margin:0 0 18px;text-align:center;line-height:1.65;';
+  p.className = 'ob-desc';
   p.textContent = text; return p;
 }
 function obNavBtn(label: string, primary: boolean, cb: () => void): HTMLElement {
   const btn = document.createElement('button');
-  btn.style.cssText = primary
-    ? 'flex:1;padding:11px 0;border-radius:12px;background:var(--clr-accent);color:#000;font-weight:700;font-size:.78rem;border:none;cursor:pointer;transition:filter .15s,transform .1s;'
-    : 'font-size:.62rem;opacity:.38;background:none;border:none;color:inherit;cursor:pointer;padding:4px 8px;white-space:nowrap;';
+  btn.className = primary ? 'ob-btn-primary' : 'ob-btn-ghost';
   btn.textContent = label;
   btn.addEventListener('click', cb);
   return btn;
 }
 function obGrid(cols = 2): HTMLElement {
   const g = document.createElement('div');
-  g.style.cssText = `display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;margin-bottom:4px;`;
+  g.className = 'ob-grid';
+  g.style.gridTemplateColumns = `repeat(${cols},1fr)`;
   return g;
 }
 function obCard(icon: string, label: string, sub: string, cb: () => void): HTMLElement {
   const btn = document.createElement('button');
-  btn.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px 10px;border-radius:14px;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.08);cursor:pointer;color:inherit;transition:background .15s,border-color .15s,transform .12s;';
-  btn.addEventListener('mouseenter', () => { btn.style.background='rgba(255,255,255,.1)'; btn.style.borderColor='var(--clr-accent)'; });
-  btn.addEventListener('mouseleave', () => { btn.style.background='rgba(255,255,255,.05)'; btn.style.borderColor='rgba(255,255,255,.08)'; });
-  btn.addEventListener('mousedown', () => { btn.style.transform='scale(.96)'; });
-  btn.addEventListener('mouseup', () => { btn.style.transform=''; cb(); });
-  btn.addEventListener('touchend', () => { btn.style.transform=''; cb(); }, { passive: true });
-  const ic = document.createElement('div'); ic.style.cssText = 'font-size:1.65rem;line-height:1;'; ic.textContent = icon;
-  const lbl = document.createElement('div'); lbl.style.cssText = 'font-size:.72rem;font-weight:700;letter-spacing:-.01em;'; lbl.textContent = label;
-  const sb = document.createElement('div'); sb.style.cssText = 'font-size:.56rem;opacity:.4;'; sb.textContent = sub;
+  btn.className = 'ob-card';
+  btn.addEventListener('click', cb);
+  const ic = document.createElement('div'); ic.className = 'ob-card-icon'; ic.textContent = icon;
+  const lbl = document.createElement('div'); lbl.className = 'ob-card-label'; lbl.textContent = label;
+  const sb = document.createElement('div'); sb.className = 'ob-card-sub'; sb.textContent = sub;
   btn.append(ic, lbl, sb);
   return btn;
 }
 
 function renderWelcome(body: HTMLElement, nav: HTMLElement, next: () => void, finish: (s?: string) => void) {
-  const icon = document.createElement('div');
-  icon.style.cssText = 'font-size:3.2rem;text-align:center;margin:12px 0 4px;filter:drop-shadow(0 0 24px rgba(110,231,183,.4));';
-  icon.textContent = '⏱';
-  body.append(icon, obH('Session Clock'), obP('A precise, beautiful focus timer — themes, binaural beats, session tracking, and more. Set up in 30 seconds or skip and dive in.'));
+  const badge = document.createElement('div'); badge.className = 'ob-icon-badge';
+  const icon = document.createElement('div'); icon.className = 'ob-icon'; icon.textContent = '⏱';
+  badge.appendChild(icon);
+  body.append(badge, obH('Session Clock'), obP('A precise, beautiful focus timer — themes, binaural beats, session tracking, and more. Set up in 30 seconds or skip and dive in.'));
   nav.append(
     obNavBtn('Get started →', true, next),
     obNavBtn('Skip, use defaults', false, () => finish()),
