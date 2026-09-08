@@ -2235,6 +2235,50 @@ function saveCustomTheme() {
   renderSavedSwatches(); showToast('🎨 Custom theme saved!');
 }
 
+// ── Theme export / import — share a custom theme as a short text code ──
+// A minimal, safe form of "custom theme support": no code runs, only
+// six already-validated color values travel in the code, so pasting a
+// code from someone else can't do anything beyond changing colors.
+const THEME_CODE_PREFIX = 'SCTHEME1:';
+const VALID_COLOR = /^(#[0-9a-fA-F]{3,8}|rgba?\([\d.\s,%]+\))$/;
+
+function exportCustomTheme(): string {
+  const payload: Record<string, string> = {};
+  THEME_FIELDS.forEach(f => { payload[f.key] = draft[f.key] ?? ''; });
+  const code = THEME_CODE_PREFIX + btoa(JSON.stringify(payload));
+  if (navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(code).then(
+      () => showToast('📋 Theme code copied — paste it anywhere to share'),
+      () => showToast(code, 6000), // clipboard blocked (e.g. no HTTPS/permission) — show it instead
+    );
+  } else {
+    showToast(code, 6000);
+  }
+  return code;
+}
+
+function importCustomTheme(rawCode: string): boolean {
+  const code = rawCode.trim();
+  if (!code.startsWith(THEME_CODE_PREFIX)) { showToast('⚠️ Not a valid theme code'); return false; }
+  let parsed: unknown;
+  try { parsed = JSON.parse(atob(code.slice(THEME_CODE_PREFIX.length))); }
+  catch { showToast('⚠️ Could not read that theme code'); return false; }
+  if (!parsed || typeof parsed !== 'object') { showToast('⚠️ Could not read that theme code'); return false; }
+  const obj = parsed as Record<string, unknown>;
+  const next: Record<string, string> = { ...draft };
+  let applied = 0;
+  THEME_FIELDS.forEach(f => {
+    const v = obj[f.key];
+    if (typeof v === 'string' && VALID_COLOR.test(v.trim())) { next[f.key] = v.trim(); applied++; }
+  });
+  if (!applied) { showToast('⚠️ That code had no valid colors'); return false; }
+  draft = next;
+  previewCustomTheme();
+  buildColorRows();
+  showToast(`🎨 Theme code imported (${applied}/${THEME_FIELDS.length} colors)`);
+  return true;
+}
+
 function renderSavedSwatches() {
   const row = $('savedThemeRow'); if (!row) return;
   const saved: {id:string; name:string; draft:typeof draft}[] = JSON.parse(localStorage.getItem('sc_custom_themes')||'[]');
@@ -2254,7 +2298,15 @@ function renderSavedSwatches() {
 
 function openThemeBuilder() { buildColorRows(); openModal('themeBuilderOverlay'); }
 
-(window as any).SC = { ...(window as any).SC, themeBuilder: { preview: previewCustomTheme, save: saveCustomTheme, reset: () => applyTheme(currentTheme, true), openBuilder: openThemeBuilder } };
+(window as any).SC = { ...(window as any).SC, themeBuilder: {
+  preview: previewCustomTheme, save: saveCustomTheme, reset: () => applyTheme(currentTheme, true), openBuilder: openThemeBuilder,
+  export: exportCustomTheme,
+  import: () => {
+    const input = $('themeImportCode') as HTMLInputElement | null;
+    if (!input || !input.value.trim()) { showToast('Paste a theme code first'); return; }
+    if (importCustomTheme(input.value)) input.value = '';
+  },
+} };
 
 // ── Settings modal ────────────────────────────────────────────────────
 let _lastSettingsTab = 'general';
