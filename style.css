@@ -808,25 +808,77 @@ body.theme-flash::after {
 }
 .pill-group .btn { padding: 6px 14px; font-size: .68rem; }
 
+/* ── Pomodoro modal — Metrolist-style card sections ──────────────────
+   Each duration group gets its own labeled card (icon + heading) with
+   chip-style pill buttons that pick out the active choice with a filled
+   accent chip rather than a thin outline ring, so the current setting
+   reads at a glance instead of blending into the row. Scoped to
+   .pom-modal only — .sc-modal h3 / .pill-group are shared base classes
+   used by other modals too. */
+.pom-modal .pom-section {
+  margin: 0 22px 16px; padding: 12px 12px 14px;
+  border-radius: 14px; background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+}
+/* .sc-modal > *:not(.modal-header):not(h3) (above) sets a 22px
+   left/right padding on every direct child by default; it out-specifies
+   the padding shorthand above (2 classes + 1 type vs. 2 classes here),
+   so without the ID-scoped override below the section would end up
+   double-indented (22px margin + 22px inherited padding + 12px own
+   padding) instead of the flush 12px card padding intended. */
+#pomOverlay .pom-section { padding-left: 12px; padding-right: 12px; }
+.pom-modal .pom-section:last-of-type { margin-bottom: 10px; }
+.pom-modal .pom-section-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.pom-modal .pom-section-icon { font-size: .95rem; line-height: 1; opacity: .85; }
+.pom-modal .pom-section h3 {
+  margin: 0; padding: 0; font-size: .64rem; letter-spacing: .1em;
+  text-transform: uppercase; font-weight: 700; opacity: .55; color: var(--clr-text);
+}
+.pom-modal .pill-group { padding: 0; gap: 7px; }
+.pom-modal .pill-group .btn {
+  border-radius: 10px; padding: 7px 15px; font-weight: 700;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+  transition: background .15s ease, border-color .15s ease, transform .1s ease;
+}
+.pom-modal .pill-group .btn:hover { background: rgba(255,255,255,.09); transform: translateY(-1px); }
+.pom-modal .pill-group .btn.active-btn {
+  box-shadow: none;
+  background: var(--clr-accent); border-color: var(--clr-accent);
+  color: var(--clr-btn-fg, #000);
+}
+body.light-theme .pom-modal .pom-section { background: rgba(0,0,0,.025); border-color: rgba(0,0,0,.07); }
+body.light-theme .pom-modal .pill-group .btn { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.1); }
+
 /* ── Custom Pomodoro cycle inputs ── */
 .pom-custom-row {
-  display: flex; gap: 14px; flex-wrap: wrap;
-  padding: 4px 22px 0;
+  display: flex; gap: 16px; flex-wrap: wrap;
+  padding: 4px 0 0;
 }
 .pom-custom-row label {
-  display: flex; align-items: center; gap: 6px;
-  font-size: .68rem; opacity: .7; color: var(--clr-text);
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: .62rem; letter-spacing: .04em; text-transform: uppercase;
+  opacity: .55; color: var(--clr-text);
+}
+.pom-stepper {
+  display: flex; align-items: baseline; gap: 5px;
+  border-radius: 10px; padding: 2px 4px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+}
+.pom-stepper em {
+  font-style: normal; font-size: .6rem; opacity: .5; padding-right: 8px;
 }
 .pom-custom-row input[type="number"] {
-  width: 56px; padding: 6px 8px; border-radius: 8px; text-align: center;
-  font-size: .74rem; font-weight: 700; color: var(--clr-text);
-  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  width: 46px; padding: 6px 0 6px 8px; border-radius: 0; text-align: left;
+  font-size: .8rem; font-weight: 800; color: var(--clr-text);
+  background: transparent; border: none;
   -moz-appearance: textfield;
 }
 .pom-custom-row input[type="number"]::-webkit-inner-spin-button,
 .pom-custom-row input[type="number"]::-webkit-outer-spin-button { opacity: .6; }
-.pom-custom-row input[type="number"]:focus { outline: none; border-color: var(--clr-accent); background: rgba(255,255,255,.1); }
-body.light-theme .pom-custom-row input[type="number"] { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.12); }
+.pom-stepper:focus-within { border-color: var(--clr-accent); background: rgba(255,255,255,.09); }
+body.light-theme .pom-stepper { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.12); }
 
 .pom-today {
   font-size: .7rem; opacity: .32; color: var(--clr-text); margin-top: 14px;
@@ -850,6 +902,17 @@ body.light-theme .pom-custom-row input[type="number"] { background: rgba(0,0,0,.
 }
 .color-hex { font-size: .64rem; font-family: var(--font-main); color: var(--clr-text); opacity: .65; letter-spacing: .06em; min-width: 60px; }
 .saved-theme-row { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 22px 22px; margin-top: 6px; }
+
+.theme-share-row { padding: 0 22px 22px; display: flex; flex-direction: column; gap: 8px; }
+.theme-import-row { display: flex; gap: 6px; }
+.theme-import-row input[type="text"] {
+  flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
+  color: var(--clr-text); font-size: .68rem; font-family: inherit;
+}
+.theme-import-row input[type="text"]:focus { outline: none; border-color: var(--clr-accent); background: rgba(255,255,255,.09); }
+.theme-import-row .btn { flex-shrink: 0; }
+body.light-theme .theme-import-row input[type="text"] { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.12); }
 .saved-swatch {
   width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent;
   cursor: pointer; transition: transform .18s, border-color .18s; flex-shrink: 0;
@@ -5356,13 +5419,13 @@ body.weather-fog.weather-overlay-on::after {
   align-items: center;
   gap: 10px;
   width: 300px;
-  padding: 10px;
+  padding: 12px;
   border-radius: 16px;
-  background: var(--clr-panel, rgba(20, 20, 24, 0.55));
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  background: var(--clr-panel, rgba(18, 18, 22, 0.72));
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255,255,255,.04);
   color: var(--clr-text, #fff);
   font-family: inherit;
 }
@@ -5412,15 +5475,36 @@ body.weather-fog.weather-overlay-on::after {
   .sc-focus-sidebar { position: static; width: 100%; padding: 0 16px 16px; }
   .sc-music-dock, .sc-side-stack { width: 100%; }
 }
+/* Centre mode on narrow viewports: without this, the sidebar above falls
+   back to a full-width static block stacked below the clock, making an
+   already-tall page scroll — which defeats the whole point of Centre
+   mode (one uncluttered, full-viewport clock) and is exactly what
+   produces the "clock vanished, only the docked session controls and
+   the music dock show" report: the clock is still there, just scrolled
+   above the top edge. Hiding it here is consistent with Centre mode
+   already hiding the greeting/date/weather strip for the same reason. */
+@media (max-width: 720px) {
+  body.clock-center .sc-focus-sidebar { display: none; }
+}
 
 /* ── Music dock: tabs + YouTube pane (added in follow-up pass) ────── */
 .sc-music-dock { flex-direction: column; align-items: stretch; }
-.sc-dock-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
-.sc-dock-tabs button {
-  flex: 1; background: rgba(255,255,255,0.05); border: none; color: #fff;
-  opacity: 0.6; font-size: 11px; padding: 5px 0; border-radius: 8px; cursor: pointer;
+/* Segmented-control tabs, iOS/macOS style — a single pill-shaped track
+   with the active tab picked out by a lighter inset chip, rather than
+   two separately-colored buttons sitting side by side. */
+.sc-dock-tabs {
+  display: flex; gap: 2px; margin-bottom: 10px;
+  padding: 2px; border-radius: 9px; background: rgba(255,255,255,.05);
 }
-.sc-dock-tabs button.active { opacity: 1; background: rgba(255,255,255,0.14); }
+.sc-dock-tabs button {
+  flex: 1; background: transparent; border: none; color: var(--clr-text, #fff);
+  opacity: .55; font-size: 10.5px; font-weight: 600; letter-spacing: .02em;
+  padding: 5px 0; border-radius: 7px; cursor: pointer;
+  transition: background .18s ease, opacity .18s ease;
+}
+.sc-dock-tabs button.active { opacity: 1; background: rgba(255,255,255,.13); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+body.light-theme .sc-dock-tabs { background: rgba(0,0,0,.04); }
+body.light-theme .sc-dock-tabs button.active { background: rgba(255,255,255,.9); }
 .sc-dock-row { display: flex; align-items: center; gap: 10px; }
 .sc-hidden { display: none !important; }
 .sc-dock-controls button.active { background: rgba(255,255,255,0.16); opacity: 1; }
@@ -5448,16 +5532,30 @@ body.weather-fog.weather-overlay-on::after {
 
 .sc-dock-yt-player { border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 9; }
 .sc-dock-yt-player iframe { width: 100%; height: 100%; }
-.sc-dock-yt-note { font-size: 10px; opacity: 0.5; margin: 6px 0 0; line-height: 1.4; }
+.sc-dock-yt-note { font-size: 9.5px; opacity: .4; margin: 6px 0 0; line-height: 1.5; letter-spacing: .01em; }
 
-.sc-dock-yt-connect { margin-bottom: 8px; }
+.sc-dock-yt-connect { margin-bottom: 10px; }
+/* A quieter, "Apple settings pane" take on the connect prompt — no
+   saturated brand-colored call-to-action button (that read as a generic
+   marketing CTA); instead a plain outlined control that only picks up a
+   whisper of accent on hover/focus, plus tighter, calmer disclaimer type
+   underneath it, in the spirit of monochrome.tf / Zen Browser's UI. */
 .sc-dock-yt-connect-btn {
-  width: 100%; padding: 7px 0; margin-bottom: 6px; border-radius: 8px; cursor: pointer;
-  background: color-mix(in srgb, var(--clr-accent) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--clr-accent) 45%, transparent);
-  color: var(--clr-text, #fff); font-size: 12px; font-weight: 600; font-family: inherit;
+  width: 100%; padding: 9px 0; margin-bottom: 8px; border-radius: 10px; cursor: pointer;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.14);
+  color: var(--clr-text, #fff); font-size: 12.5px; font-weight: 600; font-family: inherit;
+  letter-spacing: .01em;
+  transition: background .18s ease, border-color .18s ease, transform .12s ease;
 }
-.sc-dock-yt-connect-btn:hover { background: color-mix(in srgb, var(--clr-accent) 28%, transparent); }
+.sc-dock-yt-connect-btn:hover {
+  background: rgba(255,255,255,.09);
+  border-color: color-mix(in srgb, var(--clr-accent) 50%, rgba(255,255,255,.14));
+}
+.sc-dock-yt-connect-btn:active { transform: scale(.98); }
+.sc-dock-yt-connect-btn:focus-visible { outline: 2px solid var(--clr-accent); outline-offset: 2px; }
+body.light-theme .sc-dock-yt-connect-btn { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.12); }
+body.light-theme .sc-dock-yt-connect-btn:hover { background: rgba(0,0,0,.06); }
 .sc-dock-yt-library {
   max-height: 180px; overflow-y: auto; margin-bottom: 8px; border-radius: 8px;
   background: rgba(255,255,255,0.04);

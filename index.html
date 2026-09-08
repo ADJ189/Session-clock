@@ -245,6 +245,14 @@
       <button class="btn btn-ghost" onclick="SC.themeBuilder.save()">Save</button>
       <button class="btn btn-ghost" onclick="SC.themeBuilder.reset()">Reset</button>
     </div>
+    <h3>Share</h3>
+    <div class="theme-share-row">
+      <button class="btn btn-ghost" onclick="SC.themeBuilder.export()">📋 Copy theme code</button>
+      <div class="theme-import-row">
+        <input type="text" id="themeImportCode" placeholder="Paste a theme code…" autocomplete="off" spellcheck="false">
+        <button class="btn btn-ghost" onclick="SC.themeBuilder.import()">Import</button>
+      </div>
+    </div>
     <h3>Saved Themes</h3>
     <div class="saved-theme-row" id="savedThemeRow"></div>
   </div>
@@ -306,26 +314,36 @@
 </div>
 
 <div class="sc-overlay" id="pomOverlay">
-  <div class="sc-modal">
+  <div class="sc-modal pom-modal">
     <div class="modal-header">
       <h2>🍅 Pomodoro</h2>
       <button class="modal-close" aria-label="Close" onclick="SC.modals.close('pomOverlay')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
-    <h3>Work duration</h3>
-    <div class="pill-group" id="pomWorkBtns"></div>
-    <h3>Short break</h3>
-    <div class="pill-group" id="pomBreakBtns"></div>
-    <h3>Long break duration</h3>
-    <div class="pill-group" id="pomLongBreakMinBtns"></div>
-    <h3>Long break after</h3>
-    <div class="pill-group" id="pomLongBtns"></div>
-    <h3>Custom cycle</h3>
-    <div class="pom-custom-row" id="pomCustomRow">
-      <label>Work <input type="number" id="pomCustomWork" min="1" max="180" step="1"> min</label>
-      <label>Break <input type="number" id="pomCustomBreak" min="1" max="90" step="1"> min</label>
-      <label>Long break <input type="number" id="pomCustomLong" min="1" max="120" step="1"> min</label>
+    <div class="pom-section">
+      <div class="pom-section-head"><span class="pom-section-icon">🎯</span><h3>Work duration</h3></div>
+      <div class="pill-group" id="pomWorkBtns"></div>
+    </div>
+    <div class="pom-section">
+      <div class="pom-section-head"><span class="pom-section-icon">☕</span><h3>Short break</h3></div>
+      <div class="pill-group" id="pomBreakBtns"></div>
+    </div>
+    <div class="pom-section">
+      <div class="pom-section-head"><span class="pom-section-icon">🛋️</span><h3>Long break duration</h3></div>
+      <div class="pill-group" id="pomLongBreakMinBtns"></div>
+    </div>
+    <div class="pom-section">
+      <div class="pom-section-head"><span class="pom-section-icon">🔁</span><h3>Long break after</h3></div>
+      <div class="pill-group" id="pomLongBtns"></div>
+    </div>
+    <div class="pom-section">
+      <div class="pom-section-head"><span class="pom-section-icon">✏️</span><h3>Custom cycle</h3></div>
+      <div class="pom-custom-row" id="pomCustomRow">
+        <label><span>Work</span><span class="pom-stepper"><input type="number" id="pomCustomWork" min="1" max="180" step="1"><em>min</em></span></label>
+        <label><span>Break</span><span class="pom-stepper"><input type="number" id="pomCustomBreak" min="1" max="90" step="1"><em>min</em></span></label>
+        <label><span>Long break</span><span class="pom-stepper"><input type="number" id="pomCustomLong" min="1" max="120" step="1"><em>min</em></span></label>
+      </div>
     </div>
     <p class="pom-today">Completed today: <strong><span id="pomCountToday">0</span></strong></p>
   </div>
