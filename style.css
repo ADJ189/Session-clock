@@ -409,22 +409,47 @@ html.force-no-backdrop-filter .sc-side-card {
 .progress-track  { height: 3px; border-radius: 99px; overflow: hidden; background: rgba(255,255,255,.09); }
 .progress-fill   { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--clr-accent), var(--clr-accent2)); width: 0%; transition: width .08s linear; }
 
-/* ── Session card (frosted glass) ── */
+/* ── Session card (frosted glass) ──────────────────────────────
+   Single consolidated rule — this used to be declared three separate
+   times at different points in the file ("frosted glass" → "Apple
+   card feel" → "deep glass with inner highlight", three redesign
+   passes that never got merged), each silently overriding the
+   previous one's background/border/radius/padding. The winning
+   background ended up var(--clr-panel) — a solid near-black — combined
+   with Centre mode's own .8 opacity dimming on top, which is what
+   made the session card nearly disappear against an already-dark
+   theme in Centre mode (reported via screenshot). One rule now. */
 .session-card {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
-  background: rgba(255,255,255,.055);
-  border: 1px solid rgba(255,255,255,.1);
+  width: min(380px, 88vw);
   border-radius: var(--radius-lg);
-  padding: 18px 24px 16px;
+  padding: 20px 22px 16px;
+  background: var(--clr-panel, rgba(10,8,22,.96));
+  border: 1px solid rgba(255,255,255,.09);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  width: min(380px, 88vw);
-  transition: background .4s, border-color .4s;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.07) inset,
+    0 -1px 0 rgba(0,0,0,.15) inset,
+    0 8px 32px rgba(0,0,0,.28),
+    0 2px 8px rgba(0,0,0,.18);
+  transition: background .35s ease, border-color .35s ease, box-shadow .35s ease;
+}
+.session-card:hover {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.1) inset,
+    0 -1px 0 rgba(0,0,0,.2) inset,
+    0 12px 40px rgba(0,0,0,.35),
+    0 2px 10px rgba(0,0,0,.22);
+}
+body.light-theme .session-card {
+  background: rgba(255,255,255,.65);
+  border-color: rgba(0,0,0,.07);
 }
 .session-label {
-  font-size: .6rem; letter-spacing: .2em; text-transform: uppercase;
-  font-weight: 700; opacity: .38; color: var(--clr-text);
+  font-size: .5rem; font-weight: 800; letter-spacing: .22em;
+  text-transform: uppercase; opacity: .22; margin-bottom: 8px;
+  color: var(--clr-text);
 }
 .session-timer {
   font-size: clamp(1.1rem, 3vw, 2.1rem); font-weight: 800;
@@ -2852,7 +2877,12 @@ body.clock-center.center-minimal .session-card {
   margin: 0;
   padding: 12px 16px;
   gap: 6px;
-  opacity: .8;
+  /* Was .8 — combined with the solid near-black panel background this
+     card uses, that made it nearly disappear against an already-dark
+     theme (see the consolidated .session-card comment above). Kept
+     slightly recessive for Centre mode's "stay out of the way" intent
+     without going invisible. */
+  opacity: .96;
   z-index: 20;
   transition: opacity .3s ease, background .35s ease, border-color .35s ease;
 }
@@ -2950,27 +2980,10 @@ body.clock-center #panelToggle:hover { opacity: .8; }
   text-transform: uppercase; white-space: nowrap; opacity: .7;
 }
 
-/* Session card — Apple card feel */
-.session-card {
-  border-radius: 20px;
-  padding: 20px 22px 16px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.07);
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  transition: background .3s, border-color .3s;
-  width: 100%; max-width: min(440px, 92vw);
-}
-body.light-theme .session-card {
-  background: rgba(255,255,255,.65);
-  border-color: rgba(0,0,0,.07);
-}
-.session-label {
-  font-size: .6rem; font-weight: 800; letter-spacing: .15em;
-  text-transform: uppercase; opacity: .3; margin-bottom: 8px;
-  color: var(--clr-text);
-}
+/* Session card sizing in the normal (non-Centre) stacked layout —
+   visuals now live in the single consolidated .session-card rule
+   above; this just caps width for this layout context. */
+.session-card { width: 100%; max-width: min(440px, 92vw); }
 
 /* Primary button — pill shape, Apple feel */
 .btn-primary {
@@ -3444,24 +3457,9 @@ body.light-theme .int-card--open .int-form { border-top-color: rgba(0,0,0,.07); 
   transition: text-shadow .4s ease;
 }
 
-/* ── Session card — deep glass with inner highlight ─────────── */
-.session-card {
-  background: var(--clr-panel, rgba(255,255,255,.04));
-  border: 1px solid rgba(255,255,255,.09);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.07) inset,   /* top highlight */
-    0 -1px 0 rgba(0,0,0,.15) inset,        /* bottom shadow */
-    0 8px 32px rgba(0,0,0,.28),
-    0 2px 8px rgba(0,0,0,.18);
-  transition: box-shadow .35s ease, background .35s ease;
-}
-.session-card:hover {
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.1) inset,
-    0 -1px 0 rgba(0,0,0,.2) inset,
-    0 12px 40px rgba(0,0,0,.35),
-    0 2px 10px rgba(0,0,0,.22);
-}
+/* Session card visuals now live in the single consolidated rule near
+   the top of this file (search "frosted glass") — this block used to
+   redeclare background/box-shadow a third time here. */
 
 /* ── Buttons — cinematic press feel ─────────────────────────── */
 .btn-primary {
@@ -3994,14 +3992,9 @@ body.session-running .btn-primary {
   letter-spacing: -.05em;
 }
 
-/* ── Session label — minimal ALL CAPS header ─────────────────  */
-.session-label {
-  text-transform: uppercase;
-  letter-spacing: .22em;
-  font-size: .5rem;
-  font-weight: 800;
-  opacity: .22;
-}
+/* Session label visuals now live in the single consolidated
+   .session-card rule near the top of the file (this was a third,
+   later-and-therefore-winning redeclaration of the same selector). */
 
 /* ── Focus input — Dialed single-underline style ─────────────  */
 #focusInputWrap {
@@ -5489,11 +5482,12 @@ body.weather-fog.weather-overlay-on::after {
 
 /* ── Music dock: tabs + YouTube pane (added in follow-up pass) ────── */
 .sc-music-dock { flex-direction: column; align-items: stretch; }
+.sc-dock-tabs-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 /* Segmented-control tabs, iOS/macOS style — a single pill-shaped track
    with the active tab picked out by a lighter inset chip, rather than
    two separately-colored buttons sitting side by side. */
 .sc-dock-tabs {
-  display: flex; gap: 2px; margin-bottom: 10px;
+  display: flex; gap: 2px; flex: 1; min-width: 0;
   padding: 2px; border-radius: 9px; background: rgba(255,255,255,.05);
 }
 .sc-dock-tabs button {
@@ -5505,6 +5499,21 @@ body.weather-fog.weather-overlay-on::after {
 .sc-dock-tabs button.active { opacity: 1; background: rgba(255,255,255,.13); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
 body.light-theme .sc-dock-tabs { background: rgba(0,0,0,.04); }
 body.light-theme .sc-dock-tabs button.active { background: rgba(255,255,255,.9); }
+/* A proper, unambiguous minimize control — was a bare "▸" glyph
+   squeezed into the tab track with only `flex:none` for styling, which
+   read as an accidental leftover rather than an actual button. Now a
+   real circular icon button matching the app's .modal-close treatment
+   elsewhere, sitting clearly outside the segmented tab track. */
+.sc-dock-collapse-btn {
+  flex: none; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+  color: var(--clr-text, #fff); opacity: .6; cursor: pointer;
+  transition: background .15s ease, opacity .15s ease, transform .1s ease;
+}
+.sc-dock-collapse-btn:hover { opacity: 1; background: rgba(255,255,255,.12); }
+.sc-dock-collapse-btn:active { transform: scale(.92); }
+body.light-theme .sc-dock-collapse-btn { background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.12); }
 .sc-dock-row { display: flex; align-items: center; gap: 10px; }
 .sc-hidden { display: none !important; }
 .sc-dock-controls button.active { background: rgba(255,255,255,0.16); opacity: 1; }
@@ -5593,11 +5602,11 @@ body.light-theme .sc-dock-yt-connect-btn:hover { background: rgba(0,0,0,.06); }
    player — pure CSS, no extra libraries. */
 .sc-music-dock--capsule { width: 56px; height: 56px; padding: 6px; cursor: pointer; overflow: hidden; transition: width 0.3s ease; }
 .sc-music-dock--capsule:hover, .sc-music-dock--capsule:focus-within { width: 300px; }
-.sc-music-dock--capsule .sc-dock-tabs,
+.sc-music-dock--capsule .sc-dock-tabs-row,
 .sc-music-dock--capsule .sc-dock-lyrics,
 .sc-music-dock--capsule[class] .sc-dock-controls button:not([data-role="play"]) { display: none; }
-.sc-music-dock--capsule:hover .sc-dock-tabs,
-.sc-music-dock--capsule:focus-within .sc-dock-tabs,
+.sc-music-dock--capsule:hover .sc-dock-tabs-row,
+.sc-music-dock--capsule:focus-within .sc-dock-tabs-row,
 .sc-music-dock--capsule:hover .sc-dock-controls button,
 .sc-music-dock--capsule:focus-within .sc-dock-controls button { display: unset; }
 .sc-music-dock--capsule .sc-dock-row { gap: 0; }
