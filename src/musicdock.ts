@@ -201,15 +201,19 @@ export function mountDock(container: HTMLElement): void {
 
 function dockMarkup(): string {
   return `
-    <div class="sc-dock-tabs">
-      <button data-role="tab-spotify" class="active">Spotify</button>
-      <button data-role="tab-youtube">YouTube</button>
-      <button data-role="collapse" aria-label="Collapse to mini player" title="Collapse to mini player" style="flex:none;">▸</button>
+    <div class="sc-dock-tabs-row">
+      <div class="sc-dock-tabs">
+        <button data-role="tab-spotify" class="active">Spotify</button>
+        <button data-role="tab-youtube">YouTube</button>
+      </div>
+      <button data-role="collapse" class="sc-dock-collapse-btn" aria-label="Minimize" title="Minimize">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
     </div>
     <div data-role="pane-spotify" class="sc-dock-pane">
       <div data-role="spotify-connect-row" class="sc-dock-yt-connect">
         <button data-role="spotify-connect" class="sc-dock-yt-connect-btn">Connect Spotify</button>
-        <span class="sc-dock-yt-note" style="margin:0;">Requires Spotify Premium. Turns this browser tab into a real Spotify Connect device via Spotify's official Web Playback SDK — full track audio, no separate popup needed.</span>
+        <span class="sc-dock-yt-note" style="margin:0;">Requires Spotify Premium.</span>
       </div>
       <div data-role="spotify-player-row" class="sc-dock-row sc-hidden">
         <div class="sc-dock-art" data-role="art"></div>
@@ -232,7 +236,7 @@ function dockMarkup(): string {
     <div data-role="pane-youtube" class="sc-dock-pane sc-hidden">
       <div data-role="yt-connect-row" class="sc-dock-yt-connect">
         <button data-role="yt-connect" class="sc-dock-yt-connect-btn">Connect YouTube</button>
-        <span data-role="yt-connect-note" class="sc-dock-yt-note" style="margin:0;">Reads your Liked videos + playlists (official YouTube Data API, read-only). Playback still runs through YouTube's own visible player below — this app doesn't do audio-only extraction.</span>
+        <span data-role="yt-connect-note" class="sc-dock-yt-note" style="margin:0;">Reads your Liked videos &amp; playlists.</span>
       </div>
       <div data-role="yt-library" class="sc-dock-yt-library sc-hidden"></div>
       <input data-role="yt-input" class="sc-dock-yt-input" placeholder="…or paste a YouTube video or playlist URL" />
@@ -251,7 +255,7 @@ function dockMarkup(): string {
       </div>
       <div data-role="yt-lyrics-panel" class="sc-dock-lyrics sc-hidden"></div>
       <div data-role="yt-player" class="sc-dock-yt-player"></div>
-      <p class="sc-dock-yt-note">Standard YouTube embed — plays via YouTube's own official IFrame Player API, so it stays visible per YouTube's terms. No audio-only or stream-extraction mode is offered here.</p>
+      <p class="sc-dock-yt-note">Plays through YouTube's own embedded player.</p>
     </div>`;
 }
 
