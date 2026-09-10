@@ -8,6 +8,10 @@
 <meta name="color-scheme" content="dark light">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- The splash marks are the very first thing painted, so they get their own
+     preload rather than waiting on the browser to discover them mid-body-parse. -->
+<link rel="preload" as="image" href="/splash-base.png">
+<link rel="preload" as="image" href="/splash-triangle.png">
 <meta property="og:title" content="Session Clock">
 <meta property="og:description" content="A cinematic focus timer with 103 animated themes, Pomodoro, and an ambient sound mixer.">
 <meta property="og:type" content="website">
@@ -35,8 +39,11 @@
 
 <!-- Splash screen — shown instantly (inline, no extra request) while the
      module bundle and fonts load, and removed once the first frame is
-     ready (with a short minimum hold so it doesn't just flash). Fallback
-     timer below guards against it ever getting stuck or overstaying.
+     ready (with a minimum hold — see SPLASH_MIN_MS in main.ts — so it
+     never just flashes, extended a bit further if fonts are still
+     loading). Fallback timer below guards against it ever getting stuck
+     or overstaying, measured from the same start mark main.ts uses so
+     the two stay in sync instead of the ceiling silently drifting.
      Apple-style: one calm focal mark, no spinner — a slim indeterminate
      line stands in for "still working" instead of bouncing dots. -->
 <div id="splashScreen" role="status" aria-label="Loading Session Clock">
@@ -54,16 +61,20 @@
   // Marks when the splash first appeared, so main.ts can hold it for a
   // short minimum time (feels intentional) without ever overstaying.
   window.__splashT0 = performance.now();
-  // Hard ceiling: whatever happens, the splash is gone by ~1.5s.
-  window.addEventListener('load', function () {
-    setTimeout(function () {
-      var s = document.getElementById('splashScreen');
-      if (s && !s.classList.contains('splash-hide')) {
-        s.classList.add('splash-hide');
-        setTimeout(function () { s.remove(); }, 400);
-      }
-    }, 1500);
-  });
+  // Hard ceiling: whatever happens, the splash is gone by 3s after it first
+  // appeared. main.ts's own reveal logic (1s floor, extended slightly for
+  // slow-loading fonts) normally fires well before this — this is only the
+  // safety net for a stalled/failed module load, so it's measured from
+  // __splashT0 directly rather than from the 'load' event (which main.ts's
+  // module script may fire well before or after, making it an unreliable
+  // and inconsistently-timed anchor for a "you've waited long enough" cap).
+  setTimeout(function () {
+    var s = document.getElementById('splashScreen');
+    if (s && !s.classList.contains('splash-hide')) {
+      s.classList.add('splash-hide');
+      setTimeout(function () { s.remove(); }, 400);
+    }
+  }, 3000);
 </script>
 
 <!-- Canvas layers -->
