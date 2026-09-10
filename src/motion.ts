@@ -23,6 +23,25 @@ function ensureAnime(): Promise<void> {
   return _loading;
 }
 
+/**
+ * Kicks off the anime.js fetch without waiting on it. Unlike the other
+ * micro-interactions above — genuinely optional, only lazy-loaded if the
+ * user happens to trigger one — splashExit() below runs on *every* app
+ * load. Leaving it purely lazy meant a cold cache could still be fetching
+ * the chunk when splashExit() is called, so the CSS `.splash-hide` fallback
+ * transition (style.css) would start first and then get abruptly cut off
+ * — `style.transition = 'none'` — once the import resolved and the JS
+ * animation took over mid-flight, a visible stutter on exactly the moment
+ * meant to feel most polished. Call this early (init(), well before the
+ * splash's own minimum hold elapses) so the module is already resident by
+ * the time splashExit() actually needs it, in the overwhelming majority of
+ * cases. Never awaited — a slow/blocked fetch just falls back to the CSS
+ * transition, same as before.
+ */
+export function preloadAnime(): void {
+  void ensureAnime();
+}
+
 /** Mirrors the app's own reduce-motion setting (Settings toggle + OS preference). */
 export function reducedMotion(): boolean {
   return localStorage.getItem('sc_reduce_motion') === '1' ||
