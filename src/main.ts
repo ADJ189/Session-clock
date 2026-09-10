@@ -3687,12 +3687,28 @@ function buildPaletteCommands() {
   Palette.registerCommands(cmds);
 }
 
-const SPLASH_MIN_MS = 900; // feels intentional rather than a flash; hard cap of 1.5s lives in index.html
+const SPLASH_MIN_MS = 1000; // floor — feels intentional rather than a flash
+const SPLASH_FONT_GRACE_MS = 800; // extra time we'll give web fonts specifically
+                                   // before giving up and revealing anyway; hard
+                                   // cap of 3s (measured from the same start mark)
+                                   // lives in index.html as the final safety net
 
 function hideSplash() {
   const el = document.getElementById('splashScreen');
   if (!el || el.classList.contains('splash-hide')) return;
   const t0 = (window as any).__splashT0 ?? 0;
+
+  // Held open a little longer if fonts are still loading — reaching this
+  // point already means the theme/clock/first-frame are ready, but text
+  // rendered before fonts finish would flash unstyled and reflow right as
+  // the splash clears. Bounded by SPLASH_FONT_GRACE_MS so a slow/blocked
+  // font CDN can't stall the reveal indefinitely.
+  const fontsReady: Promise<unknown> = (document as any).fonts?.ready ?? Promise.resolve();
+  const fontsGraceTimeout = new Promise(resolve => setTimeout(resolve, SPLASH_FONT_GRACE_MS));
+  Promise.race([fontsReady, fontsGraceTimeout]).then(() => finishHideSplash(el, t0));
+}
+
+function finishHideSplash(el: HTMLElement, t0: number) {
   const elapsed = performance.now() - t0;
   const wait = Math.max(0, SPLASH_MIN_MS - elapsed);
   setTimeout(() => {
@@ -3725,6 +3741,10 @@ function hideSplash() {
 
 function init() {
   initPerf(); // detect device tier before anything else
+  Motion.preloadAnime(); // start fetching splashExit()'s dependency now — see
+                          // preloadAnime()'s comment in motion.ts — so it's
+                          // resident well before the splash's own min-hold
+                          // (SPLASH_MIN_MS) elapses and hideSplash() needs it
 
   // Apply persisted motion/animation preferences
   const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' ||
