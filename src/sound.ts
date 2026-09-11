@@ -21,6 +21,17 @@ export const SOUNDS: SoundDef[] = [
   { id: 'waves',     name: 'Waves & Rocks', icon: '🌊', desc: 'Surf crashing against the shore' },
 ];
 
+// Per-track accent — used to tint each track's icon tile in the mixer
+// (Metrolist-style per-item color identity) instead of one uniform
+// generic icon color across the whole grid.
+export const SOUND_ACCENT: Record<string, string> = {
+  rain: '#0a84ff', roofrain: '#409cff', white: '#8e8e93', pink: '#ff2d55',
+  brown: '#a2845e', forest: '#30d158', cafe: '#c8a165', ocean: '#32ade6',
+  fire: '#ff9f0a', wind: '#64d2ff', snow: '#eaf6ff', keyboard: '#8e8e93',
+  library: '#bf5af2', airplane: '#5e5ce6', spaceship: '#5e5ce6',
+  campfire: '#ff9f0a', waves: '#32ade6',
+};
+
 export interface BinauralPreset {
   id: string; name: string; icon: string;
   desc: string; carrier: number; beat: number;
@@ -32,6 +43,8 @@ export const BINAURAL_PRESETS: BinauralPreset[] = [
   { id: 'theta', name: 'Flow State',  icon: '✨', desc: 'Theta 6Hz · Creative flow',        carrier: 200, beat: 6  },
   { id: 'delta', name: 'Rest',        icon: '🌙', desc: 'Delta 2Hz · Deep rest & recovery', carrier: 200, beat: 2  },
 ];
+SOUND_ACCENT.gamma = '#ff375f'; SOUND_ACCENT.beta = '#ffd60a';
+SOUND_ACCENT.alpha = '#32ade6'; SOUND_ACCENT.theta = '#bf5af2'; SOUND_ACCENT.delta = '#5e5ce6';
 
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
