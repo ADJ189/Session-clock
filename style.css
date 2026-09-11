@@ -146,7 +146,8 @@ html.force-no-backdrop-filter .sc-modal,
 html.force-no-backdrop-filter #themePanel,
 html.force-no-backdrop-filter .cmd-overlay,
 html.force-no-backdrop-filter .feat-dock,
-html.force-no-backdrop-filter .sc-side-card {
+html.force-no-backdrop-filter .sc-side-card,
+html.force-no-backdrop-filter .sc-toast {
   background: rgba(6,4,14,.94) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -979,16 +980,14 @@ kbd {
 .sound-track:active { transform: scale(.98); }
 .sound-track.active {
   background: rgba(255,255,255,.05);
-  border-color: color-mix(in srgb, var(--clr-accent) 55%, transparent);
+  border-color: color-mix(in srgb, var(--int-accent, var(--clr-accent)) 55%, transparent);
 }
 .sound-track-top { display: flex; align-items: center; gap: 10px; }
-.sound-track-icon  {
-  font-size: 1rem; width: 30px; height: 30px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 9px; background: rgba(255,255,255,.05);
-  transition: background .16s ease;
+.sound-track-icon { transition: background .16s ease, box-shadow .16s ease; }
+.sound-track.active .sound-track-icon {
+  background: color-mix(in srgb, var(--int-accent, var(--clr-accent)) 30%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--int-accent, var(--clr-accent)) 45%, transparent);
 }
-.sound-track.active .sound-track-icon { background: color-mix(in srgb, var(--clr-accent) 22%, transparent); }
 .sound-track-info  { flex: 1; min-width: 0; }
 .sound-track-name  { font-size: .68rem; font-weight: 700; letter-spacing: .04em; color: var(--clr-text); opacity: .9; }
 .sound-track-desc  { font-size: .58rem; opacity: .38; color: var(--clr-text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1099,6 +1098,9 @@ body.light-theme .sound-track       { background: rgba(0,0,0,.02); border-color:
 body.light-theme .sound-track.active { background: rgba(0,0,0,.045); }
 body.light-theme .sound-master      { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.05); }
 body.light-theme .sound-track-icon  { background: rgba(0,0,0,.04); }
+body.light-theme .sound-track.active .sound-track-icon {
+  background: color-mix(in srgb, var(--int-accent, var(--clr-accent)) 24%, transparent);
+}
 body.light-theme .mixer-night-toggle { background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.1); }
 body.light-theme .mixer-scenes { background: rgba(0,0,0,.02); border-color: rgba(0,0,0,.06); }
 body.light-theme .scene-btn { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.1); }
@@ -1431,14 +1433,6 @@ body.light-theme .info-strip .info-dot { box-shadow: 0 0 4px var(--clr-accent); 
 .sc-modal--settings { width: min(600px, 96vw); }
 #settingsContent { padding: 0 22px 22px; }
 
-.settings-section { margin-bottom: 22px; }
-.settings-section-title {
-  font-size: .62rem; letter-spacing: .18em; text-transform: uppercase;
-  font-weight: 800; color: var(--clr-accent); opacity: .85;
-  margin-bottom: 10px; padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255,255,255,.07);
-}
-
 .clock-mode-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
 }
@@ -1479,34 +1473,7 @@ body.light-theme .preset-card:hover { background: rgba(0,0,0,.09); }
   .preset-grid { grid-template-columns: 1fr; }
 }
 
-.settings-row {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 12px 0;
-  border-bottom: 1px solid rgba(255,255,255,.05);
-}
-.settings-row:last-child { border-bottom: none; }
-.settings-row-info { display: flex; flex-direction: column; gap: 3px; flex: 1; }
-.settings-row-label { font-size: .8rem; font-weight: 600; color: var(--clr-text); }
-.settings-row-desc  { font-size: .68rem; opacity: .45; color: var(--clr-text); }
-
-/* iOS-style toggle */
-.settings-toggle {
-  width: 48px; height: 28px; border-radius: 99px; border: none; cursor: pointer;
-  background: rgba(255,255,255,.14); flex-shrink: 0;
-  position: relative; transition: background .25s;
-}
-.settings-toggle.on { background: var(--clr-accent); }
-.settings-toggle::after {
-  content: ''; position: absolute; top: 3px; left: 3px;
-  width: 22px; height: 22px; border-radius: 50%; background: #fff;
-  transition: transform .25s cubic-bezier(.34,1.56,.64,1);
-  box-shadow: 0 1px 4px rgba(0,0,0,.3);
-}
-.settings-toggle.on::after { transform: translateX(20px); }
-
 /* Light theme settings */
-body.light-theme .settings-section-title { opacity: .7; }
-body.light-theme .settings-row { border-color: rgba(0,0,0,.07); }
 body.light-theme .clock-mode-btn { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.09); }
 body.light-theme .clock-mode-btn:hover { background: rgba(0,0,0,.09); }
 
@@ -1742,45 +1709,58 @@ body.flow-state .session-card { background: rgba(255,255,255,.03); border-color:
 }
 
 /* ════════════════════════════════════════════════════════════
-   TOAST NOTIFICATIONS
+   TOAST NOTIFICATIONS — macOS/iOS notification-banner feel: a
+   quiet monochrome card, one small icon tile carrying the only
+   accent color, no pulsing/spinning glow loop. Stacks (newest
+   nearest the bottom, like Notification Center), capped at 3
+   concurrent so a burst of toasts never towers up the screen.
 ════════════════════════════════════════════════════════════ */
+.sc-toast-stack {
+  position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex; flex-direction: column-reverse; align-items: stretch;
+  gap: 8px; pointer-events: none;
+  width: min(360px, calc(100vw - 32px));
+}
 .sc-toast {
-  position: fixed; bottom: 88px; left: 50%;
-  transform: translateX(-50%) translateY(16px) scale(.92);
-  z-index: 9999; opacity: 0; pointer-events: none;
-  font-size: .74rem; font-weight: 700; letter-spacing: .04em;
-  padding: 11px 24px; border-radius: 99px;
-  background: var(--clr-panel, rgba(12,10,26,.96));
-  color: var(--clr-text);
-  /* Dialed-style: spinning conic accent border */
-  border: 1.5px solid transparent;
-  background-clip: padding-box;
-  white-space: nowrap;
-  transition: opacity .28s, transform .38s cubic-bezier(.34,1.56,.64,1);
-  box-shadow:
-    0 0 0 1.5px var(--clr-accent),
-    0 8px 32px rgba(0,0,0,.55),
-    0 0 24px rgba(var(--clr-accent-rgb, 110,231,183), .2);
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px 10px 10px; border-radius: 14px;
+  background: color-mix(in srgb, var(--clr-panel, #0c0a1a) 92%, transparent);
+  border: 1px solid rgba(255,255,255,.09);
+  box-shadow: 0 10px 28px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.05) inset;
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  opacity: 0; transform: translateY(10px) scale(.96);
+  transition: opacity .24s ease, transform .36s cubic-bezier(.34,1.56,.64,1);
+  pointer-events: auto; cursor: default;
 }
-.sc-toast.visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0) scale(1);
-  animation: toastEntrance .42s cubic-bezier(.16,1,.3,1) forwards,
-             toastGlow 2s ease-in-out infinite .42s;
+.sc-toast.visible { opacity: 1; transform: translateY(0) scale(1); }
+.sc-toast.leaving {
+  opacity: 0; transform: translateY(-6px) scale(.97);
+  transition: opacity .2s ease, transform .2s ease;
 }
-@keyframes toastEntrance {
-  0%   { opacity: 0; transform: translateX(-50%) translateY(14px) scale(.88); }
-  60%  { opacity: 1; transform: translateX(-50%) translateY(-3px) scale(1.02); }
-  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.sc-toast-icon {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .82rem; line-height: 1;
+  background: rgba(255,255,255,.08);
 }
-@keyframes toastGlow {
-  0%,100% { box-shadow: 0 0 0 1.5px var(--clr-accent), 0 8px 32px rgba(0,0,0,.5), 0 0 20px rgba(var(--clr-accent-rgb,110,231,183),.18); }
-  50%     { box-shadow: 0 0 0 1.5px var(--clr-accent), 0 8px 40px rgba(0,0,0,.6), 0 0 40px rgba(var(--clr-accent-rgb,110,231,183),.35); }
+.sc-toast--warn .sc-toast-icon { background: rgba(245,158,11,.22); }
+.sc-toast-text {
+  font-size: .74rem; font-weight: 600; letter-spacing: .01em;
+  color: var(--clr-text); line-height: 1.35; overflow-wrap: anywhere;
 }
 body.light-theme .sc-toast {
-  background: rgba(240,244,252,.97);
-  color: var(--clr-text);
-  box-shadow: 0 0 0 1.5px var(--clr-accent), 0 8px 32px rgba(0,0,0,.2);
+  background: color-mix(in srgb, #f0f4fc 94%, transparent);
+  border-color: rgba(0,0,0,.08);
+  box-shadow: 0 10px 24px rgba(0,0,0,.14);
+}
+body.light-theme .sc-toast-icon { background: rgba(0,0,0,.05); }
+body.light-theme .sc-toast--warn .sc-toast-icon { background: rgba(217,119,6,.16); }
+@media (prefers-reduced-motion: reduce) {
+  .sc-toast { transition: opacity .18s linear; }
+  .sc-toast.visible, .sc-toast.leaving { transform: none; }
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1998,7 +1978,11 @@ body.light-theme .settings-select option { background: #f1f5f9; }
 .settings-tab-btn.active { opacity: 1; }
 .settings-tab-btn.active::after { transform: scaleX(1); }
 .settings-tab-btn:hover:not(.active) { opacity: .65; }
-.stb-icon  { font-size: 1.15rem; line-height: 1; }
+.settings-tab-btn.active .stb-icon {
+  background: color-mix(in srgb, var(--int-accent) 30%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--int-accent) 45%, transparent);
+}
+.stb-icon  { font-size: 1.15rem; line-height: 1; transition: background .18s ease, box-shadow .18s ease; }
 .stb-label { font-size: .5rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 
 /* Pane */
@@ -2012,13 +1996,19 @@ body.light-theme .settings-select option { background: #f1f5f9; }
   color: var(--clr-accent); opacity: .65; padding: 14px 22px 6px;
 }
 
-/* Row */
+/* Row — each one is its own grouped-card, like the Compatibility
+   diagnostics rows below, rather than one continuous flat list that
+   only reveals shape on hover. */
 .settings-row {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 12px 22px;
-  transition: background .12s;
+  gap: 12px; padding: 12px 14px; margin: 0 22px 6px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(255,255,255,.05);
+  transition: background .15s ease, border-color .15s ease;
 }
-.settings-row:hover { background: rgba(255,255,255,.025); }
+.settings-row:last-child { margin-bottom: 2px; }
+.settings-row:hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.09); }
 .settings-row-top { display: flex; align-items: center; gap: 7px; margin-bottom: 2px; }
 .settings-row-info { flex: 1; min-width: 0; }
 .settings-row-label { font-size: .76rem; font-weight: 600; color: var(--clr-text); }
@@ -3381,13 +3371,20 @@ body.light-theme .lang-btn--active { background: var(--clr-btn-bg); }
   display: flex; align-items: center; gap: 12px;
   width: 100%; padding: 13px 16px; cursor: pointer;
 }
-.int-tile {
+.int-tile, .icon-tile {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   font-size: 1.05rem; line-height: 1;
   background: color-mix(in srgb, var(--int-accent) 22%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--int-accent) 35%, transparent);
 }
+/* Generic reusable icon tile — Metrolist-style per-item color identity
+   (each instance sets --int-accent inline) inside an Apple-grouped-list
+   layout. Used by the settings tab bar, preset cards and sound mixer
+   tracks so those surfaces read as one consistent design language
+   instead of bare emoji floating in text. */
+.icon-tile--sm  { width: 26px; height: 26px; border-radius: 8px; font-size: .8rem; }
+.icon-tile--lg  { width: 40px; height: 40px; border-radius: 12px; font-size: 1.25rem; }
 .int-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; }
 .int-name { font-size: .78rem; font-weight: 700; color: var(--clr-text); }
 .int-desc { font-size: .6rem; opacity: .45; line-height: 1.4; color: var(--clr-text); }
@@ -3443,7 +3440,6 @@ body.light-theme .int-card--open .int-form { border-top-color: rgba(0,0,0,.07); 
   background: rgba(0,0,0,.18);
   -webkit-backdrop-filter: blur(28px) saturate(1.6);
   backdrop-filter: blur(28px) saturate(1.6);
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
   border-bottom: 1px solid rgba(255,255,255,.06);
   box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 4px 24px rgba(0,0,0,.15);
 }
@@ -3492,7 +3488,6 @@ body.light-theme .int-card--open .int-form { border-top-color: rgba(0,0,0,.07); 
   background: rgba(0,0,0,.14);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
 }
 
 /* ── UTC pill — elegant, typographic ───────────────────────── */
@@ -3651,7 +3646,6 @@ body.clock-center .session-card {
   background: rgba(0,0,0,.18);
   -webkit-backdrop-filter: blur(32px);
   backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
   border-color: rgba(255,255,255,.07);
 }
 
@@ -3688,26 +3682,6 @@ body.clock-center .session-card {
 .settings-toggle {
   transition: background .25s cubic-bezier(.34,1.56,.64,1);
 }
-.settings-toggle .toggle-thumb {
-  transition: transform .3s cubic-bezier(.34,1.56,.64,1),
-              background .2s ease;
-}
-.settings-toggle.on .toggle-thumb {
-  transform: translateX(18px);
-}
-
-/* ── Toast — slide + fade in/out ──────────────────────────── */
-@keyframes toastIn {
-  0%   { opacity: 0; transform: translateX(24px) scale(.94); }
-  60%  { opacity: 1; transform: translateX(-4px) scale(1.01); }
-  100% { opacity: 1; transform: translateX(0) scale(1); }
-}
-@keyframes toastOut {
-  0%   { opacity: 1; transform: translateX(0); }
-  100% { opacity: 0; transform: translateX(16px) scale(.95); }
-}
-.toast { animation: toastIn .32s var(--ease-enter) forwards; }
-.toast.hiding { animation: toastOut .22s var(--ease-exit) forwards; }
 
 /* Modal entrance is handled by the transition on .sc-modal / .sc-overlay.open .sc-modal above — no separate keyframe needed. */
 
@@ -4373,7 +4347,7 @@ body.reduced-motion .zen-ring { animation: none; }
 .feat-btn        { will-change: transform, opacity; }
 .nat-btn         { will-change: transform; }
 .media-card      { will-change: transform, box-shadow; }
-.sc-toast        { will-change: transform, opacity; }
+.sc-toast        { will-change: transform, opacity; contain: layout style; }
 .zen-ring        { will-change: transform, opacity; contain: strict; }
 #voiceBtn        { will-change: transform, color, background; }
 .clock-pos-pill  { will-change: transform, background, color; }
@@ -4677,15 +4651,17 @@ body.hyperfocus #featBar { display: none !important; }
   #themesRevealBtn {
     bottom: calc(20px + env(safe-area-inset-bottom));
   }
-  .sc-toast {
-    bottom: calc(88px + env(safe-area-inset-bottom));
-  }
 }
 
-/* Firefox — no backdrop-filter support pre-v103, degrade gracefully */
-@-moz-document url-prefix() {
-  .sc-modal, #themePanel, .topbar, .feat-dock {
-    background-color: var(--clr-panel, rgba(6,3,18,.97)) !important;
+/* Engines without backdrop-filter support (Firefox <103, old Safari,
+   reduced-capability WebViews) — solid panel fallback via a real
+   feature query. The previous @-moz-document rule here never actually
+   fired: that at-rule only applies to chrome/userContent stylesheets
+   in shipped Firefox, not regular page CSS, so pre-103 Firefox users
+   were silently getting blur-less transparent panels this whole time. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sc-modal, #themePanel, .topbar, .feat-dock, .sc-toast {
+    background-color: var(--clr-panel, rgba(6,3,18,.97));
   }
 }
 

@@ -9,6 +9,28 @@ All notable changes to Session Clock are documented here.
 > `1.76` below is the first release under this scheme, since this update
 > bundles several larger changes together.
 
+## [1.98] — Redesigned toasts, sound mixer & Settings icon system, cross-browser fixes
+
+A pass over the three surfaces that read as "generic" compared to the rest of the app — toast popups, the sound mixer, and Settings — inspired by Apple's own notification/Settings-app conventions and Metrolist's per-item colored icon tiles, plus a real (not just claimed) cross-browser audit.
+
+### Changed
+- **Toast notifications redesigned** (`showToast()`, `src/main.ts`) — replaced the glowing conic-bordered pill (bold uppercase-ish text with a pulsing accent-color box-shadow loop) with a quiet macOS/iOS-notification-style card: translucent panel, hairline border, no looping glow animation. Most call sites already prefixed their message with an emoji for quick scanning (🔒, 🎵, ⚠️, …) — that glyph is now auto-detected and pulled out into its own icon tile instead of sitting inline in bold text, and the rest renders as plain sentence-case copy. This needed zero call-site changes across all ~164 `showToast()` calls in `main.ts`/`easter.ts`/`integrations.ts` — it's a reparse of the string that was already being passed in. Toasts now **stack** (newest at the bottom, like Notification Center) instead of replacing each other, capped at 3 concurrent so a fast burst never towers up the screen. Leading `⚠️` gets a tinted amber icon tile; everything else is neutral.
+- **Shared `.icon-tile` component** — generalized the Integrations tab's existing `.int-tile`/`--int-accent` pattern (brand-colored icon chip per provider, added back in v1.89) into a reusable class, then applied it to the surfaces that were still using bare floating emoji:
+  - **Settings tab bar** — each tab (General/Sound/Focus/Display/Privacy) now has its own colored icon tile instead of a plain emoji character, using an Apple-Settings-inspired palette (gray/pink/indigo/blue/green). The active tab's tile brightens.
+  - **General → Presets cards** (Student/Office Worker/Deep Work/Minimalist) — same tile treatment, one accent color per preset.
+  - **Sound mixer tracks** — added `Sound.SOUND_ACCENT`, a per-sound-id color map (rain=blue, fire=orange, forest=green, library=purple, etc., `src/sound.ts`) so every track and binaural preset gets its own tile color instead of one uniform icon style across the whole grid — active-state border/icon tint now follows that per-track color instead of the single global accent.
+  - Dropped the redundant leading 🎵 from the mixer launch card's title text (the animated EQ-bar icon beside it already signals "sound") and removed inline emoji from the Sound Mixer and Settings modal `<h2>` titles for a calmer, sentence-case header — matching the "Apple ID card" restraint already applied to the GitHub support box in v1.88.
+- **Settings rows** — changed from one continuous flat list (only a hover tint revealed any shape) to individually-boxed grouped rows, matching the treatment the Compatibility diagnostics panel already used elsewhere in the same modal, for real visual structure instead of a flat list.
+
+### Fixed — cross-browser/device audit
+- The Firefox blur-fallback rule (`@-moz-document url-prefix() { ... }`) **never actually applied** — that at-rule only works for chrome/userContent stylesheets in shipped Firefox, not regular page CSS, so pre-103 Firefox visitors were silently getting blur-less transparent panels this whole time with no visible fallback. Replaced with a real `@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))` feature query, which actually fires in any engine lacking the feature — Firefox <103, older Safari, or a reduced-capability WebView.
+- New toast banners and icon tiles are wired into the existing `force-no-backdrop-filter` opt-out (Settings → Compatibility) and the `backdrop-filter`/`-webkit-backdrop-filter` pairing already used consistently everywhere else in `style.css`.
+- Found and removed 3 places where `-webkit-backdrop-filter` was accidentally declared twice in the same rule (`.topbar`, `.feat-dock`, `body.clock-center .session-card`) — harmless (last one wins) but dead weight.
+- Removed the stale first copies of `.settings-section-title`/`.settings-row`/`.settings-toggle` (a fuller, later block in the same file already redefined every property on all three and silently won the cascade) and dead `.toast`/`.toggle-thumb` rules left over from an earlier design that JS never actually creates elements for — the exact "same selector declared multiple times" pattern flagged as an open backlog item in v1.93.
+
+### Verification
+`tsc --noEmit`, `oxlint .` (144 warnings, same pre-existing baseline, 0 errors), `vite build` all pass. No visual/browser testing was possible in this environment — worth checking the toast stacking/dismiss behavior, the Settings tab bar and sound mixer tile colors in both dark and light theme, and the mixer's active-track accent tinting on an actual device before shipping.
+
 ## [1.86] — Fixed topbar/notch overlap bug, redesigned onboarding wizard
 
 ### Fixed
