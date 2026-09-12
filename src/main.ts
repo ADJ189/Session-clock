@@ -3499,14 +3499,38 @@ function darkenHex2(hex: string, amt: number): string {
 // own icon tile and the rest stays as plain text, closer to how macOS/
 // iOS notification banners separate glyph from copy. No call site needs
 // to change: this only reparses the string that's already passed in.
+const _graphemeSeg = typeof Intl !== 'undefined' && typeof (Intl as any).Segmenter === 'function'
+  ? new (Intl as any).Segmenter(undefined, { granularity: 'grapheme' }) as { segment(s: string): Iterable<{ segment: string }> }
+  : null;
+
 function leadingEmoji(msg: string): { icon: string; text: string } {
   const cp = msg.codePointAt(0);
   if (cp === undefined || !((cp >= 0x1F000) || (cp >= 0x2190 && cp <= 0x2BFF))) {
     return { icon: '', text: msg };
   }
+  // Grapheme-cluster aware: flags (two regional-indicator codepoints,
+  // e.g. 🇬🇧), ZWJ sequences (e.g. 🏴‍☠️ = flag + ZWJ + skull&crossbones
+  // + variation selector) and emoji+variation-selector pairs are each
+  // one grapheme cluster and must come through as a single icon rather
+  // than splitting mid-sequence.
+  if (_graphemeSeg) {
+    const first = _graphemeSeg.segment(msg)[Symbol.iterator]().next().value;
+    if (first) {
+      let rest = msg.slice(first.segment.length);
+      if (rest.startsWith(' ')) rest = rest.slice(1);
+      return { icon: first.segment, text: rest };
+    }
+  }
+  // Fallback for the rare engine without Intl.Segmenter — best-effort
+  // codepoint walk that still handles flag pairs and ZWJ joins.
   const chars = Array.from(msg);
   let i = 1;
-  while (chars[i] === '\uFE0F' || chars[i] === '\u200D') i++; // variation selector / ZWJ
+  const cp1 = chars[1]?.codePointAt(0);
+  if (cp >= 0x1F1E6 && cp <= 0x1F1FF && cp1 !== undefined && cp1 >= 0x1F1E6 && cp1 <= 0x1F1FF) i = 2; // regional-indicator flag pair
+  while (chars[i] === '\uFE0F' || chars[i] === '\u200D') {
+    i++;
+    if (chars[i - 1] === '\u200D' && chars[i] !== undefined) i++; // swallow the codepoint the ZWJ joins to
+  }
   const icon = chars.slice(0, i).join('');
   while (chars[i] === ' ') i++;
   return { icon, text: chars.slice(i).join('') };
