@@ -1573,7 +1573,7 @@ function buildMixerLaunchCard(): HTMLButtonElement {
 
   const info = document.createElement('div'); info.className = 'mixer-launch-info';
   const title = document.createElement('div'); title.className = 'mixer-launch-title';
-  const titleText = document.createElement('span'); titleText.textContent = '🎵 Ambient Sound Mixer';
+  const titleText = document.createElement('span'); titleText.textContent = 'Ambient Sound Mixer';
   title.appendChild(titleText);
   const badge = document.createElement('span'); badge.className = 'mixer-launch-badge';
   title.appendChild(badge);
@@ -1606,10 +1606,11 @@ function makeSoundTrack(
 ): HTMLDivElement {
   const track = document.createElement('div');
   track.className = ['sound-track', isBinaural ? 'binaural-track' : '', active ? 'active' : ''].filter(Boolean).join(' ');
+  track.style.setProperty('--int-accent', Sound.SOUND_ACCENT[id] || '#8e8e93');
 
   const top = document.createElement('div'); top.className = 'sound-track-top';
 
-  const iconEl = document.createElement('div'); iconEl.className = 'sound-track-icon';
+  const iconEl = document.createElement('div'); iconEl.className = 'sound-track-icon icon-tile';
   iconEl.textContent = icon;
 
   const info = document.createElement('div'); info.className = 'sound-track-info';
@@ -2337,12 +2338,16 @@ function buildSettingsUI(activeTab = 'general') {
   el.classList.add('pane-sliding');
 
   // ── Tab definitions ───────────────────────────────────────────────────
+  // Each tab owns an accent color for its icon tile (same --int-accent
+  // pattern the Integrations tab uses) instead of a bare emoji floating
+  // in space — gives the bar the colored-glyph identity of Apple's own
+  // Settings app / Metrolist's provider tiles.
   const tabs = [
-    { id: 'general',  icon: '✦',  label: 'General'  },
-    { id: 'sound',    icon: '🎵', label: 'Sound'    },
-    { id: 'focus',    icon: '⏱',  label: 'Focus'    },
-    { id: 'display',  icon: '🎨', label: 'Display'  },
-    { id: 'privacy',  icon: '🔒', label: 'Privacy'  },
+    { id: 'general',  icon: '⚙',  label: 'General', accent: '#8e8e93' },
+    { id: 'sound',    icon: '🎵', label: 'Sound',   accent: '#ff375f' },
+    { id: 'focus',    icon: '⏱',  label: 'Focus',   accent: '#5e5ce6' },
+    { id: 'display',  icon: '🎨', label: 'Display', accent: '#0a84ff' },
+    { id: 'privacy',  icon: '🔒', label: 'Privacy', accent: '#30d158' },
   ];
 
   // Tab bar — written to #settingsTabBar (outside scroll container)
@@ -2350,7 +2355,8 @@ function buildSettingsUI(activeTab = 'general') {
   tabs.forEach(t => {
     const btn = document.createElement('button'); btn.className = 'settings-tab-btn' + (t.id === activeTab ? ' active' : '');
     btn.dataset.tab = t.id;
-    const ic = document.createElement('span'); ic.className = 'stb-icon'; ic.textContent = t.icon;
+    btn.style.setProperty('--int-accent', t.accent);
+    const ic = document.createElement('span'); ic.className = 'stb-icon icon-tile icon-tile--sm'; ic.textContent = t.icon;
     const lb = document.createElement('span'); lb.className = 'stb-label'; lb.textContent = t.label;
     btn.append(ic, lb);
     btn.addEventListener('click', () => { _lastSettingsTab = t.id; buildSettingsUI(t.id); });
@@ -2406,14 +2412,14 @@ function buildSettingsUI(activeTab = 'general') {
   if (activeTab === 'general') {
     // ── Presets — one click to bundle several settings for a use case ──
     const PRESETS: Array<{
-      id: string; icon: string; label: string; blurb: string;
+      id: string; icon: string; accent: string; label: string; blurb: string;
       work: number; brk: number; sound: string; smartBreak: boolean;
       idleNudge: boolean; calm: boolean; reminderMins: number;
     }> = [
-      { id: 'student',  icon: '📚', label: 'Student',        blurb: '25/5 Pomodoro · library ambience · break reminders', work: 25, brk: 5,  sound: 'library', smartBreak: true,  idleNudge: true,  calm: false, reminderMins: 60 },
-      { id: 'office',   icon: '💼', label: 'Office Worker',  blurb: '50/10 sessions · café ambience · fewer nudges',      work: 50, brk: 10, sound: 'cafe',    smartBreak: true,  idleNudge: false, calm: false, reminderMins: 90 },
-      { id: 'deepwork', icon: '🌙', label: 'Deep Work',      blurb: '90/15 long blocks · brown noise · no interruptions', work: 90, brk: 15, sound: 'brown',   smartBreak: false, idleNudge: false, calm: false, reminderMins: 120 },
-      { id: 'minimal',  icon: '🧘', label: 'Minimalist',     blurb: '25/5 · silent · Calm Mode · nothing else on',       work: 25, brk: 5,  sound: '',        smartBreak: false, idleNudge: false, calm: true,  reminderMins: 90 },
+      { id: 'student',  icon: '📚', accent: '#bf5af2', label: 'Student',        blurb: '25/5 Pomodoro · library ambience · break reminders', work: 25, brk: 5,  sound: 'library', smartBreak: true,  idleNudge: true,  calm: false, reminderMins: 60 },
+      { id: 'office',   icon: '💼', accent: '#0a84ff', label: 'Office Worker',  blurb: '50/10 sessions · café ambience · fewer nudges',      work: 50, brk: 10, sound: 'cafe',    smartBreak: true,  idleNudge: false, calm: false, reminderMins: 90 },
+      { id: 'deepwork', icon: '🌙', accent: '#5e5ce6', label: 'Deep Work',      blurb: '90/15 long blocks · brown noise · no interruptions', work: 90, brk: 15, sound: 'brown',   smartBreak: false, idleNudge: false, calm: false, reminderMins: 120 },
+      { id: 'minimal',  icon: '🧘', accent: '#8e8e93', label: 'Minimalist',     blurb: '25/5 · silent · Calm Mode · nothing else on',       work: 25, brk: 5,  sound: '',        smartBreak: false, idleNudge: false, calm: true,  reminderMins: 90 },
     ];
     const presetSec = makeSection('Presets');
     const presetHint = document.createElement('p'); presetHint.className = 'settings-hint';
@@ -2422,7 +2428,8 @@ function buildSettingsUI(activeTab = 'general') {
     const presetGrid = document.createElement('div'); presetGrid.className = 'preset-grid';
     PRESETS.forEach(p => {
       const btn = document.createElement('button'); btn.className = 'preset-card';
-      const ic = document.createElement('span'); ic.className = 'preset-icon'; ic.textContent = p.icon;
+      btn.style.setProperty('--int-accent', p.accent);
+      const ic = document.createElement('span'); ic.className = 'preset-icon icon-tile'; ic.textContent = p.icon;
       const lb = document.createElement('span'); lb.className = 'preset-label'; lb.textContent = p.label;
       const bl = document.createElement('span'); bl.className = 'preset-blurb'; bl.textContent = p.blurb;
       btn.append(ic, lb, bl);
@@ -3486,19 +3493,89 @@ function darkenHex2(hex: string, amt: number): string {
 }
 
 // ── Toast notifications ───────────────────────────────────────────────
+// Most call sites already prefix their message with an emoji (🔒, 🎵,
+// ⚠️, …) for quick scanning. Rather than that glyph sitting inline in
+// bold pill text — the "generic alert" look — it's pulled out into its
+// own icon tile and the rest stays as plain text, closer to how macOS/
+// iOS notification banners separate glyph from copy. No call site needs
+// to change: this only reparses the string that's already passed in.
+const _graphemeSeg = typeof Intl !== 'undefined' && typeof (Intl as any).Segmenter === 'function'
+  ? new (Intl as any).Segmenter(undefined, { granularity: 'grapheme' }) as { segment(s: string): Iterable<{ segment: string }> }
+  : null;
+
+function leadingEmoji(msg: string): { icon: string; text: string } {
+  const cp = msg.codePointAt(0);
+  if (cp === undefined || !((cp >= 0x1F000) || (cp >= 0x2190 && cp <= 0x2BFF))) {
+    return { icon: '', text: msg };
+  }
+  // Grapheme-cluster aware: flags (two regional-indicator codepoints,
+  // e.g. 🇬🇧), ZWJ sequences (e.g. 🏴‍☠️ = flag + ZWJ + skull&crossbones
+  // + variation selector) and emoji+variation-selector pairs are each
+  // one grapheme cluster and must come through as a single icon rather
+  // than splitting mid-sequence.
+  if (_graphemeSeg) {
+    const first = _graphemeSeg.segment(msg)[Symbol.iterator]().next().value;
+    if (first) {
+      let rest = msg.slice(first.segment.length);
+      if (rest.startsWith(' ')) rest = rest.slice(1);
+      return { icon: first.segment, text: rest };
+    }
+  }
+  // Fallback for the rare engine without Intl.Segmenter — best-effort
+  // codepoint walk that still handles flag pairs and ZWJ joins.
+  const chars = Array.from(msg);
+  let i = 1;
+  const cp1 = chars[1]?.codePointAt(0);
+  if (cp >= 0x1F1E6 && cp <= 0x1F1FF && cp1 !== undefined && cp1 >= 0x1F1E6 && cp1 <= 0x1F1FF) i = 2; // regional-indicator flag pair
+  while (chars[i] === '\uFE0F' || chars[i] === '\u200D') {
+    i++;
+    if (chars[i - 1] === '\u200D' && chars[i] !== undefined) i++; // swallow the codepoint the ZWJ joins to
+  }
+  const icon = chars.slice(0, i).join('');
+  while (chars[i] === ' ') i++;
+  return { icon, text: chars.slice(i).join('') };
+}
+
+let _toastStack: HTMLElement | null = null;
+function toastStack(): HTMLElement {
+  if (_toastStack && _toastStack.isConnected) return _toastStack;
+  const stack = document.createElement('div');
+  stack.id = 'scToastStack'; stack.className = 'sc-toast-stack';
+  document.body.appendChild(stack);
+  _toastStack = stack;
+  return stack;
+}
+
 function showToast(msg: string, duration = 3500) {
-  const existing = document.getElementById('scToast');
-  if (existing) existing.remove();
+  const stack = toastStack();
+  while (stack.children.length >= 3) stack.firstElementChild?.remove(); // cap a burst of toasts
+
+  const { icon, text } = leadingEmoji(msg);
+  const isWarn = icon === '⚠️' || icon === '⚠';
+
   const toast = document.createElement('div');
-  toast.id = 'scToast'; toast.className = 'sc-toast';
-  toast.textContent = msg;
-  document.body.appendChild(toast);
+  toast.className = 'sc-toast' + (isWarn ? ' sc-toast--warn' : '');
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+
+  if (icon) {
+    const tile = document.createElement('span'); tile.className = 'sc-toast-icon'; tile.textContent = icon;
+    toast.appendChild(tile);
+  }
+  const label = document.createElement('span'); label.className = 'sc-toast-text'; label.textContent = text;
+  toast.appendChild(label);
+
+  stack.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add('visible'));
   void Motion.bounceIn(toast);
-  setTimeout(() => {
+
+  const dismiss = () => {
     toast.classList.remove('visible');
-    setTimeout(() => toast.remove(), 400);
-  }, duration);
+    toast.classList.add('leaving');
+    setTimeout(() => toast.remove(), 320);
+  };
+  const timer = setTimeout(dismiss, duration);
+  toast.addEventListener('click', () => { clearTimeout(timer); dismiss(); }, { once: true });
 }
 
 // ── Share focus card ──────────────────────────────────────────────────
