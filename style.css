@@ -141,6 +141,7 @@ html.no-backdrop-filter #themePanel,
 html.no-backdrop-filter .cmd-overlay,
 html.no-backdrop-filter .feat-dock,
 html.no-backdrop-filter .sc-side-card,
+html.no-backdrop-filter .sc-toast,
 html.force-no-backdrop-filter .topbar,
 html.force-no-backdrop-filter .sc-modal,
 html.force-no-backdrop-filter #themePanel,
@@ -151,6 +152,13 @@ html.force-no-backdrop-filter .sc-toast {
   background: rgba(6,4,14,.94) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+/* Light theme keeps light text on a light card even with blur off —
+   the shared dark fallback above would otherwise leave text in the
+   light-theme color rendering on an almost-black surface. */
+html.no-backdrop-filter body.light-theme .sc-toast,
+html.force-no-backdrop-filter body.light-theme .sc-toast {
+  background: rgba(240,244,252,.97) !important;
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -3733,15 +3741,6 @@ body.session-running .session-card {
   transform: translateY(-4px) scale(1.025);
   box-shadow: 0 12px 32px rgba(0,0,0,.4),
               0 0 0 1px rgba(255,255,255,.06);
-}
-
-/* ── Settings rows — highlight on hover ────────────────────── */
-.settings-row {
-  transition: background .15s ease;
-  border-radius: 10px;
-}
-.settings-row:hover {
-  background: rgba(255,255,255,.03);
 }
 
 /* ── Panel tab — slide content ─────────────────────────────── */
