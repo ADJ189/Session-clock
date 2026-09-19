@@ -5,52 +5,89 @@
 // jump-cuts at the seam, which is very audible on anything with rhythm or
 // texture (a footstep, a bird, a rumble of thunder). Instead each track
 // here runs two <audio> elements offset by one crossfade window: while one
-// plays out its last few seconds, the other has already started from 0
-// underneath it, and an equal-power gain curve blends between them — so
+// plays out its last couple of seconds, the other has already started from
+// 0 underneath it, and an equal-power gain curve blends between them — so
 // there's always audio playing and the seam is masked rather than heard.
 // That pair keeps swapping forever, which is what gives the "loops
 // infinitely until the user stops" behaviour the mixer expects.
 //
+// The crossfade shape itself (equal-power sin/cos gain curves scheduled
+// with setValueCurveAtTime, with a manual rAF-driven fallback if that
+// throws) mirrors how monochrome's track-to-track crossfade works in
+// js/player.js — same reasoning applies here: a linear ramp between two
+// signals measurably dips in the middle because they don't sum back to
+// unity, where equal-power holds perceived loudness roughly constant.
+//
 // Playback is routed through MediaElementAudioSourceNode into the same
 // per-track GainNode → analyser → masterGain → compressor chain the
-// synthesized tracks use, so volume, the VU meter, and the ITD/ILD spatial
-// rig in sound.ts all keep working on these exactly as they do on the
-// procedural ones — this module only owns the two <audio> elements and
-// the crossfade scheduling, not the rest of the mix graph.
+// synthesized tracks use (same shape monochrome's own audio-context.js
+// builds around a MediaElementSource + GainNode pair), so volume, the VU
+// meter, and the ITD/ILD spatial rig in sound.ts all keep working on these
+// exactly as they do on the procedural ones — this module only owns the
+// two <audio> elements and the crossfade scheduling, not the rest of the
+// mix graph.
 
 import { CAPS, FEATURES, IS_TOUCH } from './platform';
 
 export interface FileTrackConfig {
-  url: string;
+  /** Primary source — Ogg/Opus, smaller than the AAC fallback at the same
+   *  quality, so it's preferred wherever the browser can decode it. */
+  opusUrl: string;
+  /** AAC-in-MP4 fallback of the same recording, for the (now rare) browser
+   *  that can't decode Ogg/Opus — see detectAacMp4() in platform.ts. */
+  aacUrl: string;
   /** Seconds of overlap used to mask the loop seam. Tuned per recording:
    *  steady, textureless material (rain, river) can get away with a short
    *  crossfade; material with slow swells (wind) or sparse events that
    *  would sound bad if cut off mid-event (night crickets, thunder) gets
-   *  a longer one so a swap is much less likely to land on top of one. */
+   *  a little more so a swap is much less likely to land on top of one. */
   crossfadeSec: number;
   /** Per-file level trim — the recordings weren't all mastered to the same
    *  loudness, and this keeps them sitting evenly against each other and
    *  the procedural tracks once everything hits the shared compressor. */
   gainTrim: number;
+  /** True for the tracks that also have a synthesized WebAudio version in
+   *  sound.ts (rain/fire/wind/forest) — those never need to be disabled in
+   *  the mixer even without Opus or AAC support, since MAKERS falls back to
+   *  the procedural maker automatically. */
+  proceduralFallback?: boolean;
 }
 
 export const FILE_TRACKS: Record<string, FileTrackConfig> = {
-  rain:         { url: '/sounds/rain.opus',         crossfadeSec: 3, gainTrim: 0.9  },
-  fire:         { url: '/sounds/fire.opus',          crossfadeSec: 4, gainTrim: 0.85 },
-  wind:         { url: '/sounds/wind.opus',          crossfadeSec: 5, gainTrim: 0.9  },
-  forest:       { url: '/sounds/forest.opus',        crossfadeSec: 4, gainTrim: 0.9  },
-  wildforest:   { url: '/sounds/wildforest.opus',    crossfadeSec: 5, gainTrim: 0.85 },
-  river:        { url: '/sounds/river.opus',         crossfadeSec: 3, gainTrim: 0.9  },
-  night:        { url: '/sounds/night.opus',         crossfadeSec: 5, gainTrim: 0.85 },
-  thunderstorm: { url: '/sounds/thunderstorm.opus',  crossfadeSec: 6, gainTrim: 0.8  },
+  rain:         { opusUrl: '/sounds/rain.opus',         aacUrl: '/sounds/rain.m4a',         crossfadeSec: 2, gainTrim: 0.9,  proceduralFallback: true },
+  fire:         { opusUrl: '/sounds/fire.opus',          aacUrl: '/sounds/fire.m4a',          crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
+  wind:         { opusUrl: '/sounds/wind.opus',          aacUrl: '/sounds/wind.m4a',          crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
+  forest:       { opusUrl: '/sounds/forest.opus',        aacUrl: '/sounds/forest.m4a',        crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
+  wildforest:   { opusUrl: '/sounds/wildforest.opus',    aacUrl: '/sounds/wildforest.m4a',    crossfadeSec: 3, gainTrim: 0.85 },
+  river:        { opusUrl: '/sounds/river.opus',         aacUrl: '/sounds/river.m4a',         crossfadeSec: 2, gainTrim: 0.9  },
+  night:        { opusUrl: '/sounds/night.opus',         aacUrl: '/sounds/night.m4a',         crossfadeSec: 3, gainTrim: 0.85 },
+  thunderstorm: { opusUrl: '/sounds/thunderstorm.opus',  aacUrl: '/sounds/thunderstorm.m4a',  crossfadeSec: 4, gainTrim: 0.8  },
 };
 
 export function isFileBackedTrack(id: string): boolean { return id in FILE_TRACKS; }
-/** False only for a file-backed id on a browser without Ogg/Opus support
- *  (old Safari/iOS) — sound.ts uses this to grey out the toggle for the
- *  handful of tracks (wildforest/river/night/thunderstorm) that have no
- *  procedural equivalent to fall back to. */
-export function isFileTrackSupported(id: string): boolean { return !isFileBackedTrack(id) || CAPS.oggOpus; }
+
+/** Which source URL (if any) this browser can actually decode — Opus
+ *  preferred (smaller download, same quality), AAC as the fallback,
+ *  null if neither codec is supported at all. */
+function pickSource(cfg: FileTrackConfig): string | null {
+  if (CAPS.oggOpus) return cfg.opusUrl;
+  if (CAPS.aacMp4) return cfg.aacUrl;
+  return null;
+}
+
+/** False only when a track has *no* working audio path at all: no Opus, no
+ *  AAC, and no procedural fallback to drop back to. In practice that's just
+ *  the four recording-only tracks (wildforest/river/night/thunderstorm) on
+ *  a browser that can decode neither codec — vanishingly rare (AAC-in-MP4
+ *  is close to universal), but real. rain/fire/wind/forest are never
+ *  disabled here: MAKERS in sound.ts falls back to their original
+ *  synthesized version regardless of codec support, so their mixer toggle
+ *  always does something. */
+export function isFileTrackSupported(id: string): boolean {
+  const cfg = FILE_TRACKS[id];
+  if (!cfg) return true;
+  return !!pickSource(cfg) || !!cfg.proceduralFallback;
+}
 
 // ── Autoplay-policy retry ────────────────────────────────────────────
 // A track started from a real click (the mixer toggle) always has an
@@ -85,10 +122,11 @@ class GaplessLoopPlayer {
   readonly out: GainNode;
   private active: 0 | 1 = 0;
   private watchHandle = 0;
+  private crossfadeSwapHandle = 0;
   private crossfading = false;
   private stopped = false;
 
-  constructor(private ctx: AudioContext, private cfg: FileTrackConfig) {
+  constructor(private ctx: AudioContext, private cfg: FileTrackConfig, src: string) {
     const make = () => {
       const el = new Audio();
       // Data-saver / known-slow connections: don't buffer ahead at all
@@ -98,7 +136,7 @@ class GaplessLoopPlayer {
       // buffers ahead for a snappier, gap-free start.
       el.preload = CAPS.saveData ? 'none' : (IS_TOUCH ? 'metadata' : 'auto');
       el.loop = false; // looping is driven manually below, for the crossfade
-      el.src = cfg.url;
+      el.src = src;
       el.addEventListener('ended', () => {
         // Only reachable if the scheduled crossfade never got a chance to
         // fire — e.g. duration wasn't known yet under preload:'none'. Hard
@@ -133,12 +171,17 @@ class GaplessLoopPlayer {
   private attemptPlay(el: HTMLAudioElement): void {
     const p = el.play();
     if (p && typeof p.catch === 'function') {
-      p.catch(() => { pendingResume.add(this); ensureRetryListener(); });
+      p.catch(() => {
+        if (this.stopped) return; // don't resurrect a player that was already torn down
+        pendingResume.add(this);
+        ensureRetryListener();
+      });
     }
   }
 
   /** Called from the shared gesture-retry listener above. */
   retryPlay(): void {
+    if (this.stopped) { pendingResume.delete(this); return; }
     const el = this.els[this.active];
     if (!el.paused) { pendingResume.delete(this); return; }
     const p = el.play();
@@ -183,22 +226,52 @@ class GaplessLoopPlayer {
 
     // Equal-power (cosine/sine) crossfade rather than a linear ramp — two
     // linearly-faded signals dip audibly in the middle of the overlap
-    // because they don't sum back to unity gain; equal-power keeps
-    // perceived loudness roughly constant across the whole transition.
-    const steps = 24;
-    const curveOut = new Float32Array(steps + 1);
-    const curveIn = new Float32Array(steps + 1);
-    for (let i = 0; i <= steps; i++) {
-      const t = (i / steps) * (Math.PI / 2);
-      curveOut[i] = Math.cos(t);
-      curveIn[i] = Math.sin(t);
+    // since they don't sum back to unity gain; equal-power keeps perceived
+    // loudness roughly constant through the whole transition. 128 points
+    // (same resolution monochrome's crossfadeToNext uses) is plenty smooth
+    // for a 2-4s window without generating an oversized curve array.
+    const fromGain = this.gains[from];
+    const toGain = this.gains[to];
+    let scheduled = false;
+    try {
+      const steps = 128;
+      const curveOut = new Float32Array(steps);
+      const curveIn = new Float32Array(steps);
+      for (let i = 0; i < steps; i++) {
+        const t = (i / (steps - 1)) * (Math.PI / 2);
+        curveOut[i] = Math.cos(t);
+        curveIn[i] = Math.sin(t);
+      }
+      fromGain.gain.cancelScheduledValues(now);
+      toGain.gain.cancelScheduledValues(now);
+      fromGain.gain.setValueCurveAtTime(curveOut, now, dur);
+      toGain.gain.setValueCurveAtTime(curveIn, now, dur);
+      scheduled = true;
+    } catch {
+      // Overlapping AudioParam automation can occasionally throw
+      // NotSupportedError; a plain rAF-driven fade is a safe fallback —
+      // same escape hatch monochrome's crossfadeToNext falls back to.
     }
-    this.gains[from].gain.cancelScheduledValues(now);
-    this.gains[to].gain.cancelScheduledValues(now);
-    this.gains[from].gain.setValueCurveAtTime(curveOut, now, dur);
-    this.gains[to].gain.setValueCurveAtTime(curveIn, now, dur);
+    if (!scheduled) {
+      const startedAt = performance.now();
+      const manualFade = () => {
+        if (this.stopped) return;
+        const progress = Math.min(1, (performance.now() - startedAt) / (dur * 1000));
+        const t = progress * (Math.PI / 2);
+        try {
+          fromGain.gain.value = Math.cos(t);
+          toGain.gain.value = Math.sin(t);
+        } catch { return; }
+        if (progress < 1) requestAnimationFrame(manualFade);
+      };
+      requestAnimationFrame(manualFade);
+    }
 
-    setTimeout(() => {
+    this.crossfadeSwapHandle = window.setTimeout(() => {
+      // stop() may have run while this crossfade was in flight — bail out
+      // rather than reviving a watch() interval on a player that's already
+      // torn down (that interval would then never get cleared).
+      if (this.stopped) return;
       const oldEl = this.els[from];
       try { oldEl.pause(); oldEl.currentTime = 0; } catch { /* ignore */ }
       this.active = to;
@@ -226,6 +299,7 @@ class GaplessLoopPlayer {
   stop(): void {
     this.stopped = true;
     clearInterval(this.watchHandle);
+    clearTimeout(this.crossfadeSwapHandle);
     pendingResume.delete(this);
     this.els.forEach(el => { try { el.pause(); el.removeAttribute('src'); el.load(); } catch { /* ignore */ } });
     this.srcNodes.forEach(n => { try { n.disconnect(); } catch { /* ignore */ } });
@@ -242,8 +316,10 @@ class GaplessLoopPlayer {
  *  special-casing for file-backed tracks at all. */
 export function makeFileTrack(ctx: AudioContext, id: string): { out: AudioNode; nodes: AudioNode[] } | null {
   const cfg = FILE_TRACKS[id];
-  if (!cfg || !CAPS.oggOpus) return null;
-  const player = new GaplessLoopPlayer(ctx, cfg);
+  if (!cfg) return null;
+  const src = pickSource(cfg);
+  if (!src) return null; // neither Opus nor AAC decodable — caller falls back to procedural, if any
+  const player = new GaplessLoopPlayer(ctx, cfg, src);
   player.start();
   const stopProxy = ctx.createGain(); stopProxy.gain.value = 0;
   (stopProxy as any)._customStop = () => player.stop();

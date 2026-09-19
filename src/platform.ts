@@ -95,6 +95,19 @@ function detectOggOpus(): boolean {
   }
 }
 
+// AAC-in-MP4 fallback for the same recordings, for the (now rare) browser
+// that can't decode Ogg/Opus — pre-Safari-17/iOS-17, or any WebView built
+// on an older WebKit. AAC-LC in an .m4a container is close to universally
+// supported, so this is really a last-resort check, not a primary path.
+function detectAacMp4(): boolean {
+  try {
+    const can = document.createElement('audio').canPlayType('audio/mp4; codecs="mp4a.40.2"');
+    return can === 'probably' || can === 'maybe';
+  } catch {
+    return false;
+  }
+}
+
 // navigator.connection is Chromium-only and unstandardized, so this is a
 // bonus optimization signal where available and a silent no-op (defaults
 // to "not slow/saving") everywhere else — never gates a feature entirely.
@@ -122,6 +135,8 @@ export const CAPS = {
   // Recorded-audio ambient tracks (sound.ts) gate on this and fall back to
   // their procedural WebAudio synthesis when it's false.
   oggOpus: detectOggOpus(),
+  // Last-resort fallback format for the same tracks — see detectAacMp4().
+  aacMp4: detectAacMp4(),
   // Data-saver mode / a known-slow connection — recorded-audio tracks use
   // this to skip eager buffering rather than assuming a fast connection.
   saveData: CONNECTION.saveData || CONNECTION.slow,
@@ -139,6 +154,7 @@ export function applyPlatformClasses(): void {
   cl.toggle('no-backdrop-filter', !FEATURES.backdropFilter);
   cl.toggle('no-dvh', !FEATURES.dvh);
   cl.toggle('no-ogg-opus', !CAPS.oggOpus);
+  cl.toggle('no-recorded-audio', !CAPS.oggOpus && !CAPS.aacMp4);
   cl.toggle('save-data', CAPS.saveData);
 }
 
@@ -155,7 +171,7 @@ export function platformSummary(): { label: string; value: string }[] {
     { label: 'Backdrop blur',   value: FEATURES.backdropFilter ? 'Supported' : 'Unsupported (fallback active)' },
     { label: 'Dynamic viewport',value: FEATURES.dvh ? 'Supported' : 'Unsupported (100vh fallback)' },
     { label: 'Haptics',         value: CAPS.vibration ? 'Supported' : 'Unsupported (WebKit/iOS has none)' },
-    { label: 'Recorded ambience', value: CAPS.oggOpus ? 'Ogg/Opus supported' : 'Unsupported — using synthesized fallback' },
+    { label: 'Recorded ambience', value: CAPS.oggOpus ? 'Ogg/Opus supported' : (CAPS.aacMp4 ? 'AAC fallback in use' : 'Unsupported — using synthesized fallback') },
   ];
 }
 
