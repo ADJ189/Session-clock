@@ -1,5 +1,6 @@
 import type { SoundDef, SoundNode } from './types';
 import { CAPS, subscribeOrientation } from './platform';
+import { makeFileTrack, isFileTrackSupported } from './soundfiles';
 
 export const SOUNDS: SoundDef[] = [
   { id: 'rain',      name: 'Rain',        icon: '🌧', desc: 'Gentle rainfall on a window'   },
@@ -19,6 +20,13 @@ export const SOUNDS: SoundDef[] = [
   { id: 'spaceship', name: 'Spaceship',   icon: '🚀', desc: 'Deep engine drone, sci-fi hum'    },
   { id: 'campfire',  name: 'Campfire',    icon: '🏕', desc: 'Bright outdoor fire under the stars' },
   { id: 'waves',     name: 'Waves & Rocks', icon: '🌊', desc: 'Surf crashing against the shore' },
+  // ── Recorded, not synthesized — atomic layers meant to mix with the
+  // above (river under rain, thunder under rain) — see soundfiles.ts ────
+  { id: 'river',     name: 'River',     icon: '🏞', desc: 'Water moving steadily over a stony bed' },
+  { id: 'waterfall', name: 'Waterfall', icon: '💧', desc: 'Steady falling-water roar' },
+  { id: 'thunder',   name: 'Thunder',   icon: '⛈', desc: 'Distant rolling thunder — layer under Rain' },
+  { id: 'night',     name: 'Crickets',  icon: '🌌', desc: 'Crickets in still night air' },
+  { id: 'birds',     name: 'Birds',     icon: '🐦', desc: 'Birdsong, near and far' },
 ];
 
 // Per-track accent — used to tint each track's icon tile in the mixer
@@ -30,6 +38,7 @@ export const SOUND_ACCENT: Record<string, string> = {
   fire: '#ff9f0a', wind: '#64d2ff', snow: '#eaf6ff', keyboard: '#8e8e93',
   library: '#bf5af2', airplane: '#5e5ce6', spaceship: '#5e5ce6',
   campfire: '#ff9f0a', waves: '#32ade6',
+  river: '#32ade6', waterfall: '#64d2ff', thunder: '#409cff', night: '#5e5ce6', birds: '#30d158',
 };
 
 export interface BinauralPreset {
@@ -857,25 +866,42 @@ function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
 }
 
 // ── MAKERS dispatch ───────────────────────────────────────────────────
-const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
-  rain:     makeRain,
+// rain/fire/wind/forest/cafe/library/waves prefer the recorded take
+// (soundfiles.ts) and fall back to their original synthesized version on a
+// browser without Ogg/Opus support (old Safari/iOS) — makeFileTrack()
+// itself returns null there, so the `??` just keeps working exactly as it
+// always did. The five river/waterfall/thunder/night/birds tracks have no
+// procedural equivalent to fall back to; sound.ts's UI greys those out on
+// unsupported browsers instead (see main.ts).
+const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] } | null> = {
+  rain:     () => makeFileTrack(ctx!, 'rain')    ?? makeRain(),
   roofrain: makeRoofRain,
   white:    makeWhite,
   pink:     makePink,
   brown:    makeBrown,
-  forest:   makeForest,
-  cafe:     makeCafe,
+  forest:   () => makeFileTrack(ctx!, 'forest')  ?? makeForest(),
+  cafe:     () => makeFileTrack(ctx!, 'cafe')    ?? makeCafe(),
   ocean:    makeOcean,
-  fire:     makeFire,
-  wind:     makeWind,
+  fire:     () => makeFileTrack(ctx!, 'fire')    ?? makeFire(),
+  wind:     () => makeFileTrack(ctx!, 'wind')    ?? makeWind(),
   snow:     makeSnow,
   keyboard: makeKeyboard,
-  library:  makeLibrary,
+  library:  () => makeFileTrack(ctx!, 'library') ?? makeLibrary(),
   airplane: makeAirplane,
   spaceship:makeSpaceship,
   campfire: makeCampfire,
-  waves:    makeWavesRocks,
+  waves:    () => makeFileTrack(ctx!, 'waves')   ?? makeWavesRocks(),
+  river:        () => makeFileTrack(ctx!, 'river'),
+  waterfall:    () => makeFileTrack(ctx!, 'waterfall'),
+  thunder:      () => makeFileTrack(ctx!, 'thunder'),
+  night:        () => makeFileTrack(ctx!, 'night'),
+  birds:        () => makeFileTrack(ctx!, 'birds'),
 };
+
+/** Re-exported for the mixer UI — greys out / disables the toggle for a
+ *  file-only track (no procedural fallback) on a browser without Ogg/Opus
+ *  support, instead of a toggle that silently does nothing when tapped. */
+export { isFileTrackSupported };
 
 // ── Public API ────────────────────────────────────────────────────────
 export function playTrack(id: string) {
@@ -969,6 +995,11 @@ const SPATIAL_PROFILES: Record<string, SpatialProfile> = {
   spaceship: { speed: 0.008,width: 0.15, pattern: 'fixed',  fixedPan: 0    },
   campfire:  { speed: 0.03, width: 0.25, pattern: 'fixed',  fixedPan: -0.1 },
   waves:     { speed: 0.06, width: 0.60, pattern: 'burst'  },
+  river:     { speed: 0.03, width: 0.35, pattern: 'wander' }, // water moving past, gentle drift
+  waterfall: { speed: 0.02, width: 0.20, pattern: 'fixed',  fixedPan: 0    }, // one steady roar, doesn't move
+  thunder:   { speed: 0.04, width: 0.55, pattern: 'sweep'  }, // rolls across the sky
+  night:     { speed: 0.01, width: 0.20, pattern: 'wander' }, // crickets, barely moving
+  birds:     { speed: 0.09, width: 0.75, pattern: 'burst'  }, // calls dart around, like forest's synthesized ones
 };
 
 const MAX_ITD = 0.00065; // 0.65ms — human head max inter-aural time delay

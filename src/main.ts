@@ -1888,7 +1888,13 @@ function buildSoundUI() {
 
   Sound.SOUNDS.forEach(s => {
     const vol = Math.round(Sound.getTrackVolume(s.id) * 100);
-    container.appendChild(makeSoundTrack(s.id, s.icon, s.name, s.desc ?? '', Sound.isPlaying(s.id), vol));
+    const track = makeSoundTrack(s.id, s.icon, s.name, s.desc ?? '', Sound.isPlaying(s.id), vol);
+    if (!Sound.isFileTrackSupported(s.id)) {
+      track.classList.add('track-unavailable');
+      track.querySelector<HTMLButtonElement>('.track-toggle')?.setAttribute('disabled', 'true');
+      track.title = 'Needs a browser with Opus audio support (Safari 17+, or current Chrome/Firefox/Edge)';
+    }
+    container.appendChild(track);
   });
 
   // Binaural section header

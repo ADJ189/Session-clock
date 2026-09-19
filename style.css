@@ -1000,6 +1000,12 @@ kbd {
 .sound-track-name  { font-size: .68rem; font-weight: 700; letter-spacing: .04em; color: var(--clr-text); opacity: .9; }
 .sound-track-desc  { font-size: .58rem; opacity: .38; color: var(--clr-text); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sound-track-vol   { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+/* Recorded-audio-only tracks (river/waterfall/thunder/night/birds) on a
+   browser without Ogg/Opus support (old Safari/iOS) — no synthesized
+   fallback exists for these, so the toggle is disabled rather than doing
+   nothing when tapped. */
+.sound-track.track-unavailable { opacity: .4; }
+.sound-track.track-unavailable .track-toggle { cursor: not-allowed; }
 .sound-vol-pct     { font-size: .58rem; font-variant-numeric: tabular-nums; font-family: var(--font-main); color: var(--clr-text); opacity: .42; min-width: 28px; text-align: right; }
 
 /* Flat, filled-track sliders — value fill drawn with a CSS var the JS
