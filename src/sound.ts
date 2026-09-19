@@ -1,5 +1,6 @@
 import type { SoundDef, SoundNode } from './types';
 import { CAPS, subscribeOrientation } from './platform';
+import { makeFileTrack, isFileTrackSupported } from './soundfiles';
 
 export const SOUNDS: SoundDef[] = [
   { id: 'rain',      name: 'Rain',        icon: '🌧', desc: 'Gentle rainfall on a window'   },
@@ -19,6 +20,11 @@ export const SOUNDS: SoundDef[] = [
   { id: 'spaceship', name: 'Spaceship',   icon: '🚀', desc: 'Deep engine drone, sci-fi hum'    },
   { id: 'campfire',  name: 'Campfire',    icon: '🏕', desc: 'Bright outdoor fire under the stars' },
   { id: 'waves',     name: 'Waves & Rocks', icon: '🌊', desc: 'Surf crashing against the shore' },
+  // ── Recorded, not synthesized — see soundfiles.ts ──────────────────
+  { id: 'wildforest',   name: 'Wild Forest',  icon: '🌳', desc: 'Deep woods at length — wind, leaves, distant birds' },
+  { id: 'river',        name: 'River',        icon: '🏞', desc: 'Water moving steadily over a stony bed' },
+  { id: 'night',        name: 'Night',        icon: '🌌', desc: 'Crickets and still night air' },
+  { id: 'thunderstorm', name: 'Thunderstorm', icon: '⛈', desc: 'Heavy rain with rolling thunder' },
 ];
 
 // Per-track accent — used to tint each track's icon tile in the mixer
@@ -30,6 +36,7 @@ export const SOUND_ACCENT: Record<string, string> = {
   fire: '#ff9f0a', wind: '#64d2ff', snow: '#eaf6ff', keyboard: '#8e8e93',
   library: '#bf5af2', airplane: '#5e5ce6', spaceship: '#5e5ce6',
   campfire: '#ff9f0a', waves: '#32ade6',
+  wildforest: '#30d158', river: '#32ade6', night: '#5e5ce6', thunderstorm: '#409cff',
 };
 
 export interface BinauralPreset {
@@ -857,17 +864,23 @@ function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
 }
 
 // ── MAKERS dispatch ───────────────────────────────────────────────────
-const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
-  rain:     makeRain,
+// rain/fire/wind/forest prefer the recorded take (soundfiles.ts) and fall
+// back to their original synthesized version on a browser without Ogg/Opus
+// support (old Safari/iOS) — makeFileTrack() itself returns null there, so
+// the `??` just keeps working exactly as it always did. The four new
+// tracks below have no procedural equivalent to fall back to; sound.ts's
+// UI greys those out on unsupported browsers instead (see main.ts).
+const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] } | null> = {
+  rain:     () => makeFileTrack(ctx!, 'rain')   ?? makeRain(),
   roofrain: makeRoofRain,
   white:    makeWhite,
   pink:     makePink,
   brown:    makeBrown,
-  forest:   makeForest,
+  forest:   () => makeFileTrack(ctx!, 'forest') ?? makeForest(),
   cafe:     makeCafe,
   ocean:    makeOcean,
-  fire:     makeFire,
-  wind:     makeWind,
+  fire:     () => makeFileTrack(ctx!, 'fire')   ?? makeFire(),
+  wind:     () => makeFileTrack(ctx!, 'wind')   ?? makeWind(),
   snow:     makeSnow,
   keyboard: makeKeyboard,
   library:  makeLibrary,
@@ -875,7 +888,16 @@ const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
   spaceship:makeSpaceship,
   campfire: makeCampfire,
   waves:    makeWavesRocks,
+  wildforest:   () => makeFileTrack(ctx!, 'wildforest'),
+  river:        () => makeFileTrack(ctx!, 'river'),
+  night:        () => makeFileTrack(ctx!, 'night'),
+  thunderstorm: () => makeFileTrack(ctx!, 'thunderstorm'),
 };
+
+/** Re-exported for the mixer UI — greys out / disables the toggle for a
+ *  file-only track (no procedural fallback) on a browser without Ogg/Opus
+ *  support, instead of a toggle that silently does nothing when tapped. */
+export { isFileTrackSupported };
 
 // ── Public API ────────────────────────────────────────────────────────
 export function playTrack(id: string) {
@@ -969,6 +991,10 @@ const SPATIAL_PROFILES: Record<string, SpatialProfile> = {
   spaceship: { speed: 0.008,width: 0.15, pattern: 'fixed',  fixedPan: 0    },
   campfire:  { speed: 0.03, width: 0.25, pattern: 'fixed',  fixedPan: -0.1 },
   waves:     { speed: 0.06, width: 0.60, pattern: 'burst'  },
+  wildforest:   { speed: 0.07, width: 0.70, pattern: 'burst'  }, // birds dart around, like forest
+  river:        { speed: 0.03, width: 0.35, pattern: 'wander' }, // water moving past, gentle drift
+  night:        { speed: 0.01, width: 0.20, pattern: 'wander' }, // crickets, barely moving
+  thunderstorm: { speed: 0.04, width: 0.55, pattern: 'sweep'  }, // rain sweep, thunder still centred by the fixed pan floor
 };
 
 const MAX_ITD = 0.00065; // 0.65ms — human head max inter-aural time delay
