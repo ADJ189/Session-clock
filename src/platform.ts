@@ -81,6 +81,29 @@ function detectFeatureFlags() {
 }
 export const FEATURES = detectFeatureFlags();
 
+// Real probe (not UA sniffing) for Ogg/Opus playback — the format the
+// recorded ambient sound tracks (sound.ts / soundfiles.ts) ship in.
+// Chrome/Firefox/Edge have decoded Ogg Opus for years; Safari/WebKit only
+// gained it in Safari 17 (macOS Sonoma / iOS 17, both 2023), and there's no
+// reliable UA signal for that version gap, so this asks the engine
+// directly instead of guessing.
+function detectOggOpus(): boolean {
+  try {
+    const can = document.createElement('audio').canPlayType('audio/ogg; codecs="opus"');
+    return can === 'probably' || can === 'maybe';
+  } catch {
+    return false; // canPlayType itself is missing on some very old engines
+  }
+}
+
+// navigator.connection is Chromium-only and unstandardized, so this is a
+// bonus optimization signal where available and a silent no-op (defaults
+// to "not slow/saving") everywhere else — never gates a feature entirely.
+function detectSlowConnection(): boolean {
+  const conn = (navigator as any).connection;
+  return !!conn?.saveData || conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g';
+}
+
 export const CAPS = {
   // Vibration API — Android Chrome/Firefox support it; iOS Safari (and thus
   // every browser on iOS, since they all run on WebKit) never has, by policy.
@@ -93,6 +116,13 @@ export const CAPS = {
   deviceOrientationNeedsPermission:
     typeof (window as any).DeviceOrientationEvent?.requestPermission === 'function',
   webShare: typeof navigator.share === 'function',
+  // Recorded-audio ambient tracks (sound.ts) gate on this and fall back to
+  // their procedural WebAudio synthesis (or, for the tracks with no
+  // synthesized version, a disabled toggle) when it's false.
+  oggOpus: detectOggOpus(),
+  // Data-saver mode / a known-slow connection — recorded-audio tracks use
+  // this to skip eager buffering rather than assuming a fast connection.
+  saveData: detectSlowConnection(),
 };
 
 /** Sets classes on <html> once at boot — call as early as possible. */
@@ -106,6 +136,8 @@ export function applyPlatformClasses(): void {
   cl.toggle('no-doc-pip', !CAPS.documentPiP);
   cl.toggle('no-backdrop-filter', !FEATURES.backdropFilter);
   cl.toggle('no-dvh', !FEATURES.dvh);
+  cl.toggle('no-ogg-opus', !CAPS.oggOpus);
+  cl.toggle('save-data', CAPS.saveData);
 }
 
 /** Small, human-readable summary for a Settings/diagnostics panel — lets
@@ -121,6 +153,7 @@ export function platformSummary(): { label: string; value: string }[] {
     { label: 'Backdrop blur',   value: FEATURES.backdropFilter ? 'Supported' : 'Unsupported (fallback active)' },
     { label: 'Dynamic viewport',value: FEATURES.dvh ? 'Supported' : 'Unsupported (100vh fallback)' },
     { label: 'Haptics',         value: CAPS.vibration ? 'Supported' : 'Unsupported (WebKit/iOS has none)' },
+    { label: 'Recorded ambience', value: CAPS.oggOpus ? 'Ogg/Opus supported' : 'Unsupported — using synthesized fallback' },
   ];
 }
 
