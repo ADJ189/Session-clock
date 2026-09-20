@@ -154,6 +154,13 @@ class GaplessLoopPlayer {
   private crossfadeSwapHandle = 0;
   private crossfading = false;
   private stopped = false;
+  // True while waiting on the replacement element to actually be able to
+  // play (see crossfade() below) — kept separate from `crossfading` so an
+  // 'ended' event on the outgoing element during this window still falls
+  // through to hardSwap() instead of finding the guard closed and going
+  // silent with nothing scheduled to recover it.
+  private awaitingReady = false;
+  private cancelAwaitReady: (() => void) | null = null;
 
   constructor(private ctx: AudioContext, private cfg: FileTrackConfig) {
     const make = () => {
@@ -255,22 +262,61 @@ class GaplessLoopPlayer {
   }
 
   private maybeCrossfade(): void {
-    if (this.stopped || this.crossfading) return;
+    if (this.stopped || this.crossfading || this.awaitingReady) return;
     const el = this.els[this.active];
     if (!isFinite(el.duration)) return; // metadata not loaded yet
     if (el.currentTime >= el.duration - this.cfg.crossfadeSec) this.crossfade();
   }
 
+  /** Kicks off the swap to the other element. On a normal connection the
+   *  inactive element already has data buffered (see primeOther()) and we
+   *  can start the gain automation immediately. On save-data/2G, though,
+   *  el.preload is 'none', so the replacement has nothing buffered yet and
+   *  play() has to fetch before it can actually produce audio — fading the
+   *  outgoing track out on the usual timer in that case just means dead
+   *  air (or an abrupt late onset once the replacement finally catches
+   *  up). So when the replacement isn't ready, keep the current element
+   *  audible and wait for it to actually be able to play before starting
+   *  the fade at all. */
   private crossfade(): void {
-    this.crossfading = true;
     this.stopWatch();
     const from = this.active;
     const to: 0 | 1 = from === 0 ? 1 : 0;
+    const toEl = this.els[to];
+
+    toEl.currentTime = 0;
+    this.attemptPlay(toEl); // triggers loading even under preload:'none'
+
+    if (toEl.readyState >= toEl.HAVE_FUTURE_DATA) {
+      this.beginCrossfadeFade(from, to);
+      return;
+    }
+
+    // Not buffered yet. `crossfading` stays false during this wait so the
+    // outgoing element's 'ended' handler can still fire hardSwap() as a
+    // fallback if it reaches its natural end before the replacement is
+    // ready — that's a real possibility on a slow connection with a short
+    // crossfadeSec, and it's still strictly better than silence.
+    this.awaitingReady = true;
+    const onCanPlay = () => {
+      cleanup();
+      if (this.stopped) return;
+      this.awaitingReady = false;
+      this.beginCrossfadeFade(from, to);
+    };
+    const cleanup = () => {
+      toEl.removeEventListener('canplay', onCanPlay);
+      this.cancelAwaitReady = null;
+    };
+    toEl.addEventListener('canplay', onCanPlay, { once: true });
+    this.cancelAwaitReady = cleanup;
+  }
+
+  private beginCrossfadeFade(from: 0 | 1, to: 0 | 1): void {
+    if (this.stopped) return;
+    this.crossfading = true;
     const now = this.ctx.currentTime;
     const dur = this.cfg.crossfadeSec;
-
-    this.els[to].currentTime = 0;
-    this.attemptPlay(this.els[to]);
 
     // Equal-power (cosine/sine) crossfade rather than a linear ramp — two
     // linearly-faded signals dip audibly in the middle of the overlap
@@ -330,6 +376,12 @@ class GaplessLoopPlayer {
   }
 
   private hardSwap(): void {
+    // Cancel any in-flight "waiting for the replacement to be ready" state
+    // from crossfade() — hardSwap is about to force a swap to whichever
+    // element is active right now, so that listener would otherwise fire
+    // later with a stale from/to pair.
+    if (this.cancelAwaitReady) { this.cancelAwaitReady(); }
+    this.awaitingReady = false;
     const from = this.active;
     const to: 0 | 1 = from === 0 ? 1 : 0;
     const now = this.ctx.currentTime;
@@ -348,6 +400,8 @@ class GaplessLoopPlayer {
     this.stopped = true;
     this.stopWatch();
     clearTimeout(this.crossfadeSwapHandle);
+    if (this.cancelAwaitReady) { this.cancelAwaitReady(); }
+    this.awaitingReady = false;
     pendingResume.delete(this);
     this.els.forEach(el => { try { el.pause(); el.removeAttribute('src'); el.load(); } catch { /* ignore */ } });
     this.srcNodes.forEach(n => { try { n.disconnect(); } catch { /* ignore */ } });

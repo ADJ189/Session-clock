@@ -1348,8 +1348,12 @@ function toggleZen() {
     // Optional ambient sound — only start it if it isn't already playing,
     // and only stop what we started (never interrupt a track the user
     // had going before entering Zen).
+    // isFileTrackSupported guards a stored preference set on a different
+    // browser/device (localStorage can sync) or from before this browser
+    // dropped Opus support — Sound.play would otherwise reach a maker that
+    // returns null and Zen mode would start with no sound and no hint why.
     const zenSoundId = localStorage.getItem('sc_zen_sound') || '';
-    if (zenSoundId && !Sound.isPlaying(zenSoundId)) {
+    if (zenSoundId && !Sound.isPlaying(zenSoundId) && Sound.isFileTrackSupported(zenSoundId)) {
       Sound.play(zenSoundId);
       zenSoundStartedByZen = true;
     } else {
@@ -2646,6 +2650,12 @@ function buildSettingsUI(activeTab = 'general') {
     const noneOpt = document.createElement('option'); noneOpt.value = ''; noneOpt.textContent = 'None';
     zenSoundSelect.appendChild(noneOpt);
     Sound.SOUNDS.forEach(s => {
+      // Recording-only tracks (river/waterfall/thunder/night/birds) go
+      // silent — with no toggle to notice why — on a browser that can't
+      // decode Ogg/Opus, since Zen mode has no mixer UI to grey out like
+      // buildSoundUI() does. Leave them off the list entirely here rather
+      // than let Zen mode auto-start a track that can't actually play.
+      if (!Sound.isFileTrackSupported(s.id)) return;
       const opt = document.createElement('option'); opt.value = s.id; opt.textContent = `${s.icon} ${s.name}`;
       if ((localStorage.getItem('sc_zen_sound') || '') === s.id) opt.selected = true;
       zenSoundSelect.appendChild(opt);
