@@ -87,14 +87,19 @@ export const FILE_TRACKS: Record<string, FileTrackConfig> = {
   cafe:      { url: '/sounds/cafe.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
   library:   { url: '/sounds/library.opus', crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
   waves:     { url: '/sounds/waves.opus',   crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
-  // ── New, recording-only tracks — atomic layers meant to be mixed with
-  // the ones above (river under rain, thunder under rain, etc.) rather
-  // than pre-combined, matching how both reference apps structure theirs. ─
-  river:     { url: '/sounds/river.opus',     crossfadeSec: 2, gainTrim: 0.9  },
+  // ── Recording-only tracks — atomic layers meant to be mixed with the
+  // ones above (river under rain, thunder under rain, etc.) rather than
+  // pre-combined, matching how both reference apps structure theirs. Most
+  // of these now have an ambiently preset as their fallback too (see
+  // MAKERS in sound.ts) — `proceduralFallback: true` here just means "some
+  // fallback exists, don't grey this out," not which kind. waterfall is
+  // the one genuine exception: no ambiently preset is a good match for it,
+  // so it really is disabled on a browser without Ogg/Opus support. ─────
+  river:     { url: '/sounds/river.opus',     crossfadeSec: 2, gainTrim: 0.9,  proceduralFallback: true },
   waterfall: { url: '/sounds/waterfall.opus', crossfadeSec: 2, gainTrim: 0.85 },
-  thunder:   { url: '/sounds/thunder.opus',   crossfadeSec: 4, gainTrim: 0.8  },
-  night:     { url: '/sounds/night.opus',     crossfadeSec: 3, gainTrim: 0.85 }, // crickets
-  birds:     { url: '/sounds/birds.opus',     crossfadeSec: 3, gainTrim: 0.85 },
+  thunder:   { url: '/sounds/thunder.opus',   crossfadeSec: 4, gainTrim: 0.8,  proceduralFallback: true },
+  night:     { url: '/sounds/night.opus',     crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true }, // crickets
+  birds:     { url: '/sounds/birds.opus',     crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
 };
 
 export function isFileBackedTrack(id: string): boolean { return id in FILE_TRACKS; }
