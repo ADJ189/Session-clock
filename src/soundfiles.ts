@@ -107,7 +107,7 @@ export interface FileTrackConfig {
 //   export const AUDIO_CDN_BASE =
 //     'https://cdn.jsdelivr.net/gh/<you>/session-clock-sounds@v1';
 export const AUDIO_CDN_BASE = '';
-        'https://cdn.jsdelivr.net/gh/ADJ189/ambient-sounds@v1';
+        'https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v1';
 
 export const FILE_TRACKS: Record<string, FileTrackConfig> = {
   // ── Existing procedural tracks, now preferring the recording ─────────
