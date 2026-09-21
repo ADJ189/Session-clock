@@ -667,7 +667,7 @@ const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] } | null
   campfire: makeCampfire,
   waves:    () => makeFileTrack(ctx!, 'waves',    () => makeWavesRocks()),
   river:        () => makeFileTrack(ctx!, 'river',     () => makeSynthTrack(ctx!, 'stream')),
-  waterfall:    () => makeFileTrack(ctx!, 'waterfall'),
+  waterfall:    () => makeFileTrack(ctx!, 'waterfall', undefined, () => stopTrack('waterfall')),
   thunder:      () => makeFileTrack(ctx!, 'thunder',   () => makeSynthTrack(ctx!, 'thunder')),
   night:        () => makeFileTrack(ctx!, 'night',     () => makeSynthTrack(ctx!, 'crickets')),
   birds:        () => makeFileTrack(ctx!, 'birds',     () => makeSynthTrack(ctx!, 'birds')),

@@ -483,11 +483,20 @@ class GaplessLoopPlayer {
  *  toggle to explain why. sound.ts passes its ambiently-backed
  *  makeSynthTrack() here for the tracks that have one. The swap happens
  *  underneath a stable output GainNode the caller connects to once, so
- *  playTrack() never needs to know playback quietly changed source. */
+ *  playTrack() never needs to know playback quietly changed source.
+ *
+ *  `onDead`, when given, fires if the recording is unavailable *and*
+ *  there's no fallback to adopt (or the fallback itself returns null) —
+ *  i.e. the track has no working audio path left at all. Without this,
+ *  the caller's trackNodes/isPlaying bookkeeping has no way to learn that
+ *  a track it thinks is playing has gone permanently silent underneath
+ *  it. sound.ts passes stopTrack(id) here for waterfall, the one track
+ *  with no fallback maker. */
 export function makeFileTrack(
   ctx: AudioContext,
   id: string,
   fallback?: () => { out: AudioNode; nodes: AudioNode[] } | null,
+  onDead?: () => void,
 ): { out: AudioNode; nodes: AudioNode[] } | null {
   const cfg = FILE_TRACKS[id];
   if (!cfg || !CAPS.oggOpus) return fallback ? fallback() : null;
@@ -498,8 +507,19 @@ export function makeFileTrack(
   const useFallback = () => {
     activeStop();
     const alt = fallback?.();
-    if (!alt) { activeStop = () => {}; return; }
+    if (!alt) { activeStop = () => {}; onDead?.(); return; }
     alt.out.connect(out);
+    // Mirrors playTrack()'s own start-loop in sound.ts: a maker's returned
+    // nodes are normally started there, but this swap happens later and
+    // asynchronously (the recording failed mid-session), bypassing that
+    // loop entirely — so scheduled source nodes here need to be started
+    // explicitly, or the adopted fallback sits connected but silent.
+    alt.nodes.forEach(n => {
+      if ((n as any)._customStop) return; // skip custom stop proxies
+      if ('start' in n && typeof (n as AudioScheduledSourceNode).start === 'function' && !(n as any)._started) {
+        try { (n as AudioScheduledSourceNode).start(); (n as any)._started = true; } catch {}
+      }
+    });
     activeStop = () => alt.nodes.forEach(n => {
       const custom = (n as any)._customStop;
       if (custom) custom();
