@@ -33,7 +33,7 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 
 ---
 
-## Latest Version : 1.7.1
+## Latest Version : 1.98.0
 
 Check [CHANGELOG.md](CHANGELOG.md) for the version details.
 
