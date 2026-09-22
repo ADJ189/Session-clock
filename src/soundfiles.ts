@@ -108,7 +108,7 @@ export interface FileTrackConfig {
 // update after a push, so bump the tag (@v1 → @v2 → ...) whenever the
 // files in the repo change, and update the constant below to match.
 export const AUDIO_CDN_BASE =
-  'https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v1';
+  'https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v2';
 
 export const FILE_TRACKS: Record<string, FileTrackConfig> = {
   // ── Existing procedural tracks, now preferring the recording ─────────
