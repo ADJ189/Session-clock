@@ -84,14 +84,15 @@ export interface FileTrackConfig {
 // URL, not a secret), that the app falls back gracefully without.
 //
 // Leave this blank and every url below resolves same-origin
-// ('/sounds/rain.opus', served from this repo's own public/sounds/) —
-// the zero-setup default. Point it at jsDelivr instead and the recordings
-// load from there, keeping the 17MB of audio out of this repo's git
-// history entirely. jsDelivr was picked over a paid-tier-risk option
-// (Cloudflare R2 etc.) specifically because it has no billing tier at
-// all for this — it's a free CDN that auto-mirrors any public GitHub
-// repo, and it already sends Access-Control-Allow-Origin: * on every
-// file, so there's no CORS configuration to get right either.
+// ('/opus/nature/wind.opus', served from this repo's own public/opus/) —
+// useful for local dev without network access. Point it at jsDelivr
+// instead (the default below) and the recordings load from there,
+// keeping the ~17MB of audio out of this repo's git history entirely.
+// jsDelivr was picked over a paid-tier-risk option (Cloudflare R2 etc.)
+// specifically because it has no billing tier at all for this — it's a
+// free CDN that auto-mirrors any public GitHub repo, and it already
+// sends Access-Control-Allow-Origin: * on every file, so there's no
+// CORS configuration to get right either.
 //
 // Either way the track still plays: if this is set but a file can't
 // actually be fetched (wrong tag, the second repo renamed, jsDelivr
@@ -100,24 +101,25 @@ export interface FileTrackConfig {
 // misconfigured or temporarily-unreachable CDN degrades the *quality* of
 // the sound, never breaks the track outright.
 //
-// Setup: push the files from public/sounds/ to their own small public
-// GitHub repo (e.g. <you>/session-clock-sounds), tag a release (jsDelivr
-// caches by tag — untagged @main content can take up to 24h to update
-// after a push, so always bump the tag when the files change), then:
-//   export const AUDIO_CDN_BASE =
-//     'https://cdn.jsdelivr.net/gh/<you>/session-clock-sounds@v1';
-export const AUDIO_CDN_BASE = '';
-        'https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v1';
+// Source repo: ADJ189/Ambient-Sounds, files laid out as
+// opus/<category>/<name>.opus (opus/nature/wind.opus, opus/rain/thunder.opus,
+// etc. — see FILE_TRACKS below for the exact paths this app expects).
+// jsDelivr caches by tag — untagged @main content can take up to 24h to
+// update after a push, so bump the tag (@v1 → @v2 → ...) whenever the
+// files in the repo change, and update the constant below to match.
+export const AUDIO_CDN_BASE =
+  'https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v1';
 
 export const FILE_TRACKS: Record<string, FileTrackConfig> = {
   // ── Existing procedural tracks, now preferring the recording ─────────
-  rain:      { url: '/sounds/rain.opus',    crossfadeSec: 2, gainTrim: 0.9,  proceduralFallback: true },
-  fire:      { url: '/sounds/fire.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
-  wind:      { url: '/sounds/wind.opus',    crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
-  forest:    { url: '/sounds/forest.opus',  crossfadeSec: 4, gainTrim: 0.85, proceduralFallback: true },
-  cafe:      { url: '/sounds/cafe.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
-  library:   { url: '/sounds/library.opus', crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
-  waves:     { url: '/sounds/waves.opus',   crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
+  // Paths match ADJ189/Ambient-Sounds's opus/<category>/ layout.
+  rain:      { url: '/opus/rain/rain.opus',      crossfadeSec: 2, gainTrim: 0.9,  proceduralFallback: true },
+  fire:      { url: '/opus/nature/fire.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
+  wind:      { url: '/opus/nature/wind.opus',    crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
+  forest:    { url: '/opus/nature/forest.opus',  crossfadeSec: 4, gainTrim: 0.85, proceduralFallback: true },
+  cafe:      { url: '/opus/places/cafe.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
+  library:   { url: '/opus/places/library.opus', crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
+  waves:     { url: '/opus/nature/waves.opus',   crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
   // ── Recording-only tracks — atomic layers meant to be mixed with the
   // ones above (river under rain, thunder under rain, etc.) rather than
   // pre-combined, matching how both reference apps structure theirs. Most
@@ -126,11 +128,11 @@ export const FILE_TRACKS: Record<string, FileTrackConfig> = {
   // fallback exists, don't grey this out," not which kind. waterfall is
   // the one genuine exception: no ambiently preset is a good match for it,
   // so it really is disabled on a browser without Ogg/Opus support. ─────
-  river:     { url: '/sounds/river.opus',     crossfadeSec: 2, gainTrim: 0.9,  proceduralFallback: true },
-  waterfall: { url: '/sounds/waterfall.opus', crossfadeSec: 2, gainTrim: 0.85 },
-  thunder:   { url: '/sounds/thunder.opus',   crossfadeSec: 4, gainTrim: 0.8,  proceduralFallback: true },
-  night:     { url: '/sounds/night.opus',     crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true }, // crickets
-  birds:     { url: '/sounds/birds.opus',     crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
+  river:     { url: '/opus/nature/river.opus',     crossfadeSec: 2, gainTrim: 0.9,  proceduralFallback: true },
+  waterfall: { url: '/opus/nature/waterfall.opus', crossfadeSec: 2, gainTrim: 0.85 },
+  thunder:   { url: '/opus/rain/thunder.opus',     crossfadeSec: 4, gainTrim: 0.8,  proceduralFallback: true },
+  night:     { url: '/opus/nature/night.opus',     crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true }, // crickets
+  birds:     { url: '/opus/animals/birds.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
 };
 
 export function isFileBackedTrack(id: string): boolean { return id in FILE_TRACKS; }
