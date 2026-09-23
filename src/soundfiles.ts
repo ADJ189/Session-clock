@@ -220,12 +220,38 @@ class GaplessLoopPlayer {
       // CORS mode set AND the response actually carries an
       // Access-Control-Allow-Origin header (jsDelivr always sends one; a
       // same-origin '/sounds/...' request ignores this attribute entirely,
-      // so it's harmless to set unconditionally).
+      // so it's harmless to set unconditionally). Must be set before `src`
+      // (below, per-element) or the browser may have already started a
+      // non-CORS request by the time this runs.
       el.crossOrigin = 'anonymous';
-      el.src = AUDIO_CDN_BASE + cfg.url;
+      // NOTE: `src` is deliberately NOT set here — see the two call sites
+      // below (`this.els[this.active].src = ...` in the constructor body,
+      // and the lazy assignment in primeOther()). Setting it on both
+      // elements unconditionally at construction meant every track start
+      // fired two simultaneous CDN fetches instead of one, for no benefit
+      // (the backup element isn't needed until close to the first
+      // crossfade) — doubles initial bandwidth on every visitor, worse on
+      // save-data/metered connections, and a transient failure on that
+      // still-idle backup request used to be indistinguishable from the
+      // active element actually being unavailable (see the 'error'
+      // listener below), incorrectly killing an otherwise-healthy track.
       el.addEventListener('playing', () => { this.everPlayed = true; });
       el.addEventListener('error', () => {
-        if (this.stopped || this.everPlayed) return; // a blip after real playback, not an outage — leave it
+        if (this.stopped) return;
+        const isActiveEl = this.els[this.active] === el;
+        if (!isActiveEl) {
+          // The backup element failed to (re)load while just idling —
+          // not fatal by itself, since the active element may well be
+          // playing fine. Log it for diagnosis and leave it: primeOther()
+          // already retries on idle time, crossfade()'s own 'canplay'
+          // wait retries again right before it's actually needed, and the
+          // outgoing element's natural 'ended' → hardSwap() below is the
+          // safety net if the backup is still genuinely dead by then.
+          console.warn(`[SessionClock] backup recording failed to load (${cfg.url}):`, el.error?.message || el.error);
+          return;
+        }
+        if (this.everPlayed) return; // a blip after real playback, not an outage — leave it
+        console.warn(`[SessionClock] recording unavailable, falling back (${AUDIO_CDN_BASE + cfg.url}):`, el.error?.message || el.error);
         this.stop();
         this.onUnavailable?.();
       });
@@ -239,6 +265,10 @@ class GaplessLoopPlayer {
       return el;
     };
     this.els = [make(), make()];
+    // Only the element about to actually play fetches immediately; the
+    // other one is primed lazily (see primeOther()) once there's idle time
+    // and it's actually going to be needed soon.
+    this.els[this.active].src = AUDIO_CDN_BASE + cfg.url;
     this.srcNodes = [ctx.createMediaElementSource(this.els[0]), ctx.createMediaElementSource(this.els[1])];
     this.gains = [ctx.createGain(), ctx.createGain()];
     this.gains[0].gain.value = 0;
@@ -287,7 +317,17 @@ class GaplessLoopPlayer {
    *  user is actively doing. */
   private primeOther(): void {
     const other = this.els[1 - this.active];
-    const warm = () => { if (!this.stopped) { try { other.load(); } catch { /* ignore */ } } };
+    const warm = () => {
+      if (this.stopped) return;
+      try {
+        // First time this element is used: it was constructed with no
+        // `src` at all (see the constructor) specifically so it doesn't
+        // compete with the active element's fetch at track start — assign
+        // it now, on idle time, instead.
+        if (!other.src) other.src = AUDIO_CDN_BASE + this.cfg.url;
+        other.load();
+      } catch { /* ignore */ }
+    };
     if (FEATURES.requestIdleCallback) (window as any).requestIdleCallback(warm, { timeout: 4000 });
     else setTimeout(warm, 1500);
   }
@@ -340,6 +380,11 @@ class GaplessLoopPlayer {
     const to: 0 | 1 = from === 0 ? 1 : 0;
     const toEl = this.els[to];
 
+    // Belt-and-suspenders: primeOther() assigns this element's `src` on
+    // idle time, which on a very short recording could in principle not
+    // have run yet by the first crossfade — make sure it's actually set
+    // before asking it to play.
+    if (!toEl.src) toEl.src = AUDIO_CDN_BASE + this.cfg.url;
     toEl.currentTime = 0;
     this.attemptPlay(toEl); // triggers loading even under preload:'none'
 
@@ -445,6 +490,7 @@ class GaplessLoopPlayer {
     this.gains[from].gain.setValueAtTime(0, now);
     this.gains[to].gain.cancelScheduledValues(now);
     this.gains[to].gain.setValueAtTime(1, now);
+    if (!this.els[to].src) this.els[to].src = AUDIO_CDN_BASE + this.cfg.url; // see crossfade()'s identical guard
     this.els[to].currentTime = 0;
     this.attemptPlay(this.els[to]);
     this.active = to;

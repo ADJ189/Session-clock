@@ -191,6 +191,7 @@ function startTimer() {
 function pauseTimer() {
   sessionRunning = false;
   sessionElapsed = performance.now() - sessionStart;
+  if (Pom.isActive()) Pom.onPause(); // accumulate phase progress or the next startTimer()'s Pom.onStart() has nothing to resume from — see pomodoro.ts
   document.body.classList.remove('session-running');
   Features.updateButtonLabels('paused', Pom.getPhase(), Pom.isActive(), DOM.btnStart as HTMLButtonElement);
   Features.setStatusState('paused');

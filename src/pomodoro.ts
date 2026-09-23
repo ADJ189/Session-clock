@@ -12,6 +12,13 @@ let settings: PomodoroSettings = { ...defaults };
 let active = false;
 let phase: PomPhase = 'work';
 let phaseStart = 0;
+// Ms already spent in the *current* phase, accumulated across previous
+// run segments — i.e. whatever was elapsed as of the last pause. Mirrors
+// how main.ts's own sessionElapsed/sessionStart pair survives a pause;
+// without this, onStart() resetting phaseStart to "now" on every resume
+// (see onStart() below) had no record of pre-pause progress to preserve,
+// so resuming looked identical to starting the phase over from scratch.
+let phaseElapsedBeforeSegment = 0;
 let pomCount = 0;
 
 // External refs set by main
@@ -68,6 +75,7 @@ function nextPhase() {
     phase = (pomCount % settings.longBreakAfter === 0) ? 'longBreak' : 'break';
   } else { phase = 'work'; }
   phaseStart = performance.now();
+  phaseElapsedBeforeSegment = 0; // genuine new phase — nothing carried over
   const labels: Record<PomPhase, string> = { work: '🍅 Work', break: '☕ Break', longBreak: '💤 Long Break' };
   pillEl && (pillEl.textContent = labels[phase]);
   onPhaseChange?.(labels[phase]);
@@ -77,7 +85,7 @@ function nextPhase() {
 export function tick(now: number) {
   if (!active || !sessionRunning()) return;
   const tot = totalMs();
-  const elapsed = now - phaseStart;
+  const elapsed = phaseElapsedBeforeSegment + (now - phaseStart);
   const rem = Math.max(0, tot - elapsed);
   updateRing(rem, tot);
   const ms = rem;
@@ -87,10 +95,25 @@ export function tick(now: number) {
   if (rem <= 0 && sessionRunning()) nextPhase();
 }
 
+// Called on both a genuine phase start and a resume-from-pause — main.ts's
+// startTimer() doesn't distinguish the two, so this can't either. That's
+// fine: phaseElapsedBeforeSegment already holds 0 on a real fresh phase
+// (set by nextPhase()/reset()) and the real accumulated total on a resume
+// (set by onPause() below), so simply re-anchoring phaseStart to now and
+// letting tick()'s phaseElapsedBeforeSegment + (now - phaseStart) do the
+// rest is correct either way.
 export function onStart() { phaseStart = performance.now(); }
 
+// Mirrors main.ts's own pauseTimer() (sessionElapsed = now - sessionStart)
+// — must be called from there whenever a session pauses, or a resume has
+// nothing to add back and looks exactly like restarting the phase.
+export function onPause() {
+  if (!active || !phaseStart) return;
+  phaseElapsedBeforeSegment += performance.now() - phaseStart;
+}
+
 export function reset() {
-  phase = 'work'; phaseStart = 0; pomCount = 0;
+  phase = 'work'; phaseStart = 0; phaseElapsedBeforeSegment = 0; pomCount = 0;
   updateRing(0, 0);
 }
 
@@ -122,9 +145,8 @@ export function todayCount(): number {
 export function getPhase(): import('./types').PomPhase { return phase; }
 export function getRemainingSeconds(): number {
   if (!active || !phaseStart) return 0;
-  const elapsed = performance.now() - phaseStart;
-  const total = (phase === 'work' ? settings.workMins : phase === 'break' ? settings.breakMins : settings.longBreakMins) * 60_000;
-  return Math.max(0, Math.round((total - elapsed) / 1000));
+  const elapsed = phaseElapsedBeforeSegment + (performance.now() - phaseStart);
+  return Math.max(0, Math.round((totalMs() - elapsed) / 1000));
 }
 export function setWorkMins(mins: number) {
   settings.workMins = Math.max(1, Math.min(120, mins));
