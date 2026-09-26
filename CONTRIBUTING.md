@@ -61,6 +61,7 @@ Every integration is opt-in and stores tokens client-side only (see
 `src/integrations.ts` for the storage model). Two patterns are used:
 
 **Public client (no secret, works from any deployment):**
+
 - **Spotify** — Authorization Code + PKCE. Create an app at
   [developer.spotify.com](https://developer.spotify.com/dashboard),
   add `http://localhost:5173/` (dev) and your production URL as
@@ -87,9 +88,9 @@ enable one of these providers:
      `origin + pathname` as the redirect URI for every provider, so
      dev and prod need separate Client IDs registered with their own
      matching redirect URI, same as every other provider here).
-   Also enable the **YouTube Data API v3** and **Google Calendar API**
-   for the project under APIs & Services → Library — the OAuth consent
-   screen won't let you request their scopes otherwise.
+     Also enable the **YouTube Data API v3** and **Google Calendar API**
+     for the project under APIs & Services → Library — the OAuth consent
+     screen won't let you request their scopes otherwise.
 2. Set the Client ID and secret as Pages secrets:
    ```bash
    npx wrangler pages secret put NOTION_CLIENT_ID
