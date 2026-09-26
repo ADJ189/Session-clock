@@ -61,7 +61,6 @@ Every integration is opt-in and stores tokens client-side only (see
 `src/integrations.ts` for the storage model). Two patterns are used:
 
 **Public client (no secret, works from any deployment):**
-
 - **Spotify** — Authorization Code + PKCE. Create an app at
   [developer.spotify.com](https://developer.spotify.com/dashboard),
   add `http://localhost:5173/` (dev) and your production URL as
@@ -88,9 +87,9 @@ enable one of these providers:
      `origin + pathname` as the redirect URI for every provider, so
      dev and prod need separate Client IDs registered with their own
      matching redirect URI, same as every other provider here).
-     Also enable the **YouTube Data API v3** and **Google Calendar API**
-     for the project under APIs & Services → Library — the OAuth consent
-     screen won't let you request their scopes otherwise.
+   Also enable the **YouTube Data API v3** and **Google Calendar API**
+   for the project under APIs & Services → Library — the OAuth consent
+   screen won't let you request their scopes otherwise.
 2. Set the Client ID and secret as Pages secrets:
    ```bash
    npx wrangler pages secret put NOTION_CLIENT_ID
@@ -100,6 +99,18 @@ enable one of these providers:
 3. Redeploy. A provider with no secret configured returns a clear
    "not configured" error and the app falls back to its manual
    token-paste option, so nothing breaks if you skip this.
+
+Google's in-app card is the one exception to "one app per deployment,
+configured by whoever runs it": since it genuinely lets a visitor
+register and use *their own* Google Cloud project instead of the
+site's, its "use your own app" form asks for both a Client ID **and**
+Client Secret (Google's Web-application client type issues a secret —
+there's no PKCE-only public-client option that still allows an
+arbitrary HTTPS redirect URI). That secret is sent once, straight
+through the same stateless proxy function, and otherwise lives only in
+that visitor's own browser. Notion/GitHub/Todoist/Linear don't offer
+this per-visitor option at all — their in-app forms always target
+whatever single app this deployment has configured via step 2 above.
 
 For local dev without Pages Functions running, use `npx wrangler pages
 dev dist` instead of plain `vite preview` so `/api/*` routes resolve —
