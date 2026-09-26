@@ -18,6 +18,11 @@ export function mountSideStack(container: HTMLElement): void {
   refreshTimer = window.setInterval(refresh, REFRESH_MS);
 }
 
+/** Exposed for main.ts to force an immediate refresh right after a
+ *  successful OAuth round-trip (e.g. Google/Calendar), instead of
+ *  waiting up to REFRESH_MS for the next scheduled tick. */
+export function refreshNow(): Promise<void> { return refresh(); }
+
 async function refresh(): Promise<void> {
   if (!stackEl) return;
   const cards: string[] = [];

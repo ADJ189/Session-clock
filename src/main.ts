@@ -4198,9 +4198,8 @@ function init() {
   SideTasks.mountSideStack(sidebar);
   if (Integrations.isSpotifyConnected()) MusicDock.initSpotifyPlayback();
   // Handle OAuth redirect callbacks — one handler for every provider
-  // (Spotify, Notion, GitHub, Todoist, Linear all land here with
-  // ?code=&state=<provider>:<nonce>; Google's token-model flow never
-  // redirects, so it isn't handled here).
+  // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here
+  // with ?code=&state=<provider>:<nonce>).
   if (window.location.search.includes('code=')) {
     Integrations.oauthHandleCallback().then((result) => {
       if (result) {
@@ -4211,6 +4210,12 @@ function init() {
         // the redirect) — bring it up now instead of waiting for the
         // user to reload the page themselves to see anything play.
         if (result.provider === 'spotify') MusicDock.initSpotifyPlayback().then(() => MusicDock.refreshDockConnectionState());
+        // Same reasoning for Google: the "Connect YouTube" click that
+        // started this round-trip happened on the *previous* page
+        // load, so its own continuation code never runs here — resume
+        // it manually, and refresh the Calendar side-card immediately
+        // instead of waiting for its next 60s poll.
+        if (result.provider === 'google') { MusicDock.refreshYouTubeConnectionState(); SideTasks.refreshNow(); }
       }
       if (intContent) Integrations.buildIntegrationsPanel(intContent, { showToast });
     });

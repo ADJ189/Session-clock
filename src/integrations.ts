@@ -5,17 +5,20 @@
 // Two auth patterns are used, per provider:
 //  • DIRECT (Spotify): Authorization Code + PKCE, public client. The
 //    browser talks to Spotify's token endpoint itself — no secret exists.
-//  • Google (YouTube + Calendar): Google Identity Services "token model".
-//    The browser gets a short-lived access token directly — no secret,
-//    no server round-trip, but no refresh token either (re-prompts
-//    silently when it expires).
-//  • PROXIED (Notion, GitHub, Todoist, Linear): these providers only
-//    issue "confidential client" credentials, i.e. a client secret that
-//    must never ship to the browser. The code exchange goes through the
-//    tiny same-origin Cloudflare Pages Function in
+//  • PROXIED (Notion, GitHub, Todoist, Linear, Google): these providers
+//    only issue "confidential client" credentials, i.e. a client secret
+//    that must never ship to the browser. The code exchange goes
+//    through the tiny same-origin Cloudflare Pages Function in
 //    /functions/api/oauth/token.ts, which holds the secret as a Worker
 //    env var and passes tokens straight through — it stores nothing.
 //    See CONTRIBUTING.md for how to configure client IDs/secrets.
+//    Google (YouTube + Calendar) used to run on Google Identity
+//    Services' "token model" popup instead — no redirect URI, no
+//    secret, but also no refresh token (silent re-prompt on expiry).
+//    It's now the real Authorization Code flow like the others above,
+//    so it needs an Authorized redirect URI registered in Google Cloud
+//    Console (see googleSelfHostNodes() below) and yields a real
+//    refresh_token.
 // Each integration is opt-in and can be disconnected any time. A manual
 // token-paste fallback remains available for anyone who'd rather not
 // register an OAuth app at all.
@@ -92,6 +95,8 @@ function pkceVerifier(length = 64): string {
 // ─────────────────────────────────────────────────────────────────────
 const OAUTH_PROXY = '/api/oauth/token';
 const SPOTIFY_SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private';
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/calendar.readonly';
+const GOOGLE_CLIENT_ID_KEY = 'sc_google_client_id';
 
 interface OAuthProviderConfig {
   authorizeUrl: string;
@@ -134,6 +139,19 @@ const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     tokenUrl: '', scope: 'read',
     clientIdKey: 'sc_linear_client_id',
     direct: false,
+  },
+  google: {
+    authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenUrl: '', scope: GOOGLE_SCOPES,
+    clientIdKey: GOOGLE_CLIENT_ID_KEY,
+    direct: false,
+    // access_type=offline + prompt=consent is what actually gets a
+    // refresh_token back from Google — without both, a returning user
+    // only ever gets a short-lived access token again (Google only
+    // issues a refresh_token on the *first* consent unless prompt is
+    // forced). include_granted_scopes lets YouTube + Calendar be
+    // connected incrementally without re-consenting to both every time.
+    extraAuthParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' },
   },
 };
 
@@ -271,52 +289,17 @@ export async function spotifyNowPlaying(): Promise<{ track: string; artist: stri
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// GOOGLE (shared by YouTube + Calendar) — Google Identity Services
-// ─────────────────────────────────────────────────────────────────────
-// Uses GIS's "token client" model: the browser gets a short-lived access
-// token directly, with no client secret and no server round-trip. There
-// is no refresh token in this model — ensureFreshGoogleToken() silently
-// re-requests one (no popup shown if the user is still signed in).
-const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/calendar.readonly';
-const GOOGLE_CLIENT_ID_KEY = 'sc_google_client_id';
-
-let gisLoad: Promise<void> | null = null;
-function loadGIS(): Promise<void> {
-  if (gisLoad) return gisLoad;
-  gisLoad = new Promise((resolve, reject) => {
-    if ((window as any).google?.accounts?.oauth2) { resolve(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true; s.defer = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
-    document.head.appendChild(s);
-  });
-  return gisLoad;
-}
-
-export async function googleLogin(clientId: string): Promise<boolean> {
-  const safeId = clientId.trim();
-  if (!safeId) return false;
-  localStorage.setItem(GOOGLE_CLIENT_ID_KEY, safeId);
-  try {
-    await loadGIS();
-  } catch { return false; }
-  return new Promise((resolve) => {
-    const client = (window as any).google.accounts.oauth2.initTokenClient({
-      client_id: safeId,
-      scope: GOOGLE_SCOPES,
-      callback: (resp: any) => {
-        if (resp?.access_token) {
-          save('google', { token: resp.access_token, expires: String(Date.now() + resp.expires_in * 1000) });
-          resolve(true);
-        } else resolve(false);
-      },
-    });
-    client.requestAccessToken();
-  });
-}
-
+// GOOGLE (shared by YouTube + Calendar) — Authorization Code + PKCE,
+// proxied through /api/oauth/token, exactly like Notion/GitHub/Todoist/
+// Linear above (see OAUTH_PROVIDERS['google'] for the auth-URL config).
+// This is a full-page redirect, not a popup: calling googleLogin()
+// navigates the browser away immediately, so nothing after that call
+// runs on this page load — the round-trip is picked up by
+// oauthHandleCallback() on the next load, same as every other proxied
+// provider. Callers that need to resume something afterward (the
+// YouTube library panel, the calendar side-card) do it in main.ts's
+// oauthHandleCallback().then() handler, not inline after the call.
+export const googleLogin = (clientId: string) => oauthLogin('google', clientId);
 export function isGoogleConnected(): boolean { return !!load('google')?.token; }
 
 export function disconnectGoogle() {
@@ -324,14 +307,12 @@ export function disconnectGoogle() {
   localStorage.removeItem(GOOGLE_CLIENT_ID_KEY);
 }
 
-async function ensureFreshGoogleToken(): Promise<string | null> {
-  const creds = load('google');
-  if (!creds?.token) return null;
-  if (Date.now() < Number(creds.expires) - 60_000) return creds.token;
-  const clientId = localStorage.getItem(GOOGLE_CLIENT_ID_KEY);
-  if (!clientId) return null;
-  const ok = await googleLogin(clientId);
-  return ok ? load('google')?.token ?? null : null;
+// Thin alias so the YouTube/Calendar call sites below don't need to
+// know the provider is generically handled — uses the shared
+// refresh-token path (ensureFreshToken) since Google now issues real
+// refresh tokens (see access_type/prompt in OAUTH_PROVIDERS above).
+function ensureFreshGoogleToken(): Promise<string | null> {
+  return ensureFreshToken('google');
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -794,8 +775,8 @@ function googleSetupNodes(cb: IntegrationPanelCallbacks, forFeature: string): HT
   if (DEFAULT_GOOGLE_CLIENT_ID) {
     const btn = connectBtn(`Connect Google for ${forFeature}`);
     btn.addEventListener('click', async () => {
-      const ok = await googleLogin(DEFAULT_GOOGLE_CLIENT_ID);
-      cb.showToast(ok ? '✅ Google connected' : 'Google sign-in failed or was cancelled');
+      btn.textContent = 'Connecting…';
+      await googleLogin(DEFAULT_GOOGLE_CLIENT_ID); // redirects away — nothing after this line runs
     });
     const selfHostSlot = document.createElement('div');
     const toggle = manualTokenToggle(() => selfHostSlot.append(...googleSelfHostNodes(cb, forFeature)));
@@ -804,8 +785,11 @@ function googleSetupNodes(cb: IntegrationPanelCallbacks, forFeature: string): HT
   return googleSelfHostNodes(cb, forFeature);
 }
 
+// "cb" is unused here (no toast can show — the page navigates away
+// before one would render) but kept in the signature for symmetry with
+// every other *SelfHostNodes/*SelfHostForm helper in this file.
 function googleSelfHostNodes(cb: IntegrationPanelCallbacks, forFeature: string): HTMLElement[] {
-  const p = para(`Create an OAuth Client ID (type "Web application") at console.cloud.google.com → Credentials, add this exact Authorized redirect URI, then paste the Client ID:`);
+  const p = para(`Create an OAuth Client ID (type "Web application") at console.cloud.google.com → APIs & Services → Credentials, enable the YouTube Data API v3 and Google Calendar API for the project, add this exact Authorized redirect URI, then paste the Client ID:`);
   const code = codeLine(redirectUri());
   const inp = input('Client ID', 'text');
   inp.value = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) ?? '';
@@ -813,8 +797,8 @@ function googleSelfHostNodes(cb: IntegrationPanelCallbacks, forFeature: string):
   btn.addEventListener('click', async () => {
     const id = inp.value.trim();
     if (!id) { cb.showToast('Enter a Client ID first'); return; }
-    const ok = await googleLogin(id);
-    cb.showToast(ok ? '✅ Google connected' : 'Google sign-in failed or was cancelled');
+    btn.textContent = 'Connecting…';
+    await googleLogin(id); // redirects away — nothing after this line runs
   });
   return [p, code, inp, btn];
 }

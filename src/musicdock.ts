@@ -518,6 +518,21 @@ export function refreshDockConnectionState(root?: HTMLElement): void {
   }
 }
 
+/** Called from main.ts right after a successful Google OAuth
+ *  round-trip. Google now uses the same full-page-redirect Authorization
+ *  Code flow as Spotify (see integrations.ts), so — same reasoning as
+ *  refreshDockConnectionState() above — the token lands *after* this
+ *  module's initial mount, and loadYouTubeLibrary()'s own continuation
+ *  code never runs on this page load because the connect click that
+ *  started the flow happened on the *previous* page load, before the
+ *  redirect. Re-check every mounted dock and load the library if it's
+ *  connected now. */
+export function refreshYouTubeConnectionState(): void {
+  const roots = [dockEl, pipWindow?.document.querySelector('.sc-music-dock') as HTMLElement | null].filter(Boolean) as HTMLElement[];
+  if (!Integrations.isYouTubeConnected()) return;
+  for (const r of roots) loadYouTubeLibrary(r);
+}
+
 /** Fetches the signed-in user's Liked videos + own playlists via the
  *  official YouTube Data API (see integrations.ts) and renders them as
  *  a clickable library list. Clicking an item hands its video/playlist
@@ -538,9 +553,8 @@ async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
       || DEFAULT_GOOGLE_CLIENT_ID
       || prompt('Google OAuth client ID (from Google Cloud Console — see wiki for setup):')?.trim();
     if (!clientId) { if (connectBtn) connectBtn.textContent = 'Connect YouTube'; return; }
-    const ok = await Integrations.googleLogin(clientId);
-    if (connectBtn) connectBtn.textContent = 'Connect YouTube';
-    if (!ok) return;
+    await Integrations.googleLogin(clientId); // redirects away — nothing after this line runs
+    return;
   }
 
   if (connectRow) connectRow.classList.add('sc-hidden');
