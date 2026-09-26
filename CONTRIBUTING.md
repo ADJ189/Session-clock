@@ -66,27 +66,35 @@ Every integration is opt-in and stores tokens client-side only (see
   add `http://localhost:5173/` (dev) and your production URL as
   Redirect URIs, and paste the Client ID into the app's Integrations
   panel. No further setup needed.
-- **Google (YouTube + Calendar)** — Google Identity Services token
-  model. Create an OAuth Client ID of type "Web application" at
-  [console.cloud.google.com](https://console.cloud.google.com/apis/credentials),
-  add your origin under Authorized JavaScript origins and redirect URI,
-  paste the Client ID into the panel. Also no secret involved.
 
 **Confidential client (needs a secret — requires the proxy function):**
-Notion, GitHub, Todoist, and Linear only issue OAuth apps with a client
-secret. That secret can never ship to the browser, so the code exchange
-goes through `functions/api/oauth/token.ts`, a small Cloudflare Pages
-Function that's part of this repo and deploys automatically alongside
-the static site (see `wrangler.jsonc`). To enable one of these
-providers:
+Notion, GitHub, Todoist, Linear, and Google only issue OAuth apps with
+a client secret. That secret can never ship to the browser, so the code
+exchange goes through `functions/api/oauth/token.ts`, a small
+Cloudflare Pages Function that's part of this repo and deploys
+automatically alongside the static site (see `wrangler.jsonc`). To
+enable one of these providers:
 
 1. Register an OAuth app with the provider (see the in-app setup text
    for each card, which lists the exact page and required redirect URI).
+   For Google specifically: [console.cloud.google.com](https://console.cloud.google.com/apis/credentials)
+   → **Create Credentials → OAuth client ID → Web application**, then
+   under **Authorized redirect URIs** add both:
+   - `http://localhost:5173/` (dev)
+   - your production URL, exactly as shown live in the app's
+     Settings → Integrations → YouTube/Calendar card (same value the
+     other providers' cards show — this app always uses
+     `origin + pathname` as the redirect URI for every provider, so
+     dev and prod need separate Client IDs registered with their own
+     matching redirect URI, same as every other provider here).
+   Also enable the **YouTube Data API v3** and **Google Calendar API**
+   for the project under APIs & Services → Library — the OAuth consent
+   screen won't let you request their scopes otherwise.
 2. Set the Client ID and secret as Pages secrets:
    ```bash
    npx wrangler pages secret put NOTION_CLIENT_ID
    npx wrangler pages secret put NOTION_CLIENT_SECRET
-   # same pattern for GITHUB_, TODOIST_, LINEAR_
+   # same pattern for GITHUB_, TODOIST_, LINEAR_, GOOGLE_
    ```
 3. Redeploy. A provider with no secret configured returns a clear
    "not configured" error and the app falls back to its manual
