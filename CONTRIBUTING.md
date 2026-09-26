@@ -61,36 +61,64 @@ Every integration is opt-in and stores tokens client-side only (see
 `src/integrations.ts` for the storage model). Two patterns are used:
 
 **Public client (no secret, works from any deployment):**
+
 - **Spotify** — Authorization Code + PKCE. Create an app at
   [developer.spotify.com](https://developer.spotify.com/dashboard),
   add `http://localhost:5173/` (dev) and your production URL as
   Redirect URIs, and paste the Client ID into the app's Integrations
   panel. No further setup needed.
-- **Google (YouTube + Calendar)** — Google Identity Services token
-  model. Create an OAuth Client ID of type "Web application" at
-  [console.cloud.google.com](https://console.cloud.google.com/apis/credentials),
-  add your origin under Authorized JavaScript origins and redirect URI,
-  paste the Client ID into the panel. Also no secret involved.
 
 **Confidential client (needs a secret — requires the proxy function):**
-Notion, GitHub, Todoist, and Linear only issue OAuth apps with a client
-secret. That secret can never ship to the browser, so the code exchange
-goes through `functions/api/oauth/token.ts`, a small Cloudflare Pages
-Function that's part of this repo and deploys automatically alongside
-the static site (see `wrangler.jsonc`). To enable one of these
-providers:
+Notion, GitHub, Todoist, Linear, and Google only issue OAuth apps with
+a client secret. That secret can never ship to the browser, so the code
+exchange goes through `functions/api/oauth/token.ts`, a small
+Cloudflare Pages Function that's part of this repo and deploys
+automatically alongside the static site (see `wrangler.jsonc`). To
+enable one of these providers:
 
 1. Register an OAuth app with the provider (see the in-app setup text
    for each card, which lists the exact page and required redirect URI).
+   For Google specifically: [console.cloud.google.com](https://console.cloud.google.com/apis/credentials)
+   → **Create Credentials → OAuth client ID → Web application**, then
+   under **Authorized redirect URIs** add both:
+   - `http://localhost:5173/` (dev)
+   - your production URL, exactly as shown live in the app's
+     Settings → Integrations → YouTube/Calendar card (same value the
+     other providers' cards show — this app always uses
+     `origin + pathname` as the redirect URI for every provider, so
+     dev and prod need separate Client IDs registered with their own
+     matching redirect URI, same as every other provider here).
+     Also enable the **YouTube Data API v3** and **Google Calendar API**
+     for the project under APIs & Services → Library — the OAuth consent
+     screen won't let you request their scopes otherwise.
 2. Set the Client ID and secret as Pages secrets:
    ```bash
    npx wrangler pages secret put NOTION_CLIENT_ID
    npx wrangler pages secret put NOTION_CLIENT_SECRET
-   # same pattern for GITHUB_, TODOIST_, LINEAR_
+   # same pattern for GITHUB_, TODOIST_, LINEAR_, GOOGLE_
    ```
 3. Redeploy. A provider with no secret configured returns a clear
    "not configured" error and the app falls back to its manual
    token-paste option, so nothing breaks if you skip this.
+
+Google's in-app card asks for a Client ID the same way Spotify's does,
+but it is **not** a "bring your own app" option the way Spotify's is —
+it only works with the Client ID this deployment already has
+configured via step 2 above (that field exists for pasting/confirming
+that ID, e.g. after clearing localStorage). Spotify's public PKCE
+client needs no secret, so the browser can talk to Spotify's token
+endpoint directly with whatever Client ID a visitor pastes; Google's
+Web-application client type is confidential (it issues a secret), so a
+different Client ID would need its own matching secret to complete the
+exchange. An earlier version of this form collected that secret from
+the visitor and stored it in localStorage to make "bring your own app"
+work for Google too — CodeQL flagged that as clear-text storage of
+sensitive data, correctly: unlike a leaked access/refresh token (which
+only exposes one user's session, and is revocable), a leaked OAuth
+client secret can impersonate the whole app. That field was removed
+rather than mitigated. Notion/GitHub/Todoist/Linear were never affected
+by this — their in-app forms always targeted the deployment's single
+configured app already.
 
 For local dev without Pages Functions running, use `npx wrangler pages
 dev dist` instead of plain `vite preview` so `/api/*` routes resolve —

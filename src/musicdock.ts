@@ -34,10 +34,13 @@
 // keys) and offers synced lyrics via LRCLIB (src/lyrics.ts) — the
 // same lyrics source Limusic/Zuno fall back to, browser-native here.
 
-import * as Integrations from './integrations';
-import * as Pom from './pomodoro';
-import { DEFAULT_GOOGLE_CLIENT_ID, DEFAULT_SPOTIFY_CLIENT_ID } from './authconfig';
-import * as Lyrics from './lyrics';
+import * as Integrations from "./integrations";
+import * as Pom from "./pomodoro";
+import {
+  DEFAULT_GOOGLE_CLIENT_ID,
+  DEFAULT_SPOTIFY_CLIENT_ID,
+} from "./authconfig";
+import * as Lyrics from "./lyrics";
 
 let sdkReady: Promise<void> | null = null;
 let player: any = null;
@@ -55,7 +58,14 @@ interface DockState {
   durationMs: number;
 }
 
-const state: DockState = { title: '', artist: '', artUrl: '', isPlaying: false, progressMs: 0, durationMs: 0 };
+const state: DockState = {
+  title: "",
+  artist: "",
+  artUrl: "",
+  isPlaying: false,
+  progressMs: 0,
+  durationMs: 0,
+};
 
 // ─────────────────────────────────────────────────────────────────────
 // SDK bootstrap — loads Spotify's script once, resolves when the
@@ -65,8 +75,8 @@ function loadSpotifySdk(): Promise<void> {
   if (sdkReady) return sdkReady;
   sdkReady = new Promise((resolve) => {
     (window as any).onSpotifyWebPlaybackSDKReady = () => resolve();
-    const s = document.createElement('script');
-    s.src = 'https://sdk.scdn.co/spotify-player.js';
+    const s = document.createElement("script");
+    s.src = "https://sdk.scdn.co/spotify-player.js";
     s.async = true;
     document.head.appendChild(s);
   });
@@ -76,7 +86,7 @@ function loadSpotifySdk(): Promise<void> {
 // Exposed so this stays decoupled from integrations.ts internals — it
 // asks for a fresh token the same way the rest of the app does.
 async function getSpotifyToken(): Promise<string | null> {
-  return Integrations.ensureFreshToken('spotify');
+  return Integrations.ensureFreshToken("spotify");
 }
 
 /**
@@ -91,7 +101,7 @@ export async function initSpotifyPlayback(): Promise<boolean> {
   await loadSpotifySdk();
 
   player = new (window as any).Spotify.Player({
-    name: 'Session Clock',
+    name: "Session Clock",
     getOAuthToken: async (cb: (t: string) => void) => {
       const t = await getSpotifyToken();
       if (t) cb(t);
@@ -99,14 +109,18 @@ export async function initSpotifyPlayback(): Promise<boolean> {
     volume: 0.7,
   });
 
-  player.addListener('ready', ({ device_id }: { device_id: string }) => { deviceId = device_id; });
-  player.addListener('not_ready', () => { deviceId = null; });
-  player.addListener('player_state_changed', (s: any) => {
+  player.addListener("ready", ({ device_id }: { device_id: string }) => {
+    deviceId = device_id;
+  });
+  player.addListener("not_ready", () => {
+    deviceId = null;
+  });
+  player.addListener("player_state_changed", (s: any) => {
     if (!s) return;
     const track = s.track_window?.current_track;
-    state.title = track?.name ?? '';
-    state.artist = (track?.artists ?? []).map((a: any) => a.name).join(', ');
-    state.artUrl = track?.album?.images?.[0]?.url ?? '';
+    state.title = track?.name ?? "";
+    state.artist = (track?.artists ?? []).map((a: any) => a.name).join(", ");
+    state.artUrl = track?.album?.images?.[0]?.url ?? "";
     state.isPlaying = !s.paused;
     state.progressMs = s.position ?? 0;
     state.durationMs = s.duration ?? 0;
@@ -121,9 +135,12 @@ async function transferPlaybackHere(): Promise<void> {
   if (!deviceId) return;
   const token = await getSpotifyToken();
   if (!token) return;
-  await fetch('https://api.spotify.com/v1/me/player', {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  await fetch("https://api.spotify.com/v1/me/player", {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ device_ids: [deviceId], play: true }),
   });
 }
@@ -136,33 +153,50 @@ export async function togglePlay(): Promise<void> {
   if (!deviceId) return;
   await player.togglePlay();
 }
-export async function next(): Promise<void> { if (player) await player.nextTrack(); }
-export async function prev(): Promise<void> { if (player) await player.previousTrack(); }
-export async function seek(ms: number): Promise<void> { if (player) await player.seek(ms); }
+export async function next(): Promise<void> {
+  if (player) await player.nextTrack();
+}
+export async function prev(): Promise<void> {
+  if (player) await player.previousTrack();
+}
+export async function seek(ms: number): Promise<void> {
+  if (player) await player.seek(ms);
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Focus-session sync — call from pomodoro.ts on phase changes.
 // Deliberately opt-in: only acts if the user has connected Spotify AND
 // enabled "auto-play with focus sessions" (persisted flag below).
 // ─────────────────────────────────────────────────────────────────────
-const AUTOSYNC_KEY = 'sc_music_autosync';
-export function isAutoSyncEnabled(): boolean { return localStorage.getItem(AUTOSYNC_KEY) === '1'; }
-export function setAutoSyncEnabled(v: boolean): void { localStorage.setItem(AUTOSYNC_KEY, v ? '1' : '0'); }
+const AUTOSYNC_KEY = "sc_music_autosync";
+export function isAutoSyncEnabled(): boolean {
+  return localStorage.getItem(AUTOSYNC_KEY) === "1";
+}
+export function setAutoSyncEnabled(v: boolean): void {
+  localStorage.setItem(AUTOSYNC_KEY, v ? "1" : "0");
+}
 
 // Mini-player "capsule" mode (see .sc-music-dock--capsule in style.css,
 // inspired by Zuno's morphing capsule mini player) — collapses the dock
 // to just artwork, expanding on hover/focus. Persisted like autosync.
-const CAPSULE_KEY = 'sc_music_capsule';
-export function isCapsuleEnabled(): boolean { return localStorage.getItem(CAPSULE_KEY) === '1'; }
-export function setCapsuleEnabled(v: boolean): void { localStorage.setItem(CAPSULE_KEY, v ? '1' : '0'); }
+const CAPSULE_KEY = "sc_music_capsule";
+export function isCapsuleEnabled(): boolean {
+  return localStorage.getItem(CAPSULE_KEY) === "1";
+}
+export function setCapsuleEnabled(v: boolean): void {
+  localStorage.setItem(CAPSULE_KEY, v ? "1" : "0");
+}
 
-export async function notifyFocusPhase(phase: 'work' | 'break' | 'idle', active: boolean): Promise<void> {
+export async function notifyFocusPhase(
+  phase: "work" | "break" | "idle",
+  active: boolean,
+): Promise<void> {
   if (!isAutoSyncEnabled() || !player) return;
-  if (phase === 'work' && active) {
+  if (phase === "work" && active) {
     if (!deviceId) return;
     await transferPlaybackHere();
     await player.resume();
-  } else if (!active || phase === 'break') {
+  } else if (!active || phase === "break") {
     await player.pause();
   }
 }
@@ -174,8 +208,8 @@ export async function notifyFocusPhase(phase: 'work' | 'break' | 'idle', active:
 // back to staying docked everywhere else).
 // ─────────────────────────────────────────────────────────────────────
 export function mountDock(container: HTMLElement): void {
-  dockEl = document.createElement('div');
-  dockEl.className = 'sc-music-dock';
+  dockEl = document.createElement("div");
+  dockEl.className = "sc-music-dock";
   dockEl.innerHTML = dockMarkup();
   container.appendChild(dockEl);
   wireDockEvents(dockEl);
@@ -185,7 +219,10 @@ export function mountDock(container: HTMLElement): void {
   let lastPhase = Pom.getPhase();
   let lastActive = Pom.isActive();
   pollTimer = window.setInterval(() => {
-    if (state.isPlaying) { state.progressMs = Math.min(state.progressMs + 1000, state.durationMs); renderDock(); }
+    if (state.isPlaying) {
+      state.progressMs = Math.min(state.progressMs + 1000, state.durationMs);
+      renderDock();
+    }
 
     // No event bus in pomodoro.ts — cheap polling here keeps this
     // self-contained instead of threading a dependency through the
@@ -193,8 +230,9 @@ export function mountDock(container: HTMLElement): void {
     const phase = Pom.getPhase();
     const active = Pom.isActive();
     if (phase !== lastPhase || active !== lastActive) {
-      lastPhase = phase; lastActive = active;
-      notifyFocusPhase(phase === 'work' ? 'work' : 'break', active);
+      lastPhase = phase;
+      lastActive = active;
+      notifyFocusPhase(phase === "work" ? "work" : "break", active);
     }
   }, 1000);
 }
@@ -265,11 +303,17 @@ let ytPlayers = new WeakMap<HTMLElement, any>();
 function loadYouTubeIframeApi(): Promise<void> {
   if (ytApiReady) return ytApiReady;
   ytApiReady = new Promise((resolve) => {
-    if ((window as any).YT?.Player) { resolve(); return; }
+    if ((window as any).YT?.Player) {
+      resolve();
+      return;
+    }
     const prevCb = (window as any).onYouTubeIframeAPIReady;
-    (window as any).onYouTubeIframeAPIReady = () => { prevCb?.(); resolve(); };
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
+    (window as any).onYouTubeIframeAPIReady = () => {
+      prevCb?.();
+      resolve();
+    };
+    const s = document.createElement("script");
+    s.src = "https://www.youtube.com/iframe_api";
     document.head.appendChild(s);
   });
   return ytApiReady;
@@ -278,33 +322,48 @@ function loadYouTubeIframeApi(): Promise<void> {
 function extractYouTubeId(url: string): { videoId?: string; listId?: string } {
   try {
     const u = new URL(url);
-    const listId = u.searchParams.get('list') ?? undefined;
-    const videoId = u.searchParams.get('v') ?? (u.hostname === 'youtu.be' ? u.pathname.slice(1) : undefined);
+    const listId = u.searchParams.get("list") ?? undefined;
+    const videoId =
+      u.searchParams.get("v") ??
+      (u.hostname === "youtu.be" ? u.pathname.slice(1) : undefined);
     return { videoId, listId };
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 }
 
 /** Live YouTube "now playing" info, driven off the official player's own
  *  events — never scraped, never fetched via an unofficial endpoint. */
-interface YtNowPlaying { title: string; channel: string; videoId: string; isPlaying: boolean; }
+interface YtNowPlaying {
+  title: string;
+  channel: string;
+  videoId: string;
+  isPlaying: boolean;
+}
 const ytNowPlaying = new WeakMap<HTMLElement, YtNowPlaying>();
 
 function renderYtBanner(root: HTMLElement): void {
   const info = ytNowPlaying.get(root);
   const banner = root.querySelector<HTMLElement>('[data-role="yt-banner"]');
   if (!banner) return;
-  if (!info) { banner.classList.add('sc-hidden'); return; }
-  banner.classList.remove('sc-hidden');
+  if (!info) {
+    banner.classList.add("sc-hidden");
+    return;
+  }
+  banner.classList.remove("sc-hidden");
   const art = banner.querySelector<HTMLElement>('[data-role="yt-art"]');
   const title = banner.querySelector<HTMLElement>('[data-role="yt-title"]');
   const channel = banner.querySelector<HTMLElement>('[data-role="yt-channel"]');
   const playBtn = banner.querySelector<HTMLElement>('[data-role="yt-play"]');
   // hqdefault.jpg is YouTube's own public thumbnail CDN for the video ID —
   // same URL pattern <iframe>/oEmbed markup already exposes, not scraped.
-  if (art) art.style.backgroundImage = info.videoId ? `url(https://i.ytimg.com/vi/${info.videoId}/hqdefault.jpg)` : '';
-  if (title) title.textContent = info.title || 'Loading…';
-  if (channel) channel.textContent = info.channel || '';
-  if (playBtn) playBtn.textContent = info.isPlaying ? '⏸' : '▶';
+  if (art)
+    art.style.backgroundImage = info.videoId
+      ? `url(https://i.ytimg.com/vi/${info.videoId}/hqdefault.jpg)`
+      : "";
+  if (title) title.textContent = info.title || "Loading…";
+  if (channel) channel.textContent = info.channel || "";
+  if (playBtn) playBtn.textContent = info.isPlaying ? "⏸" : "▶";
   updateYtMediaSession(root, info);
 }
 
@@ -314,17 +373,29 @@ function updateYtMediaSession(root: HTMLElement, info: YtNowPlaying): void {
   ms.metadata = new (window as any).MediaMetadata({
     title: info.title,
     artist: info.channel,
-    artwork: info.videoId ? [{ src: `https://i.ytimg.com/vi/${info.videoId}/hqdefault.jpg`, sizes: '480x360', type: 'image/jpeg' }] : [],
+    artwork: info.videoId
+      ? [
+          {
+            src: `https://i.ytimg.com/vi/${info.videoId}/hqdefault.jpg`,
+            sizes: "480x360",
+            type: "image/jpeg",
+          },
+        ]
+      : [],
   });
-  ms.playbackState = info.isPlaying ? 'playing' : 'paused';
+  ms.playbackState = info.isPlaying ? "playing" : "paused";
   const p = ytPlayers.get(root);
   try {
-    ms.setActionHandler('play', () => p?.playVideo?.());
-    ms.setActionHandler('pause', () => p?.pauseVideo?.());
-    ms.setActionHandler('previoustrack', () => p?.previousVideo?.());
-    ms.setActionHandler('nexttrack', () => p?.nextVideo?.());
-    ms.setActionHandler('seekto', (d: { seekTime?: number }) => { if (typeof d.seekTime === 'number') p?.seekTo?.(d.seekTime, true); });
-  } catch { /* best-effort */ }
+    ms.setActionHandler("play", () => p?.playVideo?.());
+    ms.setActionHandler("pause", () => p?.pauseVideo?.());
+    ms.setActionHandler("previoustrack", () => p?.previousVideo?.());
+    ms.setActionHandler("nexttrack", () => p?.nextVideo?.());
+    ms.setActionHandler("seekto", (d: { seekTime?: number }) => {
+      if (typeof d.seekTime === "number") p?.seekTo?.(d.seekTime, true);
+    });
+  } catch {
+    /* best-effort */
+  }
 }
 
 /** Local playback queue — used for "Liked videos" (which has no real
@@ -335,7 +406,10 @@ function updateYtMediaSession(root: HTMLElement, info: YtNowPlaying): void {
  *  handle next/prev — that's the more robust path when a genuine
  *  playlist ID exists, so this queue is only a fallback for when one
  *  doesn't. */
-interface YtQueue { ids: string[]; index: number; }
+interface YtQueue {
+  ids: string[];
+  index: number;
+}
 const ytQueue = new WeakMap<HTMLElement, YtQueue>();
 
 /**
@@ -345,14 +419,17 @@ const ytQueue = new WeakMap<HTMLElement, YtQueue>();
  * faster switches, no flash of a blank player, and it's what lets
  * next/prev feel instant instead of a full reload each time.
  */
-async function mountYouTubePlayer(root: HTMLElement, url: string): Promise<void> {
+async function mountYouTubePlayer(
+  root: HTMLElement,
+  url: string,
+): Promise<void> {
   const { videoId, listId } = extractYouTubeId(url);
   if (!videoId && !listId) return;
   ytQueue.delete(root); // any local queue is superseded by whatever's being loaded now
 
   const existing = ytPlayers.get(root);
   if (existing?.loadVideoById) {
-    if (listId) existing.loadPlaylist?.({ listType: 'playlist', list: listId });
+    if (listId) existing.loadPlaylist?.({ listType: "playlist", list: listId });
     else existing.loadVideoById(videoId);
     return;
   }
@@ -360,25 +437,33 @@ async function mountYouTubePlayer(root: HTMLElement, url: string): Promise<void>
   const target = root.querySelector<HTMLElement>('[data-role="yt-player"]');
   if (!target) return;
   await loadYouTubeIframeApi();
-  target.innerHTML = '';
-  const mount = document.createElement('div');
+  target.innerHTML = "";
+  const mount = document.createElement("div");
   target.appendChild(mount);
   const YT = (window as any).YT;
   const player = new YT.Player(mount, {
-    height: '100%', width: '100%',
+    height: "100%",
+    width: "100%",
     videoId: listId ? undefined : videoId,
-    playerVars: listId ? { listType: 'playlist', list: listId } : {},
+    playerVars: listId ? { listType: "playlist", list: listId } : {},
     events: {
       onReady: () => {
         const data = player.getVideoData?.() ?? {};
-        ytNowPlaying.set(root, { title: data.title ?? '', channel: data.author ?? '', videoId: data.video_id ?? videoId ?? '', isPlaying: false });
+        ytNowPlaying.set(root, {
+          title: data.title ?? "",
+          channel: data.author ?? "",
+          videoId: data.video_id ?? videoId ?? "",
+          isPlaying: false,
+        });
         renderYtBanner(root);
       },
       onStateChange: (e: any) => {
         const data = player.getVideoData?.() ?? {};
         const YTState = (window as any).YT.PlayerState;
         ytNowPlaying.set(root, {
-          title: data.title ?? '', channel: data.author ?? '', videoId: data.video_id ?? '',
+          title: data.title ?? "",
+          channel: data.author ?? "",
+          videoId: data.video_id ?? "",
           isPlaying: e.data === YTState.PLAYING,
         });
         renderYtBanner(root);
@@ -409,7 +494,11 @@ function advanceYtQueue(root: HTMLElement, delta: number): boolean {
 /** Starts local-queue playback (see ytQueue above) at `startIndex` —
  *  used when the user clicks into "Liked videos", which YouTube has
  *  no single shareable playlist ID for. */
-function playYtQueue(root: HTMLElement, ids: string[], startIndex: number): void {
+function playYtQueue(
+  root: HTMLElement,
+  ids: string[],
+  startIndex: number,
+): void {
   const id = ids[startIndex];
   if (!id) return;
   mountYouTubePlayer(root, `https://www.youtube.com/watch?v=${id}`).then(() => {
@@ -418,72 +507,96 @@ function playYtQueue(root: HTMLElement, ids: string[], startIndex: number): void
 }
 
 function wireDockEvents(el: HTMLElement): void {
-  el.querySelector('[data-role="play"]')?.addEventListener('click', () => togglePlay());
-  el.querySelector('[data-role="next"]')?.addEventListener('click', () => next());
-  el.querySelector('[data-role="prev"]')?.addEventListener('click', () => prev());
-  el.querySelector('[data-role="pip"]')?.addEventListener('click', () => popOut());
-  el.querySelector('[data-role="lyrics"]')?.addEventListener('click', () => toggleLyricsPanel(el, 'spotify'));
-  el.querySelector('[data-role="yt-lyrics"]')?.addEventListener('click', () => toggleLyricsPanel(el, 'youtube'));
+  el.querySelector('[data-role="play"]')?.addEventListener("click", () =>
+    togglePlay(),
+  );
+  el.querySelector('[data-role="next"]')?.addEventListener("click", () =>
+    next(),
+  );
+  el.querySelector('[data-role="prev"]')?.addEventListener("click", () =>
+    prev(),
+  );
+  el.querySelector('[data-role="pip"]')?.addEventListener("click", () =>
+    popOut(),
+  );
+  el.querySelector('[data-role="lyrics"]')?.addEventListener("click", () =>
+    toggleLyricsPanel(el, "spotify"),
+  );
+  el.querySelector('[data-role="yt-lyrics"]')?.addEventListener("click", () =>
+    toggleLyricsPanel(el, "youtube"),
+  );
 
   const autosyncBtn = el.querySelector<HTMLElement>('[data-role="autosync"]');
   if (autosyncBtn) {
-    autosyncBtn.classList.toggle('active', isAutoSyncEnabled());
-    autosyncBtn.addEventListener('click', () => {
+    autosyncBtn.classList.toggle("active", isAutoSyncEnabled());
+    autosyncBtn.addEventListener("click", () => {
       const next = !isAutoSyncEnabled();
       setAutoSyncEnabled(next);
-      autosyncBtn.classList.toggle('active', next);
+      autosyncBtn.classList.toggle("active", next);
     });
   }
 
   const collapseBtn = el.querySelector<HTMLElement>('[data-role="collapse"]');
   if (collapseBtn) {
-    el.classList.toggle('sc-music-dock--capsule', isCapsuleEnabled());
-    collapseBtn.addEventListener('click', (e) => {
+    el.classList.toggle("sc-music-dock--capsule", isCapsuleEnabled());
+    collapseBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const shouldCollapse = !el.classList.contains('sc-music-dock--capsule');
-      el.classList.toggle('sc-music-dock--capsule', shouldCollapse);
+      const shouldCollapse = !el.classList.contains("sc-music-dock--capsule");
+      el.classList.toggle("sc-music-dock--capsule", shouldCollapse);
       setCapsuleEnabled(shouldCollapse);
     });
   }
 
   const tabSpotify = el.querySelector<HTMLElement>('[data-role="tab-spotify"]');
   const tabYoutube = el.querySelector<HTMLElement>('[data-role="tab-youtube"]');
-  const paneSpotify = el.querySelector<HTMLElement>('[data-role="pane-spotify"]');
-  const paneYoutube = el.querySelector<HTMLElement>('[data-role="pane-youtube"]');
-  tabSpotify?.addEventListener('click', () => {
-    tabSpotify.classList.add('active'); tabYoutube?.classList.remove('active');
-    paneSpotify?.classList.remove('sc-hidden'); paneYoutube?.classList.add('sc-hidden');
+  const paneSpotify = el.querySelector<HTMLElement>(
+    '[data-role="pane-spotify"]',
+  );
+  const paneYoutube = el.querySelector<HTMLElement>(
+    '[data-role="pane-youtube"]',
+  );
+  tabSpotify?.addEventListener("click", () => {
+    tabSpotify.classList.add("active");
+    tabYoutube?.classList.remove("active");
+    paneSpotify?.classList.remove("sc-hidden");
+    paneYoutube?.classList.add("sc-hidden");
   });
-  tabYoutube?.addEventListener('click', () => {
-    tabYoutube.classList.add('active'); tabSpotify?.classList.remove('active');
-    paneYoutube?.classList.remove('sc-hidden'); paneSpotify?.classList.add('sc-hidden');
+  tabYoutube?.addEventListener("click", () => {
+    tabYoutube.classList.add("active");
+    tabSpotify?.classList.remove("active");
+    paneYoutube?.classList.remove("sc-hidden");
+    paneSpotify?.classList.add("sc-hidden");
   });
 
   const ytInput = el.querySelector<HTMLInputElement>('[data-role="yt-input"]');
-  ytInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && ytInput.value.trim()) mountYouTubePlayer(el, ytInput.value.trim());
+  ytInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && ytInput.value.trim())
+      mountYouTubePlayer(el, ytInput.value.trim());
   });
 
-  el.querySelector('[data-role="yt-play"]')?.addEventListener('click', () => {
+  el.querySelector('[data-role="yt-play"]')?.addEventListener("click", () => {
     const p = ytPlayers.get(el);
     if (!p?.getPlayerState) return;
     const YTState = (window as any).YT?.PlayerState;
-    if (p.getPlayerState() === YTState?.PLAYING) p.pauseVideo(); else p.playVideo();
+    if (p.getPlayerState() === YTState?.PLAYING) p.pauseVideo();
+    else p.playVideo();
   });
-  el.querySelector('[data-role="yt-next"]')?.addEventListener('click', () => {
+  el.querySelector('[data-role="yt-next"]')?.addEventListener("click", () => {
     if (advanceYtQueue(el, 1)) return;
     ytPlayers.get(el)?.nextVideo?.();
   });
-  el.querySelector('[data-role="yt-prev"]')?.addEventListener('click', () => {
+  el.querySelector('[data-role="yt-prev"]')?.addEventListener("click", () => {
     if (advanceYtQueue(el, -1)) return;
     ytPlayers.get(el)?.previousVideo?.();
   });
 
   const connectBtn = el.querySelector<HTMLElement>('[data-role="yt-connect"]');
-  connectBtn?.addEventListener('click', () => loadYouTubeLibrary(el));
+  connectBtn?.addEventListener("click", () => loadYouTubeLibrary(el));
   if (Integrations.isYouTubeConnected()) loadYouTubeLibrary(el);
 
-  el.querySelector<HTMLElement>('[data-role="spotify-connect"]')?.addEventListener('click', () => connectSpotify(el));
+  el.querySelector<HTMLElement>(
+    '[data-role="spotify-connect"]',
+  )?.addEventListener("click", () => connectSpotify(el));
   refreshDockConnectionState(el);
 }
 
@@ -495,12 +608,17 @@ function wireDockEvents(el: HTMLElement): void {
  * dock never dead-ends with no way to connect.
  */
 async function connectSpotify(root: HTMLElement): Promise<void> {
-  const btn = root.querySelector<HTMLButtonElement>('[data-role="spotify-connect"]');
-  const clientId = localStorage.getItem('sc_spotify_client_id')
-    || DEFAULT_SPOTIFY_CLIENT_ID
-    || prompt('Spotify Client ID (from developer.spotify.com/dashboard — see Settings → Integrations for full setup steps):')?.trim();
+  const btn = root.querySelector<HTMLButtonElement>(
+    '[data-role="spotify-connect"]',
+  );
+  const clientId =
+    localStorage.getItem("sc_spotify_client_id") ||
+    DEFAULT_SPOTIFY_CLIENT_ID ||
+    prompt(
+      "Spotify Client ID (from developer.spotify.com/dashboard — see Settings → Integrations for full setup steps):",
+    )?.trim();
   if (!clientId) return;
-  if (btn) btn.textContent = 'Connecting…';
+  if (btn) btn.textContent = "Connecting…";
   await Integrations.spotifyLogin(clientId); // redirects away — nothing after this line runs
 }
 
@@ -510,12 +628,43 @@ async function connectSpotify(root: HTMLElement): Promise<void> {
  *  token lands after this module's initial mount/render, so the
  *  connect button doesn't flip to the player until this re-runs. */
 export function refreshDockConnectionState(root?: HTMLElement): void {
-  const roots = root ? [root] : [dockEl, pipWindow?.document.querySelector('.sc-music-dock') as HTMLElement | null].filter(Boolean) as HTMLElement[];
+  const roots = root
+    ? [root]
+    : ([
+        dockEl,
+        pipWindow?.document.querySelector(
+          ".sc-music-dock",
+        ) as HTMLElement | null,
+      ].filter(Boolean) as HTMLElement[]);
   for (const r of roots) {
     const connected = Integrations.isSpotifyConnected();
-    r.querySelector('[data-role="spotify-connect-row"]')?.classList.toggle('sc-hidden', connected);
-    r.querySelector('[data-role="spotify-player-row"]')?.classList.toggle('sc-hidden', !connected);
+    r.querySelector('[data-role="spotify-connect-row"]')?.classList.toggle(
+      "sc-hidden",
+      connected,
+    );
+    r.querySelector('[data-role="spotify-player-row"]')?.classList.toggle(
+      "sc-hidden",
+      !connected,
+    );
   }
+}
+
+/** Called from main.ts right after a successful Google OAuth
+ *  round-trip. Google now uses the same full-page-redirect Authorization
+ *  Code flow as Spotify (see integrations.ts), so — same reasoning as
+ *  refreshDockConnectionState() above — the token lands *after* this
+ *  module's initial mount, and loadYouTubeLibrary()'s own continuation
+ *  code never runs on this page load because the connect click that
+ *  started the flow happened on the *previous* page load, before the
+ *  redirect. Re-check every mounted dock and load the library if it's
+ *  connected now. */
+export function refreshYouTubeConnectionState(): void {
+  const roots = [
+    dockEl,
+    pipWindow?.document.querySelector(".sc-music-dock") as HTMLElement | null,
+  ].filter(Boolean) as HTMLElement[];
+  if (!Integrations.isYouTubeConnected()) return;
+  for (const r of roots) loadYouTubeLibrary(r);
 }
 
 /** Fetches the signed-in user's Liked videos + own playlists via the
@@ -524,28 +673,44 @@ export function refreshDockConnectionState(root?: HTMLElement): void {
  *  id to the same compliant mountYouTubePlayer() used for pasted URLs —
  *  there's no separate "extracted stream" code path. */
 async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
-  const connectRow = root.querySelector<HTMLElement>('[data-role="yt-connect-row"]');
-  const connectBtn = root.querySelector<HTMLButtonElement>('[data-role="yt-connect"]');
+  const connectRow = root.querySelector<HTMLElement>(
+    '[data-role="yt-connect-row"]',
+  );
+  const connectBtn = root.querySelector<HTMLButtonElement>(
+    '[data-role="yt-connect"]',
+  );
   const libraryEl = root.querySelector<HTMLElement>('[data-role="yt-library"]');
   if (!libraryEl) return;
 
   if (!Integrations.isYouTubeConnected()) {
-    if (connectBtn) connectBtn.textContent = 'Connecting…';
     // Prefer the site's own registered app (one click, no setup) —
-    // only ask the visitor to paste their own Client ID when the site
-    // hasn't configured a default one (see src/authconfig.ts).
-    const clientId = localStorage.getItem('sc_google_client_id')
-      || DEFAULT_GOOGLE_CLIENT_ID
-      || prompt('Google OAuth client ID (from Google Cloud Console — see wiki for setup):')?.trim();
-    if (!clientId) { if (connectBtn) connectBtn.textContent = 'Connect YouTube'; return; }
-    const ok = await Integrations.googleLogin(clientId);
-    if (connectBtn) connectBtn.textContent = 'Connect YouTube';
-    if (!ok) return;
+    // only ask the visitor to paste a Client ID when the site hasn't
+    // configured a default one. That Client ID must be the one this
+    // deployment's /api/oauth/token proxy has a matching secret for
+    // (see CONTRIBUTING.md) — a visitor can't register a separate
+    // Google app of their own here the way they can for Spotify, since
+    // that would mean this page holding onto their client secret too
+    // (see googleSelfHostNodes() in integrations.ts for why that's
+    // deliberately not supported).
+    const clientId =
+      localStorage.getItem("sc_google_client_id") ||
+      DEFAULT_GOOGLE_CLIENT_ID ||
+      prompt(
+        "Google OAuth Client ID configured for this deployment (see Settings → Integrations for details):",
+      )?.trim();
+    if (!clientId) {
+      if (connectBtn) connectBtn.textContent = "Connect YouTube";
+      return;
+    }
+    if (connectBtn) connectBtn.textContent = "Connecting…";
+    await Integrations.googleLogin(clientId); // redirects away — nothing after this line runs
+    return;
   }
 
-  if (connectRow) connectRow.classList.add('sc-hidden');
-  libraryEl.classList.remove('sc-hidden');
-  libraryEl.innerHTML = '<div class="sc-dock-yt-lib-loading">Loading your library…</div>';
+  if (connectRow) connectRow.classList.add("sc-hidden");
+  libraryEl.classList.remove("sc-hidden");
+  libraryEl.innerHTML =
+    '<div class="sc-dock-yt-lib-loading">Loading your library…</div>';
 
   const [liked, playlists] = await Promise.all([
     Integrations.youtubeGetLikedVideos(15),
@@ -553,45 +718,72 @@ async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
   ]);
 
   if (!liked.length && !playlists.length) {
-    libraryEl.innerHTML = '<div class="sc-dock-yt-lib-loading">Nothing found — try pasting a URL below instead.</div>';
+    if (!Integrations.isYouTubeConnected()) {
+      // The connection was live when this function started but got
+      // cleared during the fetches above — a stale token from before
+      // Google issued refresh tokens here, with nothing left to renew
+      // it (see ensureFreshToken in integrations.ts). Show the connect
+      // prompt again instead of claiming there's simply nothing here.
+      libraryEl.classList.add("sc-hidden");
+      if (connectRow) connectRow.classList.remove("sc-hidden");
+      if (connectBtn) connectBtn.textContent = "Reconnect YouTube";
+      return;
+    }
+    libraryEl.innerHTML =
+      '<div class="sc-dock-yt-lib-loading">Nothing found — try pasting a URL below instead.</div>';
     return;
   }
 
   const frag = document.createDocumentFragment();
   const section = (label: string) => {
-    const h = document.createElement('div'); h.className = 'sc-dock-yt-lib-hdr'; h.textContent = label;
+    const h = document.createElement("div");
+    h.className = "sc-dock-yt-lib-hdr";
+    h.textContent = label;
     frag.appendChild(h);
   };
   if (playlists.length) {
-    section('Your playlists');
+    section("Your playlists");
     for (const p of playlists) {
-      const row = document.createElement('button'); row.className = 'sc-dock-yt-lib-item';
+      const row = document.createElement("button");
+      row.className = "sc-dock-yt-lib-item";
       row.innerHTML = `<img loading="lazy" src="${p.thumbnail}" alt="" /><span>${p.title}</span>`;
-      row.addEventListener('click', () => mountYouTubePlayer(root, `https://www.youtube.com/playlist?list=${p.id}`));
+      row.addEventListener("click", () =>
+        mountYouTubePlayer(
+          root,
+          `https://www.youtube.com/playlist?list=${p.id}`,
+        ),
+      );
       frag.appendChild(row);
     }
   }
   if (liked.length) {
-    section('Liked videos');
+    section("Liked videos");
     const likedIds = liked.map((v) => v.videoId);
     liked.forEach((v, i) => {
-      const row = document.createElement('button'); row.className = 'sc-dock-yt-lib-item';
+      const row = document.createElement("button");
+      row.className = "sc-dock-yt-lib-item";
       row.innerHTML = `<img loading="lazy" src="${v.thumbnail}" alt="" /><span>${v.title}</span>`;
       // Liked videos has no real playlist ID YouTube will hand back to
       // us, so next/prev through it runs on the local queue (see
       // playYtQueue) instead of the native player.nextVideo().
-      row.addEventListener('click', () => playYtQueue(root, likedIds, i));
+      row.addEventListener("click", () => playYtQueue(root, likedIds, i));
       frag.appendChild(row);
     });
   }
-  libraryEl.innerHTML = '';
+  libraryEl.innerHTML = "";
   libraryEl.appendChild(frag);
 }
 
 /** Cached DOM refs per dock root — renderDock() runs every second off
  *  the poll timer, so querying five selectors twice a second (main dock
  *  + PIP clone) adds up; look them up once at wire-time instead. */
-interface DockRefs { art: HTMLElement | null; title: HTMLElement | null; artist: HTMLElement | null; fill: HTMLElement | null; playBtn: HTMLElement | null; }
+interface DockRefs {
+  art: HTMLElement | null;
+  title: HTMLElement | null;
+  artist: HTMLElement | null;
+  fill: HTMLElement | null;
+  playBtn: HTMLElement | null;
+}
 const dockRefs = new WeakMap<HTMLElement, DockRefs>();
 function cacheDockRefs(root: HTMLElement): DockRefs {
   const refs: DockRefs = {
@@ -610,52 +802,83 @@ function cacheDockRefs(root: HTMLElement): DockRefs {
 // (LRCLIB). Purely display: looked up by title/artist/duration, never
 // tied to how the audio itself is being played.
 // ─────────────────────────────────────────────────────────────────────
-interface LyricsPanelState { open: boolean; key: string; result: Lyrics.LyricsResult | null; lineEls: HTMLElement[]; }
+interface LyricsPanelState {
+  open: boolean;
+  key: string;
+  result: Lyrics.LyricsResult | null;
+  lineEls: HTMLElement[];
+}
 const lyricsState = new WeakMap<HTMLElement, LyricsPanelState>();
 let ytLyricsPoll: number | null = null;
 
-async function toggleLyricsPanel(root: HTMLElement, kind: 'spotify' | 'youtube'): Promise<void> {
-  const panel = root.querySelector<HTMLElement>(kind === 'spotify' ? '[data-role="lyrics-panel"]' : '[data-role="yt-lyrics-panel"]');
+async function toggleLyricsPanel(
+  root: HTMLElement,
+  kind: "spotify" | "youtube",
+): Promise<void> {
+  const panel = root.querySelector<HTMLElement>(
+    kind === "spotify"
+      ? '[data-role="lyrics-panel"]'
+      : '[data-role="yt-lyrics-panel"]',
+  );
   if (!panel) return;
-  const willOpen = panel.classList.contains('sc-hidden');
-  panel.classList.toggle('sc-hidden', !willOpen);
+  const willOpen = panel.classList.contains("sc-hidden");
+  panel.classList.toggle("sc-hidden", !willOpen);
   if (!willOpen) return;
 
-  const track = kind === 'spotify' ? state.title : (ytNowPlaying.get(root)?.title ?? '');
-  const artist = kind === 'spotify' ? state.artist : (ytNowPlaying.get(root)?.channel ?? '');
-  const durationSec = kind === 'spotify' ? state.durationMs / 1000 : (ytPlayers.get(root)?.getDuration?.() ?? 0);
+  const track =
+    kind === "spotify" ? state.title : (ytNowPlaying.get(root)?.title ?? "");
+  const artist =
+    kind === "spotify" ? state.artist : (ytNowPlaying.get(root)?.channel ?? "");
+  const durationSec =
+    kind === "spotify"
+      ? state.durationMs / 1000
+      : (ytPlayers.get(root)?.getDuration?.() ?? 0);
   const key = `${kind}:${track}:${artist}`;
 
-  const st = lyricsState.get(panel) ?? { open: false, key: '', result: null, lineEls: [] };
+  const st = lyricsState.get(panel) ?? {
+    open: false,
+    key: "",
+    result: null,
+    lineEls: [],
+  };
   st.open = true;
   lyricsState.set(panel, st);
 
   if (st.key !== key) {
-    panel.innerHTML = '<div class="sc-dock-lyrics-loading">Looking up lyrics…</div>';
-    const result = track ? await Lyrics.getLyrics(track, artist, durationSec) : null;
-    st.key = key; st.result = result;
+    panel.innerHTML =
+      '<div class="sc-dock-lyrics-loading">Looking up lyrics…</div>';
+    const result = track
+      ? await Lyrics.getLyrics(track, artist, durationSec)
+      : null;
+    st.key = key;
+    st.result = result;
     if (!result) {
-      panel.innerHTML = '<div class="sc-dock-lyrics-loading">No lyrics found for this track.</div>';
+      panel.innerHTML =
+        '<div class="sc-dock-lyrics-loading">No lyrics found for this track.</div>';
       st.lineEls = [];
     } else if (result.synced.length) {
-      panel.innerHTML = '';
+      panel.innerHTML = "";
       st.lineEls = result.synced.map((line) => {
-        const p = document.createElement('p');
-        p.className = 'sc-dock-lyrics-line';
+        const p = document.createElement("p");
+        p.className = "sc-dock-lyrics-line";
         p.textContent = line.text;
         panel.appendChild(p);
         return p;
       });
     } else {
-      panel.innerHTML = `<div class="sc-dock-lyrics-plain">${result.plain.replace(/\n/g, '<br>')}</div>`;
+      panel.innerHTML = `<div class="sc-dock-lyrics-plain">${result.plain.replace(/\n/g, "<br>")}</div>`;
       st.lineEls = [];
     }
   }
 
-  if (kind === 'youtube') {
+  if (kind === "youtube") {
     if (ytLyricsPoll) clearInterval(ytLyricsPoll);
     ytLyricsPoll = window.setInterval(() => {
-      if (panel.classList.contains('sc-hidden')) { if (ytLyricsPoll) clearInterval(ytLyricsPoll); ytLyricsPoll = null; return; }
+      if (panel.classList.contains("sc-hidden")) {
+        if (ytLyricsPoll) clearInterval(ytLyricsPoll);
+        ytLyricsPoll = null;
+        return;
+      }
       const t = ytPlayers.get(root)?.getCurrentTime?.() ?? 0;
       highlightLyricsLine(panel, t);
     }, 500);
@@ -666,22 +889,31 @@ function highlightLyricsLine(panel: HTMLElement, currentSec: number): void {
   const st = lyricsState.get(panel);
   if (!st?.result?.synced.length || !st.lineEls.length) return;
   const idx = Lyrics.activeLineIndex(st.result.synced, currentSec);
-  st.lineEls.forEach((el, i) => el.classList.toggle('active', i === idx));
-  if (idx >= 0) st.lineEls[idx]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  st.lineEls.forEach((el, i) => el.classList.toggle("active", i === idx));
+  if (idx >= 0)
+    st.lineEls[idx]?.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 function renderDock(): void {
-  const roots = [dockEl, pipWindow?.document.querySelector('.sc-music-dock') as HTMLElement | null].filter(Boolean) as HTMLElement[];
+  const roots = [
+    dockEl,
+    pipWindow?.document.querySelector(".sc-music-dock") as HTMLElement | null,
+  ].filter(Boolean) as HTMLElement[];
   for (const root of roots) {
-    const { art, title, artist, fill, playBtn } = dockRefs.get(root) ?? cacheDockRefs(root);
-    if (art) art.style.backgroundImage = state.artUrl ? `url(${state.artUrl})` : '';
+    const { art, title, artist, fill, playBtn } =
+      dockRefs.get(root) ?? cacheDockRefs(root);
+    if (art)
+      art.style.backgroundImage = state.artUrl ? `url(${state.artUrl})` : "";
     if (title && state.title) title.textContent = state.title;
     if (artist && state.title) artist.textContent = state.artist;
-    if (fill && state.durationMs) fill.style.width = `${(state.progressMs / state.durationMs) * 100}%`;
-    if (playBtn) playBtn.textContent = state.isPlaying ? '⏸' : '▶';
+    if (fill && state.durationMs)
+      fill.style.width = `${(state.progressMs / state.durationMs) * 100}%`;
+    if (playBtn) playBtn.textContent = state.isPlaying ? "⏸" : "▶";
 
-    const lyricsPanel = root.querySelector<HTMLElement>('[data-role="lyrics-panel"]');
-    if (lyricsPanel && !lyricsPanel.classList.contains('sc-hidden')) {
+    const lyricsPanel = root.querySelector<HTMLElement>(
+      '[data-role="lyrics-panel"]',
+    );
+    if (lyricsPanel && !lyricsPanel.classList.contains("sc-hidden")) {
       highlightLyricsLine(lyricsPanel, state.progressMs / 1000);
     }
   }
@@ -701,19 +933,27 @@ function updateMediaSession(): void {
   ms.metadata = new (window as any).MediaMetadata({
     title: state.title,
     artist: state.artist,
-    artwork: state.artUrl ? [{ src: state.artUrl, sizes: '512x512', type: 'image/jpeg' }] : [],
+    artwork: state.artUrl
+      ? [{ src: state.artUrl, sizes: "512x512", type: "image/jpeg" }]
+      : [],
   });
-  ms.playbackState = state.isPlaying ? 'playing' : 'paused';
+  ms.playbackState = state.isPlaying ? "playing" : "paused";
   try {
-    ms.setActionHandler('play', () => togglePlay());
-    ms.setActionHandler('pause', () => togglePlay());
-    ms.setActionHandler('previoustrack', () => prev());
-    ms.setActionHandler('nexttrack', () => next());
-    ms.setActionHandler('seekto', (details: { seekTime?: number }) => {
-      if (typeof details.seekTime === 'number') seek(details.seekTime * 1000);
+    ms.setActionHandler("play", () => togglePlay());
+    ms.setActionHandler("pause", () => togglePlay());
+    ms.setActionHandler("previoustrack", () => prev());
+    ms.setActionHandler("nexttrack", () => next());
+    ms.setActionHandler("seekto", (details: { seekTime?: number }) => {
+      if (typeof details.seekTime === "number") seek(details.seekTime * 1000);
     });
-    if (state.durationMs) ms.setPositionState?.({ duration: state.durationMs / 1000, position: Math.min(state.progressMs / 1000, state.durationMs / 1000) });
-  } catch { /* not all handlers are supported everywhere — best-effort */ }
+    if (state.durationMs)
+      ms.setPositionState?.({
+        duration: state.durationMs / 1000,
+        position: Math.min(state.progressMs / 1000, state.durationMs / 1000),
+      });
+  } catch {
+    /* not all handlers are supported everywhere — best-effort */
+  }
 }
 
 /**
@@ -729,17 +969,25 @@ async function popOut(): Promise<void> {
   // Copy the dock's stylesheet so the popped-out window matches.
   [...document.styleSheets].forEach((sheet) => {
     try {
-      const css = [...sheet.cssRules].map((r) => r.cssText).join('\n');
-      const style = win.document.createElement('style');
+      const css = [...sheet.cssRules].map((r) => r.cssText).join("\n");
+      const style = win.document.createElement("style");
       style.textContent = css;
       win.document.head.appendChild(style);
-    } catch { /* cross-origin sheet, skip */ }
+    } catch {
+      /* cross-origin sheet, skip */
+    }
   });
-  const clone = document.createElement('div');
-  clone.className = 'sc-music-dock sc-music-dock--pip';
+  const clone = document.createElement("div");
+  clone.className = "sc-music-dock sc-music-dock--pip";
   clone.innerHTML = dockMarkup();
   win.document.body.appendChild(clone);
   wireDockEvents(clone);
   renderDock();
-  win.addEventListener('pagehide', () => { pipWindow = null; }, { once: true });
+  win.addEventListener(
+    "pagehide",
+    () => {
+      pipWindow = null;
+    },
+    { once: true },
+  );
 }

@@ -21,10 +21,21 @@
 //    → Application type: Web application
 //      → Authorized redirect URI: same as above
 //      → Authorized JavaScript origin: your deployed origin
+//      → Client ID goes here. Google's Web-application client type
+//        also issues a *secret* — unlike Spotify's PKCE-only app, so
+//        DEFAULT_GOOGLE_CLIENT_ID alone isn't enough to make the
+//        one-click button work. Set the matching secret as a Pages
+//        secret so the proxy function can complete the exchange:
+//          npx wrangler pages secret put GOOGLE_CLIENT_ID
+//          npx wrangler pages secret put GOOGLE_CLIENT_SECRET
+//        (see functions/api/oauth/token.ts). Leave both unset and
+//        this integration falls back to the "paste your own Client
+//        ID" self-host form same as the others.
 //
 // These ship in the client bundle and are visible to anyone — do not
 // put a client *secret* here. Secrets belong server-side only (see
 // functions/api/oauth/token.ts for providers that need one).
 
-export const DEFAULT_SPOTIFY_CLIENT_ID = '8297269533124a99813bfa8a0ec2f146';
-export const DEFAULT_GOOGLE_CLIENT_ID = '194129492690-jt58gdjd9mjcdllulacgk8dbe7tefp0r.apps.googleusercontent.com';
+export const DEFAULT_SPOTIFY_CLIENT_ID = "8297269533124a99813bfa8a0ec2f146";
+export const DEFAULT_GOOGLE_CLIENT_ID =
+  "194129492690-jt58gdjd9mjcdllulacgk8dbe7tefp0r.apps.googleusercontent.com";
