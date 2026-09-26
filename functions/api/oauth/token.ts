@@ -20,6 +20,7 @@ interface Env {
   GITHUB_CLIENT_ID?: string;   GITHUB_CLIENT_SECRET?: string;
   TODOIST_CLIENT_ID?: string;  TODOIST_CLIENT_SECRET?: string;
   LINEAR_CLIENT_ID?: string;   LINEAR_CLIENT_SECRET?: string;
+  GOOGLE_CLIENT_ID?: string;   GOOGLE_CLIENT_SECRET?: string;
 }
 
 const PROVIDERS: Record<string, { tokenUrl: string; basicAuth?: boolean }> = {
@@ -28,6 +29,10 @@ const PROVIDERS: Record<string, { tokenUrl: string; basicAuth?: boolean }> = {
   github:  { tokenUrl: 'https://github.com/login/oauth/access_token' },
   todoist: { tokenUrl: 'https://todoist.com/oauth/access_token' },
   linear:  { tokenUrl: 'https://api.linear.app/oauth/token' },
+  // Google's Web-application OAuth client is a confidential client (it
+  // issues a secret), same reason it needs to go through this proxy
+  // instead of the browser calling the token endpoint directly.
+  google:  { tokenUrl: 'https://oauth2.googleapis.com/token' },
 };
 
 interface TokenRequestBody {
