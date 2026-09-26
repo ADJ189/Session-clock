@@ -61,7 +61,6 @@ Every integration is opt-in and stores tokens client-side only (see
 `src/integrations.ts` for the storage model). Two patterns are used:
 
 **Public client (no secret, works from any deployment):**
-
 - **Spotify** — Authorization Code + PKCE. Create an app at
   [developer.spotify.com](https://developer.spotify.com/dashboard),
   add `http://localhost:5173/` (dev) and your production URL as
@@ -88,9 +87,9 @@ enable one of these providers:
      `origin + pathname` as the redirect URI for every provider, so
      dev and prod need separate Client IDs registered with their own
      matching redirect URI, same as every other provider here).
-     Also enable the **YouTube Data API v3** and **Google Calendar API**
-     for the project under APIs & Services → Library — the OAuth consent
-     screen won't let you request their scopes otherwise.
+   Also enable the **YouTube Data API v3** and **Google Calendar API**
+   for the project under APIs & Services → Library — the OAuth consent
+   screen won't let you request their scopes otherwise.
 2. Set the Client ID and secret as Pages secrets:
    ```bash
    npx wrangler pages secret put NOTION_CLIENT_ID
@@ -101,17 +100,24 @@ enable one of these providers:
    "not configured" error and the app falls back to its manual
    token-paste option, so nothing breaks if you skip this.
 
-Google's in-app card is the one exception to "one app per deployment,
-configured by whoever runs it": since it genuinely lets a visitor
-register and use _their own_ Google Cloud project instead of the
-site's, its "use your own app" form asks for both a Client ID **and**
-Client Secret (Google's Web-application client type issues a secret —
-there's no PKCE-only public-client option that still allows an
-arbitrary HTTPS redirect URI). That secret is sent once, straight
-through the same stateless proxy function, and otherwise lives only in
-that visitor's own browser. Notion/GitHub/Todoist/Linear don't offer
-this per-visitor option at all — their in-app forms always target
-whatever single app this deployment has configured via step 2 above.
+Google's in-app card asks for a Client ID the same way Spotify's does,
+but it is **not** a "bring your own app" option the way Spotify's is —
+it only works with the Client ID this deployment already has
+configured via step 2 above (that field exists for pasting/confirming
+that ID, e.g. after clearing localStorage). Spotify's public PKCE
+client needs no secret, so the browser can talk to Spotify's token
+endpoint directly with whatever Client ID a visitor pastes; Google's
+Web-application client type is confidential (it issues a secret), so a
+different Client ID would need its own matching secret to complete the
+exchange. An earlier version of this form collected that secret from
+the visitor and stored it in localStorage to make "bring your own app"
+work for Google too — CodeQL flagged that as clear-text storage of
+sensitive data, correctly: unlike a leaked access/refresh token (which
+only exposes one user's session, and is revocable), a leaked OAuth
+client secret can impersonate the whole app. That field was removed
+rather than mitigated. Notion/GitHub/Todoist/Linear were never affected
+by this — their in-app forms always targeted the deployment's single
+configured app already.
 
 For local dev without Pages Functions running, use `npx wrangler pages
 dev dist` instead of plain `vite preview` so `/api/*` routes resolve —
