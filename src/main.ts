@@ -233,7 +233,7 @@ function startTimer() {
   sessionRunning = true;
   sessionStart = performance.now() - sessionElapsed;
   document.body.classList.add("session-running");
-  (window as any).__uiSounds?.sessionStart();
+  (window as Window & { __uiSounds?: { sessionStart(): void } }).__uiSounds?.sessionStart();
   Features.updateButtonLabels(
     "running",
     Pom.getPhase(),
@@ -275,7 +275,7 @@ function resetTimer() {
   Log.record(DOM.focusInput.value.trim(), dur);
   Features.updateDistractionUI(false);
   if (dur > 60_000) {
-    (window as any).__uiSounds?.sessionEnd();
+    (window as unknown as { __uiSounds?: { sessionEnd(): void } }).__uiSounds?.sessionEnd();
     Intel.recordCompleted();
     const streak = Intel.updateStreak();
     const milestone = Intel.getStreakMilestone(streak.current);

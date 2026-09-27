@@ -152,6 +152,8 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
     });
   }
 
+  type StarSVG = SVGSVGElement & { _angle: number; _dist: number; };
+
   // 2. Star burst from the avatar's centre
   const rect = anchorEl.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
@@ -162,13 +164,13 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
   document.body.appendChild(layer);
 
   const STAR_PATH = 'M12 2.5l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L2 9.7l7.1-.6z';
-  const stars: SVGSVGElement[] = [];
+  const stars: StarSVG[] = [];
   const count = 12;
   for (let i = 0; i < count; i++) {
     const angle = (i / count) * Math.PI * 2;
     const dist = 90 + Math.random() * 70;
     const svgNS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(svgNS, 'svg');
+    const svg = document.createElementNS(svgNS, 'svg') as StarSVG;
     svg.setAttribute('viewBox', '0 0 24 24');
     svg.setAttribute('width', '14');
     svg.setAttribute('height', '14');
@@ -177,14 +179,15 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
     path.setAttribute('fill', i % 2 === 0 ? '#f8d34a' : '#ffffff');
     svg.appendChild(path);
     svg.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);opacity:0;`;
-    (svg as any)._angle = angle; (svg as any)._dist = dist;
+    svg._angle = angle;
+    svg._dist = dist;
     layer.appendChild(svg);
     stars.push(svg);
   }
 
   _animate(stars, {
-    left: (target: unknown) => `${cx + Math.cos((target as any)._angle) * (target as any)._dist}px`,
-    top:  (target: unknown) => `${cy + Math.sin((target as any)._angle) * (target as any)._dist}px`,
+    left: (target: StarSVG) => `${cx + Math.cos(target._angle) * target._dist}px`,
+    top:  (target: StarSVG) => `${cy + Math.sin(target._angle) * target._dist}px`,
     opacity: [{ to: 1, duration: 180 }, { to: 0, duration: 500, delay: 500 }],
     rotate: () => (Math.random() > 0.5 ? 1 : -1) * (180 + Math.random() * 180),
     scale: [{ from: 0.3, to: 1.2, duration: 300 }, { to: 0.6, duration: 500 }],
@@ -194,15 +197,6 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
     onComplete: () => layer.remove(),
   });
 }
-
-
-/**
- * Spotlight-style modal pop — blur+scale entrance used by the command
- * palette; reused here for the redone GitHub support box so it reads as
- * one deliberate "surface arriving," Apple-style, instead of individual
- * elements fading up on separate CSS delays. Call once when the overlay
- * gains `.open`; safe to layer on top of the existing CSS keyframes
- * already on the card (they simply run underneath/alongside).
  */
 export async function modalSpotlightIn(modalEl: Element | null | undefined): Promise<void> {
   if (!modalEl || reducedMotion()) return;

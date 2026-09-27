@@ -57,7 +57,7 @@ export const BROWSER: Browser = detectBrowser();
 export const IS_APPLE = OS === 'ios' || OS === 'ipados' || OS === 'macos';
 export const IS_TOUCH = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 export const IS_STANDALONE =
-  matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+  matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 /** Real feature probes (not UA sniffing) for the handful of CSS/JS features
  * that still vary enough across engines/versions to need a JS-level check
@@ -80,9 +80,6 @@ function detectFeatureFlags() {
   };
 }
 export const FEATURES = detectFeatureFlags();
-
-// Real probe (not UA sniffing) for Ogg/Opus playback — the format the
-// recorded ambient sound tracks (sound.ts / soundfiles.ts) ship in.
 // Chrome/Firefox/Edge have decoded Ogg Opus for years; Safari/WebKit only
 // gained it in Safari 17 (macOS Sonoma / iOS 17, both 2023), and there's no
 // reliable UA signal for that version gap, so this asks the engine
@@ -96,11 +93,21 @@ function detectOggOpus(): boolean {
   }
 }
 
+// Type definitions for unstandardized APIs
+interface Connection {
+  saveData?: boolean;
+  effectiveType?: 'slow-2g' | '2g' | '3g' | '4g';
+}
+
+interface DeviceOrientationEventConstructorWithPermission {
+  requestPermission?: () => Promise<'granted' | 'denied'>;
+}
+
 // navigator.connection is Chromium-only and unstandardized, so this is a
 // bonus optimization signal where available and a silent no-op (defaults
 // to "not slow/saving") everywhere else — never gates a feature entirely.
 function detectSlowConnection(): boolean {
-  const conn = (navigator as any).connection;
+  const conn = (navigator as Navigator & { connection?: Connection }).connection;
   return !!conn?.saveData || conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g';
 }
 
@@ -114,7 +121,7 @@ export const CAPS = {
   documentPiP: 'documentPictureInPicture' in window,
   deviceOrientation: 'DeviceOrientationEvent' in window,
   deviceOrientationNeedsPermission:
-    typeof (window as any).DeviceOrientationEvent?.requestPermission === 'function',
+    typeof (window as typeof window & { DeviceOrientationEvent?: DeviceOrientationEventConstructorWithPermission }).DeviceOrientationEvent?.requestPermission === 'function',
   webShare: typeof navigator.share === 'function',
   // Recorded-audio ambient tracks (sound.ts) gate on this and fall back to
   // their procedural WebAudio synthesis (or, for the tracks with no
@@ -124,21 +131,6 @@ export const CAPS = {
   // this to skip eager buffering rather than assuming a fast connection.
   saveData: detectSlowConnection(),
 };
-
-/** Sets classes on <html> once at boot — call as early as possible. */
-export function applyPlatformClasses(): void {
-  const cl = document.documentElement.classList;
-  cl.add(`platform-${OS}`, `engine-${ENGINE}`, `browser-${BROWSER}`);
-  cl.toggle('is-apple', IS_APPLE);
-  cl.toggle('is-touch', IS_TOUCH);
-  cl.toggle('is-standalone', IS_STANDALONE);
-  cl.toggle('no-vibration', !CAPS.vibration);
-  cl.toggle('no-doc-pip', !CAPS.documentPiP);
-  cl.toggle('no-backdrop-filter', !FEATURES.backdropFilter);
-  cl.toggle('no-dvh', !FEATURES.dvh);
-  cl.toggle('no-ogg-opus', !CAPS.oggOpus);
-  cl.toggle('save-data', CAPS.saveData);
-}
 
 /** Small, human-readable summary for a Settings/diagnostics panel — lets
  * someone reporting a rendering bug see exactly what Session Clock detected
@@ -216,7 +208,7 @@ export async function requestMotionPermission(): Promise<boolean> {
   if (!CAPS.deviceOrientation) return false;
   if (motionGranted) return true;
   try {
-    const result = await (window as any).DeviceOrientationEvent.requestPermission();
+    const result = await (window.DeviceOrientationEvent as { requestPermission(): Promise<'granted' | 'denied'> }).requestPermission();
     motionGranted = result === 'granted';
   } catch {
     motionGranted = false;

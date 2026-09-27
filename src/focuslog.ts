@@ -12,12 +12,13 @@ function load(): LogEntry[] {
 }
 function save(d: LogEntry[]) { localStorage.setItem(KEY, JSON.stringify(d)); }
 
-export function record(task: string, durMs: number) {
+export function record(task: string, durMs: number): void {
   if (durMs < 5000) return;
   const entry = { time: Date.now(), task: task || 'Untitled session', dur: Math.round(durMs), date: new Date().toDateString() };
   // Check incognito — import avoided via dynamic check on window
-  const isIncognito = typeof (window as any).__scIncognito === 'function'
-    ? (window as any).__scIncognito()
+  const windowWithIncognito = window as unknown as { __scIncognito?: () => boolean };
+  const isIncognito = typeof windowWithIncognito.__scIncognito === 'function'
+    ? windowWithIncognito.__scIncognito()
     : false;
   if (isIncognito) return; // don't persist
   const entries = load();

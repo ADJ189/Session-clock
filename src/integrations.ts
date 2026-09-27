@@ -513,8 +513,8 @@ export async function youtubeGetLikedVideos(
     );
     const d = await res.json();
     return (d.items ?? [])
-      .filter((i: any) => i.snippet?.resourceId?.videoId)
-      .map((i: any) => ({
+      .filter((i: { snippet?: { resourceId?: { videoId?: string } } }) => i.snippet?.resourceId?.videoId)
+      .map((i: { snippet: { resourceId: { videoId: string }; title?: string; thumbnails?: { default?: { url: string } } } }) => ({
         videoId: i.snippet.resourceId.videoId,
         title: i.snippet.title ?? "Untitled",
         thumbnail: i.snippet.thumbnails?.default?.url ?? "",
@@ -537,7 +537,7 @@ export async function youtubeGetMyPlaylists(
       },
     );
     const d = await res.json();
-    return (d.items ?? []).map((i: any) => ({
+    return (d.items ?? []).map((i: { id: string; snippet?: { title?: string; thumbnails?: { default?: { url: string } } } }) => ({
       id: i.id,
       title: i.snippet?.title ?? "Untitled",
       thumbnail: i.snippet?.thumbnails?.default?.url ?? "",
@@ -588,7 +588,7 @@ export async function getUpcomingEvents(maxResults = 5): Promise<CalEvent[]> {
     }
     const res = await fetch(url, { headers });
     const d = await res.json();
-    return (d.items ?? []).map((e: any) => ({
+    return (d.items ?? []).map((e: {id: string; summary?: string; start?: {dateTime?: string; date?: string}; end?: {dateTime?: string; date?: string}; colorId?: string}) => ({
       id: e.id,
       summary: e.summary ?? "Busy",
       start: e.start?.dateTime ?? e.start?.date ?? "",
@@ -658,7 +658,18 @@ export async function getNotionTasks(): Promise<NotionTask[]> {
       }),
     });
     const d = await res.json();
-    return (d.results ?? []).map((p: any) => ({
+    return (d.results ?? []).map((p: {
+      id: string;
+      properties?: {
+        Name?: {
+          title?: {
+            text?: { content: string };
+          }[];
+        };
+        Done?: { checkbox?: boolean };
+        Priority?: { select?: { name?: string } };
+      };
+    }) => ({
       id: p.id,
       title: p.properties?.Name?.title?.[0]?.text?.content ?? "Untitled",
       checked: p.properties?.Done?.checkbox ?? false,
@@ -698,7 +709,7 @@ export async function getTodoistTasks(): Promise<TodoistTask[]> {
       },
     );
     const d = await res.json();
-    return (Array.isArray(d) ? d : []).slice(0, 10).map((t: any) => ({
+    return (Array.isArray(d) ? d : []).slice(0, 10).map((t: { id: string; content: string; priority: number; due?: { string: string } }) => ({
       id: t.id,
       content: t.content,
       priority: t.priority,
@@ -759,7 +770,14 @@ export async function getGithubItems(): Promise<GithubItem[]> {
       },
     );
     const d = await res.json();
-    return (Array.isArray(d) ? d : []).map((i: any) => ({
+    return (Array.isArray(d) ? d : []).map((i: {
+      number: number;
+      title: string;
+      repository?: { name?: string };
+      repository_url?: string;
+      html_url: string;
+      pull_request?: unknown;
+    }) => ({
       id: i.number,
       title: i.title,
       repo:

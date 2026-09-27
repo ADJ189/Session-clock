@@ -41,7 +41,8 @@ import { createSynth, type SynthPreset, type SynthVoice } from 'ambiently';
 export function makeSynthTrack(ctx: AudioContext, preset: SynthPreset): { out: AudioNode; nodes: AudioNode[] } {
   const voice: SynthVoice = createSynth(ctx, preset);
   voice.start();
-  const stopProxy = ctx.createGain(); stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => voice.stop();
+  const stopProxy = ctx.createGain() as GainNode & { _customStop: () => void };
+  stopProxy.gain.value = 0;
+  stopProxy._customStop = () => voice.stop();
   return { out: voice.output, nodes: [stopProxy] };
 }

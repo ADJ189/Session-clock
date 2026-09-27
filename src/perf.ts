@@ -21,14 +21,15 @@ function detectTier(): QualityTier {
   const nav = navigator as Navigator & {
     deviceMemory?: number;
     hardwareConcurrency?: number;
+    connection?: { effectiveType?: string };
   };
 
   // Signals: RAM, CPU cores, connection, device pixel ratio
-  const ram   = nav.deviceMemory ?? 4;          // GB; undefined = assume 4
-  const cores = nav.hardwareConcurrency ?? 4;
-  const conn  = (navigator as any).connection?.effectiveType ?? '4g';
-  const dpr   = window.devicePixelRatio ?? 1;
-  const touch = navigator.maxTouchPoints > 0;   // mobile proxy
+  const ram: number   = nav.deviceMemory ?? 4;          // GB; undefined = assume 4
+  const cores: number = nav.hardwareConcurrency ?? 4;
+  const conn: string  = nav.connection?.effectiveType ?? '4g';
+  const dpr: number   = window.devicePixelRatio ?? 1;
+  const touch: boolean = navigator.maxTouchPoints > 0;   // mobile proxy
 
   let score = 0;
   if (ram >= 8)    score += 2; else if (ram >= 4) score += 1;

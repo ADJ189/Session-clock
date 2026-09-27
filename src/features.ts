@@ -831,7 +831,6 @@ export function getLunarPhase(): { phase: number; name: string; emoji: string; i
 
   return { phase, name, emoji, illumination };
 }
-
 export function getDaysToNextFullMoon(): number {
   const SYNODIC_PERIOD = 29.53058867;
   const KNOWN_NEW_MOON_MS = 947182440000;
@@ -856,7 +855,7 @@ export interface VoiceCommand {
 }
 
 let _voiceActive = false;
-let _voiceRecog: any = null;
+let _voiceRecog: SpeechRecognition | null = null;
 
 export function isVoiceActive() { return _voiceActive; }
 
@@ -888,7 +887,7 @@ export function initVoiceTimer(onCommand: (cmd: VoiceCommand) => void, onStateCh
   _voiceRecog.interimResults = false;
   _voiceRecog.lang = 'en-US';
 
-  _voiceRecog.onresult = (e: any) => {
+  _voiceRecog.onresult = (e: SpeechRecognitionEvent) => {
     const transcript = e.results[0]?.[0]?.transcript ?? '';
     if (transcript) onCommand(parseVoiceCommand(transcript));
   };

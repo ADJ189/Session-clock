@@ -317,7 +317,7 @@ class GaplessLoopPlayer {
    *  user is actively doing. */
   private primeOther(): void {
     const other = this.els[1 - this.active];
-    const warm = () => {
+    const warm = (): void => {
       if (this.stopped) return;
       try {
         // First time this element is used: it was constructed with no
@@ -328,7 +328,7 @@ class GaplessLoopPlayer {
         other.load();
       } catch { /* ignore */ }
     };
-    if (FEATURES.requestIdleCallback) (window as any).requestIdleCallback(warm, { timeout: 4000 });
+    if (FEATURES.requestIdleCallback) window.requestIdleCallback!(warm, { timeout: 4000 });
     else setTimeout(warm, 1500);
   }
 
@@ -557,23 +557,22 @@ export function makeFileTrack(
     const alt = fallback?.();
     if (!alt) { activeStop = () => {}; onDead?.(); return; }
     alt.out.connect(out);
-    // Mirrors playTrack()'s own start-loop in sound.ts: a maker's returned
-    // nodes are normally started there, but this swap happens later and
-    // asynchronously (the recording failed mid-session), bypassing that
-    // loop entirely — so scheduled source nodes here need to be started
-    // explicitly, or the adopted fallback sits connected but silent.
     alt.nodes.forEach(n => {
-      if ((n as any)._customStop) return; // skip custom stop proxies
-      if ('start' in n && typeof (n as AudioScheduledSourceNode).start === 'function' && !(n as any)._started) {
-        try { (n as AudioScheduledSourceNode).start(); (n as any)._started = true; } catch {}
+      const customNode = n as AudioNode & { _customStop?: () => void; _started?: boolean };
+      if (customNode._customStop) return;
+      if ('start' in n && typeof (n as AudioScheduledSourceNode).start === 'function' && !customNode._started) {
+        try { (n as AudioScheduledSourceNode).start(); customNode._started = true; } catch {}
       }
     });
     activeStop = () => alt.nodes.forEach(n => {
-      const custom = (n as any)._customStop;
-      if (custom) custom();
-      else if ('stop' in n && typeof (n as any).stop === 'function') (n as any).stop();
-    });
-  };
+    if (!(n instanceof AudioNode)) return;
+    const customNode = n as AudioNode & { _customStop?: () => void };
+    if (customNode._customStop) {
+      customNode._customStop();
+    } else if ('stop' in customNode && typeof (customNode as AudioScheduledSourceNode).stop === 'function') {
+      (customNode as AudioScheduledSourceNode).stop();
+    }
+  });
 
   const player = new GaplessLoopPlayer(ctx, cfg, useFallback);
   player.out.connect(out);
@@ -581,6 +580,7 @@ export function makeFileTrack(
   player.start();
 
   const stopProxy = ctx.createGain(); stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => activeStop();
+  const proxyNode = stopProxy as AudioNode & { _customStop?: () => void };
+  proxyNode._customStop = () => activeStop();
   return { out, nodes: [stopProxy] };
 }

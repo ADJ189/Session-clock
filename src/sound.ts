@@ -294,8 +294,9 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
   scheduleChirp();
 
   // Expose stop hook via a dummy AudioNode with custom cleanup
-  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => { chirpActive = false; };
+  const stopProxy = ctx!.createGain() as GainNode & { _customStop: () => void };
+  stopProxy.gain.value = 0;
+  stopProxy._customStop = () => { chirpActive = false; };
   nodes.push(stopProxy);
 
   return { out: mix, nodes };
@@ -388,8 +389,9 @@ function makeKeyboard(): { out: AudioNode; nodes: AudioNode[] } {
   };
   scheduleRun();
 
-  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => { active = false; };
+  const stopProxy = ctx!.createGain() as GainNode & { _customStop(): void };
+  stopProxy.gain.value = 0;
+  stopProxy._customStop = () => { active = false; };
 
   return { out: clackGain, nodes: [stopProxy] };
 }
@@ -433,8 +435,9 @@ function makeLibrary(): { out: AudioNode; nodes: AudioNode[] } {
   };
   schedulePage();
 
-  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => { active = false; };
+  const stopProxy = ctx!.createGain() as GainNode & { _customStop?: () => void };
+  stopProxy.gain.value = 0;
+  stopProxy._customStop = () => { active = false; };
 
   return { out: mix, nodes: [hum, room, stopProxy] };
 }
@@ -524,6 +527,7 @@ function makeAirplane(): { out: AudioNode; nodes: AudioNode[] } {
 
 // ── CAMPFIRE — airier outdoor fire: brighter crackle, less bass roar ──
 function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
+  type GainNodeWithCustomStop = GainNode & { _customStop: () => void };
   const hiss = makeNoiseBuf(4, 1, d => {
     let l = 0;
     for (let i = 0; i < d.length; i++) { l = l * 0.996 + (Math.random()*2-1)*0.004; d[i] = l * 1.4; }
@@ -563,8 +567,9 @@ function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
   };
   scheduleCrackle();
 
-  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => { active = false; };
+  const stopProxy = ctx!.createGain() as GainNodeWithCustomStop;
+  stopProxy.gain.value = 0;
+  stopProxy._customStop = () => { active = false; };
 
   return { out: mix, nodes: [hiss, air, stopProxy] };
 }
@@ -617,8 +622,9 @@ function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
   };
   scheduleCrash();
 
-  const stopProxy = ctx!.createGain(); stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => { active = false; };
+  const stopProxy = ctx!.createGain() as GainNode & { _customStop: () => void };
+  stopProxy.gain.value = 0;
+  stopProxy._customStop = () => { active = false; };
 
   return { out: mix, nodes: [bed, stopProxy] };
 }
@@ -701,10 +707,10 @@ export function playTrack(id: string) {
   if (!made) return;
   const g = ctx!.createGain(); g.gain.value = trackVols[id] ?? 0.8;
   made.out.connect(g); g.connect(analyser!);
-  made.nodes.forEach(n => {
-    if ((n as any)._customStop) return; // skip custom stop proxies
-    if ('start' in n && typeof (n as AudioScheduledSourceNode).start === 'function' && !(n as any)._started) {
-      try { (n as AudioScheduledSourceNode).start(); (n as any)._started = true; } catch {}
+  made.nodes.forEach((n: AudioScheduledSourceNode & { _customStop?: boolean; _started?: boolean }) => {
+    if (n._customStop) return; // skip custom stop proxies
+    if ('start' in n && typeof n.start === 'function' && !n._started) {
+      try { n.start(); n._started = true; } catch {}
     }
   });
   trackNodes[id] = { nodes: made.nodes, gain: g };
@@ -718,8 +724,11 @@ export function stopTrack(id: string) {
   const t = trackNodes[id];
   detachSpatialRig(id, t.gain);
   t.nodes.forEach(n => {
-    // Call custom cleanup hook if present (chirp/crackle schedulers)
-    if ((n as any)._customStop) { (n as any)._customStop(); return; }
+    const maybeCustomStop = n as { _customStop?: () => void };
+    if (typeof maybeCustomStop._customStop === 'function') {
+      maybeCustomStop._customStop();
+      return;
+    }
     try { (n as AudioScheduledSourceNode).stop(); } catch {}
     try { n.disconnect(); } catch {}
   });

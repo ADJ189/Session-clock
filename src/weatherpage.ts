@@ -208,7 +208,18 @@ async function searchCity(query: string, overlay: HTMLElement) {
     const data = await res.json();
     results.innerHTML = '';
     if (!data.length) { results.innerHTML = '<div class="weather-loc-loading">No results found</div>'; return; }
-    data.forEach((item: any) => {
+    data.forEach((item: {
+      address?: {
+        city?: string;
+        town?: string;
+        village?: string;
+        state?: string;
+        country?: string;
+      };
+      display_name: string;
+      lat: string;
+      lon: string;
+    }) => {
       const name = item.address?.city || item.address?.town || item.address?.village || item.display_name.split(',')[0];
       const sub = [item.address?.state, item.address?.country].filter(Boolean).join(', ');
       const btn = document.createElement('button');
