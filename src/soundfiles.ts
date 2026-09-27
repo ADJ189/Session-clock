@@ -161,6 +161,39 @@ export function isFileTrackSupported(id: string): boolean {
 // the next real interaction anywhere on the page.
 const pendingResume = new Set<GaplessLoopPlayer>();
 let retryListenerBound = false;
+
+// ── Shared loop-boundary scheduler ───────────────────────────────────
+// Each GaplessLoopPlayer used to run its own rAF loop + 250ms interval to
+// watch for its loop seam — fine with one recorded track playing, but
+// work scales with track count: rain+forest+fire+cafe all at once meant
+// four independent rAF callbacks and four independent interval timers
+// doing the same ~16ms/250ms position check. One shared pair, ticking
+// every active player, does the same job at constant (not per-track)
+// cost.
+const activeLoopPlayers = new Set<GaplessLoopPlayer>();
+let sharedRaf = 0;
+let sharedInterval = 0;
+
+function registerLoopPlayer(player: GaplessLoopPlayer): void {
+  activeLoopPlayers.add(player);
+  if (sharedRaf || sharedInterval) return;
+  const rafTick = () => {
+    if (activeLoopPlayers.size === 0) { sharedRaf = 0; return; }
+    activeLoopPlayers.forEach(p => p.tick());
+    sharedRaf = requestAnimationFrame(rafTick);
+  };
+  sharedRaf = requestAnimationFrame(rafTick);
+  sharedInterval = window.setInterval(() => activeLoopPlayers.forEach(p => p.tick()), 250);
+}
+
+function unregisterLoopPlayer(p: GaplessLoopPlayer): void {
+  activeLoopPlayers.delete(p);
+  if (activeLoopPlayers.size === 0) {
+    if (sharedRaf) cancelAnimationFrame(sharedRaf);
+    clearInterval(sharedInterval);
+    sharedRaf = 0; sharedInterval = 0;
+  }
+}
 function ensureRetryListener(): void {
   if (retryListenerBound) return;
   retryListenerBound = true;
@@ -182,8 +215,6 @@ class GaplessLoopPlayer {
   private gains: [GainNode, GainNode];
   readonly out: GainNode;
   private active: 0 | 1 = 0;
-  private rafHandle = 0;
-  private intervalHandle = 0;
   private crossfadeSwapHandle = 0;
   private crossfading = false;
   private stopped = false;
@@ -287,7 +318,7 @@ class GaplessLoopPlayer {
     g.gain.linearRampToValueAtTime(1, now + 0.25); // short fade-in, avoids a click on first start
     this.attemptPlay(this.els[this.active]);
     this.primeOther();
-    this.watch();
+    registerLoopPlayer(this);
   }
 
   private attemptPlay(el: HTMLAudioElement): void {
@@ -316,6 +347,13 @@ class GaplessLoopPlayer {
    *  time — it's a nice-to-have, not worth competing with anything the
    *  user is actively doing. */
   private primeOther(): void {
+    // On save-data/metered connections, don't spend bandwidth priming a
+    // backup element ahead of time — that's exactly the eager-fetch
+    // behavior el.preload:'none' was set to avoid in the constructor.
+    // The just-in-time path in crossfade() (assigns `src` and waits on
+    // 'canplay' before fading) still covers the swap; it just won't be
+    // pre-buffered, which is the correct trade-off here.
+    if (CAPS.saveData) return;
     const other = this.els[1 - this.active];
     const warm = () => {
       if (this.stopped) return;
@@ -332,30 +370,16 @@ class GaplessLoopPlayer {
     else setTimeout(warm, 1500);
   }
 
-  /** Watches for the loop boundary two ways at once: requestAnimationFrame
-   *  while the tab is visible, which re-checks every frame (~16ms) — the
-   *  Web equivalent of the precise position check Metrolist schedules its
-   *  ExoPlayer crossfade from, rather than a coarse poll — plus a 250ms
-   *  setInterval as a background-tab safety net, since rAF itself is
-   *  throttled or fully paused there. Both funnel into the same
-   *  maybeCrossfade() check, which is safe to call redundantly: crossfade()
-   *  sets `crossfading` as its very first synchronous statement, so even
-   *  if both fire in the same tick only one actually starts a crossfade. */
-  private watch(): void {
-    this.stopWatch();
-    const rafTick = () => {
-      if (this.stopped || this.crossfading) return;
-      this.maybeCrossfade();
-      if (!this.stopped && !this.crossfading) this.rafHandle = requestAnimationFrame(rafTick);
-    };
-    this.rafHandle = requestAnimationFrame(rafTick);
-    this.intervalHandle = window.setInterval(() => this.maybeCrossfade(), 250);
-  }
-
-  private stopWatch(): void {
-    if (this.rafHandle) cancelAnimationFrame(this.rafHandle);
-    clearInterval(this.intervalHandle);
-  }
+  /** Called every frame (and every 250ms as a background-tab safety net,
+   *  since rAF itself is throttled/paused there) by the shared scheduler
+   *  above instead of a per-instance rAF+interval pair — same "watch for
+   *  the loop boundary two ways at once" behavior, now at constant cost
+   *  regardless of how many recorded tracks are playing simultaneously.
+   *  Safe to call redundantly from both the rAF and interval paths:
+   *  crossfade() sets `crossfading` as its very first synchronous
+   *  statement, so even if both fire in the same tick only one actually
+   *  starts a crossfade. */
+  tick(): void { this.maybeCrossfade(); }
 
   private maybeCrossfade(): void {
     if (this.stopped || this.crossfading || this.awaitingReady) return;
@@ -375,7 +399,6 @@ class GaplessLoopPlayer {
    *  audible and wait for it to actually be able to play before starting
    *  the fade at all. */
   private crossfade(): void {
-    this.stopWatch();
     const from = this.active;
     const to: 0 | 1 = from === 0 ? 1 : 0;
     const toEl = this.els[to];
@@ -464,15 +487,15 @@ class GaplessLoopPlayer {
 
     this.crossfadeSwapHandle = window.setTimeout(() => {
       // stop() may have run while this crossfade was in flight — bail out
-      // rather than reviving a watch() loop on a player that's already
-      // torn down (that loop would then never get cleared).
+      // rather than re-registering a player that's already torn down
+      // (unregisterLoopPlayer() already dropped it from the shared set).
       if (this.stopped) return;
       const oldEl = this.els[from];
       try { oldEl.pause(); oldEl.currentTime = 0; } catch { /* ignore */ }
       this.active = to;
       this.crossfading = false;
       this.primeOther();
-      this.watch();
+      registerLoopPlayer(this); // no-op if still registered; restores it if stop() somehow raced past the guard above
     }, dur * 1000 + 30);
   }
 
@@ -495,12 +518,12 @@ class GaplessLoopPlayer {
     this.attemptPlay(this.els[to]);
     this.active = to;
     this.primeOther();
-    this.watch();
+    registerLoopPlayer(this);
   }
 
   stop(): void {
     this.stopped = true;
-    this.stopWatch();
+    unregisterLoopPlayer(this);
     clearTimeout(this.crossfadeSwapHandle);
     if (this.cancelAwaitReady) { this.cancelAwaitReady(); }
     this.awaitingReady = false;
