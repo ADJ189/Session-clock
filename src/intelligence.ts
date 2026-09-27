@@ -56,6 +56,20 @@ export function getStreakMilestone(streak: number): string | null {
 }
 
 // ── Session Velocity Score (0–100) ────────────────────────────────────
+// Below this, a stopped session isn't a real "abandoned focus attempt" —
+// it's a misclick or an instant change of mind, and shouldn't count
+// against the score. (A stale comment on recordAbandoned() below used to
+// say "5 minutes" here, but resetTimer()'s own completed/abandoned split
+// in main.ts is mutually exclusive at 60s — anything ≥60s is already
+// routed to recordCompleted() and never reaches recordAbandoned() at all,
+// so a 5-*minute* floor would make this branch permanently unreachable
+// and silently disable the whole abandoned-session signal. 5 seconds is
+// the threshold that's actually been wired up on the caller side in
+// main.ts; centralizing it here as a named constant, and enforcing it
+// inside recordAbandoned() too, is what fixes the drift — not changing
+// the value to match the old comment.)
+export const MIN_ABANDON_MS = 5_000;
+
 export function getVelocity(): VelocityData {
   try { return JSON.parse(localStorage.getItem(VELOCITY_KEY) || '{"completed":0,"abandoned":0}'); }
   catch { return { completed: 0, abandoned: 0 }; }
@@ -67,9 +81,9 @@ export function recordCompleted() {
   localStorage.setItem(VELOCITY_KEY, JSON.stringify(v));
 }
 
-export function recordAbandoned() {
+export function recordAbandoned(durationMs: number) {
+  if (durationMs < MIN_ABANDON_MS) return; // too short to represent a real attempt
   const v = getVelocity();
-  // Only penalise if session ran > 5 minutes (real work)
   v.abandoned++;
   localStorage.setItem(VELOCITY_KEY, JSON.stringify(v));
 }
@@ -117,23 +131,43 @@ export function formatHour(h: number): string {
 }
 
 // ── Smart Break Suggester ─────────────────────────────────────────────
+// Tracks *focused running time*, not wall-clock time — deliberately, so
+// leaving the tab open and idle for hours before ever starting a session
+// doesn't make the very first session immediately eligible for a break
+// suggestion. `focusedMsSinceBreak` only advances while a session is
+// actually running (see onSessionStart/onSessionPause below); pausing
+// freezes it exactly like Pomodoro's own phaseElapsedBeforeSegment
+// pattern in pomodoro.ts freezes phase progress across a pause.
 let sessionStartTs = 0;
-let lastBreakTs = Date.now();
 let breakSuggested = false;
+let focusedMsSinceBreak = 0;
+let runSegmentStart = 0; // performance.now() when the current running segment began; 0 while not running
 
 export function onSessionStart() {
   sessionStartTs = Date.now();
   breakSuggested = false;
+  runSegmentStart = performance.now();
+}
+
+// Call when a running session pauses (or ends without a break), so the
+// idle/paused gap that follows isn't silently counted as focused time.
+export function onSessionPause() {
+  if (runSegmentStart) {
+    focusedMsSinceBreak += performance.now() - runSegmentStart;
+    runSegmentStart = 0;
+  }
 }
 
 export function onBreakTaken() {
-  lastBreakTs = Date.now();
+  focusedMsSinceBreak = 0;
+  runSegmentStart = 0;
   breakSuggested = false;
 }
 
 export function checkBreakNeeded(sessionRunning: boolean, thresholdMins = 90): boolean {
   if (!sessionRunning || breakSuggested) return false;
-  const minsNoBreak = (Date.now() - lastBreakTs) / 60000;
+  const liveMs = focusedMsSinceBreak + (runSegmentStart ? performance.now() - runSegmentStart : 0);
+  const minsNoBreak = liveMs / 60000;
   if (minsNoBreak >= thresholdMins) {
     breakSuggested = true;
     return true;
