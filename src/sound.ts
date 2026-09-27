@@ -1,79 +1,297 @@
-import type { SoundDef, SoundNode } from './types';
-import { CAPS, subscribeOrientation } from './platform';
-import { makeFileTrack, isFileTrackSupported } from './soundfiles';
-import { makeSynthTrack } from './soundsynth';
+import type { SoundDef, SoundNode } from "./types";
+import { CAPS, subscribeOrientation } from "./platform";
+import { makeFileTrack, isFileTrackSupported } from "./soundfiles";
+import { makeSynthTrack } from "./soundsynth";
 
 export const SOUNDS: SoundDef[] = [
-  { id: 'rain',      name: 'Rain',        icon: '🌧', desc: 'Gentle rainfall on a window'   },
-  { id: 'roofrain',  name: 'Rain on Roof', icon: '🏚', desc: 'Heavier patter on a hard surface overhead' },
-  { id: 'white',     name: 'White Noise', icon: '📺', desc: 'Full-spectrum flat hiss'          },
-  { id: 'pink',      name: 'Pink Noise',  icon: '🎛', desc: 'Softer, more natural-sounding hiss' },
-  { id: 'brown',     name: 'Brown Noise', icon: '📻', desc: 'Deep, soothing rumble'           },
-  { id: 'forest',    name: 'Forest',      icon: '🌲', desc: 'Wind, leaves, distant birds'     },
-  { id: 'cafe',      name: 'Café',        icon: '☕', desc: 'Warm murmur of a coffee shop'   },
-  { id: 'ocean',     name: 'Ocean',       icon: '🌊', desc: 'Waves rolling onto shore'        },
-  { id: 'fire',      name: 'Fireplace',   icon: '🔥', desc: 'Crackling wood fire'             },
-  { id: 'wind',      name: 'Wind',        icon: '🍃', desc: 'Open-air gusts, ebbing and flowing' },
-  { id: 'snow',      name: 'Snowfall',    icon: '❄️', desc: 'Soft hush and distant footsteps'  },
-  { id: 'keyboard',  name: 'Keyboard',    icon: '⌨️', desc: 'Mechanical typing, in bursts'      },
-  { id: 'library',   name: 'Library',     icon: '📚', desc: 'Quiet room tone, rare page turns' },
-  { id: 'airplane',  name: 'Airplane Cabin', icon: '✈️', desc: 'Steady jet-engine drone, great for masking' },
-  { id: 'spaceship', name: 'Spaceship',   icon: '🚀', desc: 'Deep engine drone, sci-fi hum'    },
-  { id: 'campfire',  name: 'Campfire',    icon: '🏕', desc: 'Bright outdoor fire under the stars' },
-  { id: 'waves',     name: 'Waves & Rocks', icon: '🌊', desc: 'Surf crashing against the shore' },
+  { id: "rain", name: "Rain", icon: "🌧", desc: "Gentle rainfall on a window" },
+  {
+    id: "roofrain",
+    name: "Rain on Roof",
+    icon: "🏚",
+    desc: "Heavier patter on a hard surface overhead",
+  },
+  {
+    id: "white",
+    name: "White Noise",
+    icon: "📺",
+    desc: "Full-spectrum flat hiss",
+  },
+  {
+    id: "pink",
+    name: "Pink Noise",
+    icon: "🎛",
+    desc: "Softer, more natural-sounding hiss",
+  },
+  {
+    id: "brown",
+    name: "Brown Noise",
+    icon: "📻",
+    desc: "Deep, soothing rumble",
+  },
+  {
+    id: "forest",
+    name: "Forest",
+    icon: "🌲",
+    desc: "Wind, leaves, distant birds",
+  },
+  {
+    id: "cafe",
+    name: "Café",
+    icon: "☕",
+    desc: "Warm murmur of a coffee shop",
+  },
+  { id: "ocean", name: "Ocean", icon: "🌊", desc: "Waves rolling onto shore" },
+  { id: "fire", name: "Fireplace", icon: "🔥", desc: "Crackling wood fire" },
+  {
+    id: "wind",
+    name: "Wind",
+    icon: "🍃",
+    desc: "Open-air gusts, ebbing and flowing",
+  },
+  {
+    id: "snow",
+    name: "Snowfall",
+    icon: "❄️",
+    desc: "Soft hush and distant footsteps",
+  },
+  {
+    id: "keyboard",
+    name: "Keyboard",
+    icon: "⌨️",
+    desc: "Mechanical typing, in bursts",
+  },
+  {
+    id: "library",
+    name: "Library",
+    icon: "📚",
+    desc: "Quiet room tone, rare page turns",
+  },
+  {
+    id: "airplane",
+    name: "Airplane Cabin",
+    icon: "✈️",
+    desc: "Steady jet-engine drone, great for masking",
+  },
+  {
+    id: "spaceship",
+    name: "Spaceship",
+    icon: "🚀",
+    desc: "Deep engine drone, sci-fi hum",
+  },
+  {
+    id: "campfire",
+    name: "Campfire",
+    icon: "🏕",
+    desc: "Bright outdoor fire under the stars",
+  },
+  {
+    id: "waves",
+    name: "Waves & Rocks",
+    icon: "🌊",
+    desc: "Surf crashing against the shore",
+  },
   // ── Recorded, not synthesized — atomic layers meant to mix with the
   // above (river under rain, thunder under rain) — see soundfiles.ts ────
-  { id: 'river',     name: 'River',     icon: '🏞', desc: 'Water moving steadily over a stony bed' },
-  { id: 'waterfall', name: 'Waterfall', icon: '💧', desc: 'Steady falling-water roar' },
-  { id: 'thunder',   name: 'Thunder',   icon: '⛈', desc: 'Distant rolling thunder — layer under Rain' },
-  { id: 'night',     name: 'Crickets',  icon: '🌌', desc: 'Crickets in still night air' },
-  { id: 'birds',     name: 'Birds',     icon: '🐦', desc: 'Birdsong, near and far' },
+  {
+    id: "river",
+    name: "River",
+    icon: "🏞",
+    desc: "Water moving steadily over a stony bed",
+  },
+  {
+    id: "waterfall",
+    name: "Waterfall",
+    icon: "💧",
+    desc: "Steady falling-water roar",
+  },
+  {
+    id: "thunder",
+    name: "Thunder",
+    icon: "⛈",
+    desc: "Distant rolling thunder — layer under Rain",
+  },
+  {
+    id: "night",
+    name: "Crickets",
+    icon: "🌌",
+    desc: "Crickets in still night air",
+  },
+  { id: "birds", name: "Birds", icon: "🐦", desc: "Birdsong, near and far" },
   // ── ambiently (npm, procedural) — presets with no recorded or
   // hand-written equivalent above. See soundsynth.ts for why this goes
   // through createSynth() directly rather than the AmbientlyEngine class. ─
-  { id: 'hum',       name: 'Room Hum',    icon: '🔌', desc: 'Low electrical hum, steady and unobtrusive' },
-  { id: 'frogs',     name: 'Frogs',       icon: '🐸', desc: 'Pond frogs calling after dusk' },
-  { id: 'city',      name: 'City',        icon: '🏙', desc: 'Distant traffic and city murmur' },
-  { id: 'fan',       name: 'Fan',         icon: '🌀', desc: 'Steady fan whir, close and even' },
-  { id: 'clock',     name: 'Ticking Clock', icon: '🕰', desc: "A clock's steady tick, second by second" },
-  { id: 'vinyl',     name: 'Vinyl Crackle', icon: '💿', desc: 'Warm turntable hiss and pops' },
-  { id: 'heartbeat', name: 'Heartbeat',   icon: '💓', desc: 'A slow, steady heartbeat' },
-  { id: 'drone',     name: 'Drone',       icon: '🔊', desc: 'Deep, sustained tone underneath everything' },
-  { id: 'space',     name: 'Deep Space',  icon: '🛰', desc: 'Slow cosmic drift, distant and vast' },
-  { id: 'lofi',      name: 'Lo-fi Beat',  icon: '🎧', desc: 'Soft lo-fi chords over a gentle beat loop' },
-  { id: 'pad',       name: 'Ambient Pad', icon: '🎹', desc: 'Slow evolving synth pad, warm and sustained' },
-  { id: 'musicbox',  name: 'Music Box',   icon: '🎵', desc: 'A delicate wind-up melody' },
-  { id: 'bells',     name: 'Bells',       icon: '🔔', desc: 'Soft, spaced-out chimes' },
+  {
+    id: "hum",
+    name: "Room Hum",
+    icon: "🔌",
+    desc: "Low electrical hum, steady and unobtrusive",
+  },
+  {
+    id: "frogs",
+    name: "Frogs",
+    icon: "🐸",
+    desc: "Pond frogs calling after dusk",
+  },
+  {
+    id: "city",
+    name: "City",
+    icon: "🏙",
+    desc: "Distant traffic and city murmur",
+  },
+  {
+    id: "fan",
+    name: "Fan",
+    icon: "🌀",
+    desc: "Steady fan whir, close and even",
+  },
+  {
+    id: "clock",
+    name: "Ticking Clock",
+    icon: "🕰",
+    desc: "A clock's steady tick, second by second",
+  },
+  {
+    id: "vinyl",
+    name: "Vinyl Crackle",
+    icon: "💿",
+    desc: "Warm turntable hiss and pops",
+  },
+  {
+    id: "heartbeat",
+    name: "Heartbeat",
+    icon: "💓",
+    desc: "A slow, steady heartbeat",
+  },
+  {
+    id: "drone",
+    name: "Drone",
+    icon: "🔊",
+    desc: "Deep, sustained tone underneath everything",
+  },
+  {
+    id: "space",
+    name: "Deep Space",
+    icon: "🛰",
+    desc: "Slow cosmic drift, distant and vast",
+  },
+  {
+    id: "lofi",
+    name: "Lo-fi Beat",
+    icon: "🎧",
+    desc: "Soft lo-fi chords over a gentle beat loop",
+  },
+  {
+    id: "pad",
+    name: "Ambient Pad",
+    icon: "🎹",
+    desc: "Slow evolving synth pad, warm and sustained",
+  },
+  {
+    id: "musicbox",
+    name: "Music Box",
+    icon: "🎵",
+    desc: "A delicate wind-up melody",
+  },
+  { id: "bells", name: "Bells", icon: "🔔", desc: "Soft, spaced-out chimes" },
 ];
 
 // Per-track accent — used to tint each track's icon tile in the mixer
 // (Metrolist-style per-item color identity) instead of one uniform
 // generic icon color across the whole grid.
 export const SOUND_ACCENT: Record<string, string> = {
-  rain: '#0a84ff', roofrain: '#409cff', white: '#8e8e93', pink: '#ff2d55',
-  brown: '#a2845e', forest: '#30d158', cafe: '#c8a165', ocean: '#32ade6',
-  fire: '#ff9f0a', wind: '#64d2ff', snow: '#eaf6ff', keyboard: '#8e8e93',
-  library: '#bf5af2', airplane: '#5e5ce6', spaceship: '#5e5ce6',
-  campfire: '#ff9f0a', waves: '#32ade6',
-  river: '#32ade6', waterfall: '#64d2ff', thunder: '#409cff', night: '#5e5ce6', birds: '#30d158',
-  hum: '#8e8e93', frogs: '#30d158', city: '#8e8e93', fan: '#64d2ff', clock: '#a2845e',
-  vinyl: '#c8a165', heartbeat: '#ff2d55', drone: '#5e5ce6', space: '#5e5ce6', lofi: '#bf5af2',
-  pad: '#0a84ff', musicbox: '#ff9f0a', bells: '#eaf6ff',
+  rain: "#0a84ff",
+  roofrain: "#409cff",
+  white: "#8e8e93",
+  pink: "#ff2d55",
+  brown: "#a2845e",
+  forest: "#30d158",
+  cafe: "#c8a165",
+  ocean: "#32ade6",
+  fire: "#ff9f0a",
+  wind: "#64d2ff",
+  snow: "#eaf6ff",
+  keyboard: "#8e8e93",
+  library: "#bf5af2",
+  airplane: "#5e5ce6",
+  spaceship: "#5e5ce6",
+  campfire: "#ff9f0a",
+  waves: "#32ade6",
+  river: "#32ade6",
+  waterfall: "#64d2ff",
+  thunder: "#409cff",
+  night: "#5e5ce6",
+  birds: "#30d158",
+  hum: "#8e8e93",
+  frogs: "#30d158",
+  city: "#8e8e93",
+  fan: "#64d2ff",
+  clock: "#a2845e",
+  vinyl: "#c8a165",
+  heartbeat: "#ff2d55",
+  drone: "#5e5ce6",
+  space: "#5e5ce6",
+  lofi: "#bf5af2",
+  pad: "#0a84ff",
+  musicbox: "#ff9f0a",
+  bells: "#eaf6ff",
 };
 
 export interface BinauralPreset {
-  id: string; name: string; icon: string;
-  desc: string; carrier: number; beat: number;
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  carrier: number;
+  beat: number;
 }
 export const BINAURAL_PRESETS: BinauralPreset[] = [
-  { id: 'gamma', name: 'Deep Focus',  icon: '🧠', desc: 'Gamma 40Hz · Peak concentration', carrier: 200, beat: 40 },
-  { id: 'beta',  name: 'Alert',       icon: '⚡', desc: 'Beta 18Hz · Active thinking',      carrier: 200, beat: 18 },
-  { id: 'alpha', name: 'Calm Focus',  icon: '🌊', desc: 'Alpha 10Hz · Relaxed awareness',   carrier: 200, beat: 10 },
-  { id: 'theta', name: 'Flow State',  icon: '✨', desc: 'Theta 6Hz · Creative flow',        carrier: 200, beat: 6  },
-  { id: 'delta', name: 'Rest',        icon: '🌙', desc: 'Delta 2Hz · Deep rest & recovery', carrier: 200, beat: 2  },
+  {
+    id: "gamma",
+    name: "Deep Focus",
+    icon: "🧠",
+    desc: "Gamma 40Hz · Peak concentration",
+    carrier: 200,
+    beat: 40,
+  },
+  {
+    id: "beta",
+    name: "Alert",
+    icon: "⚡",
+    desc: "Beta 18Hz · Active thinking",
+    carrier: 200,
+    beat: 18,
+  },
+  {
+    id: "alpha",
+    name: "Calm Focus",
+    icon: "🌊",
+    desc: "Alpha 10Hz · Relaxed awareness",
+    carrier: 200,
+    beat: 10,
+  },
+  {
+    id: "theta",
+    name: "Flow State",
+    icon: "✨",
+    desc: "Theta 6Hz · Creative flow",
+    carrier: 200,
+    beat: 6,
+  },
+  {
+    id: "delta",
+    name: "Rest",
+    icon: "🌙",
+    desc: "Delta 2Hz · Deep rest & recovery",
+    carrier: 200,
+    beat: 2,
+  },
 ];
-SOUND_ACCENT.gamma = '#ff375f'; SOUND_ACCENT.beta = '#ffd60a';
-SOUND_ACCENT.alpha = '#32ade6'; SOUND_ACCENT.theta = '#bf5af2'; SOUND_ACCENT.delta = '#5e5ce6';
+SOUND_ACCENT.gamma = "#ff375f";
+SOUND_ACCENT.beta = "#ffd60a";
+SOUND_ACCENT.alpha = "#32ade6";
+SOUND_ACCENT.theta = "#bf5af2";
+SOUND_ACCENT.delta = "#5e5ce6";
 
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
@@ -82,16 +300,25 @@ let analyserData: Uint8Array<ArrayBuffer> | null = null;
 
 const trackNodes: Record<string, { nodes: AudioNode[]; gain: GainNode }> = {};
 const trackVols: Record<string, number> = {};
-SOUNDS.forEach(s => { trackVols[s.id] = 0.8; });
+SOUNDS.forEach((s) => {
+  trackVols[s.id] = 0.8;
+});
 
-let binauralNodes: { left: OscillatorNode; right: OscillatorNode; merger: ChannelMergerNode; gain: GainNode } | null = null;
+let binauralNodes: {
+  left: OscillatorNode;
+  right: OscillatorNode;
+  merger: ChannelMergerNode;
+  gain: GainNode;
+} | null = null;
 export let binauralPresetId: string | null = null;
 
-let masterVol   = 0.7;
+let masterVol = 0.7;
 let fadeMinutes = 0;
-let fadeTimer   = 0;
+let fadeTimer = 0;
 let onTrackChange: (() => void) | null = null;
-export function setTrackChangeHandler(fn: () => void) { onTrackChange = fn; }
+export function setTrackChangeHandler(fn: () => void) {
+  onTrackChange = fn;
+}
 
 function ensureCtx() {
   if (!ctx) {
@@ -107,17 +334,17 @@ function ensureCtx() {
     // DynamicsCompressor prevents clipping at high volumes (200% boost)
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -18;
-    comp.knee.value       = 10;
-    comp.ratio.value      = 4;
-    comp.attack.value     = 0.003;
-    comp.release.value    = 0.25;
+    comp.knee.value = 10;
+    comp.ratio.value = 4;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.25;
 
     // Chain: tracks → analyser → masterGain → compressor → destination
     analyser.connect(masterGain);
     masterGain.connect(comp);
     comp.connect(ctx.destination);
   }
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
 }
 
 // ── Autoplay-policy unlock ─────────────────────────────────────────────
@@ -154,12 +381,17 @@ export function getBassLevel(): number {
 }
 
 // ── Noise buffer factory ──────────────────────────────────────────────
-function makeNoiseBuf(seconds: number, channels: 1 | 2, fn: (ch: Float32Array, c: number) => void): AudioBufferSourceNode {
-  const sr  = ctx!.sampleRate;
+function makeNoiseBuf(
+  seconds: number,
+  channels: 1 | 2,
+  fn: (ch: Float32Array, c: number) => void,
+): AudioBufferSourceNode {
+  const sr = ctx!.sampleRate;
   const buf = ctx!.createBuffer(channels, sr * seconds, sr);
   for (let c = 0; c < channels; c++) fn(buf.getChannelData(c), c);
   const src = ctx!.createBufferSource();
-  src.buffer = buf; src.loop = true;
+  src.buffer = buf;
+  src.loop = true;
   return src;
 }
 
@@ -168,13 +400,22 @@ function makeNoiseBuf(seconds: number, channels: 1 | 2, fn: (ch: Float32Array, c
 // track — pulled out once here so both (and the new standalone Pink Noise
 // track) share one implementation.
 function fillPinkNoise(d: Float32Array, amp: number): void {
-  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  let b0 = 0,
+    b1 = 0,
+    b2 = 0,
+    b3 = 0,
+    b4 = 0,
+    b5 = 0,
+    b6 = 0;
   for (let i = 0; i < d.length; i++) {
     const white = Math.random() * 2 - 1;
-    b0 = 0.99886*b0 + white*0.0555179; b1 = 0.99332*b1 + white*0.0750759;
-    b2 = 0.96900*b2 + white*0.1538520; b3 = 0.86650*b3 + white*0.3104856;
-    b4 = 0.55000*b4 + white*0.5329522; b5 = -0.7616*b5 - white*0.0168980;
-    d[i] = (b0+b1+b2+b3+b4+b5+b6+white*0.5362) * amp;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.969 * b2 + white * 0.153852;
+    b3 = 0.8665 * b3 + white * 0.3104856;
+    b4 = 0.55 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.016898;
+    d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * amp;
     b6 = white * 0.115926;
   }
 }
@@ -188,33 +429,61 @@ function fillPinkNoise(d: Float32Array, amp: number): void {
 // peak where the roof itself rings, and periodic gust swells that make
 // it noticeably heavier/lighter over time rather than perfectly steady.
 function makeRoofRain(): { out: AudioNode; nodes: AudioNode[] } {
-  const src = makeNoiseBuf(4, 1, d => {
+  const src = makeNoiseBuf(4, 1, (d) => {
     for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.4;
   });
-  const hp = ctx!.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 700;  hp.Q.value = 0.7;
-  const lp = ctx!.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 9000; lp.Q.value = 0.6;
+  const hp = ctx!.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 700;
+  hp.Q.value = 0.7;
+  const lp = ctx!.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 9000;
+  lp.Q.value = 0.6;
   // Resonant peak — the roof surface itself "ringing" under impact
-  const ring = ctx!.createBiquadFilter(); ring.type = 'peaking'; ring.frequency.value = 3200; ring.gain.value = 7; ring.Q.value = 3.5;
-  src.connect(hp); hp.connect(lp); lp.connect(ring);
+  const ring = ctx!.createBiquadFilter();
+  ring.type = "peaking";
+  ring.frequency.value = 3200;
+  ring.gain.value = 7;
+  ring.Q.value = 3.5;
+  src.connect(hp);
+  hp.connect(lp);
+  lp.connect(ring);
 
   // Lower "body" layer — the duller thud of drops landing, felt more than heard
-  const body = makeNoiseBuf(4, 1, d => {
+  const body = makeNoiseBuf(4, 1, (d) => {
     let l = 0;
-    for (let i = 0; i < d.length; i++) { l = l * 0.99 + (Math.random() * 2 - 1) * 0.01; d[i] = l * 2.0; }
+    for (let i = 0; i < d.length; i++) {
+      l = l * 0.99 + (Math.random() * 2 - 1) * 0.01;
+      d[i] = l * 2.0;
+    }
   });
-  const bodyLp = ctx!.createBiquadFilter(); bodyLp.type = 'lowpass'; bodyLp.frequency.value = 400; bodyLp.Q.value = 0.6;
+  const bodyLp = ctx!.createBiquadFilter();
+  bodyLp.type = "lowpass";
+  bodyLp.frequency.value = 400;
+  bodyLp.Q.value = 0.6;
   body.connect(bodyLp);
 
-  const ringG = ctx!.createGain(); ringG.gain.value = 0.5; ring.connect(ringG);
-  const bodyG = ctx!.createGain(); bodyG.gain.value = 0.4; bodyLp.connect(bodyG);
-  const mix = ctx!.createGain(); mix.gain.value = 0.75;
-  ringG.connect(mix); bodyG.connect(mix);
+  const ringG = ctx!.createGain();
+  ringG.gain.value = 0.5;
+  ring.connect(ringG);
+  const bodyG = ctx!.createGain();
+  bodyG.gain.value = 0.4;
+  bodyLp.connect(bodyG);
+  const mix = ctx!.createGain();
+  mix.gain.value = 0.75;
+  ringG.connect(mix);
+  bodyG.connect(mix);
 
   // Gust swell — rain intensity rising and falling, more pronounced than
   // the gentle window-rain version since an open roof catches more wind
-  const lfo = ctx!.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.045;
-  const lfoG = ctx!.createGain(); lfoG.gain.value = 0.22;
-  lfo.connect(lfoG); lfoG.connect(mix.gain);
+  const lfo = ctx!.createOscillator();
+  lfo.type = "sine";
+  lfo.frequency.value = 0.045;
+  const lfoG = ctx!.createGain();
+  lfoG.gain.value = 0.22;
+  lfo.connect(lfoG);
+  lfoG.connect(mix.gain);
 
   return { out: mix, nodes: [src, body, lfo] };
 }
@@ -238,33 +507,48 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
   const sr = ctx!.sampleRate;
 
   // Wind base: pink-ish noise (approximate pink via IIR)
-  const wind = makeNoiseBuf(8, 1, d => fillPinkNoise(d, 0.04));
-  const windLp = ctx!.createBiquadFilter(); windLp.type = 'lowpass'; windLp.frequency.value = 800; windLp.Q.value = 0.6;
+  const wind = makeNoiseBuf(8, 1, (d) => fillPinkNoise(d, 0.04));
+  const windLp = ctx!.createBiquadFilter();
+  windLp.type = "lowpass";
+  windLp.frequency.value = 800;
+  windLp.Q.value = 0.6;
   wind.connect(windLp);
 
   // Leaf rustle: bandpass filtered noise with slow LFO on gain
-  const rustle = makeNoiseBuf(4, 1, d => {
+  const rustle = makeNoiseBuf(4, 1, (d) => {
     for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.25;
   });
-  const rustleBp = ctx!.createBiquadFilter(); rustleBp.type = 'bandpass'; rustleBp.frequency.value = 3500; rustleBp.Q.value = 2;
-  const rustleGain = ctx!.createGain(); rustleGain.gain.value = 0.18;
+  const rustleBp = ctx!.createBiquadFilter();
+  rustleBp.type = "bandpass";
+  rustleBp.frequency.value = 3500;
+  rustleBp.Q.value = 2;
+  const rustleGain = ctx!.createGain();
+  rustleGain.gain.value = 0.18;
 
   // Slow LFO on rustle amplitude (wind gust effect)
-  const lfo = ctx!.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.15;
-  const lfoGain = ctx!.createGain(); lfoGain.gain.value = 0.12;
-  lfo.connect(lfoGain); lfoGain.connect(rustleGain.gain);
+  const lfo = ctx!.createOscillator();
+  lfo.type = "sine";
+  lfo.frequency.value = 0.15;
+  const lfoGain = ctx!.createGain();
+  lfoGain.gain.value = 0.12;
+  lfo.connect(lfoGain);
+  lfoGain.connect(rustleGain.gain);
 
-  rustle.connect(rustleBp); rustleBp.connect(rustleGain);
+  rustle.connect(rustleBp);
+  rustleBp.connect(rustleGain);
 
   // Mix
-  const mix = ctx!.createGain(); mix.gain.value = 0.85;
-  windLp.connect(mix); rustleGain.connect(mix);
+  const mix = ctx!.createGain();
+  mix.gain.value = 0.85;
+  windLp.connect(mix);
+  rustleGain.connect(mix);
 
   // Stochastic bird chirps — scheduled with random timing
   const nodes: AudioNode[] = [wind, rustle, lfo];
-  const chirpGain = ctx!.createGain(); chirpGain.gain.value = 0.22;
+  const chirpGain = ctx!.createGain();
+  chirpGain.gain.value = 0.22;
   chirpGain.connect(mix); // was wrongly wired straight to the analyser — bypassed
-                           // this track's own volume slider and spatial panning
+  // this track's own volume slider and spatial panning
 
   // Schedule recurring chirp bursts using recursive setTimeout
   let chirpActive = true;
@@ -272,21 +556,24 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
     if (!chirpActive || !ctx) return;
     const delay = 3000 + Math.random() * 9000; // 3–12 seconds between birds
     setTimeout(() => {
-      if (!chirpActive || !ctx || ctx.state === 'closed') return;
+      if (!chirpActive || !ctx || ctx.state === "closed") return;
       // 2–5 chirp notes per bird
       const count = 2 + Math.floor(Math.random() * 4);
       const baseFreq = 2000 + Math.random() * 3000; // 2–5kHz
       for (let n = 0; n < count; n++) {
         const t = ctx.currentTime + n * (0.08 + Math.random() * 0.06);
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.type = 'sine';
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
         o.frequency.setValueAtTime(baseFreq * (1 + n * 0.1), t);
         o.frequency.exponentialRampToValueAtTime(baseFreq * 1.4, t + 0.04);
         g.gain.setValueAtTime(0, t);
         g.gain.linearRampToValueAtTime(0.6, t + 0.01);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
-        o.connect(g); g.connect(chirpGain);
-        o.start(t); o.stop(t + 0.07);
+        o.connect(g);
+        g.connect(chirpGain);
+        o.start(t);
+        o.stop(t + 0.07);
       }
       scheduleChirp();
     }, delay);
@@ -296,7 +583,9 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
   // Expose stop hook via a dummy AudioNode with custom cleanup
   const stopProxy = ctx!.createGain() as GainNode & { _customStop: () => void };
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => { chirpActive = false; };
+  stopProxy._customStop = () => {
+    chirpActive = false;
+  };
   nodes.push(stopProxy);
 
   return { out: mix, nodes };
@@ -307,42 +596,72 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
 // background music undertone. Key: most energy is below 1kHz.
 function makeCafe(): { out: AudioNode; nodes: AudioNode[] } {
   // Primary chatter: pink noise shaped to vocal range (200Hz–3kHz)
-  const chatter = makeNoiseBuf(8, 1, d => {
-    let b0=0,b1=0,b2=0,b3=0;
+  const chatter = makeNoiseBuf(8, 1, (d) => {
+    let b0 = 0,
+      b1 = 0,
+      b2 = 0,
+      b3 = 0;
     for (let i = 0; i < d.length; i++) {
       const w = Math.random() * 2 - 1;
-      b0 = 0.99886*b0 + w*0.0555; b1 = 0.99332*b1 + w*0.0751;
-      b2 = 0.96900*b2 + w*0.1539; b3 = 0.86650*b3 + w*0.3105;
-      d[i] = (b0+b1+b2+b3) * 0.09;
+      b0 = 0.99886 * b0 + w * 0.0555;
+      b1 = 0.99332 * b1 + w * 0.0751;
+      b2 = 0.969 * b2 + w * 0.1539;
+      b3 = 0.8665 * b3 + w * 0.3105;
+      d[i] = (b0 + b1 + b2 + b3) * 0.09;
     }
   });
-  const bp1 = ctx!.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = 600;  bp1.Q.value = 0.8;
-  const bp2 = ctx!.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 1800; bp2.Q.value = 1.2;
+  const bp1 = ctx!.createBiquadFilter();
+  bp1.type = "bandpass";
+  bp1.frequency.value = 600;
+  bp1.Q.value = 0.8;
+  const bp2 = ctx!.createBiquadFilter();
+  bp2.type = "bandpass";
+  bp2.frequency.value = 1800;
+  bp2.Q.value = 1.2;
 
-  chatter.connect(bp1); chatter.connect(bp2);
+  chatter.connect(bp1);
+  chatter.connect(bp2);
 
   // Low rumble: coffee machine, fridge hum
-  const rumble = makeNoiseBuf(6, 1, d => {
+  const rumble = makeNoiseBuf(6, 1, (d) => {
     let l = 0;
-    for (let i = 0; i < d.length; i++) { l = l * 0.997 + (Math.random() * 2 - 1) * 0.003; d[i] = l * 2.5; }
+    for (let i = 0; i < d.length; i++) {
+      l = l * 0.997 + (Math.random() * 2 - 1) * 0.003;
+      d[i] = l * 2.5;
+    }
   });
-  const rumbleLp = ctx!.createBiquadFilter(); rumbleLp.type = 'lowpass'; rumbleLp.frequency.value = 150; rumbleLp.Q.value = 0.8;
+  const rumbleLp = ctx!.createBiquadFilter();
+  rumbleLp.type = "lowpass";
+  rumbleLp.frequency.value = 150;
+  rumbleLp.Q.value = 0.8;
   rumble.connect(rumbleLp);
 
   // Slow amplitude variation — conversations ebb and flow
-  const lfo = ctx!.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.08;
-  const lfoG = ctx!.createGain(); lfoG.gain.value = 0.15; lfo.connect(lfoG);
+  const lfo = ctx!.createOscillator();
+  lfo.type = "sine";
+  lfo.frequency.value = 0.08;
+  const lfoG = ctx!.createGain();
+  lfoG.gain.value = 0.15;
+  lfo.connect(lfoG);
 
-  const chatG1 = ctx!.createGain(); chatG1.gain.value = 0.45; lfoG.connect(chatG1.gain);
-  const chatG2 = ctx!.createGain(); chatG2.gain.value = 0.25;
+  const chatG1 = ctx!.createGain();
+  chatG1.gain.value = 0.45;
+  lfoG.connect(chatG1.gain);
+  const chatG2 = ctx!.createGain();
+  chatG2.gain.value = 0.25;
 
-  bp1.connect(chatG1); bp2.connect(chatG2);
+  bp1.connect(chatG1);
+  bp2.connect(chatG2);
 
-  const rumbleG = ctx!.createGain(); rumbleG.gain.value = 0.35;
+  const rumbleG = ctx!.createGain();
+  rumbleG.gain.value = 0.35;
   rumbleLp.connect(rumbleG);
 
-  const mix = ctx!.createGain(); mix.gain.value = 0.9;
-  chatG1.connect(mix); chatG2.connect(mix); rumbleG.connect(mix);
+  const mix = ctx!.createGain();
+  mix.gain.value = 0.9;
+  chatG1.connect(mix);
+  chatG2.connect(mix);
+  rumbleG.connect(mix);
 
   return { out: mix, nodes: [chatter, rumble, lfo] };
 }
@@ -361,28 +680,38 @@ function makeCafe(): { out: AudioNode; nodes: AudioNode[] } {
 // ── SNOW — near-silent hiss + soft, sparse footstep crunches ──────────
 // ── KEYBOARD — mechanical clacks in typing "runs" with think-pauses ───
 function makeKeyboard(): { out: AudioNode; nodes: AudioNode[] } {
-  const clackGain = ctx!.createGain(); clackGain.gain.value = 0.55;
+  const clackGain = ctx!.createGain();
+  clackGain.gain.value = 0.55;
 
   let active = true;
   const scheduleRun = () => {
-    if (!active || !ctx || ctx.state === 'closed') return;
+    if (!active || !ctx || ctx.state === "closed") return;
     // Pause between typing runs (thinking / reading)
     const pause = 900 + Math.random() * 3200;
     setTimeout(() => {
-      if (!active || !ctx || ctx.state === 'closed') return;
+      if (!active || !ctx || ctx.state === "closed") return;
       const keystrokes = 4 + Math.floor(Math.random() * 14);
       let t = ctx.currentTime;
       for (let k = 0; k < keystrokes; k++) {
         t += 0.06 + Math.random() * 0.1;
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.type = 'square';
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "square";
         o.frequency.value = 1400 + Math.random() * 900;
-        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+        const hp = ctx.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = 900;
         g.gain.setValueAtTime(0, t);
         g.gain.linearRampToValueAtTime(0.22 + Math.random() * 0.12, t + 0.003);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.02 + Math.random() * 0.02);
-        o.connect(hp); hp.connect(g); g.connect(clackGain);
-        o.start(t); o.stop(t + 0.05);
+        g.gain.exponentialRampToValueAtTime(
+          0.001,
+          t + 0.02 + Math.random() * 0.02,
+        );
+        o.connect(hp);
+        hp.connect(g);
+        g.connect(clackGain);
+        o.start(t);
+        o.stop(t + 0.05);
       }
       scheduleRun();
     }, pause);
@@ -391,53 +720,81 @@ function makeKeyboard(): { out: AudioNode; nodes: AudioNode[] } {
 
   const stopProxy = ctx!.createGain() as GainNode & { _customStop(): void };
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => { active = false; };
+  stopProxy._customStop = () => {
+    active = false;
+  };
 
   return { out: clackGain, nodes: [stopProxy] };
 }
 
 // ── LIBRARY HUM — near-silent room tone + rare distant page-turns ─────
 function makeLibrary(): { out: AudioNode; nodes: AudioNode[] } {
-  const hum = ctx!.createOscillator(); hum.type = 'sine'; hum.frequency.value = 60;
-  const humG = ctx!.createGain(); humG.gain.value = 0.02;
+  const hum = ctx!.createOscillator();
+  hum.type = "sine";
+  hum.frequency.value = 60;
+  const humG = ctx!.createGain();
+  humG.gain.value = 0.02;
   hum.connect(humG);
 
-  const room = makeNoiseBuf(8, 1, d => {
+  const room = makeNoiseBuf(8, 1, (d) => {
     let l = 0;
-    for (let i = 0; i < d.length; i++) { l = l * 0.995 + (Math.random()*2-1) * 0.005; d[i] = l * 1.4; }
+    for (let i = 0; i < d.length; i++) {
+      l = l * 0.995 + (Math.random() * 2 - 1) * 0.005;
+      d[i] = l * 1.4;
+    }
   });
-  const roomLp = ctx!.createBiquadFilter(); roomLp.type = 'lowpass'; roomLp.frequency.value = 900; roomLp.Q.value = 0.5;
-  const roomG = ctx!.createGain(); roomG.gain.value = 0.14;
-  room.connect(roomLp); roomLp.connect(roomG);
+  const roomLp = ctx!.createBiquadFilter();
+  roomLp.type = "lowpass";
+  roomLp.frequency.value = 900;
+  roomLp.Q.value = 0.5;
+  const roomG = ctx!.createGain();
+  roomG.gain.value = 0.14;
+  room.connect(roomLp);
+  roomLp.connect(roomG);
 
-  const mix = ctx!.createGain(); mix.gain.value = 0.7;
-  humG.connect(mix); roomG.connect(mix);
+  const mix = ctx!.createGain();
+  mix.gain.value = 0.7;
+  humG.connect(mix);
+  roomG.connect(mix);
 
-  const pageGain = ctx!.createGain(); pageGain.gain.value = 0.4;
+  const pageGain = ctx!.createGain();
+  pageGain.gain.value = 0.4;
   pageGain.connect(mix);
   let active = true;
   const schedulePage = () => {
-    if (!active || !ctx || ctx.state === 'closed') return;
+    if (!active || !ctx || ctx.state === "closed") return;
     const delay = 8000 + Math.random() * 18000;
     setTimeout(() => {
-      if (!active || !ctx || ctx.state === 'closed') return;
+      if (!active || !ctx || ctx.state === "closed") return;
       const t = ctx.currentTime;
-      const src = makeNoiseBuf(0.35, 1, d => { for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1); });
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2500; bp.Q.value = 0.7;
+      const src = makeNoiseBuf(0.35, 1, (d) => {
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      });
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 2500;
+      bp.Q.value = 0.7;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(0.1, t + 0.05);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-      src.connect(bp); bp.connect(g); g.connect(pageGain);
-      src.start(t); src.stop(t + 0.4);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(pageGain);
+      src.start(t);
+      src.stop(t + 0.4);
       schedulePage();
     }, delay);
   };
   schedulePage();
 
-  const stopProxy = ctx!.createGain() as GainNode & { _customStop?: () => void };
+  const stopProxy = ctx!.createGain() as GainNode & {
+    _customStop?: () => void;
+  };
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => { active = false; };
+  stopProxy._customStop = () => {
+    active = false;
+  };
 
   return { out: mix, nodes: [hum, room, stopProxy] };
 }
@@ -445,36 +802,63 @@ function makeLibrary(): { out: AudioNode; nodes: AudioNode[] } {
 // ── SPACESHIP HUM — layered detuned drone + slow reactor pulse ────────
 function makeSpaceship(): { out: AudioNode; nodes: AudioNode[] } {
   const nodes: AudioNode[] = [];
-  const mix = ctx!.createGain(); mix.gain.value = 0.7;
+  const mix = ctx!.createGain();
+  mix.gain.value = 0.7;
 
   // Two slightly detuned low oscillators for a "beating" engine drone
   [55, 55.6, 110].forEach((f, i) => {
-    const o = ctx!.createOscillator(); o.type = i === 2 ? 'sine' : 'sawtooth'; o.frequency.value = f;
-    const lp = ctx!.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 300; lp.Q.value = 0.7;
-    const g = ctx!.createGain(); g.gain.value = i === 2 ? 0.12 : 0.16;
-    o.connect(lp); lp.connect(g); g.connect(mix);
+    const o = ctx!.createOscillator();
+    o.type = i === 2 ? "sine" : "sawtooth";
+    o.frequency.value = f;
+    const lp = ctx!.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 300;
+    lp.Q.value = 0.7;
+    const g = ctx!.createGain();
+    g.gain.value = i === 2 ? 0.12 : 0.16;
+    o.connect(lp);
+    lp.connect(g);
+    g.connect(mix);
     nodes.push(o);
   });
 
   // Textured noise layer for engine "air"
-  const tex = makeNoiseBuf(6, 1, d => {
+  const tex = makeNoiseBuf(6, 1, (d) => {
     let l = 0;
-    for (let i = 0; i < d.length; i++) { l = l * 0.996 + (Math.random()*2-1)*0.004; d[i] = l * 1.6; }
+    for (let i = 0; i < d.length; i++) {
+      l = l * 0.996 + (Math.random() * 2 - 1) * 0.004;
+      d[i] = l * 1.6;
+    }
   });
-  const texLp = ctx!.createBiquadFilter(); texLp.type = 'lowpass'; texLp.frequency.value = 500; texLp.Q.value = 0.6;
-  const texG = ctx!.createGain(); texG.gain.value = 0.18;
-  tex.connect(texLp); texLp.connect(texG); texG.connect(mix);
+  const texLp = ctx!.createBiquadFilter();
+  texLp.type = "lowpass";
+  texLp.frequency.value = 500;
+  texLp.Q.value = 0.6;
+  const texG = ctx!.createGain();
+  texG.gain.value = 0.18;
+  tex.connect(texLp);
+  texLp.connect(texG);
+  texG.connect(mix);
   nodes.push(tex);
 
   // Slow reactor pulse — gentle bandpass sweep on the drone
-  const pulseLfo = ctx!.createOscillator(); pulseLfo.type = 'sine'; pulseLfo.frequency.value = 0.12;
-  const pulseG = ctx!.createGain(); pulseG.gain.value = 0.08;
-  const pulseFilter = ctx!.createBiquadFilter(); pulseFilter.type = 'peaking'; pulseFilter.frequency.value = 220; pulseFilter.Q.value = 2; pulseFilter.gain.value = 0;
-  pulseLfo.connect(pulseG); pulseG.connect(pulseFilter.gain);
+  const pulseLfo = ctx!.createOscillator();
+  pulseLfo.type = "sine";
+  pulseLfo.frequency.value = 0.12;
+  const pulseG = ctx!.createGain();
+  pulseG.gain.value = 0.08;
+  const pulseFilter = ctx!.createBiquadFilter();
+  pulseFilter.type = "peaking";
+  pulseFilter.frequency.value = 220;
+  pulseFilter.Q.value = 2;
+  pulseFilter.gain.value = 0;
+  pulseLfo.connect(pulseG);
+  pulseG.connect(pulseFilter.gain);
   mix.connect(pulseFilter);
   nodes.push(pulseLfo);
 
-  const out = ctx!.createGain(); out.gain.value = 0.75;
+  const out = ctx!.createGain();
+  out.gain.value = 0.75;
   pulseFilter.connect(out);
 
   return { out, nodes };
@@ -488,39 +872,67 @@ function makeSpaceship(): { out: AudioNode; nodes: AudioNode[] } {
 // other generators here this one deliberately has almost no movement.
 function makeAirplane(): { out: AudioNode; nodes: AudioNode[] } {
   const nodes: AudioNode[] = [];
-  const mix = ctx!.createGain(); mix.gain.value = 0.8;
+  const mix = ctx!.createGain();
+  mix.gain.value = 0.8;
 
   // Engine drone: a low fundamental plus its 2nd harmonic, both filtered
   // rather than pure tones, since a real turbine drone is broadband-ish
   [95, 190].forEach((f, i) => {
-    const o = ctx!.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
-    const lp = ctx!.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260; lp.Q.value = 0.6;
-    const g = ctx!.createGain(); g.gain.value = i === 0 ? 0.22 : 0.1;
-    o.connect(lp); lp.connect(g); g.connect(mix);
+    const o = ctx!.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.value = f;
+    const lp = ctx!.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 260;
+    lp.Q.value = 0.6;
+    const g = ctx!.createGain();
+    g.gain.value = i === 0 ? 0.22 : 0.1;
+    o.connect(lp);
+    lp.connect(g);
+    g.connect(mix);
     nodes.push(o);
   });
 
   // Pressurization / air-conditioning hiss — steady mid-high broadband air
-  const hiss = makeNoiseBuf(6, 1, d => {
+  const hiss = makeNoiseBuf(6, 1, (d) => {
     let l = 0;
-    for (let i = 0; i < d.length; i++) { l = l * 0.985 + (Math.random()*2-1)*0.015; d[i] = l * 1.3; }
+    for (let i = 0; i < d.length; i++) {
+      l = l * 0.985 + (Math.random() * 2 - 1) * 0.015;
+      d[i] = l * 1.3;
+    }
   });
-  const hissBp = ctx!.createBiquadFilter(); hissBp.type = 'bandpass'; hissBp.frequency.value = 2400; hissBp.Q.value = 0.5;
-  const hissG = ctx!.createGain(); hissG.gain.value = 0.16;
-  hiss.connect(hissBp); hissBp.connect(hissG); hissG.connect(mix);
+  const hissBp = ctx!.createBiquadFilter();
+  hissBp.type = "bandpass";
+  hissBp.frequency.value = 2400;
+  hissBp.Q.value = 0.5;
+  const hissG = ctx!.createGain();
+  hissG.gain.value = 0.16;
+  hiss.connect(hissBp);
+  hissBp.connect(hissG);
+  hissG.connect(mix);
   nodes.push(hiss);
 
   // Deep rumble floor — the airframe itself, felt more than heard
-  const rumble = makeNoiseBuf(8, 1, d => {
+  const rumble = makeNoiseBuf(8, 1, (d) => {
     let l = 0;
-    for (let i = 0; i < d.length; i++) { l = l * 0.999 + (Math.random()*2-1)*0.001; d[i] = l * 1.5; }
+    for (let i = 0; i < d.length; i++) {
+      l = l * 0.999 + (Math.random() * 2 - 1) * 0.001;
+      d[i] = l * 1.5;
+    }
   });
-  const rumbleLp = ctx!.createBiquadFilter(); rumbleLp.type = 'lowpass'; rumbleLp.frequency.value = 100; rumbleLp.Q.value = 0.7;
-  const rumbleG = ctx!.createGain(); rumbleG.gain.value = 0.25;
-  rumble.connect(rumbleLp); rumbleLp.connect(rumbleG); rumbleG.connect(mix);
+  const rumbleLp = ctx!.createBiquadFilter();
+  rumbleLp.type = "lowpass";
+  rumbleLp.frequency.value = 100;
+  rumbleLp.Q.value = 0.7;
+  const rumbleG = ctx!.createGain();
+  rumbleG.gain.value = 0.25;
+  rumble.connect(rumbleLp);
+  rumbleLp.connect(rumbleG);
+  rumbleG.connect(mix);
   nodes.push(rumble);
 
-  const out = ctx!.createGain(); out.gain.value = 0.8;
+  const out = ctx!.createGain();
+  out.gain.value = 0.8;
   mix.connect(out);
   return { out, nodes };
 }
@@ -528,40 +940,67 @@ function makeAirplane(): { out: AudioNode; nodes: AudioNode[] } {
 // ── CAMPFIRE — airier outdoor fire: brighter crackle, less bass roar ──
 function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
   type GainNodeWithCustomStop = GainNode & { _customStop: () => void };
-  const hiss = makeNoiseBuf(4, 1, d => {
+  const hiss = makeNoiseBuf(4, 1, (d) => {
     let l = 0;
-    for (let i = 0; i < d.length; i++) { l = l * 0.996 + (Math.random()*2-1)*0.004; d[i] = l * 1.4; }
+    for (let i = 0; i < d.length; i++) {
+      l = l * 0.996 + (Math.random() * 2 - 1) * 0.004;
+      d[i] = l * 1.4;
+    }
   });
-  const hissLp = ctx!.createBiquadFilter(); hissLp.type = 'lowpass'; hissLp.frequency.value = 500; hissLp.Q.value = 0.7;
+  const hissLp = ctx!.createBiquadFilter();
+  hissLp.type = "lowpass";
+  hissLp.frequency.value = 500;
+  hissLp.Q.value = 0.7;
   hiss.connect(hissLp);
-  const hissG = ctx!.createGain(); hissG.gain.value = 0.32; hissLp.connect(hissG);
+  const hissG = ctx!.createGain();
+  hissG.gain.value = 0.32;
+  hissLp.connect(hissG);
 
   // Open-air ambience: soft high-passed noise (night air)
-  const air = makeNoiseBuf(6, 1, d => { for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * 0.06; });
-  const airHp = ctx!.createBiquadFilter(); airHp.type = 'highpass'; airHp.frequency.value = 3000;
+  const air = makeNoiseBuf(6, 1, (d) => {
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.06;
+  });
+  const airHp = ctx!.createBiquadFilter();
+  airHp.type = "highpass";
+  airHp.frequency.value = 3000;
   air.connect(airHp);
-  const airG = ctx!.createGain(); airG.gain.value = 0.2; airHp.connect(airG);
+  const airG = ctx!.createGain();
+  airG.gain.value = 0.2;
+  airHp.connect(airG);
 
-  const mix = ctx!.createGain(); mix.gain.value = 1.0;
-  hissG.connect(mix); airG.connect(mix);
+  const mix = ctx!.createGain();
+  mix.gain.value = 1.0;
+  hissG.connect(mix);
+  airG.connect(mix);
 
-  const crackleGain = ctx!.createGain(); crackleGain.gain.value = 0.8;
+  const crackleGain = ctx!.createGain();
+  crackleGain.gain.value = 0.8;
   crackleGain.connect(mix);
   let active = true;
   const scheduleCrackle = () => {
-    if (!active || !ctx || ctx.state === 'closed') return;
+    if (!active || !ctx || ctx.state === "closed") return;
     const delay = 150 + Math.random() * 550; // brighter, more frequent than indoor fireplace
     setTimeout(() => {
-      if (!active || !ctx || ctx.state === 'closed') return;
+      if (!active || !ctx || ctx.state === "closed") return;
       const t = ctx.currentTime;
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.type = 'sawtooth'; o.frequency.value = 140 + Math.random() * 260;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sawtooth";
+      o.frequency.value = 140 + Math.random() * 260;
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(0.35 + Math.random() * 0.3, t + 0.002);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.02 + Math.random() * 0.03);
-      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 800;
-      o.connect(hp); hp.connect(g); g.connect(crackleGain);
-      o.start(t); o.stop(t + 0.06);
+      g.gain.exponentialRampToValueAtTime(
+        0.001,
+        t + 0.02 + Math.random() * 0.03,
+      );
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 800;
+      o.connect(hp);
+      hp.connect(g);
+      g.connect(crackleGain);
+      o.start(t);
+      o.stop(t + 0.06);
       scheduleCrackle();
     }, delay);
   };
@@ -569,7 +1008,9 @@ function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
 
   const stopProxy = ctx!.createGain() as GainNodeWithCustomStop;
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => { active = false; };
+  stopProxy._customStop = () => {
+    active = false;
+  };
 
   return { out: mix, nodes: [hiss, air, stopProxy] };
 }
@@ -577,45 +1018,66 @@ function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
 // ── WAVES ON ROCKS — percussive surf impacts + spray tail ─────────────
 function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
   // Steady background surf (quieter than the main "ocean" preset)
-  const bed = makeNoiseBuf(8, 1, d => {
+  const bed = makeNoiseBuf(8, 1, (d) => {
     let l = 0;
-    for (let i = 0; i < d.length; i++) { l = l * 0.995 + (Math.random()*2-1)*0.005; d[i] = l * 1.6; }
+    for (let i = 0; i < d.length; i++) {
+      l = l * 0.995 + (Math.random() * 2 - 1) * 0.005;
+      d[i] = l * 1.6;
+    }
   });
-  const bedLp = ctx!.createBiquadFilter(); bedLp.type = 'lowpass'; bedLp.frequency.value = 700; bedLp.Q.value = 0.6;
+  const bedLp = ctx!.createBiquadFilter();
+  bedLp.type = "lowpass";
+  bedLp.frequency.value = 700;
+  bedLp.Q.value = 0.6;
   bed.connect(bedLp);
-  const bedG = ctx!.createGain(); bedG.gain.value = 0.28; bedLp.connect(bedG);
+  const bedG = ctx!.createGain();
+  bedG.gain.value = 0.28;
+  bedLp.connect(bedG);
 
-  const mix = ctx!.createGain(); mix.gain.value = 0.9;
+  const mix = ctx!.createGain();
+  mix.gain.value = 0.9;
   bedG.connect(mix);
 
   // Percussive crash impacts with a longer bright "spray" decay
-  const crashGain = ctx!.createGain(); crashGain.gain.value = 0.85;
+  const crashGain = ctx!.createGain();
+  crashGain.gain.value = 0.85;
   crashGain.connect(mix);
   let active = true;
   const scheduleCrash = () => {
-    if (!active || !ctx || ctx.state === 'closed') return;
+    if (!active || !ctx || ctx.state === "closed") return;
     const delay = 3500 + Math.random() * 5000; // waves hitting rocks — a few seconds apart
     setTimeout(() => {
-      if (!active || !ctx || ctx.state === 'closed') return;
+      if (!active || !ctx || ctx.state === "closed") return;
       const t = ctx.currentTime;
       // Impact: short low thud
-      const thud = ctx.createOscillator(); const thudG = ctx.createGain();
-      thud.type = 'sine'; thud.frequency.value = 70 + Math.random() * 30;
+      const thud = ctx.createOscillator();
+      const thudG = ctx.createGain();
+      thud.type = "sine";
+      thud.frequency.value = 70 + Math.random() * 30;
       thudG.gain.setValueAtTime(0, t);
       thudG.gain.linearRampToValueAtTime(0.5, t + 0.01);
       thudG.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-      thud.connect(thudG); thudG.connect(crashGain);
-      thud.start(t); thud.stop(t + 0.45);
+      thud.connect(thudG);
+      thudG.connect(crashGain);
+      thud.start(t);
+      thud.stop(t + 0.45);
 
       // Spray: bright noise burst with a longer decay
-      const spray = makeNoiseBuf(1.2, 1, d => { for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1); });
-      const sprayHp = ctx.createBiquadFilter(); sprayHp.type = 'highpass'; sprayHp.frequency.value = 1500;
+      const spray = makeNoiseBuf(1.2, 1, (d) => {
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      });
+      const sprayHp = ctx.createBiquadFilter();
+      sprayHp.type = "highpass";
+      sprayHp.frequency.value = 1500;
       const sprayG = ctx.createGain();
       sprayG.gain.setValueAtTime(0, t + 0.02);
       sprayG.gain.linearRampToValueAtTime(0.3, t + 0.08);
       sprayG.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
-      spray.connect(sprayHp); sprayHp.connect(sprayG); sprayG.connect(crashGain);
-      spray.start(t); spray.stop(t + 1.2);
+      spray.connect(sprayHp);
+      sprayHp.connect(sprayG);
+      sprayG.connect(crashGain);
+      spray.start(t);
+      spray.stop(t + 1.2);
 
       scheduleCrash();
     }, delay);
@@ -624,7 +1086,9 @@ function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
 
   const stopProxy = ctx!.createGain() as GainNode & { _customStop: () => void };
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => { active = false; };
+  stopProxy._customStop = () => {
+    active = false;
+  };
 
   return { out: mix, nodes: [bed, stopProxy] };
 }
@@ -654,42 +1118,50 @@ function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
 // rain/fire/wind/ocean/snow/white/pink/brown's old hand-written generators
 // are gone, not kept as a third fallback below ambiently — there's no
 // failure mode left for makeSynthTrack to fall back from.
-const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] } | null> = {
-  rain:     () => makeFileTrack(ctx!, 'rain',     () => makeSynthTrack(ctx!, 'rain')),
+const MAKERS: Record<
+  string,
+  () => { out: AudioNode; nodes: AudioNode[] } | null
+> = {
+  rain: () => makeFileTrack(ctx!, "rain", () => makeSynthTrack(ctx!, "rain")),
   roofrain: makeRoofRain,
-  white:    () => makeSynthTrack(ctx!, 'white'),
-  pink:     () => makeSynthTrack(ctx!, 'pink'),
-  brown:    () => makeSynthTrack(ctx!, 'brown'),
-  forest:   () => makeFileTrack(ctx!, 'forest',   () => makeForest()),
-  cafe:     () => makeFileTrack(ctx!, 'cafe',     () => makeCafe()),
-  ocean:    () => makeSynthTrack(ctx!, 'ocean'),
-  fire:     () => makeFileTrack(ctx!, 'fire',     () => makeSynthTrack(ctx!, 'fire')),
-  wind:     () => makeFileTrack(ctx!, 'wind',     () => makeSynthTrack(ctx!, 'wind')),
-  snow:     () => makeSynthTrack(ctx!, 'snow'),
+  white: () => makeSynthTrack(ctx!, "white"),
+  pink: () => makeSynthTrack(ctx!, "pink"),
+  brown: () => makeSynthTrack(ctx!, "brown"),
+  forest: () => makeFileTrack(ctx!, "forest", () => makeForest()),
+  cafe: () => makeFileTrack(ctx!, "cafe", () => makeCafe()),
+  ocean: () => makeSynthTrack(ctx!, "ocean"),
+  fire: () => makeFileTrack(ctx!, "fire", () => makeSynthTrack(ctx!, "fire")),
+  wind: () => makeFileTrack(ctx!, "wind", () => makeSynthTrack(ctx!, "wind")),
+  snow: () => makeSynthTrack(ctx!, "snow"),
   keyboard: makeKeyboard,
-  library:  () => makeFileTrack(ctx!, 'library',  () => makeLibrary()),
+  library: () => makeFileTrack(ctx!, "library", () => makeLibrary()),
   airplane: makeAirplane,
-  spaceship:makeSpaceship,
+  spaceship: makeSpaceship,
   campfire: makeCampfire,
-  waves:    () => makeFileTrack(ctx!, 'waves',    () => makeWavesRocks()),
-  river:        () => makeFileTrack(ctx!, 'river',     () => makeSynthTrack(ctx!, 'stream')),
-  waterfall:    () => makeFileTrack(ctx!, 'waterfall', undefined, () => stopTrack('waterfall')),
-  thunder:      () => makeFileTrack(ctx!, 'thunder',   () => makeSynthTrack(ctx!, 'thunder')),
-  night:        () => makeFileTrack(ctx!, 'night',     () => makeSynthTrack(ctx!, 'crickets')),
-  birds:        () => makeFileTrack(ctx!, 'birds',     () => makeSynthTrack(ctx!, 'birds')),
-  hum:          () => makeSynthTrack(ctx!, 'hum'),
-  frogs:        () => makeSynthTrack(ctx!, 'frogs'),
-  city:         () => makeSynthTrack(ctx!, 'city'),
-  fan:          () => makeSynthTrack(ctx!, 'fan'),
-  clock:        () => makeSynthTrack(ctx!, 'clock'),
-  vinyl:        () => makeSynthTrack(ctx!, 'vinyl'),
-  heartbeat:    () => makeSynthTrack(ctx!, 'heartbeat'),
-  drone:        () => makeSynthTrack(ctx!, 'drone'),
-  space:        () => makeSynthTrack(ctx!, 'space'),
-  lofi:         () => makeSynthTrack(ctx!, 'lofi'),
-  pad:          () => makeSynthTrack(ctx!, 'pad'),
-  musicbox:     () => makeSynthTrack(ctx!, 'musicbox'),
-  bells:        () => makeSynthTrack(ctx!, 'bells'),
+  waves: () => makeFileTrack(ctx!, "waves", () => makeWavesRocks()),
+  river: () =>
+    makeFileTrack(ctx!, "river", () => makeSynthTrack(ctx!, "stream")),
+  waterfall: () =>
+    makeFileTrack(ctx!, "waterfall", undefined, () => stopTrack("waterfall")),
+  thunder: () =>
+    makeFileTrack(ctx!, "thunder", () => makeSynthTrack(ctx!, "thunder")),
+  night: () =>
+    makeFileTrack(ctx!, "night", () => makeSynthTrack(ctx!, "crickets")),
+  birds: () =>
+    makeFileTrack(ctx!, "birds", () => makeSynthTrack(ctx!, "birds")),
+  hum: () => makeSynthTrack(ctx!, "hum"),
+  frogs: () => makeSynthTrack(ctx!, "frogs"),
+  city: () => makeSynthTrack(ctx!, "city"),
+  fan: () => makeSynthTrack(ctx!, "fan"),
+  clock: () => makeSynthTrack(ctx!, "clock"),
+  vinyl: () => makeSynthTrack(ctx!, "vinyl"),
+  heartbeat: () => makeSynthTrack(ctx!, "heartbeat"),
+  drone: () => makeSynthTrack(ctx!, "drone"),
+  space: () => makeSynthTrack(ctx!, "space"),
+  lofi: () => makeSynthTrack(ctx!, "lofi"),
+  pad: () => makeSynthTrack(ctx!, "pad"),
+  musicbox: () => makeSynthTrack(ctx!, "musicbox"),
+  bells: () => makeSynthTrack(ctx!, "bells"),
 };
 
 /** Re-exported for the mixer UI — greys out / disables the toggle for a
@@ -705,45 +1177,82 @@ export function playTrack(id: string) {
   ensureCtx();
   const made = MAKERS[id]?.();
   if (!made) return;
-  const g = ctx!.createGain(); g.gain.value = trackVols[id] ?? 0.8;
-  made.out.connect(g); g.connect(analyser!);
-  made.nodes.forEach((n: AudioScheduledSourceNode & { _customStop?: boolean; _started?: boolean }) => {
-    if (n._customStop) return; // skip custom stop proxies
-    if ('start' in n && typeof n.start === 'function' && !n._started) {
-      try { n.start(); n._started = true; } catch {}
-    }
-  });
+  const g = ctx!.createGain();
+  g.gain.value = trackVols[id] ?? 0.8;
+  made.out.connect(g);
+  g.connect(analyser!);
+  made.nodes.forEach(
+    (
+      n: AudioScheduledSourceNode & {
+        _customStop?: boolean;
+        _started?: boolean;
+      },
+    ) => {
+      if (n._customStop) return; // skip custom stop proxies
+      if ("start" in n && typeof n.start === "function" && !n._started) {
+        try {
+          n.start();
+          n._started = true;
+        } catch {}
+      }
+    },
+  );
   trackNodes[id] = { nodes: made.nodes, gain: g };
   if (spatialEnabled) attachSpatialRig(id, g);
   onTrackChange?.();
-  if (fadeMinutes > 0) { clearTimeout(fadeTimer); fadeTimer = window.setTimeout(fadeAll, fadeMinutes * 60_000); }
+  if (fadeMinutes > 0) {
+    clearTimeout(fadeTimer);
+    fadeTimer = window.setTimeout(fadeAll, fadeMinutes * 60_000);
+  }
 }
 
 export function stopTrack(id: string) {
   if (!trackNodes[id]) return;
   const t = trackNodes[id];
   detachSpatialRig(id, t.gain);
-  t.nodes.forEach(n => {
+  t.nodes.forEach((n) => {
     const maybeCustomStop = n as { _customStop?: () => void };
-    if (typeof maybeCustomStop._customStop === 'function') {
+    if (typeof maybeCustomStop._customStop === "function") {
       maybeCustomStop._customStop();
       return;
     }
-    try { (n as AudioScheduledSourceNode).stop(); } catch {}
-    try { n.disconnect(); } catch {}
+    try {
+      (n as AudioScheduledSourceNode).stop();
+    } catch {}
+    try {
+      n.disconnect();
+    } catch {}
   });
-  try { t.gain.disconnect(); } catch {}
+  try {
+    t.gain.disconnect();
+  } catch {}
   delete trackNodes[id];
   onTrackChange?.();
 }
 
-export function toggleTrack(id: string) { trackNodes[id] ? stopTrack(id) : playTrack(id); }
-export function isPlaying(id: string)   { return !!trackNodes[id]; }
-export function setTrackVolume(id: string, v: number) { trackVols[id] = v; if (trackNodes[id]) trackNodes[id].gain.gain.value = v; }
-export function getTrackVolume(id: string) { return trackVols[id] ?? 0.8; }
-export function setMasterVolume(v: number) { masterVol = v; if (masterGain) masterGain.gain.value = v; }
-export function getMasterVolume() { return masterVol; }
-export function setFade(v: number) { fadeMinutes = v; }
+export function toggleTrack(id: string) {
+  trackNodes[id] ? stopTrack(id) : playTrack(id);
+}
+export function isPlaying(id: string) {
+  return !!trackNodes[id];
+}
+export function setTrackVolume(id: string, v: number) {
+  trackVols[id] = v;
+  if (trackNodes[id]) trackNodes[id].gain.gain.value = v;
+}
+export function getTrackVolume(id: string) {
+  return trackVols[id] ?? 0.8;
+}
+export function setMasterVolume(v: number) {
+  masterVol = v;
+  if (masterGain) masterGain.gain.value = v;
+}
+export function getMasterVolume() {
+  return masterVol;
+}
+export function setFade(v: number) {
+  fadeMinutes = v;
+}
 
 // ── Spatial 3D Audio — ILD + ITD stereo panning ───────────────────────
 // Instead of PannerNode (weak, distance-dependent), we use:
@@ -752,76 +1261,78 @@ export function setFade(v: number) { fadeMinutes = v; }
 // Max ITD for human head ≈ 0.65ms. This is what games use for headphones.
 // Each sound has a unique LFO speed and motion pattern (not all just L↔R).
 
-let spatialEnabled = localStorage.getItem('sc_spatial') === '1';
+let spatialEnabled = localStorage.getItem("sc_spatial") === "1";
 
 interface SpatialRig {
-  panner:    StereoPannerNode;
-  delayL:    DelayNode;
-  delayR:    DelayNode;
-  splitter:  ChannelSplitterNode;
-  merger:    ChannelMergerNode;
-  gainL:     GainNode;
-  gainR:     GainNode;
-  lfoPhase:  number;
+  panner: StereoPannerNode;
+  delayL: DelayNode;
+  delayR: DelayNode;
+  splitter: ChannelSplitterNode;
+  merger: ChannelMergerNode;
+  gainL: GainNode;
+  gainR: GainNode;
+  lfoPhase: number;
 }
 
-const spatialRigs:  Record<string, SpatialRig>  = {};
-const spatialLFOs:  Record<string, number>       = {};
+const spatialRigs: Record<string, SpatialRig> = {};
+const spatialLFOs: Record<string, number> = {};
 
 // Per-sound spatial character
 interface SpatialProfile {
-  speed: number;      // LFO speed (rad/s)
-  width: number;      // pan width 0..1 (1 = hard L/R)
-  pattern: 'sweep' | 'wander' | 'fixed' | 'burst';
-  fixedPan?: number;  // for 'fixed' pattern
+  speed: number; // LFO speed (rad/s)
+  width: number; // pan width 0..1 (1 = hard L/R)
+  pattern: "sweep" | "wander" | "fixed" | "burst";
+  fixedPan?: number; // for 'fixed' pattern
 }
 
 const SPATIAL_PROFILES: Record<string, SpatialProfile> = {
-  rain:      { speed: 0.04, width: 0.55, pattern: 'sweep'  },  // slow wide sweep — rain from all sides
-  roofrain:  { speed: 0.05, width: 0.65, pattern: 'sweep'  },  // heavier version of the same overhead sweep
-  white:     { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0 },    // flat masking noise — deliberately stays centred, not moving
-  pink:      { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0 },    // same — motion would undercut its use as a steady floor
-  brown:     { speed: 0.02, width: 0.30, pattern: 'wander' },  // very slow gentle wander
-  forest:    { speed: 0.09, width: 0.75, pattern: 'burst'  },  // birds dart L/R unexpectedly
-  cafe:      { speed: 0.18, width: 0.60, pattern: 'wander' },  // people walking past
-  ocean:     { speed: 0.05, width: 0.65, pattern: 'sweep'  },  // waves rolling side to side
-  fire:      { speed: 0.03, width: 0.20, pattern: 'fixed',  fixedPan: 0.15 }, // fire stays slightly right
-  wind:      { speed: 0.03, width: 0.70, pattern: 'wander' },
-  snow:      { speed: 0.015,width: 0.25, pattern: 'wander' },
-  keyboard:  { speed: 0.02, width: 0.15, pattern: 'fixed',  fixedPan: -0.2 },
-  library:   { speed: 0.01, width: 0.20, pattern: 'wander' },
-  airplane:  { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0 },    // cabin drone surrounds you evenly, doesn't move
-  spaceship: { speed: 0.008,width: 0.15, pattern: 'fixed',  fixedPan: 0    },
-  campfire:  { speed: 0.03, width: 0.25, pattern: 'fixed',  fixedPan: -0.1 },
-  waves:     { speed: 0.06, width: 0.60, pattern: 'burst'  },
-  river:     { speed: 0.03, width: 0.35, pattern: 'wander' }, // water moving past, gentle drift
-  waterfall: { speed: 0.02, width: 0.20, pattern: 'fixed',  fixedPan: 0    }, // one steady roar, doesn't move
-  thunder:   { speed: 0.04, width: 0.55, pattern: 'sweep'  }, // rolls across the sky
-  night:     { speed: 0.01, width: 0.20, pattern: 'wander' }, // crickets, barely moving
-  birds:     { speed: 0.09, width: 0.75, pattern: 'burst'  }, // calls dart around, like forest's synthesized ones
-  hum:       { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0    }, // electrical hum — steady, doesn't move
-  frogs:     { speed: 0.10, width: 0.65, pattern: 'burst'  }, // like birds, calls from unpredictable spots
-  city:      { speed: 0.05, width: 0.50, pattern: 'wander' }, // distant traffic drifting
-  fan:       { speed: 0,    width: 0.10, pattern: 'fixed',  fixedPan: 0    }, // close, steady, centred
-  clock:     { speed: 0,    width: 0.10, pattern: 'fixed',  fixedPan: -0.15 }, // one bedside clock, off to one side
-  vinyl:     { speed: 0,    width: 0.15, pattern: 'fixed',  fixedPan: 0    }, // turntable hiss, centred
-  heartbeat: { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0    }, // internal, shouldn't move
-  drone:     { speed: 0,    width: 0,    pattern: 'fixed',  fixedPan: 0    }, // enveloping tone, like airplane/spaceship
-  space:     { speed: 0.015,width: 0.40, pattern: 'wander' }, // slow cosmic drift
-  lofi:      { speed: 0,    width: 0.30, pattern: 'fixed',  fixedPan: 0    }, // a mix, kept roughly centred
-  pad:       { speed: 0.02, width: 0.35, pattern: 'wander' }, // slow evolving movement
-  musicbox:  { speed: 0,    width: 0.20, pattern: 'fixed',  fixedPan: 0.1  }, // a small, localized object
-  bells:     { speed: 0.08, width: 0.50, pattern: 'burst'  }, // chimes from spaced-out spots
+  rain: { speed: 0.04, width: 0.55, pattern: "sweep" }, // slow wide sweep — rain from all sides
+  roofrain: { speed: 0.05, width: 0.65, pattern: "sweep" }, // heavier version of the same overhead sweep
+  white: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // flat masking noise — deliberately stays centred, not moving
+  pink: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // same — motion would undercut its use as a steady floor
+  brown: { speed: 0.02, width: 0.3, pattern: "wander" }, // very slow gentle wander
+  forest: { speed: 0.09, width: 0.75, pattern: "burst" }, // birds dart L/R unexpectedly
+  cafe: { speed: 0.18, width: 0.6, pattern: "wander" }, // people walking past
+  ocean: { speed: 0.05, width: 0.65, pattern: "sweep" }, // waves rolling side to side
+  fire: { speed: 0.03, width: 0.2, pattern: "fixed", fixedPan: 0.15 }, // fire stays slightly right
+  wind: { speed: 0.03, width: 0.7, pattern: "wander" },
+  snow: { speed: 0.015, width: 0.25, pattern: "wander" },
+  keyboard: { speed: 0.02, width: 0.15, pattern: "fixed", fixedPan: -0.2 },
+  library: { speed: 0.01, width: 0.2, pattern: "wander" },
+  airplane: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // cabin drone surrounds you evenly, doesn't move
+  spaceship: { speed: 0.008, width: 0.15, pattern: "fixed", fixedPan: 0 },
+  campfire: { speed: 0.03, width: 0.25, pattern: "fixed", fixedPan: -0.1 },
+  waves: { speed: 0.06, width: 0.6, pattern: "burst" },
+  river: { speed: 0.03, width: 0.35, pattern: "wander" }, // water moving past, gentle drift
+  waterfall: { speed: 0.02, width: 0.2, pattern: "fixed", fixedPan: 0 }, // one steady roar, doesn't move
+  thunder: { speed: 0.04, width: 0.55, pattern: "sweep" }, // rolls across the sky
+  night: { speed: 0.01, width: 0.2, pattern: "wander" }, // crickets, barely moving
+  birds: { speed: 0.09, width: 0.75, pattern: "burst" }, // calls dart around, like forest's synthesized ones
+  hum: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // electrical hum — steady, doesn't move
+  frogs: { speed: 0.1, width: 0.65, pattern: "burst" }, // like birds, calls from unpredictable spots
+  city: { speed: 0.05, width: 0.5, pattern: "wander" }, // distant traffic drifting
+  fan: { speed: 0, width: 0.1, pattern: "fixed", fixedPan: 0 }, // close, steady, centred
+  clock: { speed: 0, width: 0.1, pattern: "fixed", fixedPan: -0.15 }, // one bedside clock, off to one side
+  vinyl: { speed: 0, width: 0.15, pattern: "fixed", fixedPan: 0 }, // turntable hiss, centred
+  heartbeat: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // internal, shouldn't move
+  drone: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // enveloping tone, like airplane/spaceship
+  space: { speed: 0.015, width: 0.4, pattern: "wander" }, // slow cosmic drift
+  lofi: { speed: 0, width: 0.3, pattern: "fixed", fixedPan: 0 }, // a mix, kept roughly centred
+  pad: { speed: 0.02, width: 0.35, pattern: "wander" }, // slow evolving movement
+  musicbox: { speed: 0, width: 0.2, pattern: "fixed", fixedPan: 0.1 }, // a small, localized object
+  bells: { speed: 0.08, width: 0.5, pattern: "burst" }, // chimes from spaced-out spots
 };
 
 const MAX_ITD = 0.00065; // 0.65ms — human head max inter-aural time delay
 
-export function isSpatialEnabled() { return spatialEnabled; }
+export function isSpatialEnabled() {
+  return spatialEnabled;
+}
 
 export function setSpatial(v: boolean) {
   spatialEnabled = v;
-  localStorage.setItem('sc_spatial', v ? '1' : '0');
-  Object.keys(trackNodes).forEach(id => {
+  localStorage.setItem("sc_spatial", v ? "1" : "0");
+  Object.keys(trackNodes).forEach((id) => {
     const n = trackNodes[id];
     if (!n) return;
     v ? attachSpatialRig(id, n.gain) : detachSpatialRig(id, n.gain);
@@ -833,7 +1344,7 @@ function attachSpatialRig(id: string, gainNode: GainNode) {
 
   // Split mono → two channels for independent L/R processing
   const splitter = ctx.createChannelSplitter(2);
-  const merger   = ctx.createChannelMerger(2);
+  const merger = ctx.createChannelMerger(2);
 
   // Slight delay on one channel = ITD
   const delayL = ctx.createDelay(0.01);
@@ -842,27 +1353,44 @@ function attachSpatialRig(id: string, gainNode: GainNode) {
   delayR.delayTime.value = 0;
 
   // Level difference = ILD
-  const gainL = ctx.createGain(); gainL.gain.value = 1;
-  const gainR = ctx.createGain(); gainR.gain.value = 1;
+  const gainL = ctx.createGain();
+  gainL.gain.value = 1;
+  const gainR = ctx.createGain();
+  gainR.gain.value = 1;
 
   // StereoPanner for the main coarse pan
   const panner = ctx.createStereoPanner();
   panner.pan.value = 0;
 
   // Route: gainNode → panner → splitter → delayL/R → gainL/R → merger → analyser
-  try { gainNode.disconnect(analyser!); } catch {}
+  try {
+    gainNode.disconnect(analyser!);
+  } catch {}
   gainNode.connect(panner);
   panner.connect(splitter);
-  splitter.connect(delayL, 0); delayL.connect(gainL); gainL.connect(merger, 0, 0);
-  splitter.connect(delayR, 1); delayR.connect(gainR); gainR.connect(merger, 0, 1);
+  splitter.connect(delayL, 0);
+  delayL.connect(gainL);
+  gainL.connect(merger, 0, 0);
+  splitter.connect(delayR, 1);
+  delayR.connect(gainR);
+  gainR.connect(merger, 0, 1);
   merger.connect(analyser!);
 
   const prof = SPATIAL_PROFILES[id];
-  spatialRigs[id]  = { panner, delayL, delayR, splitter, merger, gainL, gainR, lfoPhase: Math.random() * Math.PI * 2 };
-  spatialLFOs[id]  = Math.random() * Math.PI * 2;
+  spatialRigs[id] = {
+    panner,
+    delayL,
+    delayR,
+    splitter,
+    merger,
+    gainL,
+    gainR,
+    lfoPhase: Math.random() * Math.PI * 2,
+  };
+  spatialLFOs[id] = Math.random() * Math.PI * 2;
 
   // For 'fixed' pattern apply immediately
-  if (prof?.pattern === 'fixed' && prof.fixedPan !== undefined) {
+  if (prof?.pattern === "fixed" && prof.fixedPan !== undefined) {
     applyPanValue(spatialRigs[id], prof.fixedPan, id);
   }
 }
@@ -870,7 +1398,10 @@ function attachSpatialRig(id: string, gainNode: GainNode) {
 function detachSpatialRig(id: string, gainNode: GainNode) {
   const rig = spatialRigs[id];
   if (!rig) return;
-  try { gainNode.disconnect(rig.panner); rig.merger.disconnect(); } catch {}
+  try {
+    gainNode.disconnect(rig.panner);
+    rig.merger.disconnect();
+  } catch {}
   gainNode.connect(analyser!);
   delete spatialRigs[id];
 }
@@ -884,34 +1415,34 @@ function applyPanValue(rig: SpatialRig, pan: number, id: string) {
   if (pan > 0) {
     // Sound is right: left ear is far → delay left
     rig.delayL.delayTime.setTargetAtTime(itd, ctx!.currentTime, 0.05);
-    rig.delayR.delayTime.setTargetAtTime(0,   ctx!.currentTime, 0.05);
+    rig.delayR.delayTime.setTargetAtTime(0, ctx!.currentTime, 0.05);
   } else {
     // Sound is left: right ear is far → delay right
-    rig.delayL.delayTime.setTargetAtTime(0,   ctx!.currentTime, 0.05);
+    rig.delayL.delayTime.setTargetAtTime(0, ctx!.currentTime, 0.05);
     rig.delayR.delayTime.setTargetAtTime(itd, ctx!.currentTime, 0.05);
   }
 
   // ILD: far ear is ~6dB quieter per unit pan
   const nearGain = 1.0;
-  const farGain  = 1.0 - Math.abs(pan) * 0.35;
+  const farGain = 1.0 - Math.abs(pan) * 0.35;
   if (pan > 0) {
-    rig.gainL.gain.setTargetAtTime(farGain,  ctx!.currentTime, 0.05);
+    rig.gainL.gain.setTargetAtTime(farGain, ctx!.currentTime, 0.05);
     rig.gainR.gain.setTargetAtTime(nearGain, ctx!.currentTime, 0.05);
   } else {
     rig.gainL.gain.setTargetAtTime(nearGain, ctx!.currentTime, 0.05);
-    rig.gainR.gain.setTargetAtTime(farGain,  ctx!.currentTime, 0.05);
+    rig.gainR.gain.setTargetAtTime(farGain, ctx!.currentTime, 0.05);
   }
 }
 
 export function tickSpatial(now: number) {
   if (!spatialEnabled) return;
-  Object.keys(spatialRigs).forEach(id => {
-    const rig  = spatialRigs[id];
+  Object.keys(spatialRigs).forEach((id) => {
+    const rig = spatialRigs[id];
     const prof = SPATIAL_PROFILES[id];
     if (!rig || !prof) return;
 
     let pan: number;
-    if (prof.pattern === 'fixed') {
+    if (prof.pattern === "fixed") {
       // Static sources have no LFO motion of their own — normally nothing
       // to update after the initial pan is set. Head tracking is the one
       // thing that still needs to move them (turning your head should
@@ -922,26 +1453,30 @@ export function tickSpatial(now: number) {
     } else {
       const phase = now * prof.speed + rig.lfoPhase;
       switch (prof.pattern) {
-        case 'sweep':
+        case "sweep":
           // Smooth sine sweep
           pan = Math.sin(phase) * prof.width;
           break;
-        case 'wander':
+        case "wander":
           // Slower, slightly irregular wander using two sines
-          pan = (Math.sin(phase) * 0.6 + Math.sin(phase * 1.618) * 0.4) * prof.width;
+          pan =
+            (Math.sin(phase) * 0.6 + Math.sin(phase * 1.618) * 0.4) *
+            prof.width;
           break;
-        case 'burst': {
+        case "burst": {
           // Mostly centre, then quick darts to a random side
           // Use a squared sine to spend most time near centre
           const raw = Math.sin(phase * 1.3) * Math.sin(phase * 0.7);
           pan = Math.sign(raw) * Math.pow(Math.abs(raw), 0.5) * prof.width;
           break;
         }
-        default: pan = 0;
+        default:
+          pan = 0;
       }
     }
 
-    if (headTrackingEnabled) pan = Math.max(-1, Math.min(1, pan - headingOffset * 0.65));
+    if (headTrackingEnabled)
+      pan = Math.max(-1, Math.min(1, pan - headingOffset * 0.65));
     applyPanValue(rig, pan, id);
   });
 }
@@ -953,19 +1488,23 @@ export function tickSpatial(now: number) {
 // toward or away from them, instead of rotating with you. Built on the
 // same gyroscope stream platform.ts already shares with the background
 // parallax effect, so enabling this attaches no new hardware listener.
-let headTrackingEnabled = localStorage.getItem('sc_head_tracking') === '1';
+let headTrackingEnabled = localStorage.getItem("sc_head_tracking") === "1";
 let headingOffset = 0; // -1..1, derived from live device gamma (left/right tilt)
 let unsubscribeHeadTracking: (() => void) | null = null;
 
-export function isHeadTrackingEnabled() { return headTrackingEnabled; }
-export function isHeadTrackingAvailable() { return CAPS.deviceOrientation; }
+export function isHeadTrackingEnabled() {
+  return headTrackingEnabled;
+}
+export function isHeadTrackingAvailable() {
+  return CAPS.deviceOrientation;
+}
 
 /** Call from within a click handler — same iOS-gesture requirement as requestMotionPermission(). */
 export function setHeadTracking(v: boolean) {
   headTrackingEnabled = v;
-  localStorage.setItem('sc_head_tracking', v ? '1' : '0');
+  localStorage.setItem("sc_head_tracking", v ? "1" : "0");
   if (v && !unsubscribeHeadTracking) {
-    unsubscribeHeadTracking = subscribeOrientation(o => {
+    unsubscribeHeadTracking = subscribeOrientation((o) => {
       if (o.gamma == null) return;
       // gamma ranges roughly -90..90 (tilt left/right); /45 keeps a
       // comfortable, non-twitchy full swing within a natural head turn
@@ -982,36 +1521,49 @@ export function setHeadTracking(v: boolean) {
 export function playBinaural(presetId: string) {
   stopBinaural();
   ensureCtx();
-  const preset = BINAURAL_PRESETS.find(p => p.id === presetId);
+  const preset = BINAURAL_PRESETS.find((p) => p.id === presetId);
   if (!preset) return;
 
   const merger = ctx!.createChannelMerger(2);
-  const gain   = ctx!.createGain(); gain.gain.value = 0.15;
-  const left   = ctx!.createOscillator();
-  const right  = ctx!.createOscillator();
-  left.type = right.type = 'sine';
-  left.frequency.value  = preset.carrier;
+  const gain = ctx!.createGain();
+  gain.gain.value = 0.15;
+  const left = ctx!.createOscillator();
+  const right = ctx!.createOscillator();
+  left.type = right.type = "sine";
+  left.frequency.value = preset.carrier;
   right.frequency.value = preset.carrier + preset.beat;
 
-  const lg = ctx!.createGain(); lg.gain.value = 1;
-  const rg = ctx!.createGain(); rg.gain.value = 1;
-  left.connect(lg);  lg.connect(merger, 0, 0);
-  right.connect(rg); rg.connect(merger, 0, 1);
+  const lg = ctx!.createGain();
+  lg.gain.value = 1;
+  const rg = ctx!.createGain();
+  rg.gain.value = 1;
+  left.connect(lg);
+  lg.connect(merger, 0, 0);
+  right.connect(rg);
+  rg.connect(merger, 0, 1);
   merger.connect(gain);
   gain.connect(masterGain!);
 
-  left.start(); right.start();
-  binauralNodes    = { left, right, merger, gain };
+  left.start();
+  right.start();
+  binauralNodes = { left, right, merger, gain };
   binauralPresetId = presetId;
   onTrackChange?.();
 }
 
 export function stopBinaural() {
   if (!binauralNodes) return;
-  try { binauralNodes.left.stop();  } catch {}
-  try { binauralNodes.right.stop(); } catch {}
-  try { binauralNodes.gain.disconnect(); binauralNodes.merger.disconnect(); } catch {}
-  binauralNodes    = null;
+  try {
+    binauralNodes.left.stop();
+  } catch {}
+  try {
+    binauralNodes.right.stop();
+  } catch {}
+  try {
+    binauralNodes.gain.disconnect();
+    binauralNodes.merger.disconnect();
+  } catch {}
+  binauralNodes = null;
   binauralPresetId = null;
   onTrackChange?.();
 }
@@ -1027,16 +1579,22 @@ export function adaptOnWorkStart() {
   const orig = masterGain.gain.value;
   masterGain.gain.value = orig * 0.78;
   clearTimeout(adaptiveDuckTimer);
-  adaptiveDuckTimer = window.setTimeout(() => { if (masterGain) masterGain.gain.value = orig; }, 8000);
+  adaptiveDuckTimer = window.setTimeout(() => {
+    if (masterGain) masterGain.gain.value = orig;
+  }, 8000);
 }
 export function adaptOnBreak() {
   clearTimeout(adaptiveDuckTimer);
   if (masterGain) masterGain.gain.value = masterVol;
-  if (trackNodes['fire']) trackNodes['fire'].gain.gain.value = trackVols['fire'] ?? 0.8;
+  if (trackNodes["fire"])
+    trackNodes["fire"].gain.gain.value = trackVols["fire"] ?? 0.8;
 }
 
 export function autoStartCommonRoom() {
-  if (!SOUNDS.some(s => isPlaying(s.id))) { playTrack('rain'); playTrack('fire'); }
+  if (!SOUNDS.some((s) => isPlaying(s.id))) {
+    playTrack("rain");
+    playTrack("fire");
+  }
 }
 
 // ── Crossfade ─────────────────────────────────────────────────────────
@@ -1050,9 +1608,10 @@ export function crossfadeTo(toIds: string[], durationMs = 2500) {
   const now = ctx!.currentTime;
 
   // Ramp out anything playing that isn't in the target set
-  Object.keys(trackNodes).forEach(id => {
+  Object.keys(trackNodes).forEach((id) => {
     if (toIds.includes(id)) return;
-    const t = trackNodes[id]; if (!t) return;
+    const t = trackNodes[id];
+    if (!t) return;
     t.gain.gain.cancelScheduledValues(now);
     t.gain.gain.setValueAtTime(Math.max(0.0001, t.gain.gain.value), now);
     t.gain.gain.linearRampToValueAtTime(0.0001, now + seconds);
@@ -1065,10 +1624,11 @@ export function crossfadeTo(toIds: string[], durationMs = 2500) {
   });
 
   // Start (if needed) and ramp in the target tracks
-  toIds.forEach(id => {
+  toIds.forEach((id) => {
     const target = trackVols[id] ?? 0.8;
     if (!trackNodes[id]) playTrack(id);
-    const t = trackNodes[id]; if (!t) return;
+    const t = trackNodes[id];
+    if (!t) return;
     t.gain.gain.cancelScheduledValues(now);
     t.gain.gain.setValueAtTime(Math.max(0.0001, t.gain.gain.value), now);
     t.gain.gain.linearRampToValueAtTime(target, now + seconds);
@@ -1078,29 +1638,55 @@ export function crossfadeTo(toIds: string[], durationMs = 2500) {
 
 function fadeAll() {
   if (!masterGain) return;
-  const start = masterGain.gain.value; let t = 0;
+  const start = masterGain.gain.value;
+  let t = 0;
   const step = setInterval(() => {
-    t += 0.05; masterGain!.gain.value = Math.max(0, start * (1 - t));
-    if (t >= 1) { SOUNDS.forEach(s => stopTrack(s.id)); clearInterval(step); }
+    t += 0.05;
+    masterGain!.gain.value = Math.max(0, start * (1 - t));
+    if (t >= 1) {
+      SOUNDS.forEach((s) => stopTrack(s.id));
+      clearInterval(step);
+    }
   }, 100);
 }
 
 export function playChime() {
   ensureCtx();
   const ac = ctx!;
-  ([[523.25, 0], [659.25, 180], [783.99, 340]] as [number, number][]).forEach(([freq, delay]) => {
+  (
+    [
+      [523.25, 0],
+      [659.25, 180],
+      [783.99, 340],
+    ] as [number, number][]
+  ).forEach(([freq, delay]) => {
     setTimeout(() => {
-      const osc = ac.createOscillator(); const g = ac.createGain();
-      osc.type = 'sine'; osc.frequency.value = freq; g.gain.value = 0.22;
-      osc.connect(g); g.connect(ac.destination); osc.start();
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      g.gain.value = 0.22;
+      osc.connect(g);
+      g.connect(ac.destination);
+      osc.start();
       g.gain.setValueAtTime(0.22, ac.currentTime);
       g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.8);
-      setTimeout(() => { try { osc.stop(); } catch {} }, 2000);
+      setTimeout(() => {
+        try {
+          osc.stop();
+        } catch {}
+      }, 2000);
     }, delay);
   });
 }
 
 // Legacy compat
-export function stop()               { SOUNDS.forEach(s => stopTrack(s.id)); }
-export function play(id: string)     { playTrack(id); }
-export function toggle(id: string)   { toggleTrack(id); }
+export function stop() {
+  SOUNDS.forEach((s) => stopTrack(s.id));
+}
+export function play(id: string) {
+  playTrack(id);
+}
+export function toggle(id: string) {
+  toggleTrack(id);
+}
