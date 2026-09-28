@@ -6,8 +6,6 @@
 <meta name="description" content="Session Clock — 103 animated themes, Pomodoro, ambient sound mixer, and more.">
 <meta name="theme-color" content="#06030f">
 <meta name="color-scheme" content="dark light">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- The splash marks are the very first thing painted, so they get their own
      preload rather than waiting on the browser to discover them mid-body-parse. -->
 <link rel="preload" as="image" href="/splash-base.png">
@@ -31,7 +29,31 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Session Clock">
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,300;1,14..32,400&family=Cinzel:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Comfortaa:wght@300;400;700&family=Josefin+Sans:wght@100;300;400;600&family=Fraunces:ital,wght@0,100;0,700;1,400&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Special+Elite&family=Nunito:wght@300;400;600;700;800&family=IM+Fell+English:ital@0;1&family=Teko:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Press+Start+2P&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<!-- Google Fonts (preconnect + stylesheet) are loaded conditionally by the
+     inline script below, gated on the stored Privacy Mode flag — a static
+     <link> here would fire before any JS (including the privacy toggle
+     itself) ever runs, so enabling Privacy Mode could never actually have
+     stopped it. This costs a little early-preload performance in the
+     normal (fonts-on) case since the browser can't discover the request
+     until this script runs, but that's the only way to make the setting
+     true rather than cosmetic without self-hosting the font files. -->
+<script>
+(function () {
+  try {
+    if (localStorage.getItem('sc_privacy') === '1') return;
+  } catch (e) { /* localStorage unavailable (e.g. blocked) — fail open to the normal experience */ }
+  var head = document.head;
+  var pre1 = document.createElement('link'); pre1.rel = 'preconnect'; pre1.href = 'https://fonts.googleapis.com';
+  var pre2 = document.createElement('link'); pre2.rel = 'preconnect'; pre2.href = 'https://fonts.gstatic.com'; pre2.crossOrigin = '';
+  var fontHref = 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,300;1,14..32,400&family=Cinzel:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Comfortaa:wght@300;400;700&family=Josefin+Sans:wght@100;300;400;600&family=Fraunces:ital,wght@0,100;0,700;1,400&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Special+Elite&family=Nunito:wght@300;400;600;700;800&family=IM+Fell+English:ital@0;1&family=Teko:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Press+Start+2P&display=swap';
+  var pre3 = document.createElement('link'); pre3.rel = 'preload'; pre3.as = 'style'; pre3.href = fontHref;
+  pre3.onload = function () { pre3.onload = null; pre3.rel = 'stylesheet'; };
+  head.appendChild(pre1); head.appendChild(pre2); head.appendChild(pre3);
+})();
+</script>
+<!-- No JS at all → no privacy toggle can exist to gate this either way, so
+     the noscript fallback loads fonts unconditionally (matches the prior,
+     pre-privacy-mode behavior for that case). -->
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,300;1,14..32,400&family=Cinzel:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Comfortaa:wght@300;400;700&family=Josefin+Sans:wght@100;300;400;600&family=Fraunces:ital,wght@0,100;0,700;1,400&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Special+Elite&family=Nunito:wght@300;400;600;700;800&family=IM+Fell+English:ital@0;1&family=Teko:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,700;1,400&family=Press+Start+2P&display=swap"></noscript>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -558,12 +580,9 @@
 <div id="zenExitHint">Press Esc to exit Zen Mode</div>
 
 <script type="module" src="src/main.ts"></script>
-</body>
-</html>
-
 <!-- Command Palette -->
 <div class="cmd-overlay" id="cmdOverlay">
-  <div class="cmd-modal" id="cmdModal" role="dialog" aria-label="Command Palette">
+  <div class="cmd-modal" id="cmdModal" role="dialog" aria-modal="true" aria-label="Command Palette">
     <div class="cmd-input-wrap">
       <svg class="cmd-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="cmdInput" class="cmd-input" placeholder="Search themes, actions, or type / for secrets…" aria-label="Search themes, actions, or type / for secrets" autocomplete="off" spellcheck="false">
@@ -579,3 +598,5 @@
     </div>
   </div>
 </div>
+</body>
+</html>
