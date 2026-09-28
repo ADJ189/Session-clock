@@ -1,22 +1,44 @@
 // ── Session Intelligence Engine ───────────────────────────────────────
 // All data stays in localStorage. Zero cloud. Zero tracking.
 
-const LOG_KEY      = 'sc_focus_log';
-const STREAK_KEY   = 'sc_streak';
-const VELOCITY_KEY = 'sc_velocity';
+const LOG_KEY = "sc_focus_log";
+const STREAK_KEY = "sc_streak";
+const VELOCITY_KEY = "sc_velocity";
 
-interface LogEntry { time: number; task: string; dur: number; date: string; }
-interface StreakData { current: number; best: number; lastDate: string; }
-interface VelocityData { completed: number; abandoned: number; }
+interface LogEntry {
+  time: number;
+  task: string;
+  dur: number;
+  date: string;
+}
+interface StreakData {
+  current: number;
+  best: number;
+  lastDate: string;
+}
+interface VelocityData {
+  completed: number;
+  abandoned: number;
+}
 
 function loadLog(): LogEntry[] {
-  try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(LOG_KEY) || "[]");
+  } catch {
+    return [];
+  }
 }
 
 // ── Streak ────────────────────────────────────────────────────────────
 export function getStreak(): StreakData {
-  try { return JSON.parse(localStorage.getItem(STREAK_KEY) || '{"current":0,"best":0,"lastDate":""}'); }
-  catch { return { current: 0, best: 0, lastDate: '' }; }
+  try {
+    return JSON.parse(
+      localStorage.getItem(STREAK_KEY) ||
+        '{"current":0,"best":0,"lastDate":""}',
+    );
+  } catch {
+    return { current: 0, best: 0, lastDate: "" };
+  }
 }
 
 export function updateStreak(): StreakData {
@@ -30,7 +52,7 @@ export function updateStreak(): StreakData {
 
   if (s.lastDate === yday) {
     s.current += 1;
-  } else if (s.lastDate === '') {
+  } else if (s.lastDate === "") {
     s.current = 1;
   } else {
     s.current = 1; // streak broken
@@ -43,14 +65,14 @@ export function updateStreak(): StreakData {
 
 export function getStreakMilestone(streak: number): string | null {
   const milestones: Record<number, string> = {
-    3:  '🔥 3-day streak',
-    7:  '🌟 One week streak',
-    14: '💎 Two week streak',
-    21: '🏆 21-day habit formed',
-    30: '🚀 30-day streak',
-    60: '⚡ 60-day streak',
-    90: '🎯 90-day streak',
-    365:'👑 One year streak',
+    3: "🔥 3-day streak",
+    7: "🌟 One week streak",
+    14: "💎 Two week streak",
+    21: "🏆 21-day habit formed",
+    30: "🚀 30-day streak",
+    60: "⚡ 60-day streak",
+    90: "🎯 90-day streak",
+    365: "👑 One year streak",
   };
   return milestones[streak] ?? null;
 }
@@ -71,8 +93,13 @@ export function getStreakMilestone(streak: number): string | null {
 export const MIN_ABANDON_MS = 5_000;
 
 export function getVelocity(): VelocityData {
-  try { return JSON.parse(localStorage.getItem(VELOCITY_KEY) || '{"completed":0,"abandoned":0}'); }
-  catch { return { completed: 0, abandoned: 0 }; }
+  try {
+    return JSON.parse(
+      localStorage.getItem(VELOCITY_KEY) || '{"completed":0,"abandoned":0}',
+    );
+  } catch {
+    return { completed: 0, abandoned: 0 };
+  }
 }
 
 export function recordCompleted() {
@@ -99,12 +126,15 @@ export function getVelocityScore(): number {
   return Math.min(100, Math.round(raw + volumeBonus));
 }
 
-export function getVelocityLabel(score: number): { label: string; colour: string } {
-  if (score < 0)  return { label: 'New',        colour: 'rgba(255,255,255,.35)' };
-  if (score < 40) return { label: 'Building',   colour: '#f59e0b' };
-  if (score < 65) return { label: 'Steady',     colour: '#60a5fa' };
-  if (score < 85) return { label: 'Focused',    colour: '#6ee7b7' };
-  return              { label: 'In the Zone',  colour: '#a78bfa' };
+export function getVelocityLabel(score: number): {
+  label: string;
+  colour: string;
+} {
+  if (score < 0) return { label: "New", colour: "rgba(255,255,255,.35)" };
+  if (score < 40) return { label: "Building", colour: "#f59e0b" };
+  if (score < 65) return { label: "Steady", colour: "#60a5fa" };
+  if (score < 85) return { label: "Focused", colour: "#6ee7b7" };
+  return { label: "In the Zone", colour: "#a78bfa" };
 }
 
 // ── Peak Hours Intelligence ───────────────────────────────────────────
@@ -113,7 +143,7 @@ export function getPeakHour(): number | null {
   if (log.length < 5) return null;
 
   const hourBuckets = new Array(24).fill(0) as number[];
-  log.forEach(e => {
+  log.forEach((e) => {
     const h = new Date(e.time).getHours();
     hourBuckets[h] += e.dur / 60000; // weight by duration
   });
@@ -124,9 +154,9 @@ export function getPeakHour(): number | null {
 }
 
 export function formatHour(h: number): string {
-  if (h === 0)  return '12am';
-  if (h < 12)  return `${h}am`;
-  if (h === 12) return '12pm';
+  if (h === 0) return "12am";
+  if (h < 12) return `${h}am`;
+  if (h === 12) return "12pm";
   return `${h - 12}pm`;
 }
 
@@ -164,9 +194,14 @@ export function onBreakTaken() {
   breakSuggested = false;
 }
 
-export function checkBreakNeeded(sessionRunning: boolean, thresholdMins = 90): boolean {
+export function checkBreakNeeded(
+  sessionRunning: boolean,
+  thresholdMins = 90,
+): boolean {
   if (!sessionRunning || breakSuggested) return false;
-  const liveMs = focusedMsSinceBreak + (runSegmentStart ? performance.now() - runSegmentStart : 0);
+  const liveMs =
+    focusedMsSinceBreak +
+    (runSegmentStart ? performance.now() - runSegmentStart : 0);
   const minsNoBreak = liveMs / 60000;
   if (minsNoBreak >= thresholdMins) {
     breakSuggested = true;
@@ -190,7 +225,10 @@ export function onFlowInterrupt() {
 }
 
 export function checkFlowState(sessionRunning: boolean): boolean {
-  if (!sessionRunning) { flowActive = false; return false; }
+  if (!sessionRunning) {
+    flowActive = false;
+    return false;
+  }
   const uninterrupted = Date.now() - lastInterruptTs;
   if (!flowActive && uninterrupted >= FLOW_THRESHOLD_MS) {
     flowActive = true;
@@ -210,7 +248,9 @@ export function getFlowDuration(): number {
 let _flowIntensity = 0;
 let _tabHiddenAt = 0;
 
-export function getFlowIntensity(): number { return _flowIntensity; }
+export function getFlowIntensity(): number {
+  return _flowIntensity;
+}
 
 export function tickFlowIntensity(sessionRunning: boolean, dt: number): void {
   if (!sessionRunning) {
@@ -252,9 +292,10 @@ export function getIntelligenceInsights(): Array<() => string> {
 
   items.push(() => {
     const { current, best } = getStreak();
-    if (current === 0) return 'Start a session to build your streak';
-    if (current === best && current > 1) return `🏆 Personal best — ${current} day streak!`;
-    return `🔥 ${current} day streak${best > current ? ` · Best: ${best}` : ''}`;
+    if (current === 0) return "Start a session to build your streak";
+    if (current === best && current > 1)
+      return `🏆 Personal best — ${current} day streak!`;
+    return `🔥 ${current} day streak${best > current ? ` · Best: ${best}` : ""}`;
   });
 
   const score = getVelocityScore();
@@ -268,11 +309,14 @@ export function getIntelligenceInsights(): Array<() => string> {
   items.push(() => {
     const log = loadLog();
     const today = new Date().toDateString();
-    const todayMs = log.filter(e => e.date === today).reduce((s, e) => s + e.dur, 0);
+    const todayMs = log
+      .filter((e) => e.date === today)
+      .reduce((s, e) => s + e.dur, 0);
     const todayMins = Math.floor(todayMs / 60000);
-    if (todayMins < 1) return 'Start your first focus session today';
-    const h = Math.floor(todayMins / 60), m = todayMins % 60;
-    return `${h > 0 ? h + 'h ' : ''}${m}m focused today`;
+    if (todayMins < 1) return "Start your first focus session today";
+    const h = Math.floor(todayMins / 60),
+      m = todayMins % 60;
+    return `${h > 0 ? h + "h " : ""}${m}m focused today`;
   });
 
   return items;

@@ -50,8 +50,11 @@ import * as Lyrics from "./lyrics";
 // response could otherwise smuggle in as "artwork".
 function safeHttpsUrl(url: string | undefined | null): string {
   if (!url) return "";
-  try { return new URL(url).protocol === "https:" ? url : ""; }
-  catch { return ""; }
+  try {
+    return new URL(url).protocol === "https:" ? url : "";
+  } catch {
+    return "";
+  }
 }
 
 let sdkReady: Promise<void> | null = null;
@@ -921,7 +924,8 @@ async function toggleLyricsPanel(
       const lines = result.plain.split("\n");
       lines.forEach((line, i) => {
         wrap.appendChild(document.createTextNode(line));
-        if (i < lines.length - 1) wrap.appendChild(document.createElement("br"));
+        if (i < lines.length - 1)
+          wrap.appendChild(document.createElement("br"));
       });
       panel.appendChild(wrap);
       st.lineEls = [];

@@ -12,16 +12,16 @@
 // 11. Break activity suggestions
 // 12. World clock widget
 
-import * as Motion from './motion';
+import * as Motion from "./motion";
 
 const $ = (id: string) => document.getElementById(id)!;
 
 // ─────────────────────────────────────────────────────────────────────
 // 1. SMART STATUS LINE
 // ─────────────────────────────────────────────────────────────────────
-type SessionState = 'idle' | 'running' | 'paused' | 'break' | 'complete';
-let _sessionState: SessionState = 'idle';
-let _pomPhase: string = 'work';
+type SessionState = "idle" | "running" | "paused" | "break" | "complete";
+let _sessionState: SessionState = "idle";
+let _pomPhase: string = "work";
 let _pomEnabled = false;
 let _remainingSecs = 0;
 let _todaySessions = 0;
@@ -32,12 +32,15 @@ export function initStatusLine(cb: (text: string, urgent?: boolean) => void) {
   updateStatusLine();
 }
 
-export function setStatusState(state: SessionState, opts: {
-  pomPhase?: string;
-  pomEnabled?: boolean;
-  remainingSecs?: number;
-  todaySessions?: number;
-} = {}) {
+export function setStatusState(
+  state: SessionState,
+  opts: {
+    pomPhase?: string;
+    pomEnabled?: boolean;
+    remainingSecs?: number;
+    todaySessions?: number;
+  } = {},
+) {
   _sessionState = state;
   if (opts.pomPhase !== undefined) _pomPhase = opts.pomPhase;
   if (opts.pomEnabled !== undefined) _pomEnabled = opts.pomEnabled;
@@ -47,48 +50,50 @@ export function setStatusState(state: SessionState, opts: {
 }
 
 function fmt(secs: number): string {
-  const m = Math.floor(secs / 60), s = secs % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  const m = Math.floor(secs / 60),
+    s = secs % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 function updateStatusLine() {
   if (!_statusCb) return;
-  let text = '';
+  let text = "";
   let urgent = false;
 
-  if (_sessionState === 'idle') {
+  if (_sessionState === "idle") {
     const hour = new Date().getHours();
     if (_todaySessions === 0) {
-      text = 'Ready when you are. Begin your first session.';
+      text = "Ready when you are. Begin your first session.";
     } else if (hour >= 21) {
-      text = `${_todaySessions} session${_todaySessions > 1 ? 's' : ''} today — great work. Wind down soon.`;
+      text = `${_todaySessions} session${_todaySessions > 1 ? "s" : ""} today — great work. Wind down soon.`;
     } else {
-      text = `${_todaySessions} session${_todaySessions > 1 ? 's' : ''} today. Keep the momentum going.`;
+      text = `${_todaySessions} session${_todaySessions > 1 ? "s" : ""} today. Keep the momentum going.`;
     }
-  } else if (_sessionState === 'running') {
+  } else if (_sessionState === "running") {
     if (_pomEnabled && _remainingSecs > 0) {
-      if (_pomPhase === 'work') {
+      if (_pomPhase === "work") {
         if (_remainingSecs <= 120) {
           text = `Almost there — ${fmt(_remainingSecs)} left in this focus block.`;
           urgent = true;
         } else {
           text = `In focus — ${fmt(_remainingSecs)} remaining. You are doing great.`;
         }
-      } else if (_pomPhase === 'break') {
+      } else if (_pomPhase === "break") {
         text = `Break time — ${fmt(_remainingSecs)} left. Step away from the screen.`;
       } else {
         text = `Long break — ${fmt(_remainingSecs)} remaining. You earned it.`;
       }
     } else {
-      text = 'Focus session in progress. Stay with it.';
+      text = "Focus session in progress. Stay with it.";
     }
-  } else if (_sessionState === 'paused') {
-    text = 'Session paused. Continue when you are ready.';
-  } else if (_sessionState === 'break') {
-    text = _remainingSecs > 0
-      ? `Break in progress — ${fmt(_remainingSecs)} left.`
-      : 'Break time. Breathe, stretch, hydrate.';
-  } else if (_sessionState === 'complete') {
+  } else if (_sessionState === "paused") {
+    text = "Session paused. Continue when you are ready.";
+  } else if (_sessionState === "break") {
+    text =
+      _remainingSecs > 0
+        ? `Break in progress — ${fmt(_remainingSecs)} left.`
+        : "Break time. Breathe, stretch, hydrate.";
+  } else if (_sessionState === "complete") {
     text = `Session complete. Well done!`;
   }
 
@@ -96,10 +101,10 @@ function updateStatusLine() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 2. TIME TRUST INDICATOR  
+// 2. TIME TRUST INDICATOR
 // ─────────────────────────────────────────────────────────────────────
-type SyncSource = 'ntp' | 'system' | 'offline';
-let _syncSource: SyncSource = 'system';
+type SyncSource = "ntp" | "system" | "offline";
+let _syncSource: SyncSource = "system";
 let _syncAgeMs = 0;
 let _syncTimestamp = 0;
 
@@ -109,20 +114,20 @@ export function setSyncTrust(source: SyncSource, timestampMs = Date.now()) {
 }
 
 export function getTrustLabel(): string {
-  if (_syncSource === 'ntp') {
+  if (_syncSource === "ntp") {
     _syncAgeMs = Date.now() - _syncTimestamp;
     const secs = Math.round(_syncAgeMs / 1000);
     const age = secs < 60 ? `${secs}s ago` : `${Math.round(secs / 60)}m ago`;
     return `🔵 NTP · ${age}`;
   }
-  if (_syncSource === 'offline') return `📴 Offline · System clock`;
+  if (_syncSource === "offline") return `📴 Offline · System clock`;
   return `⚪ System clock`;
 }
 
 export function getTrustTooltip(): string {
-  if (_syncSource === 'ntp') return 'Network-synced — Cloudflare NTP probe';
-  if (_syncSource === 'offline') return 'No network — showing device clock';
-  return 'System clock — not yet synced';
+  if (_syncSource === "ntp") return "Network-synced — Cloudflare NTP probe";
+  if (_syncSource === "offline") return "No network — showing device clock";
+  return "System clock — not yet synced";
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -132,37 +137,42 @@ export function updateButtonLabels(
   state: SessionState,
   pomPhase: string,
   pomEnabled: boolean,
-  btnStart: HTMLButtonElement
+  btnStart: HTMLButtonElement,
 ) {
   const playIcon = `<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
   const pauseIcon = `<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
 
-  let label = 'Begin Session';
+  let label = "Begin Session";
   let icon = playIcon;
 
-  if (state === 'running') {
-    if (pomEnabled && pomPhase === 'break') {
-      label = 'Pause Break'; icon = pauseIcon;
+  if (state === "running") {
+    if (pomEnabled && pomPhase === "break") {
+      label = "Pause Break";
+      icon = pauseIcon;
     } else {
-      label = 'Take a Break'; icon = pauseIcon;
+      label = "Take a Break";
+      icon = pauseIcon;
     }
-  } else if (state === 'paused') {
-    label = 'Continue Focus'; icon = playIcon;
-  } else if (state === 'idle' || state === 'complete') {
+  } else if (state === "paused") {
+    label = "Continue Focus";
+    icon = playIcon;
+  } else if (state === "idle" || state === "complete") {
     if (pomEnabled) {
-      label = pomPhase === 'break' ? 'Start Break' : 'Begin Focus'; icon = playIcon;
+      label = pomPhase === "break" ? "Start Break" : "Begin Focus";
+      icon = playIcon;
     } else {
-      label = 'Begin Session'; icon = playIcon;
+      label = "Begin Session";
+      icon = playIcon;
     }
   }
 
   // Build using DOM to avoid any innerHTML risk
   while (btnStart.firstChild) btnStart.removeChild(btnStart.firstChild);
   const parser = new DOMParser();
-  const svgDoc = parser.parseFromString(icon, 'image/svg+xml');
+  const svgDoc = parser.parseFromString(icon, "image/svg+xml");
   const svgEl = svgDoc.documentElement;
-  if (svgEl && svgEl.tagName === 'svg') btnStart.appendChild(svgEl);
-  btnStart.appendChild(document.createTextNode(' ' + label));
+  if (svgEl && svgEl.tagName === "svg") btnStart.appendChild(svgEl);
+  btnStart.appendChild(document.createTextNode(" " + label));
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -180,39 +190,104 @@ export interface SessionTemplate {
 }
 
 export const SESSION_TEMPLATES: SessionTemplate[] = [
-  { id:'deep-work',   name:'Deep Work',      icon:'🧠', desc:'Long uninterrupted focus block', durationMins:90, breakMins:15, soundId:'rain' },
-  { id:'study',       name:'Study Session',  icon:'📚', desc:'Classic Pomodoro for studying',  durationMins:25, breakMins:5 },
-  { id:'coding',      name:'Coding Sprint',  icon:'💻', desc:'45-minute dev session',           durationMins:45, breakMins:10, soundId:'brown' },
-  { id:'writing',     name:'Writing Flow',   icon:'✍️', desc:'Focused writing without breaks',  durationMins:50, breakMins:10, soundId:'cafe' },
-  { id:'reading',     name:'Reading',        icon:'📖', desc:'Quiet 30-minute read',            durationMins:30, breakMins:5,  soundId:'forest' },
-  { id:'creative',    name:'Creative Work',  icon:'🎨', desc:'Open-ended creative session',     durationMins:60, breakMins:15 },
-  { id:'workout',     name:'Workout',        icon:'💪', desc:'Movement session timer',          durationMins:45, breakMins:5 },
-  { id:'quick-sprint',name:'Quick Sprint',   icon:'⚡', desc:'15-minute laser focus',           durationMins:15, breakMins:5 },
+  {
+    id: "deep-work",
+    name: "Deep Work",
+    icon: "🧠",
+    desc: "Long uninterrupted focus block",
+    durationMins: 90,
+    breakMins: 15,
+    soundId: "rain",
+  },
+  {
+    id: "study",
+    name: "Study Session",
+    icon: "📚",
+    desc: "Classic Pomodoro for studying",
+    durationMins: 25,
+    breakMins: 5,
+  },
+  {
+    id: "coding",
+    name: "Coding Sprint",
+    icon: "💻",
+    desc: "45-minute dev session",
+    durationMins: 45,
+    breakMins: 10,
+    soundId: "brown",
+  },
+  {
+    id: "writing",
+    name: "Writing Flow",
+    icon: "✍️",
+    desc: "Focused writing without breaks",
+    durationMins: 50,
+    breakMins: 10,
+    soundId: "cafe",
+  },
+  {
+    id: "reading",
+    name: "Reading",
+    icon: "📖",
+    desc: "Quiet 30-minute read",
+    durationMins: 30,
+    breakMins: 5,
+    soundId: "forest",
+  },
+  {
+    id: "creative",
+    name: "Creative Work",
+    icon: "🎨",
+    desc: "Open-ended creative session",
+    durationMins: 60,
+    breakMins: 15,
+  },
+  {
+    id: "workout",
+    name: "Workout",
+    icon: "💪",
+    desc: "Movement session timer",
+    durationMins: 45,
+    breakMins: 5,
+  },
+  {
+    id: "quick-sprint",
+    name: "Quick Sprint",
+    icon: "⚡",
+    desc: "15-minute laser focus",
+    durationMins: 15,
+    breakMins: 5,
+  },
 ];
 
 type TemplateCb = (t: SessionTemplate) => void;
 
-export function buildTemplatesUI(
-  container: HTMLElement,
-  onSelect: TemplateCb
-) {
-  container.innerHTML = '';
+export function buildTemplatesUI(container: HTMLElement, onSelect: TemplateCb) {
+  container.innerHTML = "";
 
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:18px;';
+  const grid = document.createElement("div");
+  grid.style.cssText =
+    "display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:18px;";
 
-  SESSION_TEMPLATES.forEach(t => {
-    const card = document.createElement('button');
-    card.className = 'template-card';
+  SESSION_TEMPLATES.forEach((t) => {
+    const card = document.createElement("button");
+    card.className = "template-card";
 
-    const iconEl = document.createElement('div'); iconEl.className = 'template-icon'; iconEl.textContent = t.icon;
-    const nameEl = document.createElement('div'); nameEl.className = 'template-name'; nameEl.textContent = t.name;
-    const descEl = document.createElement('div'); descEl.className = 'template-desc'; descEl.textContent = t.desc;
-    const metaEl = document.createElement('div'); metaEl.className = 'template-meta';
+    const iconEl = document.createElement("div");
+    iconEl.className = "template-icon";
+    iconEl.textContent = t.icon;
+    const nameEl = document.createElement("div");
+    nameEl.className = "template-name";
+    nameEl.textContent = t.name;
+    const descEl = document.createElement("div");
+    descEl.className = "template-desc";
+    descEl.textContent = t.desc;
+    const metaEl = document.createElement("div");
+    metaEl.className = "template-meta";
     metaEl.textContent = `${t.durationMins}min · ${t.breakMins}min break`;
 
     card.append(iconEl, nameEl, descEl, metaEl);
-    card.addEventListener('click', () => onSelect(t));
+    card.addEventListener("click", () => onSelect(t));
     grid.appendChild(card);
   });
 
@@ -222,89 +297,104 @@ export function buildTemplatesUI(
 // ─────────────────────────────────────────────────────────────────────
 // 5. SESSION COMPLETION + QUALITY RATING
 // ─────────────────────────────────────────────────────────────────────
-const RATING_EMOJIS = ['😵', '😕', '😐', '😊', '🔥'];
-const RATING_LABELS = ['Rough', 'Distracted', 'Okay', 'Focused', 'In the zone'];
+const RATING_EMOJIS = ["😵", "😕", "😐", "😊", "🔥"];
+const RATING_LABELS = ["Rough", "Distracted", "Okay", "Focused", "In the zone"];
 
 export function showCompletionRating(
   durationSecs: number,
   task: string,
-  onRate: (rating: number) => void
+  onRate: (rating: number) => void,
 ) {
-  const container = $('ratingContent');
-  container.innerHTML = '';
+  const container = $("ratingContent");
+  container.innerHTML = "";
 
   const mins = Math.round(durationSecs / 60);
 
   // Stats row
-  const stats = document.createElement('div');
-  stats.style.cssText = 'display:flex;gap:24px;justify-content:center;padding:20px 24px 8px;';
+  const stats = document.createElement("div");
+  stats.style.cssText =
+    "display:flex;gap:24px;justify-content:center;padding:20px 24px 8px;";
   const addStat = (val: string, label: string) => {
-    const d = document.createElement('div');
-    d.style.cssText = 'text-align:center;';
-    const v = document.createElement('div'); v.style.cssText = 'font-size:1.6rem;font-weight:800;color:var(--clr-accent);'; v.textContent = val;
-    const l = document.createElement('div'); l.style.cssText = 'font-size:.6rem;opacity:.5;letter-spacing:.08em;text-transform:uppercase;'; l.textContent = label;
-    d.append(v, l); stats.appendChild(d);
+    const d = document.createElement("div");
+    d.style.cssText = "text-align:center;";
+    const v = document.createElement("div");
+    v.style.cssText =
+      "font-size:1.6rem;font-weight:800;color:var(--clr-accent);";
+    v.textContent = val;
+    const l = document.createElement("div");
+    l.style.cssText =
+      "font-size:.6rem;opacity:.5;letter-spacing:.08em;text-transform:uppercase;";
+    l.textContent = label;
+    d.append(v, l);
+    stats.appendChild(d);
   };
-  addStat(`${mins}`, 'Minutes');
-  if (task) addStat(task.slice(0, 14), 'Task');
+  addStat(`${mins}`, "Minutes");
+  if (task) addStat(task.slice(0, 14), "Task");
 
   // Prompt
-  const prompt = document.createElement('div');
-  prompt.style.cssText = 'text-align:center;font-size:.78rem;opacity:.6;padding:0 24px 16px;';
-  prompt.textContent = 'How did that session feel?';
+  const prompt = document.createElement("div");
+  prompt.style.cssText =
+    "text-align:center;font-size:.78rem;opacity:.6;padding:0 24px 16px;";
+  prompt.textContent = "How did that session feel?";
 
   // Rating row
-  const ratingRow = document.createElement('div');
-  ratingRow.style.cssText = 'display:flex;gap:12px;justify-content:center;padding:0 24px 12px;';
+  const ratingRow = document.createElement("div");
+  ratingRow.style.cssText =
+    "display:flex;gap:12px;justify-content:center;padding:0 24px 12px;";
 
   RATING_EMOJIS.forEach((emoji, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'rating-btn';
-    btn.title = RATING_LABELS[i] ?? '';
-    const em = document.createElement('div'); em.style.cssText = 'font-size:1.8rem;'; em.textContent = emoji;
-    const lbl = document.createElement('div'); lbl.style.cssText = 'font-size:.55rem;opacity:.5;margin-top:2px;'; lbl.textContent = RATING_LABELS[i] ?? '';
+    const btn = document.createElement("button");
+    btn.className = "rating-btn";
+    btn.title = RATING_LABELS[i] ?? "";
+    const em = document.createElement("div");
+    em.style.cssText = "font-size:1.8rem;";
+    em.textContent = emoji;
+    const lbl = document.createElement("div");
+    lbl.style.cssText = "font-size:.55rem;opacity:.5;margin-top:2px;";
+    lbl.textContent = RATING_LABELS[i] ?? "";
     btn.append(em, lbl);
-    btn.addEventListener('click', () => {
+    btn.addEventListener("click", () => {
       onRate(i + 1);
-      document.getElementById('ratingOverlay')?.classList.remove('open');
+      document.getElementById("ratingOverlay")?.classList.remove("open");
     });
     ratingRow.appendChild(btn);
   });
 
   // Skip
-  const skip = document.createElement('button');
-  skip.style.cssText = 'display:block;margin:0 auto 20px;font-size:.62rem;opacity:.35;background:none;border:none;color:inherit;cursor:pointer;padding:4px 12px;';
-  skip.textContent = 'Skip';
-  skip.addEventListener('click', () => {
+  const skip = document.createElement("button");
+  skip.style.cssText =
+    "display:block;margin:0 auto 20px;font-size:.62rem;opacity:.35;background:none;border:none;color:inherit;cursor:pointer;padding:4px 12px;";
+  skip.textContent = "Skip";
+  skip.addEventListener("click", () => {
     onRate(0);
-    document.getElementById('ratingOverlay')?.classList.remove('open');
+    document.getElementById("ratingOverlay")?.classList.remove("open");
   });
 
   // Break suggestion
-  const breakSug = document.createElement('div');
-  breakSug.className = 'break-suggestion';
+  const breakSug = document.createElement("div");
+  breakSug.className = "break-suggestion";
   breakSug.textContent = getBreakSuggestion(mins);
 
   container.append(stats, prompt, ratingRow, skip, breakSug);
-  document.getElementById('ratingOverlay')?.classList.add('open');
+  document.getElementById("ratingOverlay")?.classList.add("open");
 }
 
 // ─────────────────────────────────────────────────────────────────────
 // 11. BREAK ACTIVITY SUGGESTIONS (used inside rating modal)
 // ─────────────────────────────────────────────────────────────────────
 const SHORT_BREAKS = [
-  'Take 5 deep breaths before your next session.',
-  'Stand up and stretch your shoulders and neck.',
-  'Look at something 20 feet away for 20 seconds.',
-  'Grab a glass of water.',
-  'Step outside for fresh air if you can.',
+  "Take 5 deep breaths before your next session.",
+  "Stand up and stretch your shoulders and neck.",
+  "Look at something 20 feet away for 20 seconds.",
+  "Grab a glass of water.",
+  "Step outside for fresh air if you can.",
 ];
 const LONG_BREAKS = [
-  'Go for a 10-minute walk — it resets focus.',
-  'Do a short stretch or yoga flow.',
-  'Make yourself a proper meal or snack.',
-  'Step fully away from all screens for a few minutes.',
-  'Journal one sentence about what you accomplished.',
+  "Go for a 10-minute walk — it resets focus.",
+  "Do a short stretch or yoga flow.",
+  "Make yourself a proper meal or snack.",
+  "Step fully away from all screens for a few minutes.",
+  "Journal one sentence about what you accomplished.",
 ];
 
 export function getBreakSuggestion(sessionMins: number): string {
@@ -315,9 +405,12 @@ export function getBreakSuggestion(sessionMins: number): string {
 // ─────────────────────────────────────────────────────────────────────
 // 6. DISTRACTION COUNTER
 // ─────────────────────────────────────────────────────────────────────
-const DISTRACTION_KEY = 'sc_distractions';
+const DISTRACTION_KEY = "sc_distractions";
 
-interface DistractionEntry { date: string; count: number; }
+interface DistractionEntry {
+  date: string;
+  count: number;
+}
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -325,44 +418,59 @@ function todayKey(): string {
 
 export function logDistraction() {
   try {
-    const data: DistractionEntry[] = JSON.parse(localStorage.getItem(DISTRACTION_KEY) || '[]');
+    const data: DistractionEntry[] = JSON.parse(
+      localStorage.getItem(DISTRACTION_KEY) || "[]",
+    );
     const today = todayKey();
-    const entry = data.find(e => e.date === today);
-    if (entry) { entry.count++; } else { data.push({ date: today, count: 1 }); }
+    const entry = data.find((e) => e.date === today);
+    if (entry) {
+      entry.count++;
+    } else {
+      data.push({ date: today, count: 1 });
+    }
     localStorage.setItem(DISTRACTION_KEY, JSON.stringify(data.slice(-30)));
     return getTodayDistractions();
-  } catch { return 0; }
+  } catch {
+    return 0;
+  }
 }
 
 export function getTodayDistractions(): number {
   try {
-    const data: DistractionEntry[] = JSON.parse(localStorage.getItem(DISTRACTION_KEY) || '[]');
-    return data.find(e => e.date === todayKey())?.count ?? 0;
-  } catch { return 0; }
+    const data: DistractionEntry[] = JSON.parse(
+      localStorage.getItem(DISTRACTION_KEY) || "[]",
+    );
+    return data.find((e) => e.date === todayKey())?.count ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function updateDistractionUI(running: boolean) {
-  const row = $('distractionRow');
+  const row = $("distractionRow");
   if (!row) return;
-  row.style.display = running ? 'flex' : 'none';
-  const countEl = $('distractionCount');
+  row.style.display = running ? "flex" : "none";
+  const countEl = $("distractionCount");
   if (countEl) {
     const n = getTodayDistractions();
-    countEl.textContent = n === 0 ? 'No distractions' : `${n} distraction${n !== 1 ? 's' : ''} today`;
+    countEl.textContent =
+      n === 0
+        ? "No distractions"
+        : `${n} distraction${n !== 1 ? "s" : ""} today`;
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────
 // 7. ONBOARDING WIZARD
 // ─────────────────────────────────────────────────────────────────────
-const ONBOARD_KEY = 'sc_onboarded_v2';
+const ONBOARD_KEY = "sc_onboarded_v2";
 
 export function shouldShowOnboarding(): boolean {
   return !localStorage.getItem(ONBOARD_KEY);
 }
 
 export function markOnboarded() {
-  localStorage.setItem(ONBOARD_KEY, '1');
+  localStorage.setItem(ONBOARD_KEY, "1");
 }
 
 interface OnboardCallbacks {
@@ -372,167 +480,257 @@ interface OnboardCallbacks {
 }
 
 export function showOnboarding(cbs: OnboardCallbacks) {
-  const overlay = $('onboardOverlay');
-  const container = $('onboardContent');
-  overlay.classList.add('open');
+  const overlay = $("onboardOverlay");
+  const container = $("onboardContent");
+  overlay.classList.add("open");
   const TOTAL_STEPS = 4;
   let step = 0;
 
-  const finish = (soundId = '') => {
+  const finish = (soundId = "") => {
     if (soundId) cbs.enableSound(soundId);
     markOnboarded();
-    overlay.classList.remove('open');
+    overlay.classList.remove("open");
   };
 
-  const goNext = () => { step = Math.min(step + 1, TOTAL_STEPS - 1); renderStep(); };
+  const goNext = () => {
+    step = Math.min(step + 1, TOTAL_STEPS - 1);
+    renderStep();
+  };
 
   const renderStep = () => {
-    container.innerHTML = '';
+    container.innerHTML = "";
 
     // ── Progress dots ──
-    const dots = document.createElement('div');
-    dots.className = 'ob-dots';
+    const dots = document.createElement("div");
+    dots.className = "ob-dots";
     for (let i = 0; i < TOTAL_STEPS; i++) {
-      const d = document.createElement('div');
-      d.className = 'ob-dot' + (i === step ? ' active' : i < step ? ' done' : '');
+      const d = document.createElement("div");
+      d.className =
+        "ob-dot" + (i === step ? " active" : i < step ? " done" : "");
       dots.appendChild(d);
     }
 
     // ── Skip all link ── always visible top-right
-    const skipAll = document.createElement('button');
-    skipAll.className = 'ob-skip-all';
-    skipAll.textContent = 'Skip all';
-    skipAll.addEventListener('click', () => finish());
+    const skipAll = document.createElement("button");
+    skipAll.className = "ob-skip-all";
+    skipAll.textContent = "Skip all";
+    skipAll.addEventListener("click", () => finish());
 
     // ── Content area ──
-    const body = document.createElement('div');
-    body.className = 'ob-body';
+    const body = document.createElement("div");
+    body.className = "ob-body";
 
     // ── Bottom nav ──
-    const nav = document.createElement('div');
-    nav.className = 'ob-nav';
+    const nav = document.createElement("div");
+    nav.className = "ob-nav";
 
     if (step === 0) renderWelcome(body, nav, goNext, finish);
-    else if (step === 1) renderDuration(body, nav, (m) => { cbs.setDuration(m); goNext(); }, finish);
-    else if (step === 2) renderThemePick(body, nav, (id) => { if (id) cbs.applyThemeById(id); goNext(); }, finish);
+    else if (step === 1)
+      renderDuration(
+        body,
+        nav,
+        (m) => {
+          cbs.setDuration(m);
+          goNext();
+        },
+        finish,
+      );
+    else if (step === 2)
+      renderThemePick(
+        body,
+        nav,
+        (id) => {
+          if (id) cbs.applyThemeById(id);
+          goNext();
+        },
+        finish,
+      );
     else if (step === 3) renderSoundPick(body, nav, (id) => finish(id), finish);
 
     // Wrap with relative positioning for skip-all button
-    const wrapper = document.createElement('div');
-    wrapper.className = 'ob-wrapper';
+    const wrapper = document.createElement("div");
+    wrapper.className = "ob-wrapper";
     wrapper.append(skipAll, dots, body, nav);
     container.appendChild(wrapper);
     // A gentle staggered entrance for whatever this step just put in —
     // the same treatment the Themes tab and Settings panes already use,
     // so onboarding doesn't feel like a different, plainer piece of UI.
-    void Motion.staggerIn(body, '.ob-card, .ob-icon-badge, .ob-heading, .ob-desc');
+    void Motion.staggerIn(
+      body,
+      ".ob-card, .ob-icon-badge, .ob-heading, .ob-desc",
+    );
   };
   renderStep();
 }
 
 function obH(text: string): HTMLElement {
-  const h = document.createElement('h2');
-  h.className = 'ob-heading';
-  h.textContent = text; return h;
+  const h = document.createElement("h2");
+  h.className = "ob-heading";
+  h.textContent = text;
+  return h;
 }
 function obP(text: string): HTMLElement {
-  const p = document.createElement('p');
-  p.className = 'ob-desc';
-  p.textContent = text; return p;
+  const p = document.createElement("p");
+  p.className = "ob-desc";
+  p.textContent = text;
+  return p;
 }
-function obNavBtn(label: string, primary: boolean, cb: () => void): HTMLElement {
-  const btn = document.createElement('button');
-  btn.className = primary ? 'ob-btn-primary' : 'ob-btn-ghost';
+function obNavBtn(
+  label: string,
+  primary: boolean,
+  cb: () => void,
+): HTMLElement {
+  const btn = document.createElement("button");
+  btn.className = primary ? "ob-btn-primary" : "ob-btn-ghost";
   btn.textContent = label;
-  btn.addEventListener('click', cb);
+  btn.addEventListener("click", cb);
   return btn;
 }
 function obGrid(cols = 2): HTMLElement {
-  const g = document.createElement('div');
-  g.className = 'ob-grid';
+  const g = document.createElement("div");
+  g.className = "ob-grid";
   g.style.gridTemplateColumns = `repeat(${cols},1fr)`;
   return g;
 }
-function obCard(icon: string, label: string, sub: string, cb: () => void): HTMLElement {
-  const btn = document.createElement('button');
-  btn.className = 'ob-card';
-  btn.addEventListener('click', cb);
-  const ic = document.createElement('div'); ic.className = 'ob-card-icon'; ic.textContent = icon;
-  const lbl = document.createElement('div'); lbl.className = 'ob-card-label'; lbl.textContent = label;
-  const sb = document.createElement('div'); sb.className = 'ob-card-sub'; sb.textContent = sub;
+function obCard(
+  icon: string,
+  label: string,
+  sub: string,
+  cb: () => void,
+): HTMLElement {
+  const btn = document.createElement("button");
+  btn.className = "ob-card";
+  btn.addEventListener("click", cb);
+  const ic = document.createElement("div");
+  ic.className = "ob-card-icon";
+  ic.textContent = icon;
+  const lbl = document.createElement("div");
+  lbl.className = "ob-card-label";
+  lbl.textContent = label;
+  const sb = document.createElement("div");
+  sb.className = "ob-card-sub";
+  sb.textContent = sub;
   btn.append(ic, lbl, sb);
   return btn;
 }
 
-function renderWelcome(body: HTMLElement, nav: HTMLElement, next: () => void, finish: (s?: string) => void) {
-  const badge = document.createElement('div'); badge.className = 'ob-icon-badge';
-  const icon = document.createElement('div'); icon.className = 'ob-icon'; icon.textContent = '⏱';
+function renderWelcome(
+  body: HTMLElement,
+  nav: HTMLElement,
+  next: () => void,
+  finish: (s?: string) => void,
+) {
+  const badge = document.createElement("div");
+  badge.className = "ob-icon-badge";
+  const icon = document.createElement("div");
+  icon.className = "ob-icon";
+  icon.textContent = "⏱";
   badge.appendChild(icon);
-  body.append(badge, obH('Session Clock'), obP('A precise, beautiful focus timer — themes, binaural beats, session tracking, and more. Set up in 30 seconds or skip and dive in.'));
+  body.append(
+    badge,
+    obH("Session Clock"),
+    obP(
+      "A precise, beautiful focus timer — themes, binaural beats, session tracking, and more. Set up in 30 seconds or skip and dive in.",
+    ),
+  );
   nav.append(
-    obNavBtn('Get started →', true, next),
-    obNavBtn('Skip, use defaults', false, () => finish()),
+    obNavBtn("Get started →", true, next),
+    obNavBtn("Skip, use defaults", false, () => finish()),
   );
 }
 
-function renderDuration(body: HTMLElement, nav: HTMLElement, onPick: (m: number) => void, finish: (s?: string) => void) {
-  body.append(obH('Session length?'), obP('How long is your typical focus block? You can change this any time.'));
+function renderDuration(
+  body: HTMLElement,
+  nav: HTMLElement,
+  onPick: (m: number) => void,
+  finish: (s?: string) => void,
+) {
+  body.append(
+    obH("Session length?"),
+    obP("How long is your typical focus block? You can change this any time."),
+  );
   const grid = obGrid(3);
   const opts: [number, string, string][] = [
-    [15, '15 min', 'Quick sprint'],
-    [25, '25 min', 'Pomodoro'],
-    [45, '45 min', 'Deep work'],
-    [60, '60 min', 'Long block'],
-    [90, '90 min', 'Ultra focus'],
-    [50, '50 min', 'Animedoro'],
+    [15, "15 min", "Quick sprint"],
+    [25, "25 min", "Pomodoro"],
+    [45, "45 min", "Deep work"],
+    [60, "60 min", "Long block"],
+    [90, "90 min", "Ultra focus"],
+    [50, "50 min", "Animedoro"],
   ];
-  opts.forEach(([m, lbl, sub]) => grid.appendChild(obCard('', lbl, sub, () => onPick(m))));
+  opts.forEach(([m, lbl, sub]) =>
+    grid.appendChild(obCard("", lbl, sub, () => onPick(m))),
+  );
   // Update icons after creating
-  grid.querySelectorAll('button').forEach((btn, i) => {
-    const icons = ['⚡','🍅','🧠','🔭','🎯','🎬'];
-    btn.querySelector('div')!.textContent = icons[i] ?? '⏱';
+  grid.querySelectorAll("button").forEach((btn, i) => {
+    const icons = ["⚡", "🍅", "🧠", "🔭", "🎯", "🎬"];
+    btn.querySelector("div")!.textContent = icons[i] ?? "⏱";
   });
   body.appendChild(grid);
-  nav.append(obNavBtn('Skip →', false, () => onPick(25)));
+  nav.append(obNavBtn("Skip →", false, () => onPick(25)));
 }
 
-function renderThemePick(body: HTMLElement, nav: HTMLElement, onPick: (id: string) => void, finish: (s?: string) => void) {
-  body.append(obH('Choose your vibe'), obP('45+ themes available — pick a favourite to start. Change anytime with T or Ctrl+K.'));
+function renderThemePick(
+  body: HTMLElement,
+  nav: HTMLElement,
+  onPick: (id: string) => void,
+  finish: (s?: string) => void,
+) {
+  body.append(
+    obH("Choose your vibe"),
+    obP(
+      "45+ themes available — pick a favourite to start. Change anytime with T or Ctrl+K.",
+    ),
+  );
   const grid = obGrid(3);
   const themes: [string, string, string, string][] = [
-    ['midnight',    '🌃', 'Midnight',    'Deep purple'],
-    ['aurora',      '🌌', 'Aurora',      'Northern lights'],
-    ['cyberpunk',   '🌆', 'Cyberpunk',   'Night City'],
-    ['nordic',      '❄️',  'Nordic',      'Clean minimal'],
-    ['forest',      '🌲', 'Forest',      'Calm green'],
-    ['breakingbad', '⚗️',  'Breaking Bad','Chemistry'],
-    ['onepiece',    '🏴‍☠️', 'One Piece',   'Grand Line'],
-    ['dune',        '🏜️',  'Dune',        'Arrakis'],
-    ['severance',   '🏢', 'Severance',   'Lumon Corp'],
-    ['hal9000',     '🔴', '2001: Space', 'Kubrick'],
-    ['dragonfire',  '🐉', 'Dragonfire',  'Targaryen'],
-    ['terminal',    '💻', 'Terminal',    'Air-gapped'],
+    ["midnight", "🌃", "Midnight", "Deep purple"],
+    ["aurora", "🌌", "Aurora", "Northern lights"],
+    ["cyberpunk", "🌆", "Cyberpunk", "Night City"],
+    ["nordic", "❄️", "Nordic", "Clean minimal"],
+    ["forest", "🌲", "Forest", "Calm green"],
+    ["breakingbad", "⚗️", "Breaking Bad", "Chemistry"],
+    ["onepiece", "🏴‍☠️", "One Piece", "Grand Line"],
+    ["dune", "🏜️", "Dune", "Arrakis"],
+    ["severance", "🏢", "Severance", "Lumon Corp"],
+    ["hal9000", "🔴", "2001: Space", "Kubrick"],
+    ["dragonfire", "🐉", "Dragonfire", "Targaryen"],
+    ["terminal", "💻", "Terminal", "Air-gapped"],
   ];
-  themes.forEach(([id, icon, name, sub]) => grid.appendChild(obCard(icon, name, sub, () => onPick(id))));
+  themes.forEach(([id, icon, name, sub]) =>
+    grid.appendChild(obCard(icon, name, sub, () => onPick(id))),
+  );
   body.appendChild(grid);
-  nav.append(obNavBtn('Skip →', false, () => onPick('')));
+  nav.append(obNavBtn("Skip →", false, () => onPick("")));
 }
 
-function renderSoundPick(body: HTMLElement, nav: HTMLElement, onPick: (id: string) => void, finish: (s?: string) => void) {
-  body.append(obH('Ambient sound?'), obP('Background audio helps many people focus deeply. Completely optional — mute any time.'));
+function renderSoundPick(
+  body: HTMLElement,
+  nav: HTMLElement,
+  onPick: (id: string) => void,
+  finish: (s?: string) => void,
+) {
+  body.append(
+    obH("Ambient sound?"),
+    obP(
+      "Background audio helps many people focus deeply. Completely optional — mute any time.",
+    ),
+  );
   const grid = obGrid(3);
   const sounds: [string, string, string, string][] = [
-    ['rain',    '🌧', 'Rain',        'Steady drops'],
-    ['brown',   '🌊', 'Brown Noise', 'Deep rumble'],
-    ['cafe',    '☕', 'Café',        'Busy chatter'],
-    ['forest',  '🌲', 'Forest',      'Birds & breeze'],
-    ['ocean',   '🌊', 'Ocean',       'Wave cycles'],
-    ['fire',    '🔥', 'Fireplace',   'Crackling warmth'],
-    ['',        '🔇', 'No sound',    'Stay silent'],
+    ["rain", "🌧", "Rain", "Steady drops"],
+    ["brown", "🌊", "Brown Noise", "Deep rumble"],
+    ["cafe", "☕", "Café", "Busy chatter"],
+    ["forest", "🌲", "Forest", "Birds & breeze"],
+    ["ocean", "🌊", "Ocean", "Wave cycles"],
+    ["fire", "🔥", "Fireplace", "Crackling warmth"],
+    ["", "🔇", "No sound", "Stay silent"],
   ];
-  sounds.forEach(([id, icon, name, sub]) => grid.appendChild(obCard(icon, name, sub, () => onPick(id))));
+  sounds.forEach(([id, icon, name, sub]) =>
+    grid.appendChild(obCard(icon, name, sub, () => onPick(id))),
+  );
   body.appendChild(grid);
-  nav.append(obNavBtn('Skip →', false, () => onPick('')));
+  nav.append(obNavBtn("Skip →", false, () => onPick("")));
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -540,16 +738,19 @@ function renderSoundPick(body: HTMLElement, nav: HTMLElement, onPick: (id: strin
 // ─────────────────────────────────────────────────────────────────────
 const TIME_THEMES: [number, number, string, string][] = [
   // [startHour, endHour, themeId, reason]
-  [5,  8,  'sunrise',   'Good morning — Sunrise theme for the golden hour'],
-  [8,  12, 'nordic',    'Morning light — clean and focused'],
-  [12, 15, 'lemon',     'Afternoon energy — bright and clear'],
-  [15, 18, 'forest',    'Late afternoon — calm and grounded'],
-  [18, 21, 'commonroom','Evening — warm and cozy'],
-  [21, 24, 'midnight',  'Night mode — easy on the eyes'],
-  [0,  5,  'terminal',  'Deep night — minimalist dark mode'],
+  [5, 8, "sunrise", "Good morning — Sunrise theme for the golden hour"],
+  [8, 12, "nordic", "Morning light — clean and focused"],
+  [12, 15, "lemon", "Afternoon energy — bright and clear"],
+  [15, 18, "forest", "Late afternoon — calm and grounded"],
+  [18, 21, "commonroom", "Evening — warm and cozy"],
+  [21, 24, "midnight", "Night mode — easy on the eyes"],
+  [0, 5, "terminal", "Deep night — minimalist dark mode"],
 ];
 
-export function getDayNightThemeSuggestion(): { themeId: string; reason: string } | null {
+export function getDayNightThemeSuggestion(): {
+  themeId: string;
+  reason: string;
+} | null {
   const h = new Date().getHours();
   const match = TIME_THEMES.find(([s, e]) => h >= s && h < e);
   if (!match) return null;
@@ -558,17 +759,29 @@ export function getDayNightThemeSuggestion(): { themeId: string; reason: string 
 
 // Weather-aware suggestion — overrides time suggestion when conditions are strong
 export function getWeatherThemeSuggestion(
-  isRaining: boolean, isSnowing: boolean, isClear: boolean
+  isRaining: boolean,
+  isSnowing: boolean,
+  isClear: boolean,
 ): { themeId: string; reason: string } | null {
-  if (isRaining) return { themeId: 'commonroom', reason: '🌧 Raining outside — warm and cosy inside' };
-  if (isSnowing) return { themeId: 'nordic',     reason: '❄️ Snowing — clean Nordic light' };
+  if (isRaining)
+    return {
+      themeId: "commonroom",
+      reason: "🌧 Raining outside — warm and cosy inside",
+    };
+  if (isSnowing)
+    return { themeId: "nordic", reason: "❄️ Snowing — clean Nordic light" };
   const h = new Date().getHours();
-  if (isClear && h >= 6 && h < 10) return { themeId: 'sunrise', reason: '☀️ Clear morning — golden hour' };
-  if (isClear && h >= 20) return { themeId: 'midnight',reason: '🌙 Clear night — perfect for midnight' };
+  if (isClear && h >= 6 && h < 10)
+    return { themeId: "sunrise", reason: "☀️ Clear morning — golden hour" };
+  if (isClear && h >= 20)
+    return {
+      themeId: "midnight",
+      reason: "🌙 Clear night — perfect for midnight",
+    };
   return null;
 }
 
-const SHOWN_SUGGESTION_KEY = 'sc_daynight_suggested';
+const SHOWN_SUGGESTION_KEY = "sc_daynight_suggested";
 
 export function shouldSuggestDayNightTheme(currentThemeId: string): boolean {
   const suggestion = getDayNightThemeSuggestion();
@@ -586,10 +799,14 @@ export function shouldSuggestDayNightTheme(currentThemeId: string): boolean {
 // 9. DEADLINE COUNTDOWN MODE
 // ─────────────────────────────────────────────────────────────────────
 let _countdownTarget: Date | null = null;
-let _countdownLabel = '';
+let _countdownLabel = "";
 let _countdownCb: ((display: string, done: boolean) => void) | null = null;
 
-export function setCountdownTarget(label: string, target: Date, cb: (display: string, done: boolean) => void) {
+export function setCountdownTarget(
+  label: string,
+  target: Date,
+  cb: (display: string, done: boolean) => void,
+) {
   _countdownLabel = label;
   _countdownTarget = target;
   _countdownCb = cb;
@@ -598,81 +815,109 @@ export function setCountdownTarget(label: string, target: Date, cb: (display: st
 
 export function clearCountdown() {
   _countdownTarget = null;
-  _countdownLabel = '';
+  _countdownLabel = "";
   _countdownCb = null;
 }
 
 export function tickCountdown() {
   if (!_countdownTarget || !_countdownCb) return;
   const diff = _countdownTarget.getTime() - Date.now();
-  if (diff <= 0) { _countdownCb('Time is up! — ' + _countdownLabel, true); clearCountdown(); return; }
+  if (diff <= 0) {
+    _countdownCb("Time is up! — " + _countdownLabel, true);
+    clearCountdown();
+    return;
+  }
   const d = Math.floor(diff / 86400000);
   const h = Math.floor((diff % 86400000) / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
   const s = Math.floor((diff % 60000) / 1000);
-  const parts = d > 0 ? [`${d}d`, `${h}h`, `${m}m`] : h > 0 ? [`${h}h`, `${m}m`, `${s}s`] : [`${m}m`, `${s}s`];
-  _countdownCb(`⏳ ${_countdownLabel} — ${parts.join(' ')}`, false);
+  const parts =
+    d > 0
+      ? [`${d}d`, `${h}h`, `${m}m`]
+      : h > 0
+        ? [`${h}h`, `${m}m`, `${s}s`]
+        : [`${m}m`, `${s}s`];
+  _countdownCb(`⏳ ${_countdownLabel} — ${parts.join(" ")}`, false);
 }
 
-export function buildCountdownUI(container: HTMLElement, onSet: (label: string, target: Date) => void) {
-  container.innerHTML = '';
-  container.style.cssText = 'padding:24px;';
+export function buildCountdownUI(
+  container: HTMLElement,
+  onSet: (label: string, target: Date) => void,
+) {
+  container.innerHTML = "";
+  container.style.cssText = "padding:24px;";
 
-  const desc = document.createElement('p');
-  desc.style.cssText = 'font-size:.72rem;opacity:.5;margin:0 0 18px;';
-  desc.textContent = 'Count down to any deadline — exam, meeting, event, or end of day.';
+  const desc = document.createElement("p");
+  desc.style.cssText = "font-size:.72rem;opacity:.5;margin:0 0 18px;";
+  desc.textContent =
+    "Count down to any deadline — exam, meeting, event, or end of day.";
 
-  const labelInput = document.createElement('input');
+  const labelInput = document.createElement("input");
   labelInput.placeholder = 'Label (e.g. "Exam", "Meeting", "End of day")';
-  labelInput.setAttribute('aria-label', 'Countdown label');
-  labelInput.style.cssText = 'width:100%;padding:10px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.78rem;margin-bottom:12px;box-sizing:border-box;';
+  labelInput.setAttribute("aria-label", "Countdown label");
+  labelInput.style.cssText =
+    "width:100%;padding:10px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.78rem;margin-bottom:12px;box-sizing:border-box;";
 
-  const dateInput = document.createElement('input');
-  dateInput.type = 'datetime-local';
-  dateInput.setAttribute('aria-label', 'Countdown target date and time');
-  dateInput.style.cssText = 'width:100%;padding:10px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.78rem;margin-bottom:16px;box-sizing:border-box;color-scheme:dark;';
+  const dateInput = document.createElement("input");
+  dateInput.type = "datetime-local";
+  dateInput.setAttribute("aria-label", "Countdown target date and time");
+  dateInput.style.cssText =
+    "width:100%;padding:10px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.78rem;margin-bottom:16px;box-sizing:border-box;color-scheme:dark;";
   // Default to end of today
   const now = new Date();
   now.setHours(23, 59, 0, 0);
   dateInput.value = now.toISOString().slice(0, 16);
 
   // Quick presets
-  const presets = document.createElement('div');
-  presets.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;';
-  const PRESETS: [string, number][] = [['1 hour', 60], ['2 hours', 120], ['End of day', -1], ['Tomorrow', -2]];
+  const presets = document.createElement("div");
+  presets.style.cssText =
+    "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;";
+  const PRESETS: [string, number][] = [
+    ["1 hour", 60],
+    ["2 hours", 120],
+    ["End of day", -1],
+    ["Tomorrow", -2],
+  ];
   PRESETS.forEach(([label, mins]) => {
-    const btn = document.createElement('button');
-    btn.style.cssText = 'padding:5px 12px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:inherit;font-size:.62rem;cursor:pointer;';
+    const btn = document.createElement("button");
+    btn.style.cssText =
+      "padding:5px 12px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:inherit;font-size:.62rem;cursor:pointer;";
     btn.textContent = label;
-    btn.addEventListener('click', () => {
+    btn.addEventListener("click", () => {
       const t = new Date();
-      if (mins === -1) { t.setHours(23, 59, 0, 0); }
-      else if (mins === -2) { t.setDate(t.getDate() + 1); t.setHours(9, 0, 0, 0); }
-      else { t.setMinutes(t.getMinutes() + mins); }
+      if (mins === -1) {
+        t.setHours(23, 59, 0, 0);
+      } else if (mins === -2) {
+        t.setDate(t.getDate() + 1);
+        t.setHours(9, 0, 0, 0);
+      } else {
+        t.setMinutes(t.getMinutes() + mins);
+      }
       dateInput.value = t.toISOString().slice(0, 16);
       if (!labelInput.value) labelInput.value = label;
     });
     presets.appendChild(btn);
   });
 
-  const setBtn = document.createElement('button');
-  setBtn.className = 'btn btn-primary';
-  setBtn.style.cssText = 'width:100%;justify-content:center;';
-  setBtn.textContent = 'Start countdown';
-  setBtn.addEventListener('click', () => {
+  const setBtn = document.createElement("button");
+  setBtn.className = "btn btn-primary";
+  setBtn.style.cssText = "width:100%;justify-content:center;";
+  setBtn.textContent = "Start countdown";
+  setBtn.addEventListener("click", () => {
     const target = new Date(dateInput.value);
     if (isNaN(target.getTime())) return;
-    const label = labelInput.value.trim() || 'Deadline';
+    const label = labelInput.value.trim() || "Deadline";
     onSet(label, target);
-    document.getElementById('countdownOverlay')?.classList.remove('open');
+    document.getElementById("countdownOverlay")?.classList.remove("open");
   });
 
-  const clearBtn = document.createElement('button');
-  clearBtn.style.cssText = 'display:block;margin:10px auto 0;font-size:.62rem;opacity:.3;background:none;border:none;color:inherit;cursor:pointer;';
-  clearBtn.textContent = 'Clear countdown';
-  clearBtn.addEventListener('click', () => {
+  const clearBtn = document.createElement("button");
+  clearBtn.style.cssText =
+    "display:block;margin:10px auto 0;font-size:.62rem;opacity:.3;background:none;border:none;color:inherit;cursor:pointer;";
+  clearBtn.textContent = "Clear countdown";
+  clearBtn.addEventListener("click", () => {
     clearCountdown();
-    document.getElementById('countdownOverlay')?.classList.remove('open');
+    document.getElementById("countdownOverlay")?.classList.remove("open");
   });
 
   container.append(desc, labelInput, dateInput, presets, setBtn, clearBtn);
@@ -685,34 +930,36 @@ export function buildCountdownUI(container: HTMLElement, onSet: (label: string, 
 // ─────────────────────────────────────────────────────────────────────
 // 12. WORLD CLOCK WIDGET
 // ─────────────────────────────────────────────────────────────────────
-const WORLD_CLOCK_KEY = 'sc_world_clocks';
+const WORLD_CLOCK_KEY = "sc_world_clocks";
 
 const TIMEZONE_PRESETS: [string, string, string][] = [
-  ['America/New_York',     'New York',    '🗽'],
-  ['America/Los_Angeles',  'Los Angeles', '🌴'],
-  ['America/Chicago',      'Chicago',     '🏙'],
-  ['America/Toronto',      'Toronto',     '🍁'],
-  ['America/Sao_Paulo',    'São Paulo',   '🇧🇷'],
-  ['Europe/London',        'London',      '🇬🇧'],
-  ['Europe/Paris',         'Paris',       '🗼'],
-  ['Europe/Berlin',        'Berlin',      '🇩🇪'],
-  ['Europe/Moscow',        'Moscow',      '🇷🇺'],
-  ['Asia/Dubai',           'Dubai',       '🇦🇪'],
-  ['Asia/Kolkata',         'Mumbai',      '🇮🇳'],
-  ['Asia/Singapore',       'Singapore',   '🇸🇬'],
-  ['Asia/Tokyo',           'Tokyo',       '🇯🇵'],
-  ['Asia/Shanghai',        'Shanghai',    '🇨🇳'],
-  ['Asia/Seoul',           'Seoul',       '🇰🇷'],
-  ['Australia/Sydney',     'Sydney',      '🦘'],
-  ['Pacific/Auckland',     'Auckland',    '🇳🇿'],
+  ["America/New_York", "New York", "🗽"],
+  ["America/Los_Angeles", "Los Angeles", "🌴"],
+  ["America/Chicago", "Chicago", "🏙"],
+  ["America/Toronto", "Toronto", "🍁"],
+  ["America/Sao_Paulo", "São Paulo", "🇧🇷"],
+  ["Europe/London", "London", "🇬🇧"],
+  ["Europe/Paris", "Paris", "🗼"],
+  ["Europe/Berlin", "Berlin", "🇩🇪"],
+  ["Europe/Moscow", "Moscow", "🇷🇺"],
+  ["Asia/Dubai", "Dubai", "🇦🇪"],
+  ["Asia/Kolkata", "Mumbai", "🇮🇳"],
+  ["Asia/Singapore", "Singapore", "🇸🇬"],
+  ["Asia/Tokyo", "Tokyo", "🇯🇵"],
+  ["Asia/Shanghai", "Shanghai", "🇨🇳"],
+  ["Asia/Seoul", "Seoul", "🇰🇷"],
+  ["Australia/Sydney", "Sydney", "🦘"],
+  ["Pacific/Auckland", "Auckland", "🇳🇿"],
 ];
 
 export function getWorldClocks(): string[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(WORLD_CLOCK_KEY) || '[]');
+    const saved = JSON.parse(localStorage.getItem(WORLD_CLOCK_KEY) || "[]");
     if (saved.length) return saved;
-  } catch { /**/ }
-  return ['America/New_York', 'Europe/London', 'Asia/Kolkata'];
+  } catch {
+    /**/
+  }
+  return ["America/New_York", "Europe/London", "Asia/Kolkata"];
 }
 
 export function saveWorldClocks(tzs: string[]) {
@@ -720,38 +967,44 @@ export function saveWorldClocks(tzs: string[]) {
 }
 
 export function buildWorldClockUI(container: HTMLElement) {
-  container.innerHTML = '';
-  container.style.cssText = 'padding:16px;';
+  container.innerHTML = "";
+  container.style.cssText = "padding:16px;";
 
   const clocks = getWorldClocks();
 
   // Live display
-  const displayWrap = document.createElement('div');
-  displayWrap.id = 'worldClockDisplay';
-  displayWrap.style.cssText = 'margin-bottom:18px;';
+  const displayWrap = document.createElement("div");
+  displayWrap.id = "worldClockDisplay";
+  displayWrap.style.cssText = "margin-bottom:18px;";
   updateWorldClockDisplay(displayWrap, clocks);
   container.appendChild(displayWrap);
 
   // Picker
-  const pickerLabel = document.createElement('div');
-  pickerLabel.style.cssText = 'font-size:.62rem;opacity:.4;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;';
-  pickerLabel.textContent = 'Add timezone (up to 5)';
+  const pickerLabel = document.createElement("div");
+  pickerLabel.style.cssText =
+    "font-size:.62rem;opacity:.4;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;";
+  pickerLabel.textContent = "Add timezone (up to 5)";
 
-  const select = document.createElement('select');
-  select.setAttribute('aria-label', 'Add timezone (up to 5)');
-  select.style.cssText = 'width:100%;padding:8px 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.74rem;margin-bottom:8px;';
-  const defaultOpt = document.createElement('option'); defaultOpt.value = ''; defaultOpt.textContent = '— Select timezone —';
+  const select = document.createElement("select");
+  select.setAttribute("aria-label", "Add timezone (up to 5)");
+  select.style.cssText =
+    "width:100%;padding:8px 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.74rem;margin-bottom:8px;";
+  const defaultOpt = document.createElement("option");
+  defaultOpt.value = "";
+  defaultOpt.textContent = "— Select timezone —";
   select.appendChild(defaultOpt);
   TIMEZONE_PRESETS.forEach(([tz, name, flag]) => {
-    const opt = document.createElement('option'); opt.value = tz; opt.textContent = `${flag} ${name}`;
+    const opt = document.createElement("option");
+    opt.value = tz;
+    opt.textContent = `${flag} ${name}`;
     select.appendChild(opt);
   });
 
-  const addBtn = document.createElement('button');
-  addBtn.className = 'btn btn-primary';
-  addBtn.style.cssText = 'width:100%;justify-content:center;';
-  addBtn.textContent = '+ Add clock';
-  addBtn.addEventListener('click', () => {
+  const addBtn = document.createElement("button");
+  addBtn.className = "btn btn-primary";
+  addBtn.style.cssText = "width:100%;justify-content:center;";
+  addBtn.textContent = "+ Add clock";
+  addBtn.addEventListener("click", () => {
     if (!select.value) return;
     const cur = getWorldClocks();
     if (cur.includes(select.value) || cur.length >= 5) return;
@@ -764,30 +1017,46 @@ export function buildWorldClockUI(container: HTMLElement) {
 }
 
 function updateWorldClockDisplay(wrap: HTMLElement, tzs: string[]) {
-  wrap.innerHTML = '';
+  wrap.innerHTML = "";
   const now = new Date();
-  tzs.forEach(tz => {
+  tzs.forEach((tz) => {
     const preset = TIMEZONE_PRESETS.find(([t]) => t === tz);
-    const flag = preset?.[2] ?? '🌐';
-    const city = preset?.[1] ?? tz.split('/')[1]?.replace('_', ' ') ?? tz;
+    const flag = preset?.[2] ?? "🌐";
+    const city = preset?.[1] ?? tz.split("/")[1]?.replace("_", " ") ?? tz;
 
-    let timeStr = '—';
+    let timeStr = "—";
     try {
-      timeStr = now.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
-    } catch { /**/ }
+      timeStr = now.toLocaleTimeString("en-US", {
+        timeZone: tz,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    } catch {
+      /**/
+    }
 
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.04);margin-bottom:6px;';
+    const row = document.createElement("div");
+    row.style.cssText =
+      "display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.04);margin-bottom:6px;";
 
-    const fl = document.createElement('span'); fl.style.cssText = 'font-size:1.2rem;width:24px;text-align:center;'; fl.textContent = flag;
-    const cityEl = document.createElement('div'); cityEl.style.cssText = 'flex:1;font-size:.74rem;font-weight:600;'; cityEl.textContent = city;
-    const timeEl = document.createElement('div'); timeEl.style.cssText = 'font-size:.95rem;font-weight:800;letter-spacing:.04em;color:var(--clr-accent);font-variant-numeric:tabular-nums;'; timeEl.textContent = timeStr;
+    const fl = document.createElement("span");
+    fl.style.cssText = "font-size:1.2rem;width:24px;text-align:center;";
+    fl.textContent = flag;
+    const cityEl = document.createElement("div");
+    cityEl.style.cssText = "flex:1;font-size:.74rem;font-weight:600;";
+    cityEl.textContent = city;
+    const timeEl = document.createElement("div");
+    timeEl.style.cssText =
+      "font-size:.95rem;font-weight:800;letter-spacing:.04em;color:var(--clr-accent);font-variant-numeric:tabular-nums;";
+    timeEl.textContent = timeStr;
 
-    const removeBtn = document.createElement('button');
-    removeBtn.style.cssText = 'font-size:.7rem;opacity:.25;background:none;border:none;color:inherit;cursor:pointer;padding:2px 6px;';
-    removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => {
-      const cur = getWorldClocks().filter(t => t !== tz);
+    const removeBtn = document.createElement("button");
+    removeBtn.style.cssText =
+      "font-size:.7rem;opacity:.25;background:none;border:none;color:inherit;cursor:pointer;padding:2px 6px;";
+    removeBtn.textContent = "✕";
+    removeBtn.addEventListener("click", () => {
+      const cur = getWorldClocks().filter((t) => t !== tz);
       saveWorldClocks(cur);
       const parent = wrap.parentElement;
       if (parent) buildWorldClockUI(parent);
@@ -800,8 +1069,12 @@ function updateWorldClockDisplay(wrap: HTMLElement, tzs: string[]) {
 
 // Live tick for world clock (call from render loop every second)
 export function tickWorldClock() {
-  const display = document.getElementById('worldClockDisplay');
-  if (!display || !document.getElementById('worldClockOverlay')?.classList.contains('open')) return;
+  const display = document.getElementById("worldClockDisplay");
+  if (
+    !display ||
+    !document.getElementById("worldClockOverlay")?.classList.contains("open")
+  )
+    return;
   updateWorldClockDisplay(display, getWorldClocks());
 }
 
@@ -809,25 +1082,51 @@ export function tickWorldClock() {
 // LUNAR PHASE — pure math, no API needed
 // ─────────────────────────────────────────────────────────────────────
 // Returns 0–1 where 0 = new moon, 0.5 = full moon
-export function getLunarPhase(): { phase: number; name: string; emoji: string; illumination: number } {
+export function getLunarPhase(): {
+  phase: number;
+  name: string;
+  emoji: string;
+  illumination: number;
+} {
   // Known new moon: 2000-01-06 18:14 UTC (J2000 epoch reference)
   const KNOWN_NEW_MOON_MS = 947182440000;
   const SYNODIC_PERIOD_MS = 29.53058867 * 24 * 60 * 60 * 1000;
   const elapsed = Date.now() - KNOWN_NEW_MOON_MS;
   const phase = ((elapsed % SYNODIC_PERIOD_MS) / SYNODIC_PERIOD_MS + 1) % 1;
 
-  const illumination = Math.round((1 - Math.cos(phase * 2 * Math.PI)) / 2 * 100);
+  const illumination = Math.round(
+    ((1 - Math.cos(phase * 2 * Math.PI)) / 2) * 100,
+  );
 
   let name: string, emoji: string;
-  if      (phase < 0.0625) { name = 'New Moon';        emoji = '🌑'; }
-  else if (phase < 0.1875) { name = 'Waxing Crescent'; emoji = '🌒'; }
-  else if (phase < 0.3125) { name = 'First Quarter';   emoji = '🌓'; }
-  else if (phase < 0.4375) { name = 'Waxing Gibbous';  emoji = '🌔'; }
-  else if (phase < 0.5625) { name = 'Full Moon';        emoji = '🌕'; }
-  else if (phase < 0.6875) { name = 'Waning Gibbous';  emoji = '🌖'; }
-  else if (phase < 0.8125) { name = 'Last Quarter';    emoji = '🌗'; }
-  else if (phase < 0.9375) { name = 'Waning Crescent'; emoji = '🌘'; }
-  else                     { name = 'New Moon';         emoji = '🌑'; }
+  if (phase < 0.0625) {
+    name = "New Moon";
+    emoji = "🌑";
+  } else if (phase < 0.1875) {
+    name = "Waxing Crescent";
+    emoji = "🌒";
+  } else if (phase < 0.3125) {
+    name = "First Quarter";
+    emoji = "🌓";
+  } else if (phase < 0.4375) {
+    name = "Waxing Gibbous";
+    emoji = "🌔";
+  } else if (phase < 0.5625) {
+    name = "Full Moon";
+    emoji = "🌕";
+  } else if (phase < 0.6875) {
+    name = "Waning Gibbous";
+    emoji = "🌖";
+  } else if (phase < 0.8125) {
+    name = "Last Quarter";
+    emoji = "🌗";
+  } else if (phase < 0.9375) {
+    name = "Waning Crescent";
+    emoji = "🌘";
+  } else {
+    name = "New Moon";
+    emoji = "🌑";
+  }
 
   return { phase, name, emoji, illumination };
 }
@@ -838,9 +1137,10 @@ export function getDaysToNextFullMoon(): number {
   const elapsed = Date.now() - KNOWN_NEW_MOON_MS;
   const SYNODIC_MS = SYNODIC_PERIOD * 24 * 60 * 60 * 1000;
   const phase = ((elapsed % SYNODIC_MS) / SYNODIC_MS + 1) % 1;
-  const daysToFull = phase < 0.5
-    ? (0.5 - phase) * SYNODIC_PERIOD
-    : (1.5 - phase) * SYNODIC_PERIOD;
+  const daysToFull =
+    phase < 0.5
+      ? (0.5 - phase) * SYNODIC_PERIOD
+      : (1.5 - phase) * SYNODIC_PERIOD;
   return Math.round(daysToFull);
 }
 
@@ -849,7 +1149,7 @@ export function getDaysToNextFullMoon(): number {
 // Recognises: "start [N] minute session", "stop", "pause", "zen mode"
 // ─────────────────────────────────────────────────────────────────────
 export interface VoiceCommand {
-  type: 'start' | 'pause' | 'reset' | 'zen' | 'theme' | 'unknown';
+  type: "start" | "pause" | "reset" | "zen" | "theme" | "unknown";
   minutes?: number;
   themeName?: string;
   raw: string;
@@ -858,7 +1158,9 @@ export interface VoiceCommand {
 let _voiceActive = false;
 let _voiceRecog: any = null;
 
-export function isVoiceActive() { return _voiceActive; }
+export function isVoiceActive() {
+  return _voiceActive;
+}
 
 export function parseVoiceCommand(transcript: string): VoiceCommand {
   const s = transcript.toLowerCase().trim();
@@ -869,49 +1171,78 @@ export function parseVoiceCommand(transcript: string): VoiceCommand {
   // "google"/"ago"/"going", and "stop" on "nonstop" — ordinary speech
   // that merely contained a command word. `\b` fixes that; "start over"
   // is treated as a reset since that's what someone saying it means.
-  if (/\b(?:reset|restart|cancel)\b|\bstart\s+over\b/.test(s)) return { type: 'reset', raw: s };
-  if (/\b(?:stop|pause|hold\s+on|wait)\b/.test(s)) return { type: 'pause', raw: s };
+  if (/\b(?:reset|restart|cancel)\b|\bstart\s+over\b/.test(s))
+    return { type: "reset", raw: s };
+  if (/\b(?:stop|pause|hold\s+on|wait)\b/.test(s))
+    return { type: "pause", raw: s };
 
   // "start [N] minute[s]" | "start session" | "begin" | "go" / "let's go"
-  const startMatch = s.match(/\b(?:start|begin)\b(?:\s+(?:a\s+)?(\d+)(?:\s*-?\s*minutes?|\s*min)\b)?|^(?:let'?s\s+)?go$/);
+  const startMatch = s.match(
+    /\b(?:start|begin)\b(?:\s+(?:a\s+)?(\d+)(?:\s*-?\s*minutes?|\s*min)\b)?|^(?:let'?s\s+)?go$/,
+  );
   if (startMatch) {
-    return { type: 'start', minutes: startMatch[1] ? parseInt(startMatch[1]) : undefined, raw: s };
+    return {
+      type: "start",
+      minutes: startMatch[1] ? parseInt(startMatch[1]) : undefined,
+      raw: s,
+    };
   }
-  if (/\bzen\b/.test(s)) return { type: 'zen', raw: s };
+  if (/\bzen\b/.test(s)) return { type: "zen", raw: s };
 
   // "switch to [theme]" | "use [theme] theme"
-  const themeMatch = s.match(/(?:switch to|use|activate|show)\s+(.+?)(?:\s+theme)?$/);
-  if (themeMatch) return { type: 'theme', themeName: themeMatch[1].trim(), raw: s };
+  const themeMatch = s.match(
+    /(?:switch to|use|activate|show)\s+(.+?)(?:\s+theme)?$/,
+  );
+  if (themeMatch)
+    return { type: "theme", themeName: themeMatch[1].trim(), raw: s };
 
-  return { type: 'unknown', raw: s };
+  return { type: "unknown", raw: s };
 }
 
-export function initVoiceTimer(onCommand: (cmd: VoiceCommand) => void, onStateChange: (active: boolean) => void) {
-  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+export function initVoiceTimer(
+  onCommand: (cmd: VoiceCommand) => void,
+  onStateChange: (active: boolean) => void,
+) {
+  const SR =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition;
   if (!SR) return false;
 
   _voiceRecog = new SR();
   _voiceRecog.continuous = false;
   _voiceRecog.interimResults = false;
-  _voiceRecog.lang = 'en-US';
+  _voiceRecog.lang = "en-US";
 
   _voiceRecog.onresult = (e: any) => {
-    const transcript = e.results[0]?.[0]?.transcript ?? '';
+    const transcript = e.results[0]?.[0]?.transcript ?? "";
     if (transcript) onCommand(parseVoiceCommand(transcript));
   };
-  _voiceRecog.onerror = () => { _voiceActive = false; onStateChange(false); };
-  _voiceRecog.onend   = () => { _voiceActive = false; onStateChange(false); };
+  _voiceRecog.onerror = () => {
+    _voiceActive = false;
+    onStateChange(false);
+  };
+  _voiceRecog.onend = () => {
+    _voiceActive = false;
+    onStateChange(false);
+  };
   return true;
 }
 
 export function startVoiceListening() {
   if (!_voiceRecog || _voiceActive) return;
-  try { _voiceRecog.start(); _voiceActive = true; } catch { _voiceActive = false; }
+  try {
+    _voiceRecog.start();
+    _voiceActive = true;
+  } catch {
+    _voiceActive = false;
+  }
 }
 
 export function stopVoiceListening() {
   if (!_voiceRecog || !_voiceActive) return;
-  try { _voiceRecog.stop(); } catch {}
+  try {
+    _voiceRecog.stop();
+  } catch {}
   _voiceActive = false;
 }
 
@@ -927,25 +1258,37 @@ export interface SmartBreakResult {
 }
 
 const BREAK_ACTIVITIES_SHORT = [
-  'Look 20 feet away for 20 seconds', 'Drink a glass of water', 'Stand and stretch your neck',
-  'Roll your shoulders 5 times each direction', 'Take 5 deep breaths', 'Walk to another room and back',
+  "Look 20 feet away for 20 seconds",
+  "Drink a glass of water",
+  "Stand and stretch your neck",
+  "Roll your shoulders 5 times each direction",
+  "Take 5 deep breaths",
+  "Walk to another room and back",
 ];
 const BREAK_ACTIVITIES_LONG = [
-  'Go for a 10-minute walk outside', 'Make tea or coffee mindfully', 'Do 10 minutes of light stretching',
-  'Step outside for fresh air', 'Eat a snack away from your desk', 'Do a short meditation or breathing exercise',
+  "Go for a 10-minute walk outside",
+  "Make tea or coffee mindfully",
+  "Do 10 minutes of light stretching",
+  "Step outside for fresh air",
+  "Eat a snack away from your desk",
+  "Do a short meditation or breathing exercise",
 ];
 
 export function calcSmartBreak(
   sessionMinutes: number,
   distractionCount: number,
   velocityScore: number, // 0-100
-  isPomodoroMode: boolean
+  isPomodoroMode: boolean,
 ): SmartBreakResult {
   // Base break from session length
-  let base = sessionMinutes >= 90 ? 20
-           : sessionMinutes >= 50 ? 10
-           : sessionMinutes >= 25 ? 5
-           : 3;
+  let base =
+    sessionMinutes >= 90
+      ? 20
+      : sessionMinutes >= 50
+        ? 10
+        : sessionMinutes >= 25
+          ? 5
+          : 3;
 
   // Distraction penalty — more distractions = slightly longer recovery
   const distractionBonus = Math.min(5, Math.floor(distractionCount / 2));
@@ -957,13 +1300,19 @@ export function calcSmartBreak(
   if (isPomodoroMode) minutes = minutes > 10 ? 15 : 5; // snap to Pom defaults
 
   let reason: string;
-  if (distractionCount > 4) reason = `You had ${distractionCount} distractions — take a proper break`;
-  else if (velocityScore >= 80) reason = 'Excellent focus — a short reset keeps you sharp';
-  else if (sessionMinutes >= 90) reason = 'Long session — your brain needs a proper rest';
-  else reason = `${sessionMinutes} minutes done — recharge for ${minutes} minutes`;
+  if (distractionCount > 4)
+    reason = `You had ${distractionCount} distractions — take a proper break`;
+  else if (velocityScore >= 80)
+    reason = "Excellent focus — a short reset keeps you sharp";
+  else if (sessionMinutes >= 90)
+    reason = "Long session — your brain needs a proper rest";
+  else
+    reason = `${sessionMinutes} minutes done — recharge for ${minutes} minutes`;
 
-  const activities = minutes >= 10 ? BREAK_ACTIVITIES_LONG : BREAK_ACTIVITIES_SHORT;
-  const activity = activities[Math.floor(Date.now() / 60000) % activities.length]!;
+  const activities =
+    minutes >= 10 ? BREAK_ACTIVITIES_LONG : BREAK_ACTIVITIES_SHORT;
+  const activity =
+    activities[Math.floor(Date.now() / 60000) % activities.length]!;
 
   return { minutes, reason, activity };
 }

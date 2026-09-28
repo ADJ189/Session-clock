@@ -13,12 +13,18 @@
 // drifts out of sync after a verse or two — mirrors the approach
 // documented in Limusic's README.
 
-export interface LyricLine { time: number; text: string; }
-export interface LyricsResult { synced: LyricLine[]; plain: string; }
+export interface LyricLine {
+  time: number;
+  text: string;
+}
+export interface LyricsResult {
+  synced: LyricLine[];
+  plain: string;
+}
 
-import { fetchWithTimeout } from './utils';
+import { fetchWithTimeout } from "./utils";
 
-const LRCLIB_BASE = 'https://lrclib.net/api';
+const LRCLIB_BASE = "https://lrclib.net/api";
 const cache = new Map<string, LyricsResult | null>();
 
 function cacheKey(track: string, artist: string, durationSec: number): string {
@@ -29,13 +35,13 @@ function cacheKey(track: string, artist: string, durationSec: number): string {
 function parseLrc(lrc: string): LyricLine[] {
   const lines: LyricLine[] = [];
   const re = /\[(\d{2}):(\d{2}(?:\.\d{1,3})?)\](.*)/g;
-  for (const line of lrc.split('\n')) {
+  for (const line of lrc.split("\n")) {
     re.lastIndex = 0;
     const m = re.exec(line);
     if (!m) continue;
     const min = Number(m[1]);
     const sec = Number(m[2]);
-    const text = (m[3] ?? '').trim();
+    const text = (m[3] ?? "").trim();
     if (text) lines.push({ time: min * 60 + sec, text });
   }
   return lines.sort((a, b) => a.time - b.time);
@@ -46,24 +52,36 @@ function parseLrc(lrc: string): LyricLine[] {
  * on no match or network failure — callers should treat that as "no
  * lyrics available" rather than an error state.
  */
-export async function getLyrics(track: string, artist: string, durationSec: number): Promise<LyricsResult | null> {
+export async function getLyrics(
+  track: string,
+  artist: string,
+  durationSec: number,
+): Promise<LyricsResult | null> {
   if (!track) return null;
   const key = cacheKey(track, artist, durationSec);
   if (cache.has(key)) return cache.get(key) ?? null;
 
   try {
     const url = new URL(`${LRCLIB_BASE}/get`);
-    url.searchParams.set('track_name', track);
-    if (artist) url.searchParams.set('artist_name', artist);
-    if (durationSec > 0) url.searchParams.set('duration', String(Math.round(durationSec)));
+    url.searchParams.set("track_name", track);
+    if (artist) url.searchParams.set("artist_name", artist);
+    if (durationSec > 0)
+      url.searchParams.set("duration", String(Math.round(durationSec)));
 
     const res = await fetchWithTimeout(url.toString(), {}, 8000);
-    if (!res.ok) { cache.set(key, null); return null; }
+    if (!res.ok) {
+      cache.set(key, null);
+      return null;
+    }
     const data = await res.json();
 
-    const synced = typeof data.syncedLyrics === 'string' ? parseLrc(data.syncedLyrics) : [];
-    const plain = typeof data.plainLyrics === 'string' ? data.plainLyrics : '';
-    if (!synced.length && !plain) { cache.set(key, null); return null; }
+    const synced =
+      typeof data.syncedLyrics === "string" ? parseLrc(data.syncedLyrics) : [];
+    const plain = typeof data.plainLyrics === "string" ? data.plainLyrics : "";
+    if (!synced.length && !plain) {
+      cache.set(key, null);
+      return null;
+    }
 
     const result: LyricsResult = { synced, plain };
     cache.set(key, result);
@@ -79,10 +97,17 @@ export async function getLyrics(track: string, artist: string, durationSec: numb
 /** Binary-searches `synced` for the line active at `timeSec`. Returns
  *  -1 if before the first line. */
 export function activeLineIndex(synced: LyricLine[], timeSec: number): number {
-  let lo = 0, hi = synced.length - 1, ans = -1;
+  let lo = 0,
+    hi = synced.length - 1,
+    ans = -1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    if (synced[mid]!.time <= timeSec) { ans = mid; lo = mid + 1; } else { hi = mid - 1; }
+    if (synced[mid]!.time <= timeSec) {
+      ans = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
   }
   return ans;
 }

@@ -8,7 +8,15 @@ import { THEME_CATEGORIES } from "./types";
 // matching edit here.
 const MEDIA_CATEGORIES = THEME_CATEGORIES.filter((c) => c !== "nat");
 import type { TimeString, LitEntry } from "./types";
-import { p2, p3, fmtSession, DAYS, MONTHS, GREETS, localStorageBytes } from "./utils";
+import {
+  p2,
+  p3,
+  fmtSession,
+  DAYS,
+  MONTHS,
+  GREETS,
+  localStorageBytes,
+} from "./utils";
 import { clockOffset, synced, syncTime, setSyncHandler } from "./timesync";
 import {
   initWeather,
@@ -655,7 +663,9 @@ function buildDataPanel() {
     incogToggle.classList.toggle("on", Privacy.isIncognito());
     incogToggle.setAttribute("aria-checked", String(Privacy.isIncognito()));
     showToast(
-      Privacy.isIncognito() ? "🕵 Private Focus Log on" : "Private Focus Log off",
+      Privacy.isIncognito()
+        ? "🕵 Private Focus Log on"
+        : "Private Focus Log off",
     );
   });
   incogRow.append(incogInfo, incogToggle);
@@ -1736,7 +1746,10 @@ function onModalOpened(overlay: HTMLElement) {
   const panel = modalPanel(overlay);
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-modal", "true");
-  if (!panel.hasAttribute("aria-label") && !panel.hasAttribute("aria-labelledby")) {
+  if (
+    !panel.hasAttribute("aria-label") &&
+    !panel.hasAttribute("aria-labelledby")
+  ) {
     const heading = panel.querySelector<HTMLElement>("h1, h2, h3");
     if (heading) {
       if (!heading.id) heading.id = `${overlay.id}-title`;
@@ -1751,7 +1764,8 @@ function onModalOpened(overlay: HTMLElement) {
   // dialog's label without pre-selecting a button, and never lands on
   // the close "×" by accident.
   if (!panel.hasAttribute("tabindex")) panel.setAttribute("tabindex", "-1");
-  if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+  if (!panel.contains(document.activeElement))
+    panel.focus({ preventScroll: true });
 
   if (overlay.id === "soundOverlay") {
     startMixerMeter();
@@ -1767,16 +1781,17 @@ function onModalClosed(overlay: HTMLElement) {
   // <body>) — if something else legitimately took focus meanwhile, e.g.
   // one modal opening another, leave it alone.
   const active = document.activeElement;
-  const focusLost = !active || active === document.body || overlay.contains(active);
+  const focusLost =
+    !active || active === document.body || overlay.contains(active);
   if (ret && ret.isConnected && focusLost) ret.focus({ preventScroll: true });
 }
 
 function trapModalTab(e: KeyboardEvent, overlay: HTMLElement) {
   if (e.key !== "Tab") return;
   const panel = modalPanel(overlay);
-  const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (el) => el.offsetParent !== null,
-  );
+  const items = Array.from(
+    panel.querySelectorAll<HTMLElement>(FOCUSABLE),
+  ).filter((el) => el.offsetParent !== null);
   if (!items.length) {
     e.preventDefault();
     panel.focus();
@@ -4503,7 +4518,11 @@ function buildSettingsUI(activeTab = "general") {
     });
     wireToggle("toggleIncognito", (on) => {
       Privacy.setIncognito(on);
-      showToast(on ? "🕵 Private Focus Log on — log entries not saved" : "Private Focus Log off");
+      showToast(
+        on
+          ? "🕵 Private Focus Log on — log entries not saved"
+          : "Private Focus Log off",
+      );
     });
     wireToggle("toggleAutoClear", (on) => {
       Privacy.setAutoClear(on);
@@ -7587,7 +7606,11 @@ function buildCommandPalette() {
       "Sessions not saved",
       () => {
         Privacy.setIncognito(!Privacy.isIncognito());
-        showToast(Privacy.isIncognito() ? "🕵 Private Focus Log on" : "Private Focus Log off");
+        showToast(
+          Privacy.isIncognito()
+            ? "🕵 Private Focus Log on"
+            : "Private Focus Log off",
+        );
       },
     ],
     [
