@@ -28,3 +28,35 @@ export const GREETS: [number, number, string][] = [
 
 /** MAT_CHARS for Matrix rain */
 export const MAT_CHARS = 'ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ01';
+
+
+/** Estimated localStorage usage in bytes (UTF-16, ~2 bytes/char, keys +
+ *  values). `JSON.stringify(localStorage)` isn't a reliable way to measure
+ *  this — a Storage object doesn't serialize its entries that way across
+ *  browsers, so it often reports ~2 ("{}"). */
+export function localStorageBytes(): number {
+  let chars = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k == null) continue;
+    chars += k.length + (localStorage.getItem(k)?.length ?? 0);
+  }
+  return chars * 2;
+}
+
+
+/** fetch() that aborts after `ms` so a stalled provider can't leave a UI in
+ *  "loading…" forever or pin an in-flight guard open. Self-managed
+ *  AbortController + timer (not AbortSignal.timeout, which needs
+ *  Safari 16+ / Chrome 103+ — this repo's build targets go older). If the
+ *  caller passes its own `signal`, aborting it also aborts this request. */
+export function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  const outer = init.signal;
+  if (outer) {
+    if (outer.aborted) controller.abort();
+    else outer.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}

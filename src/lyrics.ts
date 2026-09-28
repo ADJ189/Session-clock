@@ -16,6 +16,8 @@
 export interface LyricLine { time: number; text: string; }
 export interface LyricsResult { synced: LyricLine[]; plain: string; }
 
+import { fetchWithTimeout } from './utils';
+
 const LRCLIB_BASE = 'https://lrclib.net/api';
 const cache = new Map<string, LyricsResult | null>();
 
@@ -55,7 +57,7 @@ export async function getLyrics(track: string, artist: string, durationSec: numb
     if (artist) url.searchParams.set('artist_name', artist);
     if (durationSec > 0) url.searchParams.set('duration', String(Math.round(durationSec)));
 
-    const res = await fetch(url.toString());
+    const res = await fetchWithTimeout(url.toString(), {}, 8000);
     if (!res.ok) { cache.set(key, null); return null; }
     const data = await res.json();
 
@@ -67,7 +69,9 @@ export async function getLyrics(track: string, artist: string, durationSec: numb
     cache.set(key, result);
     return result;
   } catch {
-    cache.set(key, null);
+    // Timeout / network failure — don't cache this as "no lyrics exist":
+    // that would make a transient blip permanent for this track until the
+    // page reloads. Only a real not-found response is cached above.
     return null;
   }
 }

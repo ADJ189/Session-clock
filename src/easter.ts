@@ -1,6 +1,7 @@
 // ── Easter Eggs & Secret Features ────────────────────────────────────
 // All self-contained. Imported and initialised once in main.ts.
 
+import { localStorageBytes } from './utils';
 import { reducedMotion } from './motion';
 
 // ── 1. Konami Code → 8-bit theme ─────────────────────────────────────
@@ -334,7 +335,7 @@ function openDevConsole() {
   if (existing) { existing.remove(); return; }
   const fps = (window as any).__scFps?.() ?? 0;
   const tier = (window as any).__scTier?.() ?? '?';
-  const lsSize = JSON.stringify(localStorage).length;
+  const lsSize = localStorageBytes();
   const audioNodes = (window as any).__scAudioNodes?.() ?? '?';
   const panel = document.createElement('div');
   panel.id = 'devConsole';
@@ -349,7 +350,7 @@ function openDevConsole() {
     ['🎯 Render tier', tier.toUpperCase()],
     ['📊 FPS',         fps],
     ['🔊 Audio nodes', audioNodes],
-    ['💾 localStorage', `${(lsSize/1024).toFixed(1)} KB`],
+    ['💾 localStorage (est.)', `${(lsSize/1024).toFixed(1)} KB`],
     ['🎨 Themes',      (window as any).__scThemeCount?.() ?? '?'],
     ['📋 Sessions',    JSON.parse(localStorage.getItem('sc_focus_log')||'[]').length],
     ['🔥 Streak',      `${JSON.parse(localStorage.getItem('sc_streak')||'{"current":0}').current} days`],

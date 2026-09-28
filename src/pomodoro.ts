@@ -50,6 +50,20 @@ export function init(opts: {
 
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); Object.assign(settings, s); } catch {}
+  // One-time migration: setWorkMins()/setBreakMins() used to write to a
+  // different key ('sc_pom_settings') than load() ever read from ('sc_pom'),
+  // so a custom work/break duration set via those two controls silently
+  // reverted after any reload. Recover anything stranded there so existing
+  // users don't lose a setting they already made, then persist it under the
+  // correct key and stop reading the stray one.
+  try {
+    const stray = localStorage.getItem('sc_pom_settings');
+    if (stray) {
+      Object.assign(settings, JSON.parse(stray));
+      localStorage.removeItem('sc_pom_settings');
+      persist();
+    }
+  } catch {}
 }
 function persist() { localStorage.setItem(KEY, JSON.stringify(settings)); }
 
@@ -150,9 +164,9 @@ export function getRemainingSeconds(): number {
 }
 export function setWorkMins(mins: number) {
   settings.workMins = Math.max(1, Math.min(120, mins));
-  localStorage.setItem('sc_pom_settings', JSON.stringify(settings));
+  persist();
 }
 export function setBreakMins(mins: number) {
   settings.breakMins = Math.max(1, Math.min(60, mins));
-  localStorage.setItem('sc_pom_settings', JSON.stringify(settings));
+  persist();
 }

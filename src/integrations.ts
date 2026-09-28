@@ -234,8 +234,17 @@ export async function oauthLogin(
   const verifier = pkceVerifier();
   const challenge = await pkceChallenge(verifier);
   const nonce = pkceVerifier(24);
-  localStorage.setItem("sc_oauth_verifier", verifier);
-  localStorage.setItem("sc_oauth_state", `${provider}:${nonce}`);
+  // sessionStorage, not localStorage: this flow does a full page
+  // navigation away and back (window.location.assign below), which
+  // sessionStorage survives within the same tab — but unlike
+  // localStorage it's scoped per-tab and auto-clears when the tab
+  // closes, so an abandoned flow (user closes the tab mid-authorize)
+  // doesn't leave a stale verifier sitting around indefinitely, and
+  // starting two different providers' flows in two tabs at once can't
+  // clobber each other's pending state the way a shared localStorage
+  // key could.
+  sessionStorage.setItem("sc_oauth_verifier", verifier);
+  sessionStorage.setItem("sc_oauth_state", `${provider}:${nonce}`);
 
   const url = new URL(cfg.authorizeUrl);
   url.searchParams.set("response_type", "code");
@@ -257,8 +266,8 @@ export async function oauthLogin(
 // the provider will now reject as already used.
 function cleanUpOAuthRedirect(): void {
   window.history.replaceState({}, "", window.location.pathname);
-  localStorage.removeItem("sc_oauth_verifier");
-  localStorage.removeItem("sc_oauth_state");
+  sessionStorage.removeItem("sc_oauth_verifier");
+  sessionStorage.removeItem("sc_oauth_state");
 }
 
 // Call once on page load. Detects a `?code=&state=` redirect from any
@@ -276,14 +285,14 @@ export async function oauthHandleCallback(): Promise<{
   const code = params.get("code");
   const state = params.get("state");
   if (!code || !state) return null;
-  if (state !== localStorage.getItem("sc_oauth_state")) return null; // CSRF check
+  if (state !== sessionStorage.getItem("sc_oauth_state")) return null; // CSRF check
 
   const provider = state.split(":")[0] ?? "";
   const cfg = OAUTH_PROVIDERS[provider];
   if (!cfg) return null;
 
   const clientId = localStorage.getItem(cfg.clientIdKey) ?? "";
-  const verifier = localStorage.getItem("sc_oauth_verifier") ?? "";
+  const verifier = sessionStorage.getItem("sc_oauth_verifier") ?? "";
   const redirect_uri = redirectUri();
 
   try {
@@ -325,9 +334,7 @@ export async function oauthHandleCallback(): Promise<{
     save(provider, {
       token: data.access_token,
       refresh: data.refresh_token ?? "",
-      expires: data.expires_in
-        ? String(Date.now() + data.expires_in * 1000)
-        : "",
+      expires: expiryFrom(data.expires_in),
     });
     cleanUpOAuthRedirect();
     return { provider };
@@ -335,6 +342,21 @@ export async function oauthHandleCallback(): Promise<{
     cleanUpOAuthRedirect();
     return { provider, error: "network error" };
   }
+}
+
+// Converts a provider's `expires_in` (seconds) to an absolute expiry
+// timestamp string, or "" if it's missing/malformed. Previously this was
+// computed inline as `Date.now() + data.expires_in * 1000`, which yields
+// "NaN" when the field is absent or non-numeric — and a persisted "NaN"
+// expiry compares false against everything, so the token looked
+// perpetually expired and triggered a refresh on every single call.
+// `fallbackSeconds` is used by the refresh path, where a token that
+// *does* expire must never be recorded as non-expiring.
+function expiryFrom(expiresIn: unknown, fallbackSeconds?: number): string {
+  const n = Number(expiresIn);
+  if (expiresIn != null && expiresIn !== "" && Number.isFinite(n) && n > 0)
+    return String(Date.now() + n * 1000);
+  return fallbackSeconds ? String(Date.now() + fallbackSeconds * 1000) : "";
 }
 
 // Shared refresh path for every OAuth provider that issues refresh
@@ -389,7 +411,7 @@ export async function ensureFreshToken(
     save(provider, {
       token: data.access_token,
       refresh: data.refresh_token ?? creds.refresh,
-      expires: String(Date.now() + data.expires_in * 1000),
+      expires: expiryFrom(data.expires_in, 3600), // 1h default: a refreshed token must never be recorded as non-expiring
     });
     return data.access_token;
   } catch {

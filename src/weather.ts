@@ -24,6 +24,7 @@ const WMO: Record<number, [string, string]> = {
 };
 
 let refreshTimer = 0;
+let weatherRequestId = 0;
 
 // ── Circadian sun math ────────────────────────────────────────────────
 export function calcSunTimes(lat: number, lon: number): { rise: number; set: number; noon: number } {
@@ -207,9 +208,15 @@ export async function initWeather(
     (window as any).__scLat = lat;
     _currentLocation = { lat, lon, name: _currentLocation?.name };
     _lastFetchFailed = false;
+    // Guards against the user switching location again (GPS, then a quick
+    // manual city search) while this fetch is still in flight — an
+    // out-of-order response for the *old* location could otherwise land
+    // after, and overwrite, the correct data for the newly chosen one.
+    const myRequestId = ++weatherRequestId;
 
     try {
       const data = await fetchWeatherDataWithRetry(lat, lon);
+      if (myRequestId !== weatherRequestId) return; // a newer location fetch has since started
       const cur = data.current;
       _currentWeatherCode = cur.weathercode as number;
       _currentTemp = Math.round(cur.temperature_2m);
@@ -243,6 +250,7 @@ export async function initWeather(
       applyWeatherBodyClass(getWeatherOverlay());
 
     } catch {
+      if (myRequestId !== weatherRequestId) return; // a newer location fetch has since started
       _lastFetchFailed = true;
       show(null, '—', 'Weather unavailable');
     }

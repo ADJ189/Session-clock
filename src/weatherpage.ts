@@ -9,6 +9,7 @@ import {
   setManualLocation, getStoredLocation, initWeather, getCityName, didWeatherFail,
   type WeatherOverlay,
 } from './weather';
+import { fetchWithTimeout } from './utils';
 
 let _privacyCheck: () => boolean = () => false;
 let _onWeatherUpdate: ((code: number, temp: number, desc: string) => void) | null = null;
@@ -200,12 +201,20 @@ function buildWeatherPageDOM(): HTMLElement {
   return overlay;
 }
 
+// Bumped on every call so a slower/out-of-order network response for an
+// older query (e.g. "Lon") can't overwrite a newer query's results (e.g.
+// "London") if the user keeps typing while the first request is still in
+// flight — same stale-response race as the Music Dock lyrics lookup.
+let searchRequestId = 0;
+
 async function searchCity(query: string, overlay: HTMLElement) {
   const results = overlay.querySelector('#weatherLocResults') as HTMLElement;
   results.innerHTML = '<div class="weather-loc-loading">Searching…</div>';
+  const myRequestId = ++searchRequestId;
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5`, { headers: { 'Accept-Language': 'en' } });
+    const res = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5`, { headers: { 'Accept-Language': 'en' } }, 8000);
     const data = await res.json();
+    if (myRequestId !== searchRequestId) return; // a newer search has since started — this result is stale
     results.innerHTML = '';
     if (!data.length) { results.innerHTML = '<div class="weather-loc-loading">No results found</div>'; return; }
     data.forEach((item: any) => {
@@ -231,6 +240,7 @@ async function searchCity(query: string, overlay: HTMLElement) {
       results.appendChild(btn);
     });
   } catch {
+    if (myRequestId !== searchRequestId) return;
     results.innerHTML = '<div class="weather-loc-loading">Search failed</div>';
   }
 }
