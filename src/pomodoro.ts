@@ -1,21 +1,16 @@
-import type { PomodoroSettings, PomPhase } from "./types";
-import { p2 } from "./utils";
-import { playChime } from "./sound";
+import type { PomodoroSettings, PomPhase } from './types';
+import { p2 } from './utils';
+import { playChime } from './sound';
 
 const CIRC = 339.3;
-const KEY = "sc_pom";
-const COUNT_KEY = "sc_pom_count";
+const KEY = 'sc_pom';
+const COUNT_KEY = 'sc_pom_count';
 
-const defaults: PomodoroSettings = {
-  workMins: 25,
-  breakMins: 5,
-  longBreakMins: 15,
-  longBreakAfter: 4,
-};
+const defaults: PomodoroSettings = { workMins: 25, breakMins: 5, longBreakMins: 15, longBreakAfter: 4 };
 
 let settings: PomodoroSettings = { ...defaults };
 let active = false;
-let phase: PomPhase = "work";
+let phase: PomPhase = 'work';
 let phaseStart = 0;
 // Ms already spent in the *current* phase, accumulated across previous
 // run segments — i.e. whatever was elapsed as of the last pause. Mirrors
@@ -48,82 +43,59 @@ export function init(opts: {
 }) {
   sessionRunning = opts.isRunning;
   getSessionStart = opts.getStart;
-  timerEl = opts.timer;
-  ringArc = opts.arc;
-  ringEl = opts.ring;
-  pillEl = opts.pill;
-  labelEl = opts.label;
-  onPhaseChange = opts.onPhase;
+  timerEl = opts.timer; ringArc = opts.arc; ringEl = opts.ring;
+  pillEl = opts.pill; labelEl = opts.label; onPhaseChange = opts.onPhase;
   load();
 }
 
 function load() {
-  try {
-    const s = JSON.parse(localStorage.getItem(KEY) || "{}");
-    Object.assign(settings, s);
-  } catch {}
   // One-time migration: setWorkMins()/setBreakMins() used to write to a
   // different key ('sc_pom_settings') than load() ever read from ('sc_pom'),
   // so a custom work/break duration set via those two controls silently
   // reverted after any reload. Recover anything stranded there so existing
-  // users don't lose a setting they already made, then persist it under the
-  // correct key and stop reading the stray one.
+  // users don't lose a setting they already made — applied FIRST, with the
+  // canonical 'sc_pom' snapshot layered on top below. Both keys can hold a
+  // complete settings object; applying the stray one second (as this used
+  // to) meant any change the user made after the old key was written got
+  // silently overwritten by the older, stale values on every load.
+  let migrated = false;
   try {
-    const stray = localStorage.getItem("sc_pom_settings");
+    const stray = localStorage.getItem('sc_pom_settings');
     if (stray) {
       Object.assign(settings, JSON.parse(stray));
-      localStorage.removeItem("sc_pom_settings");
-      persist();
+      localStorage.removeItem('sc_pom_settings');
+      migrated = true;
     }
   } catch {}
+  try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); Object.assign(settings, s); } catch {}
+  if (migrated) persist();
 }
-function persist() {
-  localStorage.setItem(KEY, JSON.stringify(settings));
-}
+function persist() { localStorage.setItem(KEY, JSON.stringify(settings)); }
 
 function totalMs() {
-  return (
-    (phase === "work"
-      ? settings.workMins
-      : phase === "break"
-        ? settings.breakMins
-        : settings.longBreakMins) * 60_000
-  );
+  return (phase === 'work' ? settings.workMins : phase === 'break' ? settings.breakMins : settings.longBreakMins) * 60_000;
 }
 
 function updateRing(rem: number, tot: number) {
   if (!ringArc) return;
   const pct = tot > 0 ? rem / tot : 0;
   ringArc.style.strokeDashoffset = String(CIRC * (1 - pct));
-  ringArc.style.stroke =
-    phase === "work"
-      ? "var(--clr-accent)"
-      : phase === "break"
-        ? "#38bdf8"
-        : "#a78bfa";
+  ringArc.style.stroke = phase === 'work' ? 'var(--clr-accent)' : phase === 'break' ? '#38bdf8' : '#a78bfa';
 }
 
 function nextPhase() {
   playChime();
-  if (phase === "work") {
+  if (phase === 'work') {
     pomCount++;
     const today = new Date().toDateString();
-    const stored: Record<string, number> = JSON.parse(
-      localStorage.getItem(COUNT_KEY) || "{}",
-    );
+    const stored: Record<string, number> = JSON.parse(localStorage.getItem(COUNT_KEY) || '{}');
     stored[today] = (stored[today] || 0) + 1;
     localStorage.setItem(COUNT_KEY, JSON.stringify(stored));
-    phase = pomCount % settings.longBreakAfter === 0 ? "longBreak" : "break";
-  } else {
-    phase = "work";
-  }
+    phase = (pomCount % settings.longBreakAfter === 0) ? 'longBreak' : 'break';
+  } else { phase = 'work'; }
   phaseStart = performance.now();
   phaseElapsedBeforeSegment = 0; // genuine new phase — nothing carried over
-  const labels: Record<PomPhase, string> = {
-    work: "🍅 Work",
-    break: "☕ Break",
-    longBreak: "💤 Long Break",
-  };
+  const labels: Record<PomPhase, string> = { work: '🍅 Work', break: '☕ Break', longBreak: '💤 Long Break' };
   pillEl && (pillEl.textContent = labels[phase]);
   onPhaseChange?.(labels[phase]);
   updateRing(totalMs(), totalMs());
@@ -138,7 +110,7 @@ export function tick(now: number) {
   const ms = rem;
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
-  if (timerEl) timerEl.textContent = "00:" + p2(m) + ":" + p2(s % 60);
+  if (timerEl) timerEl.textContent = '00:' + p2(m) + ':' + p2(s % 60);
   if (rem <= 0 && sessionRunning()) nextPhase();
 }
 
@@ -149,9 +121,7 @@ export function tick(now: number) {
 // (set by onPause() below), so simply re-anchoring phaseStart to now and
 // letting tick()'s phaseElapsedBeforeSegment + (now - phaseStart) do the
 // rest is correct either way.
-export function onStart() {
-  phaseStart = performance.now();
-}
+export function onStart() { phaseStart = performance.now(); }
 
 // Mirrors main.ts's own pauseTimer() (sessionElapsed = now - sessionStart)
 // — must be called from there whenever a session pauses, or a resume has
@@ -162,32 +132,23 @@ export function onPause() {
 }
 
 export function reset() {
-  phase = "work";
-  phaseStart = 0;
-  phaseElapsedBeforeSegment = 0;
-  pomCount = 0;
+  phase = 'work'; phaseStart = 0; phaseElapsedBeforeSegment = 0; pomCount = 0;
   updateRing(0, 0);
 }
 
 export function setActive(v: boolean) {
   active = v;
-  if (ringEl) ringEl.style.display = v ? "block" : "none";
-  if (pillEl) pillEl.classList.toggle("visible", v);
-  if (labelEl) labelEl.textContent = v ? "Pomodoro" : "Session Timer";
+  if (ringEl) ringEl.style.display = v ? 'block' : 'none';
+  if (pillEl) pillEl.classList.toggle('visible', v);
+  if (labelEl) labelEl.textContent = v ? 'Pomodoro' : 'Session Timer';
   if (!v) reset();
 }
 
-export function isActive() {
-  return active;
-}
+export function isActive() { return active; }
 
-export function toggle() {
-  setActive(!active);
-}
+export function toggle() { setActive(!active); }
 
-export function getSettings() {
-  return { ...settings };
-}
+export function getSettings() { return { ...settings }; }
 
 export function updateSettings(patch: Partial<PomodoroSettings>) {
   Object.assign(settings, patch);
@@ -196,15 +157,11 @@ export function updateSettings(patch: Partial<PomodoroSettings>) {
 
 export function todayCount(): number {
   const today = new Date().toDateString();
-  const stored: Record<string, number> = JSON.parse(
-    localStorage.getItem(COUNT_KEY) || "{}",
-  );
+  const stored: Record<string, number> = JSON.parse(localStorage.getItem(COUNT_KEY) || '{}');
   return stored[today] || 0;
 }
 
-export function getPhase(): import("./types").PomPhase {
-  return phase;
-}
+export function getPhase(): import('./types').PomPhase { return phase; }
 export function getRemainingSeconds(): number {
   if (!active || !phaseStart) return 0;
   const elapsed = phaseElapsedBeforeSegment + (performance.now() - phaseStart);
