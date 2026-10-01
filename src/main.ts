@@ -8,7 +8,15 @@ import { THEME_CATEGORIES } from "./types";
 // matching edit here.
 const MEDIA_CATEGORIES = THEME_CATEGORIES.filter((c) => c !== "nat");
 import type { TimeString, LitEntry } from "./types";
-import { p2, p3, fmtSession, DAYS, MONTHS, GREETS } from "./utils";
+import {
+  p2,
+  p3,
+  fmtSession,
+  DAYS,
+  MONTHS,
+  GREETS,
+  localStorageBytes,
+} from "./utils";
 import { clockOffset, synced, syncTime, setSyncHandler } from "./timesync";
 import {
   initWeather,
@@ -40,6 +48,7 @@ import {
   initPerf,
   getTier,
   setTier,
+  setAutoQuality,
   tickFps,
   getFps,
   isTabVisible,
@@ -257,6 +266,7 @@ function pauseTimer() {
   sessionRunning = false;
   sessionElapsed = performance.now() - sessionStart;
   if (Pom.isActive()) Pom.onPause(); // accumulate phase progress or the next startTimer()'s Pom.onStart() has nothing to resume from — see pomodoro.ts
+  Intel.onSessionPause(); // freeze the smart-break "focused time since last break" accumulator — see intelligence.ts
   document.body.classList.remove("session-running");
   Features.updateButtonLabels(
     "paused",
@@ -329,8 +339,8 @@ function resetTimer() {
         }
       },
     );
-  } else if (dur > 5_000) {
-    Intel.recordAbandoned();
+  } else if (dur > Intel.MIN_ABANDON_MS) {
+    Intel.recordAbandoned(dur);
   }
   Intel.onFlowInterrupt();
   document.body.classList.remove("session-running");
@@ -640,24 +650,26 @@ function buildDataPanel() {
   incogInfo.className = "settings-row-info";
   const incogLbl = document.createElement("span");
   incogLbl.className = "settings-row-label";
-  incogLbl.textContent = "🕵 Incognito Sessions";
+  incogLbl.textContent = "🕵 Private Focus Log";
   const incogDesc = document.createElement("span");
   incogDesc.className = "settings-row-desc";
   incogDesc.textContent =
-    "Sessions run in memory only — nothing written to storage";
+    "Focus log entries stay in memory only for this tab — other settings/stats still save as usual";
   incogInfo.append(incogLbl, incogDesc);
   const incogToggle = document.createElement("button");
   incogToggle.className =
     "settings-toggle" + (Privacy.isIncognito() ? " on" : "");
   incogToggle.setAttribute("role", "switch");
   incogToggle.setAttribute("aria-checked", String(Privacy.isIncognito()));
-  incogToggle.setAttribute("aria-label", "Incognito Sessions");
+  incogToggle.setAttribute("aria-label", "Private Focus Log");
   incogToggle.addEventListener("click", () => {
     Privacy.setIncognito(!Privacy.isIncognito());
     incogToggle.classList.toggle("on", Privacy.isIncognito());
     incogToggle.setAttribute("aria-checked", String(Privacy.isIncognito()));
     showToast(
-      Privacy.isIncognito() ? "🕵 Incognito mode on" : "Incognito mode off",
+      Privacy.isIncognito()
+        ? "🕵 Private Focus Log on"
+        : "Private Focus Log off",
     );
   });
   incogRow.append(incogInfo, incogToggle);
@@ -805,7 +817,17 @@ const cssVar = (name: string, val: string) => root.style.setProperty(name, val);
 // tabs would ping-pong the same theme back and forth forever.
 let applyingRemoteTheme = false;
 
+// Monotonic token bumped on every applyTheme() call. A media-theme switch
+// applies via a canvas transition callback that fires partway through the
+// animation, and runTransition() bypasses straight to the callback when a
+// transition is already running — so Theme A → Theme B → Theme C in quick
+// succession could land A's late callback (or A's delayed quote/ambience
+// timeouts) *after* C was already active and overwrite it (Finding A2).
+// Every deferred piece of a theme switch checks it's still the latest.
+let themeGeneration = 0;
+
 function applyTheme(theme: Theme, instant = false) {
+  const myGeneration = ++themeGeneration;
   // UI sound on theme switch (except initial load)
   if (currentTheme && currentTheme.id !== theme.id && !instant) {
     (window as any).__uiSounds?.themeSwitch();
@@ -813,6 +835,7 @@ function applyTheme(theme: Theme, instant = false) {
     setTimeout(() => document.body.classList.remove("theme-switching"), 350);
   }
   const doApply = () => {
+    if (myGeneration !== themeGeneration) return; // superseded by a newer switch
     currentTheme = theme;
     invalidateCache(); // clear OffscreenCanvas cache — new theme needs fresh gradient
     buildParticles(theme);
@@ -885,6 +908,7 @@ function applyTheme(theme: Theme, instant = false) {
       const qs = theme.quotes?.length ? theme.quotes : NAT_QUOTES;
       DOM.quoteText.style.opacity = "0";
       setTimeout(() => {
+        if (myGeneration !== themeGeneration) return; // a newer theme owns the quote now
         DOM.quoteText.textContent = `"${qs[0]}"`;
         DOM.quoteText.style.opacity = ".38";
       }, 420);
@@ -908,7 +932,9 @@ function applyTheme(theme: Theme, instant = false) {
       theme.id === "commonroom" &&
       localStorage.getItem("sc_auto_theme_ambience") === "1"
     ) {
-      setTimeout(() => Sound.autoStartCommonRoom(), 400);
+      setTimeout(() => {
+        if (myGeneration === themeGeneration) Sound.autoStartCommonRoom();
+      }, 400);
     }
     if (theme.id === "literary") ensureLitClockLoaded();
     // Rebuild clock canvas so font/colours update for current theme
@@ -1003,8 +1029,12 @@ function renderFrame(ts: number) {
   // Tick flow intensity
   Intel.tickFlowIntensity(sessionRunning, dt);
 
-  // Spatial audio tick — throttle on LOW
-  if (tier !== "low") Sound.tickSpatial(ts / 1000);
+  // Spatial audio tick — AudioParam automation only (no canvas/GPU work,
+  // no per-frame node allocation), so unlike the visual work above it's
+  // cheap enough to keep running on LOW rather than freezing the
+  // soundstage in place. LOW's own outer frame-skip (line ~970 above)
+  // already throttles how often this runs to ~20fps naturally.
+  Sound.tickSpatial(ts / 1000);
 
   const now = new Date(Date.now() + clockOffset);
   const ms = now.getMilliseconds(),
@@ -1698,22 +1728,118 @@ function switchPanelTab(id: string) {
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
-const openModal = (id: string) => {
-  $(id).classList.add("open");
-  if (id === "soundOverlay") {
+// One lifecycle for every `.sc-overlay`, driven by a MutationObserver on
+// the overlay's class list rather than by whichever function happens to
+// toggle it. Backdrop clicks, Escape, close buttons, and a handful of
+// modules that call classList.remove("open") directly used to each do
+// their own thing — which is how closing the mixer that way skipped
+// stopMixerMeter() and left its rAF loop running (Finding UX4), and why
+// only the command palette had dialog semantics at all (Finding UX2).
+// Whatever path opens or closes an overlay, the same setup/teardown now
+// runs: dialog role + label, initial focus, Tab trapping, focus
+// restoration, and per-modal cleanup.
+const modalReturnFocus = new Map<HTMLElement, HTMLElement | null>();
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function modalPanel(overlay: HTMLElement): HTMLElement {
+  return overlay.querySelector<HTMLElement>(".sc-modal") ?? overlay;
+}
+
+function onModalOpened(overlay: HTMLElement) {
+  const panel = modalPanel(overlay);
+  panel.setAttribute("role", "dialog");
+  panel.setAttribute("aria-modal", "true");
+  if (
+    !panel.hasAttribute("aria-label") &&
+    !panel.hasAttribute("aria-labelledby")
+  ) {
+    const heading = panel.querySelector<HTMLElement>("h1, h2, h3");
+    if (heading) {
+      if (!heading.id) heading.id = `${overlay.id}-title`;
+      panel.setAttribute("aria-labelledby", heading.id);
+    }
+  }
+  if (!modalReturnFocus.has(overlay)) {
+    const prev = document.activeElement as HTMLElement | null;
+    modalReturnFocus.set(overlay, prev && prev !== document.body ? prev : null);
+  }
+  // Focus the panel itself (not the first control): it announces the
+  // dialog's label without pre-selecting a button, and never lands on
+  // the close "×" by accident.
+  if (!panel.hasAttribute("tabindex")) panel.setAttribute("tabindex", "-1");
+  if (!panel.contains(document.activeElement))
+    panel.focus({ preventScroll: true });
+
+  if (overlay.id === "soundOverlay") {
     startMixerMeter();
     applyMixerNightMode();
   }
+}
+
+function onModalClosed(overlay: HTMLElement) {
+  if (overlay.id === "soundOverlay") stopMixerMeter();
+  const ret = modalReturnFocus.get(overlay);
+  modalReturnFocus.delete(overlay);
+  // Only restore if focus is still inside the closing modal (or lost to
+  // <body>) — if something else legitimately took focus meanwhile, e.g.
+  // one modal opening another, leave it alone.
+  const active = document.activeElement;
+  const focusLost =
+    !active || active === document.body || overlay.contains(active);
+  if (ret && ret.isConnected && focusLost) ret.focus({ preventScroll: true });
+}
+
+function trapModalTab(e: KeyboardEvent, overlay: HTMLElement) {
+  if (e.key !== "Tab") return;
+  const panel = modalPanel(overlay);
+  const items = Array.from(
+    panel.querySelectorAll<HTMLElement>(FOCUSABLE),
+  ).filter((el) => el.offsetParent !== null);
+  if (!items.length) {
+    e.preventDefault();
+    panel.focus();
+    return;
+  }
+  const first = items[0]!;
+  const last = items[items.length - 1]!;
+  const active = document.activeElement;
+  if (e.shiftKey && (active === first || active === panel)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+const modalObserver = new MutationObserver((records) => {
+  for (const r of records) {
+    const el = r.target as HTMLElement;
+    const wasOpen = (r.oldValue ?? "").split(/\s+/).includes("open");
+    const isOpen = el.classList.contains("open");
+    if (isOpen && !wasOpen) onModalOpened(el);
+    else if (!isOpen && wasOpen) onModalClosed(el);
+  }
+});
+document.querySelectorAll<HTMLElement>(".sc-overlay").forEach((el) => {
+  modalObserver.observe(el, {
+    attributes: true,
+    attributeFilter: ["class"],
+    attributeOldValue: true,
+  });
+  el.addEventListener("keydown", (e) => trapModalTab(e, el));
+  el.addEventListener("click", (e) => {
+    if (e.target === el) closeModal(el.id);
+  });
+});
+
+const openModal = (id: string) => {
+  $(id).classList.add("open");
 };
 const closeModal = (id: string) => {
   $(id).classList.remove("open");
-  if (id === "soundOverlay") stopMixerMeter();
 };
-document.querySelectorAll(".sc-overlay").forEach((el) => {
-  el.addEventListener("click", (e) => {
-    if (e.target === el) (el as HTMLElement).classList.remove("open");
-  });
-});
 (window as any).SC = { modals: { open: openModal, close: closeModal } };
 
 // ── Keyboard shortcuts ─────────────────────────────────────────────────
@@ -1760,7 +1886,7 @@ const SHORTCUTS: [string, string, () => void][] = [
       }
       document
         .querySelectorAll<HTMLElement>(".sc-overlay.open")
-        .forEach((el) => el.classList.remove("open"));
+        .forEach((el) => closeModal(el.id));
     },
   ],
 ];
@@ -4238,11 +4364,17 @@ function buildSettingsUI(activeTab = "general") {
     qualSelect.addEventListener("change", () => {
       const val = qualSelect.value as QualityTier | "";
       if (val) setTier(val as QualityTier);
-      else localStorage.removeItem("sc_quality");
+      else setAutoQuality();
       invalidateCache();
-      qualDesc.textContent = `Quality: ${getTier().toUpperCase()}`;
+      qualDesc.textContent = val
+        ? `Quality: ${getTier().toUpperCase()}`
+        : `Auto-detected: ${getTier().toUpperCase()}`;
       fpsBadge.textContent = `${getFps()} fps`;
-      showToast(`Quality set to ${getTier().toUpperCase()}`);
+      showToast(
+        val
+          ? `Quality set to ${getTier().toUpperCase()}`
+          : `Quality set to Auto (${getTier().toUpperCase()})`,
+      );
     });
     qualityRow.append(qualInfo, qualSelect);
     perfSec.appendChild(qualityRow);
@@ -4336,8 +4468,8 @@ function buildSettingsUI(activeTab = "general") {
     const sessionSec = makeSection("Sessions");
     sessionSec.appendChild(
       makeRow(
-        "Incognito Sessions",
-        "Sessions run in memory — nothing written to storage",
+        "Private Focus Log",
+        "Focus log entries stay in memory only for this tab — other settings/stats still save as usual",
         "toggleIncognito",
         Privacy.isIncognito(),
       ),
@@ -4390,7 +4522,11 @@ function buildSettingsUI(activeTab = "general") {
     });
     wireToggle("toggleIncognito", (on) => {
       Privacy.setIncognito(on);
-      showToast(on ? "🕵 Incognito on — sessions not saved" : "Incognito off");
+      showToast(
+        on
+          ? "🕵 Private Focus Log on — log entries not saved"
+          : "Private Focus Log off",
+      );
     });
     wireToggle("toggleAutoClear", (on) => {
       Privacy.setAutoClear(on);
@@ -4464,7 +4600,12 @@ async function openQRHandoff() {
 // Read handoff state from URL on load
 function applyHandoffState() {
   const p = new URLSearchParams(location.search);
-  if (!p.has("theme") && !p.has("ses")) return;
+  // `?start=1` is what the PWA manifest's "Start Session" shortcut
+  // actually links to (public/manifest.json) — it was never handled here,
+  // so tapping that OS-level shortcut just opened the app normally
+  // instead of starting a session. Treat it as "start a fresh session
+  // immediately", the same way `ses=1` resumes one with elapsed state.
+  if (!p.has("theme") && !p.has("ses") && !p.has("start")) return;
   const themeId = p.get("theme");
   if (themeId && THEME_BY_ID[themeId]) applyTheme(THEME_BY_ID[themeId], true);
   const cm = p.get("clock") as ClockMode | null;
@@ -4480,6 +4621,9 @@ function applyHandoffState() {
     const elapsed = parseInt(p.get("elapsed") ?? "0");
     sessionElapsed = elapsed;
     setTimeout(() => DOM.btnStart.click(), 800); // auto-resume
+  } else if (p.get("start") === "1") {
+    sessionElapsed = 0;
+    setTimeout(() => DOM.btnStart.click(), 800); // auto-start a fresh session
   }
   // Clean URL
   history.replaceState({}, "", location.pathname);
@@ -6881,7 +7025,7 @@ function buildCommandPalette() {
         }
         const fps = (window as any).__scFps?.() ?? 0;
         const tier = (window as any).__scTier?.() ?? "?";
-        const lsSize = JSON.stringify(localStorage).length;
+        const lsSize = localStorageBytes();
         const panel = document.createElement("div");
         panel.id = "devConsole";
         panel.style.cssText =
@@ -6889,7 +7033,7 @@ function buildCommandPalette() {
         const rows: [string, string | number][] = [
           ["🎯 Render tier", tier.toUpperCase()],
           ["📊 FPS", fps],
-          ["💾 localStorage", `${(lsSize / 1024).toFixed(1)} KB`],
+          ["💾 localStorage (est.)", `${(lsSize / 1024).toFixed(1)} KB`],
           ["🎨 Themes", (window as any).__scThemeCount?.() ?? "?"],
           [
             "📋 Sessions",
@@ -7462,11 +7606,15 @@ function buildCommandPalette() {
     ],
     [
       "incognito",
-      "🕵 Incognito Sessions",
+      "🕵 Private Focus Log",
       "Sessions not saved",
       () => {
         Privacy.setIncognito(!Privacy.isIncognito());
-        showToast(Privacy.isIncognito() ? "🕵 Incognito on" : "Incognito off");
+        showToast(
+          Privacy.isIncognito()
+            ? "🕵 Private Focus Log on"
+            : "Private Focus Log off",
+        );
       },
     ],
     [

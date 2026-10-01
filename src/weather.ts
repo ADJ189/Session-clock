@@ -44,6 +44,7 @@ const WMO: Record<number, [string, string]> = {
 };
 
 let refreshTimer = 0;
+let weatherRequestId = 0;
 
 // ── Circadian sun math ────────────────────────────────────────────────
 export function calcSunTimes(
@@ -313,9 +314,15 @@ export async function initWeather(
     (window as WindowWithScLat).__scLat = lat;
     _currentLocation = { lat, lon, name: _currentLocation?.name };
     _lastFetchFailed = false;
+    // Guards against the user switching location again (GPS, then a quick
+    // manual city search) while this fetch is still in flight — an
+    // out-of-order response for the *old* location could otherwise land
+    // after, and overwrite, the correct data for the newly chosen one.
+    const myRequestId = ++weatherRequestId;
 
     try {
-      const data: WeatherData = await fetchWeatherDataWithRetry(lat, lon);
+      const data = await fetchWeatherDataWithRetry(lat, lon);
+      if (myRequestId !== weatherRequestId) return; // a newer location fetch has since started
       const cur = data.current;
       _currentWeatherCode = cur.weathercode;
       _currentTemp = Math.round(cur.temperature_2m);
@@ -323,7 +330,7 @@ export async function initWeather(
       _currentWind = Math.round(cur.windspeed_10m);
       _currentHumidity = Math.round(cur.relativehumidity_2m ?? 0);
 
-      const [icon, desc] = WMO[cur.weathercode] ?? ["🌡", "Unknown"];
+      const [icon, desc] = WMO[cur.weathercode as number] ?? ["🌡", "Unknown"];
       _currentWeatherDesc = desc;
 
       // Parse hourly (next 24h)
@@ -334,8 +341,8 @@ export async function initWeather(
         .slice(nowIdx, nowIdx + 24)
         .map((t: string, i: number) => ({
           time: t,
-          temp: Math.round(data.hourly!.temperature_2m[nowIdx + i]),
-          code: data.hourly!.weathercode[nowIdx + i],
+          temp: Math.round(data.hourly.temperature_2m[nowIdx + i]),
+          code: data.hourly.weathercode[nowIdx + i],
         }));
 
       // Parse daily (7 days)
@@ -356,6 +363,7 @@ export async function initWeather(
       // Apply dynamic weather overlay to body
       applyWeatherBodyClass(getWeatherOverlay());
     } catch {
+      if (myRequestId !== weatherRequestId) return; // a newer location fetch has since started
       _lastFetchFailed = true;
       show(null, "—", "Weather unavailable");
     }

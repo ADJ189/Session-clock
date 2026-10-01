@@ -1164,9 +1164,20 @@ export function isVoiceActive() {
 export function parseVoiceCommand(transcript: string): VoiceCommand {
   const s = transcript.toLowerCase().trim();
 
-  // "start [N] minute[s]" | "start session" | "begin"
+  // Whole-word matches only, and reset is checked *before* start. The old
+  // patterns were bare substrings, so "restart" matched `start` (checked
+  // first) and started the timer instead of resetting it, "go" fired on
+  // "google"/"ago"/"going", and "stop" on "nonstop" — ordinary speech
+  // that merely contained a command word. `\b` fixes that; "start over"
+  // is treated as a reset since that's what someone saying it means.
+  if (/\b(?:reset|restart|cancel)\b|\bstart\s+over\b/.test(s))
+    return { type: "reset", raw: s };
+  if (/\b(?:stop|pause|hold\s+on|wait)\b/.test(s))
+    return { type: "pause", raw: s };
+
+  // "start [N] minute[s]" | "start session" | "begin" | "go" / "let's go"
   const startMatch = s.match(
-    /(?:start|begin|go)(?:\s+(?:a\s+)?(\d+)(?:\s*-?\s*minute|\s*min))?/,
+    /\b(?:start|begin)\b(?:\s+(?:a\s+)?(\d+)(?:\s*-?\s*minutes?|\s*min)\b)?|^(?:let'?s\s+)?go$/,
   );
   if (startMatch) {
     return {
@@ -1175,9 +1186,7 @@ export function parseVoiceCommand(transcript: string): VoiceCommand {
       raw: s,
     };
   }
-  if (/(?:stop|pause|hold|wait)/.test(s)) return { type: "pause", raw: s };
-  if (/(?:reset|restart|cancel)/.test(s)) return { type: "reset", raw: s };
-  if (/zen/.test(s)) return { type: "zen", raw: s };
+  if (/\bzen\b/.test(s)) return { type: "zen", raw: s };
 
   // "switch to [theme]" | "use [theme] theme"
   const themeMatch = s.match(
@@ -1203,7 +1212,7 @@ export function initVoiceTimer(
   _voiceRecog.interimResults = false;
   _voiceRecog.lang = "en-US";
 
-  _voiceRecog.onresult = (e: SpeechRecognitionEvent) => {
+  _voiceRecog.onresult = (e: any) => {
     const transcript = e.results[0]?.[0]?.transcript ?? "";
     if (transcript) onCommand(parseVoiceCommand(transcript));
   };

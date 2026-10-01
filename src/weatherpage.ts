@@ -20,6 +20,7 @@ import {
   didWeatherFail,
   type WeatherOverlay,
 } from "./weather";
+import { fetchWithTimeout } from "./utils";
 
 let _privacyCheck: () => boolean = () => false;
 let _onWeatherUpdate:
@@ -217,6 +218,13 @@ function buildWeatherPageDOM(): HTMLElement {
     clearTimeout(searchTimer);
     const q = searchInput.value.trim();
     if (q.length < 2) {
+      // Bump the token even on this short-circuit path — otherwise a
+      // search already in flight (e.g. for "London") still passes its
+      // `myRequestId !== searchRequestId` check once it resolves, since
+      // nothing here had changed searchRequestId, and repopulates
+      // #weatherLocResults with results for a query the input no longer
+      // shows at all.
+      searchRequestId++;
       (overlay.querySelector("#weatherLocResults") as HTMLElement).innerHTML =
         "";
       return;
@@ -247,65 +255,62 @@ function buildWeatherPageDOM(): HTMLElement {
   return overlay;
 }
 
+// Bumped on every call so a slower/out-of-order network response for an
+// older query (e.g. "Lon") can't overwrite a newer query's results (e.g.
+// "London") if the user keeps typing while the first request is still in
+// flight — same stale-response race as the Music Dock lyrics lookup.
+let searchRequestId = 0;
+
 async function searchCity(query: string, overlay: HTMLElement) {
   const results = overlay.querySelector("#weatherLocResults") as HTMLElement;
   results.innerHTML = '<div class="weather-loc-loading">Searching…</div>';
+  const myRequestId = ++searchRequestId;
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5`,
       { headers: { "Accept-Language": "en" } },
+      8000,
     );
     const data = await res.json();
+    if (myRequestId !== searchRequestId) return; // a newer search has since started — this result is stale
     results.innerHTML = "";
     if (!data.length) {
       results.innerHTML =
         '<div class="weather-loc-loading">No results found</div>';
       return;
     }
-    data.forEach(
-      (item: {
-        address?: {
-          city?: string;
-          town?: string;
-          village?: string;
-          state?: string;
-          country?: string;
-        };
-        display_name: string;
-        lat: string;
-        lon: string;
-      }) => {
-        const name =
-          item.address?.city ||
-          item.address?.town ||
-          item.address?.village ||
-          item.display_name.split(",")[0];
-        const sub = [item.address?.state, item.address?.country]
-          .filter(Boolean)
-          .join(", ");
-        const btn = document.createElement("button");
-        btn.className = "weather-loc-result";
-        // Built via textContent, not innerHTML — `name`/`sub` come straight
-        // from the Nominatim API response and are untrusted external data.
-        const nameEl = document.createElement("span");
-        nameEl.className = "weather-loc-result-name";
-        nameEl.textContent = name;
-        const subEl = document.createElement("span");
-        subEl.className = "weather-loc-result-sub";
-        subEl.textContent = sub;
-        btn.appendChild(nameEl);
-        btn.appendChild(subEl);
-        btn.addEventListener("click", () => {
-          setManualLocation(parseFloat(item.lat), parseFloat(item.lon), name);
-          (
-            overlay.querySelector("#weatherLocationPanel") as HTMLElement
-          ).classList.remove("open");
-          refreshWeather(overlay);
-        });
-        results.appendChild(btn);
-      },
-    );
+    data.forEach((item: any) => {
+      const name =
+        item.address?.city ||
+        item.address?.town ||
+        item.address?.village ||
+        item.display_name.split(",")[0];
+      const sub = [item.address?.state, item.address?.country]
+        .filter(Boolean)
+        .join(", ");
+      const btn = document.createElement("button");
+      btn.className = "weather-loc-result";
+      // Built via textContent, not innerHTML — `name`/`sub` come straight
+      // from the Nominatim API response and are untrusted external data.
+      const nameEl = document.createElement("span");
+      nameEl.className = "weather-loc-result-name";
+      nameEl.textContent = name;
+      const subEl = document.createElement("span");
+      subEl.className = "weather-loc-result-sub";
+      subEl.textContent = sub;
+      btn.appendChild(nameEl);
+      btn.appendChild(subEl);
+      btn.addEventListener("click", () => {
+        setManualLocation(parseFloat(item.lat), parseFloat(item.lon), name);
+        (
+          overlay.querySelector("#weatherLocationPanel") as HTMLElement
+        ).classList.remove("open");
+        refreshWeather(overlay);
+      });
+      results.appendChild(btn);
+    });
   } catch {
+    if (myRequestId !== searchRequestId) return;
     results.innerHTML = '<div class="weather-loc-loading">Search failed</div>';
   }
 }

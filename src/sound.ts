@@ -581,9 +581,9 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
   scheduleChirp();
 
   // Expose stop hook via a dummy AudioNode with custom cleanup
-  const stopProxy = ctx!.createGain() as GainNode & { _customStop: () => void };
+  const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => {
+  (stopProxy as any)._customStop = () => {
     chirpActive = false;
   };
   nodes.push(stopProxy);
@@ -718,9 +718,9 @@ function makeKeyboard(): { out: AudioNode; nodes: AudioNode[] } {
   };
   scheduleRun();
 
-  const stopProxy = ctx!.createGain() as GainNode & { _customStop(): void };
+  const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => {
+  (stopProxy as any)._customStop = () => {
     active = false;
   };
 
@@ -788,11 +788,9 @@ function makeLibrary(): { out: AudioNode; nodes: AudioNode[] } {
   };
   schedulePage();
 
-  const stopProxy = ctx!.createGain() as GainNode & {
-    _customStop?: () => void;
-  };
+  const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => {
+  (stopProxy as any)._customStop = () => {
     active = false;
   };
 
@@ -939,7 +937,6 @@ function makeAirplane(): { out: AudioNode; nodes: AudioNode[] } {
 
 // ── CAMPFIRE — airier outdoor fire: brighter crackle, less bass roar ──
 function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
-  type GainNodeWithCustomStop = GainNode & { _customStop: () => void };
   const hiss = makeNoiseBuf(4, 1, (d) => {
     let l = 0;
     for (let i = 0; i < d.length; i++) {
@@ -1006,9 +1003,9 @@ function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
   };
   scheduleCrackle();
 
-  const stopProxy = ctx!.createGain() as GainNodeWithCustomStop;
+  const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => {
+  (stopProxy as any)._customStop = () => {
     active = false;
   };
 
@@ -1084,9 +1081,9 @@ function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
   };
   scheduleCrash();
 
-  const stopProxy = ctx!.createGain() as GainNode & { _customStop: () => void };
+  const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  stopProxy._customStop = () => {
+  (stopProxy as any)._customStop = () => {
     active = false;
   };
 
@@ -1181,22 +1178,19 @@ export function playTrack(id: string) {
   g.gain.value = trackVols[id] ?? 0.8;
   made.out.connect(g);
   g.connect(analyser!);
-  made.nodes.forEach(
-    (
-      n: AudioScheduledSourceNode & {
-        _customStop?: boolean;
-        _started?: boolean;
-      },
-    ) => {
-      if (n._customStop) return; // skip custom stop proxies
-      if ("start" in n && typeof n.start === "function" && !n._started) {
-        try {
-          n.start();
-          n._started = true;
-        } catch {}
-      }
-    },
-  );
+  made.nodes.forEach((n) => {
+    if ((n as any)._customStop) return; // skip custom stop proxies
+    if (
+      "start" in n &&
+      typeof (n as AudioScheduledSourceNode).start === "function" &&
+      !(n as any)._started
+    ) {
+      try {
+        (n as AudioScheduledSourceNode).start();
+        (n as any)._started = true;
+      } catch {}
+    }
+  });
   trackNodes[id] = { nodes: made.nodes, gain: g };
   if (spatialEnabled) attachSpatialRig(id, g);
   onTrackChange?.();
@@ -1211,9 +1205,9 @@ export function stopTrack(id: string) {
   const t = trackNodes[id];
   detachSpatialRig(id, t.gain);
   t.nodes.forEach((n) => {
-    const maybeCustomStop = n as { _customStop?: () => void };
-    if (typeof maybeCustomStop._customStop === "function") {
-      maybeCustomStop._customStop();
+    // Call custom cleanup hook if present (chirp/crackle schedulers)
+    if ((n as any)._customStop) {
+      (n as any)._customStop();
       return;
     }
     try {
@@ -1254,12 +1248,37 @@ export function setFade(v: number) {
   fadeMinutes = v;
 }
 
-// ── Spatial 3D Audio — ILD + ITD stereo panning ───────────────────────
-// Instead of PannerNode (weak, distance-dependent), we use:
-//   • StereoPannerNode   → Inter-aural Level Difference (louder in near ear)
-//   • DelayNode          → Inter-aural Time Difference (arrives later in far ear)
-// Max ITD for human head ≈ 0.65ms. This is what games use for headphones.
-// Each sound has a unique LFO speed and motion pattern (not all just L↔R).
+// ── Spatial 3D Audio — lightweight HRTF-approximation engine ──────────
+// True HRTF is per-source convolution against a measured head-related
+// impulse response (HRIR) — accurate, but a ConvolverNode per ambient
+// track is the kind of cost this app's "no canvas-tier-gated feature
+// should feel like a hidden capability cut" ethos (see LOW-tier note
+// below) explicitly wants to avoid. Binaural localization is actually
+// carried by three cues, and the two below (ILD/ITD) only cover the
+// first two:
+//   • ITD  (Inter-aural Time Difference)  → DelayNode,      ≤0.65ms
+//   • ILD  (Inter-aural Level Difference) → StereoPanner + per-ear gain
+//   • spectral "head-shadow" cue          → per-ear BiquadFilter (NEW)
+// The third cue is what actually reads as "HRTF-like" rather than just
+// "panned": a real head attenuates *high frequencies* toward the far ear
+// far more than low ones (diffraction shadows short wavelengths, not
+// long), which is why a hard-panned pure ILD/ITD signal still sounds
+// like "same sound, quieter/later on one side" instead of "coming from
+// a direction". Modelling that with one lowpass BiquadFilter per ear
+// (cutoff swept by pan amount) is O(1) per sample — cheap enough to run
+// unconditionally — and gets most of the perceptual benefit of a full
+// HRIR convolution for a fraction of the CPU/complexity.
+// A separate single-stage lowpass (NEW, `distFilter`) gives each sound a
+// static sense of depth: distant sources (thunder, city, space) lose a
+// little top end the way real distant sources do via air absorption;
+// close/intimate ones (fire, keyboard, fan) stay fully open. This is set
+// once at attach time, not animated — depth is a placement property of
+// the sound, not something that should drift.
+// Each sound also carries a `shadow` intensity (how strongly the spectral
+// cue applies) independent from its pan `width`, so a sound can move a
+// lot but stay tonally subtle (cafe, forest) or move little but still
+// read as sharply directional when it does (rain, wind) — this is the
+// per-ambience tuning knob the profiles below use.
 
 let spatialEnabled = localStorage.getItem("sc_spatial") === "1";
 
@@ -1267,6 +1286,9 @@ interface SpatialRig {
   panner: StereoPannerNode;
   delayL: DelayNode;
   delayR: DelayNode;
+  filterL: BiquadFilterNode; // per-ear head-shadow lowpass (spectral cue)
+  filterR: BiquadFilterNode;
+  distFilter: BiquadFilterNode; // static depth/distance darkening
   splitter: ChannelSplitterNode;
   merger: ChannelMergerNode;
   gainL: GainNode;
@@ -1283,47 +1305,280 @@ interface SpatialProfile {
   width: number; // pan width 0..1 (1 = hard L/R)
   pattern: "sweep" | "wander" | "fixed" | "burst";
   fixedPan?: number; // for 'fixed' pattern
+  distance: number; // 0 (right next to you) .. 1 (far away) — static depth-filter darkening
+  shadow: number; // 0..1 — how strongly the head-shadow spectral cue applies at full pan.
+  // Low values keep a moving sound tonally subtle (cafe/forest/fire); high
+  // values give a sound a sharp, present sense of direction (rain/wind).
 }
 
 const SPATIAL_PROFILES: Record<string, SpatialProfile> = {
-  rain: { speed: 0.04, width: 0.55, pattern: "sweep" }, // slow wide sweep — rain from all sides
-  roofrain: { speed: 0.05, width: 0.65, pattern: "sweep" }, // heavier version of the same overhead sweep
-  white: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // flat masking noise — deliberately stays centred, not moving
-  pink: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // same — motion would undercut its use as a steady floor
-  brown: { speed: 0.02, width: 0.3, pattern: "wander" }, // very slow gentle wander
-  forest: { speed: 0.09, width: 0.75, pattern: "burst" }, // birds dart L/R unexpectedly
-  cafe: { speed: 0.18, width: 0.6, pattern: "wander" }, // people walking past
-  ocean: { speed: 0.05, width: 0.65, pattern: "sweep" }, // waves rolling side to side
-  fire: { speed: 0.03, width: 0.2, pattern: "fixed", fixedPan: 0.15 }, // fire stays slightly right
-  wind: { speed: 0.03, width: 0.7, pattern: "wander" },
-  snow: { speed: 0.015, width: 0.25, pattern: "wander" },
-  keyboard: { speed: 0.02, width: 0.15, pattern: "fixed", fixedPan: -0.2 },
-  library: { speed: 0.01, width: 0.2, pattern: "wander" },
-  airplane: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // cabin drone surrounds you evenly, doesn't move
-  spaceship: { speed: 0.008, width: 0.15, pattern: "fixed", fixedPan: 0 },
-  campfire: { speed: 0.03, width: 0.25, pattern: "fixed", fixedPan: -0.1 },
-  waves: { speed: 0.06, width: 0.6, pattern: "burst" },
-  river: { speed: 0.03, width: 0.35, pattern: "wander" }, // water moving past, gentle drift
-  waterfall: { speed: 0.02, width: 0.2, pattern: "fixed", fixedPan: 0 }, // one steady roar, doesn't move
-  thunder: { speed: 0.04, width: 0.55, pattern: "sweep" }, // rolls across the sky
-  night: { speed: 0.01, width: 0.2, pattern: "wander" }, // crickets, barely moving
-  birds: { speed: 0.09, width: 0.75, pattern: "burst" }, // calls dart around, like forest's synthesized ones
-  hum: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // electrical hum — steady, doesn't move
-  frogs: { speed: 0.1, width: 0.65, pattern: "burst" }, // like birds, calls from unpredictable spots
-  city: { speed: 0.05, width: 0.5, pattern: "wander" }, // distant traffic drifting
-  fan: { speed: 0, width: 0.1, pattern: "fixed", fixedPan: 0 }, // close, steady, centred
-  clock: { speed: 0, width: 0.1, pattern: "fixed", fixedPan: -0.15 }, // one bedside clock, off to one side
-  vinyl: { speed: 0, width: 0.15, pattern: "fixed", fixedPan: 0 }, // turntable hiss, centred
-  heartbeat: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // internal, shouldn't move
-  drone: { speed: 0, width: 0, pattern: "fixed", fixedPan: 0 }, // enveloping tone, like airplane/spaceship
-  space: { speed: 0.015, width: 0.4, pattern: "wander" }, // slow cosmic drift
-  lofi: { speed: 0, width: 0.3, pattern: "fixed", fixedPan: 0 }, // a mix, kept roughly centred
-  pad: { speed: 0.02, width: 0.35, pattern: "wander" }, // slow evolving movement
-  musicbox: { speed: 0, width: 0.2, pattern: "fixed", fixedPan: 0.1 }, // a small, localized object
-  bells: { speed: 0.08, width: 0.5, pattern: "burst" }, // chimes from spaced-out spots
+  rain: {
+    speed: 0.04,
+    width: 0.55,
+    pattern: "sweep",
+    distance: 0.5,
+    shadow: 0.55,
+  }, // slow wide sweep — rain from all sides, crisp directional cue
+  roofrain: {
+    speed: 0.05,
+    width: 0.65,
+    pattern: "sweep",
+    distance: 0.35,
+    shadow: 0.6,
+  }, // heavier version, close overhead
+  white: {
+    speed: 0,
+    width: 0,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0,
+    shadow: 0,
+  }, // flat masking noise — deliberately stays centred and tonally untouched
+  pink: {
+    speed: 0,
+    width: 0,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0,
+    shadow: 0,
+  }, // same — motion or filtering would undercut its use as a steady floor
+  brown: {
+    speed: 0.02,
+    width: 0.3,
+    pattern: "wander",
+    distance: 0.3,
+    shadow: 0.25,
+  }, // very slow gentle wander
+  forest: {
+    speed: 0.07,
+    width: 0.55,
+    pattern: "burst",
+    distance: 0.55,
+    shadow: 0.3,
+  }, // birds dart, but kept subtle/natural rather than sharply filtered
+  cafe: {
+    speed: 0.12,
+    width: 0.55,
+    pattern: "wander",
+    distance: 0.3,
+    shadow: 0.22,
+  }, // people walking past — warm and subtle, not hard-filtered
+  ocean: {
+    speed: 0.05,
+    width: 0.65,
+    pattern: "sweep",
+    distance: 0.6,
+    shadow: 0.45,
+  }, // waves rolling side to side
+  fire: {
+    speed: 0.03,
+    width: 0.2,
+    pattern: "fixed",
+    fixedPan: 0.15,
+    distance: 0.15,
+    shadow: 0.12,
+  }, // right up close, subtle — should stay warm/present, not filtered
+  wind: {
+    speed: 0.03,
+    width: 0.7,
+    pattern: "wander",
+    distance: 0.45,
+    shadow: 0.55,
+  }, // pronounced sense of moving air around you
+  snow: {
+    speed: 0.015,
+    width: 0.25,
+    pattern: "wander",
+    distance: 0.4,
+    shadow: 0.2,
+  },
+  keyboard: {
+    speed: 0.02,
+    width: 0.15,
+    pattern: "fixed",
+    fixedPan: -0.2,
+    distance: 0.1,
+    shadow: 0.15,
+  },
+  library: {
+    speed: 0.01,
+    width: 0.2,
+    pattern: "wander",
+    distance: 0.35,
+    shadow: 0.15,
+  },
+  airplane: {
+    speed: 0,
+    width: 0,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0.2,
+    shadow: 0,
+  }, // cabin drone surrounds you evenly, doesn't move
+  spaceship: {
+    speed: 0.008,
+    width: 0.15,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0.3,
+    shadow: 0.1,
+  },
+  campfire: {
+    speed: 0.03,
+    width: 0.25,
+    pattern: "fixed",
+    fixedPan: -0.1,
+    distance: 0.15,
+    shadow: 0.12,
+  }, // same close/subtle treatment as fire
+  waves: {
+    speed: 0.06,
+    width: 0.6,
+    pattern: "burst",
+    distance: 0.55,
+    shadow: 0.4,
+  },
+  river: {
+    speed: 0.03,
+    width: 0.35,
+    pattern: "wander",
+    distance: 0.4,
+    shadow: 0.25,
+  }, // water moving past, gentle drift
+  waterfall: {
+    speed: 0.02,
+    width: 0.2,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0.45,
+    shadow: 0.2,
+  }, // one steady roar, doesn't move
+  thunder: {
+    speed: 0.04,
+    width: 0.55,
+    pattern: "sweep",
+    distance: 0.8,
+    shadow: 0.5,
+  }, // rolls across a distant sky
+  night: {
+    speed: 0.01,
+    width: 0.2,
+    pattern: "wander",
+    distance: 0.35,
+    shadow: 0.18,
+  }, // crickets, barely moving
+  birds: {
+    speed: 0.09,
+    width: 0.75,
+    pattern: "burst",
+    distance: 0.5,
+    shadow: 0.4,
+  }, // calls dart around, sharper than forest's ambient burst
+  hum: {
+    speed: 0,
+    width: 0,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0.05,
+    shadow: 0,
+  }, // electrical hum — steady, doesn't move
+  frogs: {
+    speed: 0.1,
+    width: 0.65,
+    pattern: "burst",
+    distance: 0.45,
+    shadow: 0.35,
+  }, // like birds, calls from unpredictable spots
+  city: {
+    speed: 0.05,
+    width: 0.5,
+    pattern: "wander",
+    distance: 0.7,
+    shadow: 0.35,
+  }, // distant traffic drifting
+  fan: {
+    speed: 0,
+    width: 0.1,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0.05,
+    shadow: 0.05,
+  }, // close, steady, centred
+  clock: {
+    speed: 0,
+    width: 0.1,
+    pattern: "fixed",
+    fixedPan: -0.15,
+    distance: 0.1,
+    shadow: 0.1,
+  }, // one bedside clock, off to one side
+  vinyl: {
+    speed: 0,
+    width: 0.15,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0.1,
+    shadow: 0.05,
+  }, // turntable hiss, centred
+  heartbeat: {
+    speed: 0,
+    width: 0,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0,
+    shadow: 0,
+  }, // internal, shouldn't move or darken
+  drone: {
+    speed: 0,
+    width: 0,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0.3,
+    shadow: 0,
+  }, // enveloping tone, like airplane/spaceship
+  space: {
+    speed: 0.015,
+    width: 0.4,
+    pattern: "wander",
+    distance: 0.85,
+    shadow: 0.3,
+  }, // slow cosmic drift, vast
+  lofi: {
+    speed: 0,
+    width: 0.3,
+    pattern: "fixed",
+    fixedPan: 0,
+    distance: 0.2,
+    shadow: 0.05,
+  }, // a mix, kept roughly centred and tonally clean
+  pad: {
+    speed: 0.02,
+    width: 0.35,
+    pattern: "wander",
+    distance: 0.4,
+    shadow: 0.2,
+  }, // slow evolving movement
+  musicbox: {
+    speed: 0,
+    width: 0.2,
+    pattern: "fixed",
+    fixedPan: 0.1,
+    distance: 0.2,
+    shadow: 0.1,
+  }, // a small, localized object
+  bells: {
+    speed: 0.08,
+    width: 0.5,
+    pattern: "burst",
+    distance: 0.45,
+    shadow: 0.3,
+  }, // chimes from spaced-out spots
 };
 
 const MAX_ITD = 0.00065; // 0.65ms — human head max inter-aural time delay
+const OPEN_CUTOFF = 20000; // effectively "unfiltered" — top of audible range
+const MAX_SHADOW_DARKEN = 15000; // how far the far-ear cutoff can drop at full pan+shadow
+const MAX_DIST_DARKEN = 13000; // how far the static depth filter can drop at distance=1
 
 export function isSpatialEnabled() {
   return spatialEnabled;
@@ -1352,6 +1607,25 @@ function attachSpatialRig(id: string, gainNode: GainNode) {
   delayL.delayTime.value = 0;
   delayR.delayTime.value = 0;
 
+  // Per-ear head-shadow lowpass = the spectral cue that makes ILD/ITD
+  // panning read as "direction" rather than just "one side is quieter".
+  // Starts fully open (no coloration) until applyPanValue darkens the
+  // far ear based on the sound's `shadow` profile.
+  const filterL = ctx.createBiquadFilter();
+  filterL.type = "lowpass";
+  filterL.frequency.value = OPEN_CUTOFF;
+  filterL.Q.value = Math.SQRT1_2;
+  const filterR = ctx.createBiquadFilter();
+  filterR.type = "lowpass";
+  filterR.frequency.value = OPEN_CUTOFF;
+  filterR.Q.value = Math.SQRT1_2;
+
+  // Static depth/distance darkening — set once below, not animated.
+  const distFilter = ctx.createBiquadFilter();
+  distFilter.type = "lowpass";
+  distFilter.frequency.value = OPEN_CUTOFF;
+  distFilter.Q.value = Math.SQRT1_2;
+
   // Level difference = ILD
   const gainL = ctx.createGain();
   gainL.gain.value = 1;
@@ -1362,36 +1636,53 @@ function attachSpatialRig(id: string, gainNode: GainNode) {
   const panner = ctx.createStereoPanner();
   panner.pan.value = 0;
 
-  // Route: gainNode → panner → splitter → delayL/R → gainL/R → merger → analyser
+  // Route: gainNode → distFilter (depth) → panner (ILD) → splitter →
+  //        delayL/R (ITD) → filterL/R (head-shadow) → gainL/R → merger → analyser
   try {
     gainNode.disconnect(analyser!);
   } catch {}
-  gainNode.connect(panner);
+  gainNode.connect(distFilter);
+  distFilter.connect(panner);
   panner.connect(splitter);
   splitter.connect(delayL, 0);
-  delayL.connect(gainL);
+  delayL.connect(filterL);
+  filterL.connect(gainL);
   gainL.connect(merger, 0, 0);
   splitter.connect(delayR, 1);
-  delayR.connect(gainR);
+  delayR.connect(filterR);
+  filterR.connect(gainR);
   gainR.connect(merger, 0, 1);
   merger.connect(analyser!);
 
   const prof = SPATIAL_PROFILES[id];
-  spatialRigs[id] = {
+  const rig: SpatialRig = {
     panner,
     delayL,
     delayR,
+    filterL,
+    filterR,
+    distFilter,
     splitter,
     merger,
     gainL,
     gainR,
     lfoPhase: Math.random() * Math.PI * 2,
   };
+  spatialRigs[id] = rig;
   spatialLFOs[id] = Math.random() * Math.PI * 2;
 
-  // For 'fixed' pattern apply immediately
+  // Depth is a fixed placement property of the sound, not animated —
+  // apply it once here rather than every tick.
+  if (prof)
+    distFilter.frequency.setTargetAtTime(
+      OPEN_CUTOFF - prof.distance * MAX_DIST_DARKEN,
+      ctx.currentTime,
+      0.05,
+    );
+
+  // For 'fixed' pattern apply the pan (and its head-shadow cue) immediately
   if (prof?.pattern === "fixed" && prof.fixedPan !== undefined) {
-    applyPanValue(spatialRigs[id], prof.fixedPan, id);
+    applyPanValue(rig, prof.fixedPan, id);
   }
 }
 
@@ -1399,7 +1690,7 @@ function detachSpatialRig(id: string, gainNode: GainNode) {
   const rig = spatialRigs[id];
   if (!rig) return;
   try {
-    gainNode.disconnect(rig.panner);
+    gainNode.disconnect(rig.distFilter);
     rig.merger.disconnect();
   } catch {}
   gainNode.connect(analyser!);
@@ -1407,30 +1698,39 @@ function detachSpatialRig(id: string, gainNode: GainNode) {
 }
 
 function applyPanValue(rig: SpatialRig, pan: number, id: string) {
+  const now = ctx!.currentTime;
+  const prof = SPATIAL_PROFILES[id];
+  const shadow = prof?.shadow ?? 0;
+
   // pan: -1 (full left) to +1 (full right)
-  rig.panner.pan.setTargetAtTime(pan, ctx!.currentTime, 0.05);
+  rig.panner.pan.setTargetAtTime(pan, now, 0.05);
 
   // ITD: the far ear gets a delay proportional to pan amount
   const itd = Math.abs(pan) * MAX_ITD;
-  if (pan > 0) {
-    // Sound is right: left ear is far → delay left
-    rig.delayL.delayTime.setTargetAtTime(itd, ctx!.currentTime, 0.05);
-    rig.delayR.delayTime.setTargetAtTime(0, ctx!.currentTime, 0.05);
-  } else {
-    // Sound is left: right ear is far → delay right
-    rig.delayL.delayTime.setTargetAtTime(0, ctx!.currentTime, 0.05);
-    rig.delayR.delayTime.setTargetAtTime(itd, ctx!.currentTime, 0.05);
-  }
-
   // ILD: far ear is ~6dB quieter per unit pan
   const nearGain = 1.0;
   const farGain = 1.0 - Math.abs(pan) * 0.35;
+  // Spectral cue: far ear loses high frequencies proportional to pan
+  // amount and the sound's own `shadow` intensity — this is what keeps
+  // ambient/rain/wind sounding directional rather than just quieter.
+  const farCutoff = OPEN_CUTOFF - Math.abs(pan) * shadow * MAX_SHADOW_DARKEN;
+
   if (pan > 0) {
-    rig.gainL.gain.setTargetAtTime(farGain, ctx!.currentTime, 0.05);
-    rig.gainR.gain.setTargetAtTime(nearGain, ctx!.currentTime, 0.05);
+    // Sound is right: left ear is far → delay/darken/quiet left
+    rig.delayL.delayTime.setTargetAtTime(itd, now, 0.05);
+    rig.delayR.delayTime.setTargetAtTime(0, now, 0.05);
+    rig.gainL.gain.setTargetAtTime(farGain, now, 0.05);
+    rig.gainR.gain.setTargetAtTime(nearGain, now, 0.05);
+    rig.filterL.frequency.setTargetAtTime(farCutoff, now, 0.08);
+    rig.filterR.frequency.setTargetAtTime(OPEN_CUTOFF, now, 0.08);
   } else {
-    rig.gainL.gain.setTargetAtTime(nearGain, ctx!.currentTime, 0.05);
-    rig.gainR.gain.setTargetAtTime(farGain, ctx!.currentTime, 0.05);
+    // Sound is left: right ear is far → delay/darken/quiet right
+    rig.delayL.delayTime.setTargetAtTime(0, now, 0.05);
+    rig.delayR.delayTime.setTargetAtTime(itd, now, 0.05);
+    rig.gainL.gain.setTargetAtTime(nearGain, now, 0.05);
+    rig.gainR.gain.setTargetAtTime(farGain, now, 0.05);
+    rig.filterL.frequency.setTargetAtTime(OPEN_CUTOFF, now, 0.08);
+    rig.filterR.frequency.setTargetAtTime(farCutoff, now, 0.08);
   }
 }
 
@@ -1602,19 +1902,74 @@ export function autoStartCommonRoom() {
 // ramping in (or starting) the tracks in `toIds`, instead of an abrupt
 // stop/start cut. Operates on each track's own per-track GainNode, so
 // master volume and other tracks are untouched.
+//
+// Equal-power (cosine/sine) curve rather than a linear ramp — same
+// reasoning and 128-point resolution as the gapless-loop crossfade in
+// soundfiles.ts: a linear fade dips in perceived loudness partway through
+// because the two curves don't sum back to unity, while cos/sin holds
+// roughly constant loudness across the transition. Falls back to a
+// manual rAF-driven fade if scheduling the curve throws (overlapping
+// AudioParam automation occasionally does) — same escape hatch used
+// there.
+const CROSSFADE_STEPS = 128;
+function equalPowerCurve(from: "out" | "in", peak: number): Float32Array {
+  const curve = new Float32Array(CROSSFADE_STEPS);
+  for (let i = 0; i < CROSSFADE_STEPS; i++) {
+    const t = (i / (CROSSFADE_STEPS - 1)) * (Math.PI / 2);
+    curve[i] = peak * (from === "out" ? Math.cos(t) : Math.sin(t));
+  }
+  return curve;
+}
+
 export function crossfadeTo(toIds: string[], durationMs = 2500) {
   ensureCtx();
   const seconds = Math.max(0.05, durationMs / 1000);
   const now = ctx!.currentTime;
+
+  const fadeParam = (
+    param: AudioParam,
+    curve: Float32Array,
+    currentVal: number,
+  ) => {
+    param.cancelScheduledValues(now);
+    param.setValueAtTime(Math.max(0.0001, currentVal), now);
+    try {
+      param.setValueCurveAtTime(curve, now, seconds);
+      return true;
+    } catch {
+      return false; // overlapping automation threw — caller falls back to a manual fade
+    }
+  };
 
   // Ramp out anything playing that isn't in the target set
   Object.keys(trackNodes).forEach((id) => {
     if (toIds.includes(id)) return;
     const t = trackNodes[id];
     if (!t) return;
-    t.gain.gain.cancelScheduledValues(now);
-    t.gain.gain.setValueAtTime(Math.max(0.0001, t.gain.gain.value), now);
-    t.gain.gain.linearRampToValueAtTime(0.0001, now + seconds);
+    const startVal = Math.max(0.0001, t.gain.gain.value);
+    const scheduled = fadeParam(
+      t.gain.gain,
+      equalPowerCurve("out", startVal),
+      startVal,
+    );
+    if (!scheduled) {
+      const startedAt = performance.now();
+      const manualFade = () => {
+        const tn = trackNodes[id];
+        if (!tn) return;
+        const p = Math.min(
+          1,
+          (performance.now() - startedAt) / (seconds * 1000),
+        );
+        try {
+          tn.gain.gain.value = startVal * Math.cos(p * (Math.PI / 2));
+        } catch {
+          return;
+        }
+        if (p < 1) requestAnimationFrame(manualFade);
+      };
+      requestAnimationFrame(manualFade);
+    }
     // Only actually stop it if nothing re-raised it in the meantime
     // (guards against a second crossfadeTo() call racing this one).
     setTimeout(() => {
@@ -1629,9 +1984,30 @@ export function crossfadeTo(toIds: string[], durationMs = 2500) {
     if (!trackNodes[id]) playTrack(id);
     const t = trackNodes[id];
     if (!t) return;
-    t.gain.gain.cancelScheduledValues(now);
-    t.gain.gain.setValueAtTime(Math.max(0.0001, t.gain.gain.value), now);
-    t.gain.gain.linearRampToValueAtTime(target, now + seconds);
+    const startVal = Math.max(0.0001, t.gain.gain.value);
+    const scheduled = fadeParam(
+      t.gain.gain,
+      equalPowerCurve("in", target),
+      startVal,
+    );
+    if (!scheduled) {
+      const startedAt = performance.now();
+      const manualFade = () => {
+        const tn = trackNodes[id];
+        if (!tn) return;
+        const p = Math.min(
+          1,
+          (performance.now() - startedAt) / (seconds * 1000),
+        );
+        try {
+          tn.gain.gain.value = target * Math.sin(p * (Math.PI / 2));
+        } catch {
+          return;
+        }
+        if (p < 1) requestAnimationFrame(manualFade);
+      };
+      requestAnimationFrame(manualFade);
+    }
   });
   onTrackChange?.();
 }
