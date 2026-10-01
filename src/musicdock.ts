@@ -42,6 +42,21 @@ import {
 } from "./authconfig";
 import * as Lyrics from "./lyrics";
 
+// Album art / video thumbnail URLs come straight from Spotify's and
+// YouTube's APIs — first-party services, but still data returned by a
+// network response rather than something this code constructed itself.
+// Restricting to https: before ever handing a URL to img.src or a CSS
+// url() keeps out javascript:/data: schemes a compromised or spoofed
+// response could otherwise smuggle in as "artwork".
+function safeHttpsUrl(url: string | undefined | null): string {
+  if (!url) return "";
+  try {
+    return new URL(url).protocol === "https:" ? url : "";
+  } catch {
+    return "";
+  }
+}
+
 let sdkReady: Promise<void> | null = null;
 let player: any = null;
 let deviceId: string | null = null;
@@ -120,7 +135,7 @@ export async function initSpotifyPlayback(): Promise<boolean> {
     const track = s.track_window?.current_track;
     state.title = track?.name ?? "";
     state.artist = (track?.artists ?? []).map((a: any) => a.name).join(", ");
-    state.artUrl = track?.album?.images?.[0]?.url ?? "";
+    state.artUrl = safeHttpsUrl(track?.album?.images?.[0]?.url);
     state.isPlaying = !s.paused;
     state.progressMs = s.position ?? 0;
     state.durationMs = s.duration ?? 0;
@@ -746,7 +761,7 @@ async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
     for (const p of playlists) {
       const row = document.createElement("button");
       row.className = "sc-dock-yt-lib-item";
-      row.innerHTML = `<img loading="lazy" src="${p.thumbnail}" alt="" /><span>${p.title}</span>`;
+      row.appendChild(libItemMarkup(p.thumbnail, p.title));
       row.addEventListener("click", () =>
         mountYouTubePlayer(
           root,
@@ -762,7 +777,7 @@ async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
     liked.forEach((v, i) => {
       const row = document.createElement("button");
       row.className = "sc-dock-yt-lib-item";
-      row.innerHTML = `<img loading="lazy" src="${v.thumbnail}" alt="" /><span>${v.title}</span>`;
+      row.appendChild(libItemMarkup(v.thumbnail, v.title));
       // Liked videos has no real playlist ID YouTube will hand back to
       // us, so next/prev through it runs on the local queue (see
       // playYtQueue) instead of the native player.nextVideo().
@@ -772,6 +787,25 @@ async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
   }
   libraryEl.innerHTML = "";
   libraryEl.appendChild(frag);
+}
+
+/** Builds a library row's `<img><span>` pair from API-supplied title/
+ *  thumbnail data as real DOM nodes rather than an innerHTML template
+ *  string — a video/playlist title containing HTML (e.g. `<img src=x
+ *  onerror=…>`) would otherwise execute as markup instead of displaying
+ *  as text. `img.src` is set as a property (not via an interpolated
+ *  attribute string) so a thumbnail URL can't break out of the
+ *  attribute either. */
+function libItemMarkup(thumbnail: string, title: string): DocumentFragment {
+  const frag = document.createDocumentFragment();
+  const img = document.createElement("img");
+  img.loading = "lazy";
+  img.alt = "";
+  img.src = safeHttpsUrl(thumbnail);
+  const span = document.createElement("span");
+  span.textContent = title;
+  frag.append(img, span);
+  return frag;
 }
 
 /** Cached DOM refs per dock root — renderDock() runs every second off
@@ -807,9 +841,15 @@ interface LyricsPanelState {
   key: string;
   result: Lyrics.LyricsResult | null;
   lineEls: HTMLElement[];
+  requestId: number; // bumped on every lookup so a slow, now-stale fetch can't overwrite a newer track's result
 }
 const lyricsState = new WeakMap<HTMLElement, LyricsPanelState>();
-let ytLyricsPoll: number | null = null;
+// Scoped per-panel (not one shared module-level timer) since a dock and
+// its PIP clone can each have their own YouTube lyrics panel open at the
+// same time — see renderDock()'s `roots` array — and a single shared
+// interval would have the second toggleLyricsPanel() call silently kill
+// the first panel's poll.
+const ytLyricsPolls = new WeakMap<HTMLElement, number>();
 
 async function toggleLyricsPanel(
   root: HTMLElement,
@@ -840,16 +880,24 @@ async function toggleLyricsPanel(
     key: "",
     result: null,
     lineEls: [],
+    requestId: 0,
   };
   st.open = true;
   lyricsState.set(panel, st);
 
   if (st.key !== key) {
+    const myRequestId = ++st.requestId; // any older in-flight lookup for this panel is now stale
     panel.innerHTML =
       '<div class="sc-dock-lyrics-loading">Looking up lyrics…</div>';
     const result = track
       ? await Lyrics.getLyrics(track, artist, durationSec)
       : null;
+    // The user may have switched tracks (or closed/reopened the panel
+    // for a different one) while that fetch was in flight — a second,
+    // faster lookup could easily have already committed its own result
+    // by the time this older one resolves. Only apply it if nothing
+    // newer for this panel has started since.
+    if (myRequestId !== st.requestId) return;
     st.key = key;
     st.result = result;
     if (!result) {
@@ -866,22 +914,37 @@ async function toggleLyricsPanel(
         return p;
       });
     } else {
-      panel.innerHTML = `<div class="sc-dock-lyrics-plain">${result.plain.replace(/\n/g, "<br>")}</div>`;
+      // Untrusted third-party lyrics text (LRCLIB) — build real text
+      // nodes/<br> elements for line breaks instead of interpolating
+      // into an innerHTML string, so a line containing HTML displays as
+      // literal text rather than executing as markup.
+      panel.innerHTML = "";
+      const wrap = document.createElement("div");
+      wrap.className = "sc-dock-lyrics-plain";
+      const lines = result.plain.split("\n");
+      lines.forEach((line, i) => {
+        wrap.appendChild(document.createTextNode(line));
+        if (i < lines.length - 1)
+          wrap.appendChild(document.createElement("br"));
+      });
+      panel.appendChild(wrap);
       st.lineEls = [];
     }
   }
 
   if (kind === "youtube") {
-    if (ytLyricsPoll) clearInterval(ytLyricsPoll);
-    ytLyricsPoll = window.setInterval(() => {
+    const existing = ytLyricsPolls.get(panel);
+    if (existing) clearInterval(existing);
+    const pollId = window.setInterval(() => {
       if (panel.classList.contains("sc-hidden")) {
-        if (ytLyricsPoll) clearInterval(ytLyricsPoll);
-        ytLyricsPoll = null;
+        clearInterval(pollId);
+        if (ytLyricsPolls.get(panel) === pollId) ytLyricsPolls.delete(panel);
         return;
       }
       const t = ytPlayers.get(root)?.getCurrentTime?.() ?? 0;
       highlightLyricsLine(panel, t);
     }, 500);
+    ytLyricsPolls.set(panel, pollId);
   }
 }
 

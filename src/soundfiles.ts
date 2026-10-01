@@ -52,7 +52,7 @@
 // two <audio> elements and the crossfade scheduling, not the rest of the
 // mix graph.
 
-import { CAPS, FEATURES, IS_TOUCH } from './platform';
+import { CAPS, FEATURES, IS_TOUCH } from "./platform";
 
 export interface FileTrackConfig {
   /** Ogg/Opus source — the only format shipped this time (see the repo-size
@@ -108,18 +108,53 @@ export interface FileTrackConfig {
 // update after a push, so bump the tag (@v1 → @v2 → ...) whenever the
 // files in the repo change, and update the constant below to match.
 export const AUDIO_CDN_BASE =
-  'https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v2';
+  "https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v2";
 
 export const FILE_TRACKS: Record<string, FileTrackConfig> = {
   // ── Existing procedural tracks, now preferring the recording ─────────
   // Paths match ADJ189/Ambient-Sounds's opus/<category>/ layout.
-  rain:      { url: '/opus/rain/rain.opus',      crossfadeSec: 2, gainTrim: 0.9,  proceduralFallback: true },
-  fire:      { url: '/opus/nature/fire.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
-  wind:      { url: '/opus/nature/wind.opus',    crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
-  forest:    { url: '/opus/nature/forest.opus',  crossfadeSec: 4, gainTrim: 0.85, proceduralFallback: true },
-  cafe:      { url: '/opus/places/cafe.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
-  library:   { url: '/opus/places/library.opus', crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
-  waves:     { url: '/opus/nature/waves.opus',   crossfadeSec: 3, gainTrim: 0.9,  proceduralFallback: true },
+  rain: {
+    url: "/opus/rain/rain.opus",
+    crossfadeSec: 2,
+    gainTrim: 0.9,
+    proceduralFallback: true,
+  },
+  fire: {
+    url: "/opus/nature/fire.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.85,
+    proceduralFallback: true,
+  },
+  wind: {
+    url: "/opus/nature/wind.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.9,
+    proceduralFallback: true,
+  },
+  forest: {
+    url: "/opus/nature/forest.opus",
+    crossfadeSec: 4,
+    gainTrim: 0.85,
+    proceduralFallback: true,
+  },
+  cafe: {
+    url: "/opus/places/cafe.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.85,
+    proceduralFallback: true,
+  },
+  library: {
+    url: "/opus/places/library.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.85,
+    proceduralFallback: true,
+  },
+  waves: {
+    url: "/opus/nature/waves.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.9,
+    proceduralFallback: true,
+  },
   // ── Recording-only tracks — atomic layers meant to be mixed with the
   // ones above (river under rain, thunder under rain, etc.) rather than
   // pre-combined, matching how both reference apps structure theirs. Most
@@ -128,14 +163,40 @@ export const FILE_TRACKS: Record<string, FileTrackConfig> = {
   // fallback exists, don't grey this out," not which kind. waterfall is
   // the one genuine exception: no ambiently preset is a good match for it,
   // so it really is disabled on a browser without Ogg/Opus support. ─────
-  river:     { url: '/opus/nature/river.opus',     crossfadeSec: 2, gainTrim: 0.9,  proceduralFallback: true },
-  waterfall: { url: '/opus/nature/waterfall.opus', crossfadeSec: 2, gainTrim: 0.85 },
-  thunder:   { url: '/opus/rain/thunder.opus',     crossfadeSec: 4, gainTrim: 0.8,  proceduralFallback: true },
-  night:     { url: '/opus/nature/night.opus',     crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true }, // crickets
-  birds:     { url: '/opus/animals/birds.opus',    crossfadeSec: 3, gainTrim: 0.85, proceduralFallback: true },
+  river: {
+    url: "/opus/nature/river.opus",
+    crossfadeSec: 2,
+    gainTrim: 0.9,
+    proceduralFallback: true,
+  },
+  waterfall: {
+    url: "/opus/nature/waterfall.opus",
+    crossfadeSec: 2,
+    gainTrim: 0.85,
+  },
+  thunder: {
+    url: "/opus/rain/thunder.opus",
+    crossfadeSec: 4,
+    gainTrim: 0.8,
+    proceduralFallback: true,
+  },
+  night: {
+    url: "/opus/nature/night.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.85,
+    proceduralFallback: true,
+  }, // crickets
+  birds: {
+    url: "/opus/animals/birds.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.85,
+    proceduralFallback: true,
+  },
 };
 
-export function isFileBackedTrack(id: string): boolean { return id in FILE_TRACKS; }
+export function isFileBackedTrack(id: string): boolean {
+  return id in FILE_TRACKS;
+}
 
 /** False only when a track has no working audio path at all: Opus
  *  unsupported and no procedural fallback to drop back to. In practice
@@ -161,19 +222,74 @@ export function isFileTrackSupported(id: string): boolean {
 // the next real interaction anywhere on the page.
 const pendingResume = new Set<GaplessLoopPlayer>();
 let retryListenerBound = false;
+
+// ── Shared loop-boundary scheduler ───────────────────────────────────
+// Each GaplessLoopPlayer used to run its own rAF loop + 250ms interval to
+// watch for its loop seam — fine with one recorded track playing, but
+// work scales with track count: rain+forest+fire+cafe all at once meant
+// four independent rAF callbacks and four independent interval timers
+// doing the same ~16ms/250ms position check. One shared pair, ticking
+// every active player, does the same job at constant (not per-track)
+// cost.
+// How far ahead of the loop seam a save-data connection starts fetching
+// the backup recording (see GaplessLoopPlayer.primeOther/maybeCrossfade).
+const SAVE_DATA_LEAD_SEC = 20;
+
+/** True once the browser has buffered (essentially) the whole recording.
+ *  TimeRanges.end() throws on an empty range list, hence the guards. */
+function isFullyBuffered(el: HTMLAudioElement): boolean {
+  try {
+    const b = el.buffered;
+    return b.length > 0 && b.end(b.length - 1) >= el.duration - 0.25;
+  } catch {
+    return false;
+  }
+}
+
+const activeLoopPlayers = new Set<GaplessLoopPlayer>();
+let sharedRaf = 0;
+let sharedInterval = 0;
+
+function registerLoopPlayer(player: GaplessLoopPlayer): void {
+  activeLoopPlayers.add(player);
+  if (sharedRaf || sharedInterval) return;
+  const rafTick = () => {
+    if (activeLoopPlayers.size === 0) {
+      sharedRaf = 0;
+      return;
+    }
+    activeLoopPlayers.forEach((p) => p.tick());
+    sharedRaf = requestAnimationFrame(rafTick);
+  };
+  sharedRaf = requestAnimationFrame(rafTick);
+  sharedInterval = window.setInterval(
+    () => activeLoopPlayers.forEach((p) => p.tick()),
+    250,
+  );
+}
+
+function unregisterLoopPlayer(p: GaplessLoopPlayer): void {
+  activeLoopPlayers.delete(p);
+  if (activeLoopPlayers.size === 0) {
+    if (sharedRaf) cancelAnimationFrame(sharedRaf);
+    clearInterval(sharedInterval);
+    sharedRaf = 0;
+    sharedInterval = 0;
+  }
+}
 function ensureRetryListener(): void {
   if (retryListenerBound) return;
   retryListenerBound = true;
   const retry = () => {
-    pendingResume.forEach(p => p.retryPlay());
+    pendingResume.forEach((p) => p.retryPlay());
     if (pendingResume.size === 0) {
-      document.removeEventListener('pointerdown', retry);
-      document.removeEventListener('keydown', retry);
+      document.removeEventListener("pointerdown", retry);
+      document.removeEventListener("keydown", retry);
       retryListenerBound = false;
     }
   };
-  document.addEventListener('pointerdown', retry);
-  document.addEventListener('keydown', retry);
+  document.addEventListener("pointerdown", retry);
+  document.addEventListener("keydown", retry);
 }
 
 class GaplessLoopPlayer {
@@ -182,8 +298,6 @@ class GaplessLoopPlayer {
   private gains: [GainNode, GainNode];
   readonly out: GainNode;
   private active: 0 | 1 = 0;
-  private rafHandle = 0;
-  private intervalHandle = 0;
   private crossfadeSwapHandle = 0;
   private crossfading = false;
   private stopped = false;
@@ -193,6 +307,10 @@ class GaplessLoopPlayer {
   // through to hardSwap() instead of finding the guard closed and going
   // silent with nothing scheduled to recover it.
   private awaitingReady = false;
+  // Save-Data only: whether the backup element has been asked to load for
+  // the upcoming loop boundary yet. Reset each time primeOther() runs
+  // (i.e. after every swap). See maybeCrossfade().
+  private backupPrimed = false;
   private cancelAwaitReady: (() => void) | null = null;
   // True once either element has actually produced audio at least once.
   // Distinguishes "the file loaded fine, then had a mid-session network
@@ -203,7 +321,11 @@ class GaplessLoopPlayer {
   // misconfigured, CDN down) — only the latter calls onUnavailable.
   private everPlayed = false;
 
-  constructor(private ctx: AudioContext, private cfg: FileTrackConfig, private onUnavailable?: () => void) {
+  constructor(
+    private ctx: AudioContext,
+    private cfg: FileTrackConfig,
+    private onUnavailable?: () => void,
+  ) {
     const make = () => {
       const el = new Audio();
       // Data-saver / known-slow connections: don't buffer ahead at all
@@ -211,7 +333,7 @@ class GaplessLoopPlayer {
       // metadata-only (duration, first frame) rather than eagerly pulling
       // the whole file over what's often a metered connection; desktop
       // buffers ahead for a snappier, gap-free start.
-      el.preload = CAPS.saveData ? 'none' : (IS_TOUCH ? 'metadata' : 'auto');
+      el.preload = CAPS.saveData ? "none" : IS_TOUCH ? "metadata" : "auto";
       el.loop = false; // looping is driven manually below, for the crossfade
       // Needed whenever AUDIO_CDN_BASE points off-origin (jsDelivr etc.):
       // MediaElementAudioSourceNode taints the whole graph it's connected
@@ -223,7 +345,7 @@ class GaplessLoopPlayer {
       // so it's harmless to set unconditionally). Must be set before `src`
       // (below, per-element) or the browser may have already started a
       // non-CORS request by the time this runs.
-      el.crossOrigin = 'anonymous';
+      el.crossOrigin = "anonymous";
       // NOTE: `src` is deliberately NOT set here — see the two call sites
       // below (`this.els[this.active].src = ...` in the constructor body,
       // and the lazy assignment in primeOther()). Setting it on both
@@ -235,8 +357,10 @@ class GaplessLoopPlayer {
       // still-idle backup request used to be indistinguishable from the
       // active element actually being unavailable (see the 'error'
       // listener below), incorrectly killing an otherwise-healthy track.
-      el.addEventListener('playing', () => { this.everPlayed = true; });
-      el.addEventListener('error', () => {
+      el.addEventListener("playing", () => {
+        this.everPlayed = true;
+      });
+      el.addEventListener("error", () => {
         if (this.stopped) return;
         const isActiveEl = this.els[this.active] === el;
         if (!isActiveEl) {
@@ -247,15 +371,21 @@ class GaplessLoopPlayer {
           // wait retries again right before it's actually needed, and the
           // outgoing element's natural 'ended' → hardSwap() below is the
           // safety net if the backup is still genuinely dead by then.
-          console.warn(`[SessionClock] backup recording failed to load (${cfg.url}):`, el.error?.message || el.error);
+          console.warn(
+            `[SessionClock] backup recording failed to load (${cfg.url}):`,
+            el.error?.message || el.error,
+          );
           return;
         }
         if (this.everPlayed) return; // a blip after real playback, not an outage — leave it
-        console.warn(`[SessionClock] recording unavailable, falling back (${AUDIO_CDN_BASE + cfg.url}):`, el.error?.message || el.error);
+        console.warn(
+          `[SessionClock] recording unavailable, falling back (${AUDIO_CDN_BASE + cfg.url}):`,
+          el.error?.message || el.error,
+        );
         this.stop();
         this.onUnavailable?.();
       });
-      el.addEventListener('ended', () => {
+      el.addEventListener("ended", () => {
         // Only reachable if the scheduled crossfade never got a chance to
         // fire — e.g. duration wasn't known yet under preload:'none'. Hard
         // swap rather than leave a silent gap; not as smooth as the normal
@@ -269,7 +399,10 @@ class GaplessLoopPlayer {
     // other one is primed lazily (see primeOther()) once there's idle time
     // and it's actually going to be needed soon.
     this.els[this.active].src = AUDIO_CDN_BASE + cfg.url;
-    this.srcNodes = [ctx.createMediaElementSource(this.els[0]), ctx.createMediaElementSource(this.els[1])];
+    this.srcNodes = [
+      ctx.createMediaElementSource(this.els[0]),
+      ctx.createMediaElementSource(this.els[1]),
+    ];
     this.gains = [ctx.createGain(), ctx.createGain()];
     this.gains[0].gain.value = 0;
     this.gains[1].gain.value = 0;
@@ -287,12 +420,12 @@ class GaplessLoopPlayer {
     g.gain.linearRampToValueAtTime(1, now + 0.25); // short fade-in, avoids a click on first start
     this.attemptPlay(this.els[this.active]);
     this.primeOther();
-    this.watch();
+    registerLoopPlayer(this);
   }
 
   private attemptPlay(el: HTMLAudioElement): void {
     const p = el.play();
-    if (p && typeof p.catch === 'function') {
+    if (p && typeof p.catch === "function") {
       p.catch(() => {
         if (this.stopped) return; // don't resurrect a player that was already torn down
         pendingResume.add(this);
@@ -303,11 +436,18 @@ class GaplessLoopPlayer {
 
   /** Called from the shared gesture-retry listener above. */
   retryPlay(): void {
-    if (this.stopped) { pendingResume.delete(this); return; }
+    if (this.stopped) {
+      pendingResume.delete(this);
+      return;
+    }
     const el = this.els[this.active];
-    if (!el.paused) { pendingResume.delete(this); return; }
+    if (!el.paused) {
+      pendingResume.delete(this);
+      return;
+    }
     const p = el.play();
-    if (p && typeof p.then === 'function') p.then(() => pendingResume.delete(this)).catch(() => {});
+    if (p && typeof p.then === "function")
+      p.then(() => pendingResume.delete(this)).catch(() => {});
   }
 
   /** Warms up the currently-inactive element ahead of the next crossfade
@@ -316,52 +456,96 @@ class GaplessLoopPlayer {
    *  time — it's a nice-to-have, not worth competing with anything the
    *  user is actively doing. */
   private primeOther(): void {
+    if (CAPS.saveData) {
+      // Don't spend bandwidth on idle-time priming on save-data/metered
+      // connections — that's the eager fetch el.preload:'none' exists to
+      // avoid. But don't wait until the crossfade itself either: that
+      // only leaves `crossfadeSec` (a few seconds) to buffer a whole
+      // recording on what is by definition a slow link, and when it
+      // doesn't make it the loop ends and hardSwap() has to start
+      // playback from an element that has no data yet — an audible gap.
+      // Instead maybeCrossfade() starts this fetch SAVE_DATA_LEAD_SEC
+      // before the seam (the file was going to be fetched then anyway,
+      // so no extra data is used — it just starts early enough to land).
+      this.backupPrimed = false;
+      return;
+    }
+    if (FEATURES.requestIdleCallback)
+      (window as any).requestIdleCallback(() => this.warmOther(), {
+        timeout: 4000,
+      });
+    else setTimeout(() => this.warmOther(), 1500);
+  }
+
+  private warmOther(): void {
+    if (this.stopped) return;
     const other = this.els[1 - this.active];
-    const warm = () => {
-      if (this.stopped) return;
-      try {
-        // First time this element is used: it was constructed with no
-        // `src` at all (see the constructor) specifically so it doesn't
-        // compete with the active element's fetch at track start — assign
-        // it now, on idle time, instead.
-        if (!other.src) other.src = AUDIO_CDN_BASE + this.cfg.url;
+    try {
+      // First time this element is used: it was constructed with no
+      // `src` at all (see the constructor) specifically so it doesn't
+      // compete with the active element's fetch at track start — assign
+      // it now instead.
+      if (!other.src) {
+        other.src = AUDIO_CDN_BASE + this.cfg.url;
         other.load();
-      } catch { /* ignore */ }
-    };
-    if (FEATURES.requestIdleCallback) (window as any).requestIdleCallback(warm, { timeout: 4000 });
-    else setTimeout(warm, 1500);
+        return;
+      }
+      // Already has the right src. Calling .load() unconditionally here
+      // (as this used to) resets the element's network state even when
+      // nothing about it changed — on a slow connection that aborts and
+      // restarts a download that's already mid-flight. hardSwap()'s
+      // save-data fallback calls this specifically to "keep the backup
+      // loading" after a hard cut; without this guard that call throws
+      // away whatever had already downloaded, so on a connection slower
+      // than one loop period the backup could never finish and every
+      // seam repeated the same hard cut + restart. Only (re)issue load()
+      // when there's no request already in flight and it isn't already
+      // fully buffered.
+      if (
+        other.networkState !== other.NETWORK_LOADING &&
+        !isFullyBuffered(other)
+      ) {
+        other.load();
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
-  /** Watches for the loop boundary two ways at once: requestAnimationFrame
-   *  while the tab is visible, which re-checks every frame (~16ms) — the
-   *  Web equivalent of the precise position check Metrolist schedules its
-   *  ExoPlayer crossfade from, rather than a coarse poll — plus a 250ms
-   *  setInterval as a background-tab safety net, since rAF itself is
-   *  throttled or fully paused there. Both funnel into the same
-   *  maybeCrossfade() check, which is safe to call redundantly: crossfade()
-   *  sets `crossfading` as its very first synchronous statement, so even
-   *  if both fire in the same tick only one actually starts a crossfade. */
-  private watch(): void {
-    this.stopWatch();
-    const rafTick = () => {
-      if (this.stopped || this.crossfading) return;
-      this.maybeCrossfade();
-      if (!this.stopped && !this.crossfading) this.rafHandle = requestAnimationFrame(rafTick);
-    };
-    this.rafHandle = requestAnimationFrame(rafTick);
-    this.intervalHandle = window.setInterval(() => this.maybeCrossfade(), 250);
-  }
-
-  private stopWatch(): void {
-    if (this.rafHandle) cancelAnimationFrame(this.rafHandle);
-    clearInterval(this.intervalHandle);
+  /** Called every frame (and every 250ms as a background-tab safety net,
+   *  since rAF itself is throttled/paused there) by the shared scheduler
+   *  above instead of a per-instance rAF+interval pair — same "watch for
+   *  the loop boundary two ways at once" behavior, now at constant cost
+   *  regardless of how many recorded tracks are playing simultaneously.
+   *  Safe to call redundantly from both the rAF and interval paths:
+   *  crossfade() sets `crossfading` as its very first synchronous
+   *  statement, so even if both fire in the same tick only one actually
+   *  starts a crossfade. */
+  tick(): void {
+    this.maybeCrossfade();
   }
 
   private maybeCrossfade(): void {
     if (this.stopped || this.crossfading || this.awaitingReady) return;
     const el = this.els[this.active];
     if (!isFinite(el.duration)) return; // metadata not loaded yet
-    if (el.currentTime >= el.duration - this.cfg.crossfadeSec) this.crossfade();
+    const remaining = el.duration - el.currentTime;
+    // Save-Data: start the backup fetch as soon as EITHER (a) the active
+    // recording has finished downloading — the connection is idle then,
+    // and the backup has to be fetched before the seam regardless, so this
+    // spends no extra data and gives the most possible lead on a slow
+    // link — OR (b) we're within SAVE_DATA_LEAD_SEC of the seam, as a
+    // floor for the case where the active file is still streaming in.
+    if (
+      CAPS.saveData &&
+      !this.backupPrimed &&
+      (isFullyBuffered(el) ||
+        remaining <= this.cfg.crossfadeSec + SAVE_DATA_LEAD_SEC)
+    ) {
+      this.backupPrimed = true;
+      this.warmOther();
+    }
+    if (remaining <= this.cfg.crossfadeSec) this.crossfade();
   }
 
   /** Kicks off the swap to the other element. On a normal connection the
@@ -375,7 +559,6 @@ class GaplessLoopPlayer {
    *  audible and wait for it to actually be able to play before starting
    *  the fade at all. */
   private crossfade(): void {
-    this.stopWatch();
     const from = this.active;
     const to: 0 | 1 = from === 0 ? 1 : 0;
     const toEl = this.els[to];
@@ -406,10 +589,10 @@ class GaplessLoopPlayer {
       this.beginCrossfadeFade(from, to);
     };
     const cleanup = () => {
-      toEl.removeEventListener('canplay', onCanPlay);
+      toEl.removeEventListener("canplay", onCanPlay);
       this.cancelAwaitReady = null;
     };
-    toEl.addEventListener('canplay', onCanPlay, { once: true });
+    toEl.addEventListener("canplay", onCanPlay, { once: true });
     this.cancelAwaitReady = cleanup;
   }
 
@@ -451,29 +634,42 @@ class GaplessLoopPlayer {
       const startedAt = performance.now();
       const manualFade = () => {
         if (this.stopped) return;
-        const progress = Math.min(1, (performance.now() - startedAt) / (dur * 1000));
+        const progress = Math.min(
+          1,
+          (performance.now() - startedAt) / (dur * 1000),
+        );
         const t = progress * (Math.PI / 2);
         try {
           fromGain.gain.value = Math.cos(t);
           toGain.gain.value = Math.sin(t);
-        } catch { return; }
+        } catch {
+          return;
+        }
         if (progress < 1) requestAnimationFrame(manualFade);
       };
       requestAnimationFrame(manualFade);
     }
 
-    this.crossfadeSwapHandle = window.setTimeout(() => {
-      // stop() may have run while this crossfade was in flight — bail out
-      // rather than reviving a watch() loop on a player that's already
-      // torn down (that loop would then never get cleared).
-      if (this.stopped) return;
-      const oldEl = this.els[from];
-      try { oldEl.pause(); oldEl.currentTime = 0; } catch { /* ignore */ }
-      this.active = to;
-      this.crossfading = false;
-      this.primeOther();
-      this.watch();
-    }, dur * 1000 + 30);
+    this.crossfadeSwapHandle = window.setTimeout(
+      () => {
+        // stop() may have run while this crossfade was in flight — bail out
+        // rather than re-registering a player that's already torn down
+        // (unregisterLoopPlayer() already dropped it from the shared set).
+        if (this.stopped) return;
+        const oldEl = this.els[from];
+        try {
+          oldEl.pause();
+          oldEl.currentTime = 0;
+        } catch {
+          /* ignore */
+        }
+        this.active = to;
+        this.crossfading = false;
+        this.primeOther();
+        registerLoopPlayer(this); // no-op if still registered; restores it if stop() somehow raced past the guard above
+      },
+      dur * 1000 + 30,
+    );
   }
 
   private hardSwap(): void {
@@ -481,34 +677,94 @@ class GaplessLoopPlayer {
     // from crossfade() — hardSwap is about to force a swap to whichever
     // element is active right now, so that listener would otherwise fire
     // later with a stale from/to pair.
-    if (this.cancelAwaitReady) { this.cancelAwaitReady(); }
+    if (this.cancelAwaitReady) {
+      this.cancelAwaitReady();
+    }
     this.awaitingReady = false;
     const from = this.active;
     const to: 0 | 1 = from === 0 ? 1 : 0;
+    const fromEl = this.els[from];
+    const toEl = this.els[to];
     const now = this.ctx.currentTime;
+
+    // Backup not playable yet (slow / save-data link where it couldn't
+    // finish buffering before the seam): handing playback to an element
+    // with no data means silence until it does. The outgoing element has
+    // just played to its end, so its own data is fully buffered — seeking
+    // it back to 0 is instant. That's a hard cut rather than a crossfade,
+    // but never a gap, and the backup keeps loading in the background so
+    // the next seam can crossfade normally.
+    if (
+      toEl.readyState < toEl.HAVE_FUTURE_DATA &&
+      fromEl.readyState >= fromEl.HAVE_FUTURE_DATA
+    ) {
+      this.gains[from].gain.cancelScheduledValues(now);
+      this.gains[from].gain.setValueAtTime(1, now);
+      this.gains[to].gain.cancelScheduledValues(now);
+      this.gains[to].gain.setValueAtTime(0, now);
+      try {
+        toEl.pause();
+        toEl.currentTime = 0;
+      } catch {
+        /* ignore */
+      }
+      fromEl.currentTime = 0;
+      this.attemptPlay(fromEl);
+      this.backupPrimed = true; // keep it loading; don't wait for the next lead window
+      this.warmOther();
+      registerLoopPlayer(this);
+      return;
+    }
+
     this.gains[from].gain.cancelScheduledValues(now);
     this.gains[from].gain.setValueAtTime(0, now);
     this.gains[to].gain.cancelScheduledValues(now);
     this.gains[to].gain.setValueAtTime(1, now);
-    if (!this.els[to].src) this.els[to].src = AUDIO_CDN_BASE + this.cfg.url; // see crossfade()'s identical guard
-    this.els[to].currentTime = 0;
-    this.attemptPlay(this.els[to]);
+    if (!toEl.src) toEl.src = AUDIO_CDN_BASE + this.cfg.url; // see crossfade()'s identical guard
+    toEl.currentTime = 0;
+    this.attemptPlay(toEl);
     this.active = to;
     this.primeOther();
-    this.watch();
+    registerLoopPlayer(this);
   }
 
   stop(): void {
     this.stopped = true;
-    this.stopWatch();
+    unregisterLoopPlayer(this);
     clearTimeout(this.crossfadeSwapHandle);
-    if (this.cancelAwaitReady) { this.cancelAwaitReady(); }
+    if (this.cancelAwaitReady) {
+      this.cancelAwaitReady();
+    }
     this.awaitingReady = false;
     pendingResume.delete(this);
-    this.els.forEach(el => { try { el.pause(); el.removeAttribute('src'); el.load(); } catch { /* ignore */ } });
-    this.srcNodes.forEach(n => { try { n.disconnect(); } catch { /* ignore */ } });
-    this.gains.forEach(g => { try { g.disconnect(); } catch { /* ignore */ } });
-    try { this.out.disconnect(); } catch { /* ignore */ }
+    this.els.forEach((el) => {
+      try {
+        el.pause();
+        el.removeAttribute("src");
+        el.load();
+      } catch {
+        /* ignore */
+      }
+    });
+    this.srcNodes.forEach((n) => {
+      try {
+        n.disconnect();
+      } catch {
+        /* ignore */
+      }
+    });
+    this.gains.forEach((g) => {
+      try {
+        g.disconnect();
+      } catch {
+        /* ignore */
+      }
+    });
+    try {
+      this.out.disconnect();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -555,24 +811,37 @@ export function makeFileTrack(
   const useFallback = () => {
     activeStop();
     const alt = fallback?.();
-    if (!alt) { activeStop = () => {}; onDead?.(); return; }
+    if (!alt) {
+      activeStop = () => {};
+      onDead?.();
+      return;
+    }
     alt.out.connect(out);
     // Mirrors playTrack()'s own start-loop in sound.ts: a maker's returned
     // nodes are normally started there, but this swap happens later and
     // asynchronously (the recording failed mid-session), bypassing that
     // loop entirely — so scheduled source nodes here need to be started
     // explicitly, or the adopted fallback sits connected but silent.
-    alt.nodes.forEach(n => {
+    alt.nodes.forEach((n) => {
       if ((n as any)._customStop) return; // skip custom stop proxies
-      if ('start' in n && typeof (n as AudioScheduledSourceNode).start === 'function' && !(n as any)._started) {
-        try { (n as AudioScheduledSourceNode).start(); (n as any)._started = true; } catch {}
+      if (
+        "start" in n &&
+        typeof (n as AudioScheduledSourceNode).start === "function" &&
+        !(n as any)._started
+      ) {
+        try {
+          (n as AudioScheduledSourceNode).start();
+          (n as any)._started = true;
+        } catch {}
       }
     });
-    activeStop = () => alt.nodes.forEach(n => {
-      const custom = (n as any)._customStop;
-      if (custom) custom();
-      else if ('stop' in n && typeof (n as any).stop === 'function') (n as any).stop();
-    });
+    activeStop = () =>
+      alt.nodes.forEach((n) => {
+        const custom = (n as any)._customStop;
+        if (custom) custom();
+        else if ("stop" in n && typeof (n as any).stop === "function")
+          (n as any).stop();
+      });
   };
 
   const player = new GaplessLoopPlayer(ctx, cfg, useFallback);
@@ -580,7 +849,8 @@ export function makeFileTrack(
   activeStop = () => player.stop();
   player.start();
 
-  const stopProxy = ctx.createGain(); stopProxy.gain.value = 0;
+  const stopProxy = ctx.createGain();
+  stopProxy.gain.value = 0;
   (stopProxy as any)._customStop = () => activeStop();
   return { out, nodes: [stopProxy] };
 }

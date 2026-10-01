@@ -2,16 +2,30 @@
 // Apple Weather-inspired, highly engineered weather information page
 
 import {
-  getCurrentTemp, getFeelsLike, getWind, getHumidity,
-  getWeatherDesc, getWeatherOverlay, getWeatherCode,
-  getHourlyForecast, getDailyForecast,
-  getSunTimes, getWMOInfo,
-  setManualLocation, getStoredLocation, initWeather, getCityName, didWeatherFail,
+  getCurrentTemp,
+  getFeelsLike,
+  getWind,
+  getHumidity,
+  getWeatherDesc,
+  getWeatherOverlay,
+  getWeatherCode,
+  getHourlyForecast,
+  getDailyForecast,
+  getSunTimes,
+  getWMOInfo,
+  setManualLocation,
+  getStoredLocation,
+  initWeather,
+  getCityName,
+  didWeatherFail,
   type WeatherOverlay,
-} from './weather';
+} from "./weather";
+import { fetchWithTimeout } from "./utils";
 
 let _privacyCheck: () => boolean = () => false;
-let _onWeatherUpdate: ((code: number, temp: number, desc: string) => void) | null = null;
+let _onWeatherUpdate:
+  | ((code: number, temp: number, desc: string) => void)
+  | null = null;
 
 export function setWeatherPageCallbacks(
   privacyCheck: () => boolean,
@@ -23,38 +37,41 @@ export function setWeatherPageCallbacks(
 
 // ── Open the weather page overlay ─────────────────────────────────────
 export function openWeatherPage() {
-  let overlay = document.getElementById('weatherPageOverlay');
+  let overlay = document.getElementById("weatherPageOverlay");
   if (!overlay) {
     overlay = buildWeatherPageDOM();
     document.body.appendChild(overlay);
   }
-  overlay.classList.add('open');
+  overlay.classList.add("open");
   renderWeatherPage(overlay as HTMLElement);
-  window.addEventListener('sc-weather-update', handleWeatherUpdate);
+  window.addEventListener("sc-weather-update", handleWeatherUpdate);
 
   // No location yet — go straight to the picker dialog instead of
   // leaving the user staring at an empty hero section.
   if (!getStoredLocation()) {
-    (overlay.querySelector('#weatherLocationPanel') as HTMLElement)?.classList.add('open');
+    (
+      overlay.querySelector("#weatherLocationPanel") as HTMLElement
+    )?.classList.add("open");
   }
 }
 
 export function closeWeatherPage() {
-  const overlay = document.getElementById('weatherPageOverlay');
-  overlay?.classList.remove('open');
-  window.removeEventListener('sc-weather-update', handleWeatherUpdate);
+  const overlay = document.getElementById("weatherPageOverlay");
+  overlay?.classList.remove("open");
+  window.removeEventListener("sc-weather-update", handleWeatherUpdate);
 }
 
 function handleWeatherUpdate() {
-  const overlay = document.getElementById('weatherPageOverlay');
-  if (overlay?.classList.contains('open')) renderWeatherPage(overlay as HTMLElement);
+  const overlay = document.getElementById("weatherPageOverlay");
+  if (overlay?.classList.contains("open"))
+    renderWeatherPage(overlay as HTMLElement);
 }
 
 // ── DOM builder ────────────────────────────────────────────────────────
 function buildWeatherPageDOM(): HTMLElement {
-  const overlay = document.createElement('div');
-  overlay.id = 'weatherPageOverlay';
-  overlay.className = 'weather-page-overlay sc-overlay';
+  const overlay = document.createElement("div");
+  overlay.id = "weatherPageOverlay";
+  overlay.className = "weather-page-overlay sc-overlay";
   overlay.innerHTML = `
     <div class="weather-page" id="weatherPageInner">
       <div class="weather-page-bg" id="weatherPageBg"></div>
@@ -139,167 +156,242 @@ function buildWeatherPageDOM(): HTMLElement {
     </div>
   `;
 
-  overlay.addEventListener('click', e => { if (e.target === overlay) closeWeatherPage(); });
-  overlay.querySelector('#weatherCloseBtn')!.addEventListener('click', closeWeatherPage);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeWeatherPage();
+  });
+  overlay
+    .querySelector("#weatherCloseBtn")!
+    .addEventListener("click", closeWeatherPage);
 
-  overlay.querySelector('#weatherHero')!.addEventListener('click', () => {
-    if ((overlay!.querySelector('#weatherHero') as HTMLElement).classList.contains('weather-hero--retry')) {
+  overlay.querySelector("#weatherHero")!.addEventListener("click", () => {
+    if (
+      (
+        overlay!.querySelector("#weatherHero") as HTMLElement
+      ).classList.contains("weather-hero--retry")
+    ) {
       refreshWeather(overlay as HTMLElement);
     }
   });
 
-  overlay.querySelector('#weatherSetLocationBtn')!.addEventListener('click', () => {
-    (overlay.querySelector('#weatherLocationPanel') as HTMLElement).classList.add('open');
-  });
-  overlay.querySelector('#weatherLocCancel')!.addEventListener('click', () => {
-    (overlay.querySelector('#weatherLocationPanel') as HTMLElement).classList.remove('open');
+  overlay
+    .querySelector("#weatherSetLocationBtn")!
+    .addEventListener("click", () => {
+      (
+        overlay.querySelector("#weatherLocationPanel") as HTMLElement
+      ).classList.add("open");
+    });
+  overlay.querySelector("#weatherLocCancel")!.addEventListener("click", () => {
+    (
+      overlay.querySelector("#weatherLocationPanel") as HTMLElement
+    ).classList.remove("open");
   });
 
   // GPS
-  overlay.querySelector('#weatherLocGPS')!.addEventListener('click', () => {
+  overlay.querySelector("#weatherLocGPS")!.addEventListener("click", () => {
     if (!navigator.geolocation) return;
-    const btn = overlay.querySelector('#weatherLocGPS') as HTMLButtonElement;
-    btn.innerHTML = '<span>⏳</span><div><div class="weather-loc-btn-label">Locating…</div><div class="weather-loc-btn-sub">Please wait</div></div>';
+    const btn = overlay.querySelector("#weatherLocGPS") as HTMLButtonElement;
+    btn.innerHTML =
+      '<span>⏳</span><div><div class="weather-loc-btn-label">Locating…</div><div class="weather-loc-btn-sub">Please wait</div></div>';
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lon } }) => {
         const name = await getCityName(lat, lon);
         setManualLocation(lat, lon, name);
-        (overlay.querySelector('#weatherLocationPanel') as HTMLElement).classList.remove('open');
+        (
+          overlay.querySelector("#weatherLocationPanel") as HTMLElement
+        ).classList.remove("open");
         refreshWeather(overlay as HTMLElement);
       },
       () => {
-        btn.innerHTML = '<span>📍</span><div><div class="weather-loc-btn-label">GPS denied</div><div class="weather-loc-btn-sub">Try manual search</div></div>';
+        btn.innerHTML =
+          '<span>📍</span><div><div class="weather-loc-btn-label">GPS denied</div><div class="weather-loc-btn-sub">Try manual search</div></div>';
       },
-      { timeout: 10000 }
+      { timeout: 10000 },
     );
   });
 
   // City search
-  const searchInput = overlay.querySelector('#weatherLocSearch') as HTMLInputElement;
+  const searchInput = overlay.querySelector(
+    "#weatherLocSearch",
+  ) as HTMLInputElement;
   let searchTimer = 0;
-  searchInput.addEventListener('input', () => {
+  searchInput.addEventListener("input", () => {
     clearTimeout(searchTimer);
     const q = searchInput.value.trim();
-    if (q.length < 2) { (overlay.querySelector('#weatherLocResults') as HTMLElement).innerHTML = ''; return; }
-    searchTimer = window.setTimeout(() => searchCity(q, overlay as HTMLElement), 400);
+    if (q.length < 2) {
+      // Bump the token even on this short-circuit path — otherwise a
+      // search already in flight (e.g. for "London") still passes its
+      // `myRequestId !== searchRequestId` check once it resolves, since
+      // nothing here had changed searchRequestId, and repopulates
+      // #weatherLocResults with results for a query the input no longer
+      // shows at all.
+      searchRequestId++;
+      (overlay.querySelector("#weatherLocResults") as HTMLElement).innerHTML =
+        "";
+      return;
+    }
+    searchTimer = window.setTimeout(
+      () => searchCity(q, overlay as HTMLElement),
+      400,
+    );
   });
 
   // Weather theme toggle
-  const themeToggle = overlay.querySelector('#weatherThemeToggle') as HTMLButtonElement;
-  const isEnabled = localStorage.getItem('sc_weather_theme') !== '0';
-  themeToggle.classList.toggle('on', isEnabled);
-  document.body.classList.toggle('weather-overlay-on', isEnabled);
-  themeToggle.addEventListener('click', () => {
-    const now = !themeToggle.classList.contains('on');
-    themeToggle.classList.toggle('on', now);
-    localStorage.setItem('sc_weather_theme', now ? '1' : '0');
-    document.body.classList.toggle('weather-overlay-on', now);
-    window.dispatchEvent(new CustomEvent('sc-weather-theme-toggle', { detail: { enabled: now } }));
+  const themeToggle = overlay.querySelector(
+    "#weatherThemeToggle",
+  ) as HTMLButtonElement;
+  const isEnabled = localStorage.getItem("sc_weather_theme") !== "0";
+  themeToggle.classList.toggle("on", isEnabled);
+  document.body.classList.toggle("weather-overlay-on", isEnabled);
+  themeToggle.addEventListener("click", () => {
+    const now = !themeToggle.classList.contains("on");
+    themeToggle.classList.toggle("on", now);
+    localStorage.setItem("sc_weather_theme", now ? "1" : "0");
+    document.body.classList.toggle("weather-overlay-on", now);
+    window.dispatchEvent(
+      new CustomEvent("sc-weather-theme-toggle", { detail: { enabled: now } }),
+    );
   });
 
   return overlay;
 }
 
+// Bumped on every call so a slower/out-of-order network response for an
+// older query (e.g. "Lon") can't overwrite a newer query's results (e.g.
+// "London") if the user keeps typing while the first request is still in
+// flight — same stale-response race as the Music Dock lyrics lookup.
+let searchRequestId = 0;
+
 async function searchCity(query: string, overlay: HTMLElement) {
-  const results = overlay.querySelector('#weatherLocResults') as HTMLElement;
+  const results = overlay.querySelector("#weatherLocResults") as HTMLElement;
   results.innerHTML = '<div class="weather-loc-loading">Searching…</div>';
+  const myRequestId = ++searchRequestId;
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5`, { headers: { 'Accept-Language': 'en' } });
+    const res = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5`,
+      { headers: { "Accept-Language": "en" } },
+      8000,
+    );
     const data = await res.json();
-    results.innerHTML = '';
-    if (!data.length) { results.innerHTML = '<div class="weather-loc-loading">No results found</div>'; return; }
+    if (myRequestId !== searchRequestId) return; // a newer search has since started — this result is stale
+    results.innerHTML = "";
+    if (!data.length) {
+      results.innerHTML =
+        '<div class="weather-loc-loading">No results found</div>';
+      return;
+    }
     data.forEach((item: any) => {
-      const name = item.address?.city || item.address?.town || item.address?.village || item.display_name.split(',')[0];
-      const sub = [item.address?.state, item.address?.country].filter(Boolean).join(', ');
-      const btn = document.createElement('button');
-      btn.className = 'weather-loc-result';
+      const name =
+        item.address?.city ||
+        item.address?.town ||
+        item.address?.village ||
+        item.display_name.split(",")[0];
+      const sub = [item.address?.state, item.address?.country]
+        .filter(Boolean)
+        .join(", ");
+      const btn = document.createElement("button");
+      btn.className = "weather-loc-result";
       // Built via textContent, not innerHTML — `name`/`sub` come straight
       // from the Nominatim API response and are untrusted external data.
-      const nameEl = document.createElement('span');
-      nameEl.className = 'weather-loc-result-name';
+      const nameEl = document.createElement("span");
+      nameEl.className = "weather-loc-result-name";
       nameEl.textContent = name;
-      const subEl = document.createElement('span');
-      subEl.className = 'weather-loc-result-sub';
+      const subEl = document.createElement("span");
+      subEl.className = "weather-loc-result-sub";
       subEl.textContent = sub;
       btn.appendChild(nameEl);
       btn.appendChild(subEl);
-      btn.addEventListener('click', () => {
+      btn.addEventListener("click", () => {
         setManualLocation(parseFloat(item.lat), parseFloat(item.lon), name);
-        (overlay.querySelector('#weatherLocationPanel') as HTMLElement).classList.remove('open');
+        (
+          overlay.querySelector("#weatherLocationPanel") as HTMLElement
+        ).classList.remove("open");
         refreshWeather(overlay);
       });
       results.appendChild(btn);
     });
   } catch {
+    if (myRequestId !== searchRequestId) return;
     results.innerHTML = '<div class="weather-loc-loading">Search failed</div>';
   }
 }
 
 function refreshWeather(overlay: HTMLElement) {
-  const iconEl = document.getElementById('weatherIcon');
-  const textEl = document.getElementById('weatherText');
-  const pillEl = document.getElementById('weatherPill');
+  const iconEl = document.getElementById("weatherIcon");
+  const textEl = document.getElementById("weatherText");
+  const pillEl = document.getElementById("weatherPill");
   if (iconEl && textEl && pillEl) {
-    initWeather(iconEl, textEl, pillEl, _privacyCheck, _onWeatherUpdate ?? undefined);
+    initWeather(
+      iconEl,
+      textEl,
+      pillEl,
+      _privacyCheck,
+      _onWeatherUpdate ?? undefined,
+    );
   }
   setTimeout(() => renderWeatherPage(overlay), 1800);
 }
 
 // ── Main render ────────────────────────────────────────────────────────
 export function renderWeatherPage(overlay: HTMLElement) {
-  const temp     = getCurrentTemp();
-  const feels    = getFeelsLike();
-  const wind     = getWind();
+  const temp = getCurrentTemp();
+  const feels = getFeelsLike();
+  const wind = getWind();
   const humidity = getHumidity();
-  const desc     = getWeatherDesc();
+  const desc = getWeatherDesc();
   const overlayType = getWeatherOverlay();
-  const stored   = getStoredLocation();
-  const code     = getWeatherCode() ?? 0;
+  const stored = getStoredLocation();
+  const code = getWeatherCode() ?? 0;
 
   // Location / time
-  (overlay.querySelector('#weatherLocationName') as HTMLElement).textContent =
-    stored?.name || (temp !== null ? 'Current location' : 'No location set');
-  (overlay.querySelector('#weatherLocationTime') as HTMLElement).textContent =
-    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  (overlay.querySelector("#weatherLocationName") as HTMLElement).textContent =
+    stored?.name || (temp !== null ? "Current location" : "No location set");
+  (overlay.querySelector("#weatherLocationTime") as HTMLElement).textContent =
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   // Background gradient
-  const bg = overlay.querySelector('#weatherPageBg') as HTMLElement;
+  const bg = overlay.querySelector("#weatherPageBg") as HTMLElement;
   bg.className = `weather-page-bg weather-bg-${overlayType}`;
 
   // Hero
-  const iconEl  = overlay.querySelector('#weatherConditionIcon') as HTMLElement;
-  const tempEl  = overlay.querySelector('#weatherHeroTemp') as HTMLElement;
-  const descEl  = overlay.querySelector('#weatherHeroDesc') as HTMLElement;
-  const feelsEl = overlay.querySelector('#weatherFeels') as HTMLElement;
-  const windEl  = overlay.querySelector('#weatherWind') as HTMLElement;
-  const humEl   = overlay.querySelector('#weatherHumidity') as HTMLElement;
+  const iconEl = overlay.querySelector("#weatherConditionIcon") as HTMLElement;
+  const tempEl = overlay.querySelector("#weatherHeroTemp") as HTMLElement;
+  const descEl = overlay.querySelector("#weatherHeroDesc") as HTMLElement;
+  const feelsEl = overlay.querySelector("#weatherFeels") as HTMLElement;
+  const windEl = overlay.querySelector("#weatherWind") as HTMLElement;
+  const humEl = overlay.querySelector("#weatherHumidity") as HTMLElement;
 
-  const heroEl = overlay.querySelector('#weatherHero') as HTMLElement;
+  const heroEl = overlay.querySelector("#weatherHero") as HTMLElement;
 
   if (temp !== null) {
     const [icon] = getWMOInfo(code);
-    iconEl.textContent  = icon;
-    tempEl.textContent  = `${temp}°`;
-    descEl.textContent  = desc;
+    iconEl.textContent = icon;
+    tempEl.textContent = `${temp}°`;
+    descEl.textContent = desc;
     feelsEl.textContent = `Feels like ${feels}°`;
-    windEl.textContent  = `${wind} km/h`;
-    humEl.textContent   = `${humidity}%`;
-    heroEl.classList.remove('weather-hero--retry');
+    windEl.textContent = `${wind} km/h`;
+    humEl.textContent = `${humidity}%`;
+    heroEl.classList.remove("weather-hero--retry");
   } else if (stored && didWeatherFail()) {
-    iconEl.textContent = '⚠️';
-    tempEl.textContent = '--°';
-    descEl.textContent = 'Weather unavailable — tap to retry';
-    feelsEl.textContent = ''; windEl.textContent = ''; humEl.textContent = '';
-    heroEl.classList.add('weather-hero--retry');
+    iconEl.textContent = "⚠️";
+    tempEl.textContent = "--°";
+    descEl.textContent = "Weather unavailable — tap to retry";
+    feelsEl.textContent = "";
+    windEl.textContent = "";
+    humEl.textContent = "";
+    heroEl.classList.add("weather-hero--retry");
   } else {
-    iconEl.textContent = stored ? '⏳' : '📍';
-    tempEl.textContent = '--°';
-    descEl.textContent = stored ? 'Fetching weather…' : 'Tap "Set location" to begin';
-    heroEl.classList.remove('weather-hero--retry');
+    iconEl.textContent = stored ? "⏳" : "📍";
+    tempEl.textContent = "--°";
+    descEl.textContent = stored
+      ? "Fetching weather…"
+      : 'Tap "Set location" to begin';
+    heroEl.classList.remove("weather-hero--retry");
   }
 
   // Particles
-  const particles = overlay.querySelector('#weatherHeroParticles') as HTMLElement;
+  const particles = overlay.querySelector(
+    "#weatherHeroParticles",
+  ) as HTMLElement;
   particles.className = `weather-hero-particles weather-particles-${overlayType}`;
 
   renderHourly(overlay);
@@ -308,80 +400,118 @@ export function renderWeatherPage(overlay: HTMLElement) {
 }
 
 function renderHourly(overlay: HTMLElement) {
-  const strip = overlay.querySelector('#weatherHourlyStrip') as HTMLElement;
-  strip.innerHTML = '';
+  const strip = overlay.querySelector("#weatherHourlyStrip") as HTMLElement;
+  strip.innerHTML = "";
   const forecast = getHourlyForecast();
-  if (!forecast.length) { strip.innerHTML = '<div class="weather-hourly-empty">No forecast data — set a location to load</div>'; return; }
+  if (!forecast.length) {
+    strip.innerHTML =
+      '<div class="weather-hourly-empty">No forecast data — set a location to load</div>';
+    return;
+  }
   forecast.slice(0, 24).forEach((h, i) => {
     const [icon] = getWMOInfo(h.code);
     const time = new Date(h.time);
-    const label = i === 0 ? 'Now' : time.toLocaleTimeString([], { hour: 'numeric' });
-    const item = document.createElement('div');
-    item.className = 'weather-hourly-item';
+    const label =
+      i === 0 ? "Now" : time.toLocaleTimeString([], { hour: "numeric" });
+    const item = document.createElement("div");
+    item.className = "weather-hourly-item";
     item.innerHTML = `<span class="weather-hourly-time">${label}</span><span class="weather-hourly-icon">${icon}</span><span class="weather-hourly-temp">${h.temp}°</span>`;
     strip.appendChild(item);
   });
 }
 
 function renderSunArc(overlay: HTMLElement) {
-  const canvas = overlay.querySelector('#weatherSunCanvas') as HTMLCanvasElement;
-  const sunTimesEl = overlay.querySelector('#weatherSunTimes') as HTMLElement;
+  const canvas = overlay.querySelector(
+    "#weatherSunCanvas",
+  ) as HTMLCanvasElement;
+  const sunTimesEl = overlay.querySelector("#weatherSunTimes") as HTMLElement;
   const sun = getSunTimes();
-  if (!sun) { sunTimesEl.innerHTML = '<span>Set a location to see sunrise/sunset</span>'; return; }
-  const ctx = canvas.getContext('2d')!;
-  const W = canvas.width, H = canvas.height;
+  if (!sun) {
+    sunTimesEl.innerHTML = "<span>Set a location to see sunrise/sunset</span>";
+    return;
+  }
+  const ctx = canvas.getContext("2d")!;
+  const W = canvas.width,
+    H = canvas.height;
   ctx.clearRect(0, 0, W, H);
 
   const toX = (mins: number) => (mins / 1440) * W;
-  const riseX = toX(sun.rise), setX = toX(sun.set), midX = (riseX + setX) / 2;
+  const riseX = toX(sun.rise),
+    setX = toX(sun.set),
+    midX = (riseX + setX) / 2;
 
   // Full arc (dim)
-  ctx.beginPath(); ctx.moveTo(riseX, H - 8);
+  ctx.beginPath();
+  ctx.moveTo(riseX, H - 8);
   ctx.quadraticCurveTo(midX, 8, setX, H - 8);
-  ctx.strokeStyle = 'rgba(255,200,80,.2)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = "rgba(255,200,80,.2)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
   // Elapsed arc (bright)
   const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-  const pct = Math.max(0, Math.min(1, (nowMins - sun.rise) / (sun.set - sun.rise)));
+  const pct = Math.max(
+    0,
+    Math.min(1, (nowMins - sun.rise) / (sun.set - sun.rise)),
+  );
   if (pct > 0 && pct <= 1) {
     const elapsedX = riseX + pct * (setX - riseX);
     const elapsedY = H - 8 - Math.sin(pct * Math.PI) * (H - 16);
-    ctx.beginPath(); ctx.moveTo(riseX, H - 8);
+    ctx.beginPath();
+    ctx.moveTo(riseX, H - 8);
     ctx.quadraticCurveTo(midX, 8, elapsedX, elapsedY);
-    ctx.strokeStyle = 'rgba(255,200,80,.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.strokeStyle = "rgba(255,200,80,.85)";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
     // Sun dot
-    ctx.beginPath(); ctx.arc(elapsedX, elapsedY, 7, 0, Math.PI * 2);
-    const g = ctx.createRadialGradient(elapsedX, elapsedY, 0, elapsedX, elapsedY, 7);
-    g.addColorStop(0, '#fff8c0'); g.addColorStop(1, '#ffb300');
-    ctx.fillStyle = g; ctx.fill();
+    ctx.beginPath();
+    ctx.arc(elapsedX, elapsedY, 7, 0, Math.PI * 2);
+    const g = ctx.createRadialGradient(
+      elapsedX,
+      elapsedY,
+      0,
+      elapsedX,
+      elapsedY,
+      7,
+    );
+    g.addColorStop(0, "#fff8c0");
+    g.addColorStop(1, "#ffb300");
+    ctx.fillStyle = g;
+    ctx.fill();
   }
   // Horizon
-  ctx.beginPath(); ctx.moveTo(0, H - 8); ctx.lineTo(W, H - 8);
-  ctx.strokeStyle = 'rgba(255,255,255,.1)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, H - 8);
+  ctx.lineTo(W, H - 8);
+  ctx.strokeStyle = "rgba(255,255,255,.1)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
   const fmt = (mins: number) => {
-    const h = Math.floor(mins / 60), m = mins % 60;
-    return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`;
+    const h = Math.floor(mins / 60),
+      m = mins % 60;
+    return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
   };
   sunTimesEl.innerHTML = `<span>🌅 ${fmt(Math.round(sun.rise))}</span><span>🌇 ${fmt(Math.round(sun.set))}</span>`;
 }
 
 function renderDaily(overlay: HTMLElement) {
-  const list = overlay.querySelector('#weatherDailyList') as HTMLElement;
-  list.innerHTML = '';
+  const list = overlay.querySelector("#weatherDailyList") as HTMLElement;
+  list.innerHTML = "";
   const forecast = getDailyForecast();
   if (!forecast.length) return;
-  const maxT = Math.max(...forecast.map(d => d.maxTemp));
-  const minT = Math.min(...forecast.map(d => d.minTemp));
+  const maxT = Math.max(...forecast.map((d) => d.maxTemp));
+  const minT = Math.min(...forecast.map((d) => d.minTemp));
   const range = maxT - minT || 1;
   forecast.forEach((d, i) => {
     const [icon, desc] = getWMOInfo(d.code);
-    const date = new Date(d.date + 'T12:00:00');
-    const dayLabel = i === 0 ? 'Today' : date.toLocaleDateString([], { weekday: 'short' });
+    const date = new Date(d.date + "T12:00:00");
+    const dayLabel =
+      i === 0 ? "Today" : date.toLocaleDateString([], { weekday: "short" });
     const barLeft = ((d.minTemp - minT) / range) * 100;
     const barWidth = Math.max(((d.maxTemp - d.minTemp) / range) * 100, 8);
-    const row = document.createElement('div');
-    row.className = 'weather-daily-row';
+    const row = document.createElement("div");
+    row.className = "weather-daily-row";
     row.innerHTML = `
       <span class="weather-daily-day">${dayLabel}</span>
       <span class="weather-daily-icon" title="${desc}">${icon}</span>
