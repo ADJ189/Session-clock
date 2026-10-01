@@ -49,26 +49,49 @@ export function init(opts: {
 }
 
 function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); Object.assign(settings, s); } catch {}
   // One-time migration: setWorkMins()/setBreakMins() used to write to a
   // different key ('sc_pom_settings') than load() ever read from ('sc_pom'),
-  // so a custom work/break duration set via those two controls silently
-  // reverted after any reload. Recover anything stranded there so existing
-  // users don't lose a setting they already made — applied FIRST, with the
-  // canonical 'sc_pom' snapshot layered on top below. Both keys can hold a
-  // complete settings object; applying the stray one second (as this used
-  // to) meant any change the user made after the old key was written got
-  // silently overwritten by the older, stale values on every load.
-  let migrated = false;
+  // so a custom duration set through those two (now-fixed) controls
+  // silently reverted after every reload.
+  //
+  // Neither key carries a timestamp, and the stray key can itself be
+  // OLDER than the canonical snapshot above for every field except the
+  // two it was actually written for — workMins/breakMins. (Everything
+  // else in it is just whatever the rest of `settings` happened to be at
+  // that earlier moment; every other setting has always gone through
+  // persist() to the canonical key correctly.) So rather than letting
+  // either snapshot broadly overwrite the other, only backfill those two
+  // specific fields, and only when the canonical value is still the
+  // built-in default — i.e. it was never set through a correct-path
+  // write since. If canonical already differs from default, that's a
+  // real user change made after the bugfix shipped, so it's kept as-is
+  // rather than risking clobbering it with the older stray value.
   try {
     const stray = localStorage.getItem('sc_pom_settings');
     if (stray) {
-      Object.assign(settings, JSON.parse(stray));
+      const s = JSON.parse(stray) as Partial<PomodoroSettings>;
+      let recovered = false;
+      if (typeof s.workMins === 'number' && s.workMins !== defaults.workMins && settings.workMins === defaults.workMins) {
+        settings.workMins = s.workMins;
+        recovered = true;
+      }
+      if (typeof s.breakMins === 'number' && s.breakMins !== defaults.breakMins && settings.breakMins === defaults.breakMins) {
+        settings.breakMins = s.breakMins;
+        recovered = true;
+      }
+      // Only drop the stray key once its recovered value (if any) is
+      // safely persisted under the canonical one. persist() is inside
+      // this try block (unlike a prior version of this fix) specifically
+      // so that if it throws — storage quota, private-browsing
+      // restrictions — the removeItem below never runs and the stray
+      // key survives for another migration attempt on the next load,
+      // instead of being deleted with nothing successfully saved in its
+      // place and an uncaught error breaking Pomodoro init.
+      if (recovered) persist();
       localStorage.removeItem('sc_pom_settings');
-      migrated = true;
     }
   } catch {}
-  try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); Object.assign(settings, s); } catch {}
-  if (migrated) persist();
 }
 function persist() { localStorage.setItem(KEY, JSON.stringify(settings)); }
 
