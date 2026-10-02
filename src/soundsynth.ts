@@ -29,7 +29,7 @@
 // it works anywhere Web Audio itself works). Keeping two implementations
 // of the same sound around would just be dead weight.
 
-import { createSynth, type SynthPreset, type SynthVoice } from 'ambiently';
+import { createSynth, type SynthPreset, type SynthVoice } from "ambiently";
 
 /** Matches the { out, nodes } shape every generator in sound.ts returns,
  *  so it drops straight into the same MAKERS dispatch table. The voice is
@@ -38,10 +38,14 @@ import { createSynth, type SynthPreset, type SynthVoice } from 'ambiently';
  *  fire's crackle) and for the recorded-audio tracks in soundfiles.ts — so
  *  playTrack/stopTrack need no special-casing for ambiently-backed tracks
  *  either. */
-export function makeSynthTrack(ctx: AudioContext, preset: SynthPreset): { out: AudioNode; nodes: AudioNode[] } {
+export function makeSynthTrack(
+  ctx: AudioContext,
+  preset: SynthPreset,
+): { out: AudioNode; nodes: AudioNode[] } {
   const voice: SynthVoice = createSynth(ctx, preset);
   voice.start();
-  const stopProxy = ctx.createGain(); stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => voice.stop();
+  const stopProxy = ctx.createGain();
+  stopProxy.gain.value = 0;
+  stopProxy._customStop = () => voice.stop();
   return { out: voice.output, nodes: [stopProxy] };
 }

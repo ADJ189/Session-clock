@@ -1156,7 +1156,7 @@ export interface VoiceCommand {
 }
 
 let _voiceActive = false;
-let _voiceRecog: any = null;
+let _voiceRecog: SpeechRecognitionLike | null = null;
 
 export function isVoiceActive() {
   return _voiceActive;
@@ -1203,9 +1203,7 @@ export function initVoiceTimer(
   onCommand: (cmd: VoiceCommand) => void,
   onStateChange: (active: boolean) => void,
 ) {
-  const SR =
-    (window as any).SpeechRecognition ||
-    (window as any).webkitSpeechRecognition;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return false;
 
   _voiceRecog = new SR();
@@ -1213,7 +1211,7 @@ export function initVoiceTimer(
   _voiceRecog.interimResults = false;
   _voiceRecog.lang = "en-US";
 
-  _voiceRecog.onresult = (e: any) => {
+  _voiceRecog.onresult = (e) => {
     const transcript = e.results[0]?.[0]?.transcript ?? "";
     if (transcript) onCommand(parseVoiceCommand(transcript));
   };

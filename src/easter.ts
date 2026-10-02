@@ -509,10 +509,10 @@ function openDevConsole() {
     existing.remove();
     return;
   }
-  const fps = (window as any).__scFps?.() ?? 0;
-  const tier = (window as any).__scTier?.() ?? "?";
+  const fps = window.__scFps?.() ?? 0;
+  const tier = window.__scTier?.() ?? "?";
   const lsSize = localStorageBytes();
-  const audioNodes = (window as any).__scAudioNodes?.() ?? "?";
+  const audioNodes = window.__scAudioNodes?.() ?? "?";
   const panel = document.createElement("div");
   panel.id = "devConsole";
   panel.style.cssText = `
@@ -527,7 +527,7 @@ function openDevConsole() {
     ["📊 FPS", fps],
     ["🔊 Audio nodes", audioNodes],
     ["💾 localStorage (est.)", `${(lsSize / 1024).toFixed(1)} KB`],
-    ["🎨 Themes", (window as any).__scThemeCount?.() ?? "?"],
+    ["🎨 Themes", window.__scThemeCount?.() ?? "?"],
     [
       "📋 Sessions",
       JSON.parse(localStorage.getItem("sc_focus_log") || "[]").length,
@@ -574,7 +574,7 @@ function setupMidnightWatch() {
     }
   };
   // Check every second via the main clock tick — expose via window
-  (window as any).__checkMidnight = checkMidnight;
+  window.__checkMidnight = checkMidnight;
 }
 
 export function fireConfetti() {
@@ -645,7 +645,7 @@ function attachDeviceMotionListener() {
     lastAcc = { x: a.x ?? 0, y: a.y ?? 0, z: a.z ?? 0 };
     if (dx + dy + dz > 30 && Date.now() - lastShake > 2000) {
       lastShake = Date.now();
-      (window as any).__scRandomTheme?.();
+      window.__scRandomTheme?.();
       _showToast("🎲 Theme shuffled!", 2500);
     }
   });

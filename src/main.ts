@@ -242,7 +242,7 @@ function startTimer() {
   sessionRunning = true;
   sessionStart = performance.now() - sessionElapsed;
   document.body.classList.add("session-running");
-  (window as any).__uiSounds?.sessionStart();
+  window.__uiSounds?.sessionStart?.();
   Features.updateButtonLabels(
     "running",
     Pom.getPhase(),
@@ -285,7 +285,7 @@ function resetTimer() {
   Log.record(DOM.focusInput.value.trim(), dur);
   Features.updateDistractionUI(false);
   if (dur > 60_000) {
-    (window as any).__uiSounds?.sessionEnd();
+    window.__uiSounds?.sessionEnd?.();
     Intel.recordCompleted();
     const streak = Intel.updateStreak();
     const milestone = Intel.getStreakMilestone(streak.current);
@@ -826,7 +826,7 @@ function applyTheme(theme: Theme, instant = false) {
   const myGeneration = ++themeGeneration;
   // UI sound on theme switch (except initial load)
   if (currentTheme && currentTheme.id !== theme.id && !instant) {
-    (window as any).__uiSounds?.themeSwitch();
+    window.__uiSounds?.themeSwitch?.();
     document.body.classList.add("theme-switching");
     setTimeout(() => document.body.classList.remove("theme-switching"), 350);
   }
@@ -1090,13 +1090,13 @@ function renderFrame(ts: number) {
   if (sec !== lastSec) {
     lastSec = sec;
     // Midnight confetti check
-    (window as any).__checkMidnight?.();
+    window.__checkMidnight?.();
     const uh = now.getUTCHours(),
       um = now.getUTCMinutes(),
       us = now.getUTCSeconds();
     // Sidereal time easter egg
     if (Easter.isSiderealMode()) {
-      const lat = (window as any).__scLat ?? 0;
+      const lat = window.__scLat ?? 0;
       DOM.utcPill.textContent = Easter.getSiderealTime(lat);
     } else {
       DOM.utcPill.textContent = Features.getTrustLabel();
@@ -1836,7 +1836,7 @@ const openModal = (id: string) => {
 const closeModal = (id: string) => {
   $(id).classList.remove("open");
 };
-(window as any).SC = { modals: { open: openModal, close: closeModal } };
+window.SC = { modals: { open: openModal, close: closeModal } };
 
 // ── Keyboard shortcuts ─────────────────────────────────────────────────
 const SHORTCUTS: [string, string, () => void][] = [
@@ -1938,18 +1938,18 @@ let kioskOn = false,
 // every other engine/version combination that *can* go fullscreen does.
 function requestFS(el: HTMLElement): Promise<void> {
   const fn = (el.requestFullscreen ||
-    (el as any).webkitRequestFullscreen ||
-    (el as any).mozRequestFullScreen ||
-    (el as any).msRequestFullscreen) as
+    el.webkitRequestFullscreen ||
+    el.mozRequestFullScreen ||
+    el.msRequestFullscreen) as
     | ((this: HTMLElement) => Promise<void> | void)
     | undefined;
   return Promise.resolve(fn?.call(el));
 }
 function exitFS(): Promise<void> {
   const fn = (document.exitFullscreen ||
-    (document as any).webkitExitFullscreen ||
-    (document as any).mozCancelFullScreen ||
-    (document as any).msExitFullscreen) as
+    document.webkitExitFullscreen ||
+    document.mozCancelFullScreen ||
+    document.msExitFullscreen) as
     | ((this: Document) => Promise<void> | void)
     | undefined;
   return Promise.resolve(fn?.call(document));
@@ -1957,9 +1957,9 @@ function exitFS(): Promise<void> {
 function currentFSElement(): Element | null {
   return (
     document.fullscreenElement ||
-    (document as any).webkitFullscreenElement ||
-    (document as any).mozFullScreenElement ||
-    (document as any).msFullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.mozFullScreenElement ||
+    document.msFullscreenElement ||
     null
   );
 }
@@ -2039,14 +2039,14 @@ function toggleZen() {
         document.body.classList.remove("zen-hinting");
       }, getZenDimDelayMs());
     };
-    (window as any).__zenMoveHandler = onMove;
+    window.__zenMoveHandler = onMove;
     window.addEventListener("mousemove", onMove, { passive: true });
   } else {
     document.body.classList.remove("zen-hinting");
     if (zenHintTimer) clearTimeout(zenHintTimer);
-    const h = (window as any).__zenMoveHandler;
+    const h = window.__zenMoveHandler;
     if (h) window.removeEventListener("mousemove", h);
-    delete (window as any).__zenMoveHandler;
+    delete window.__zenMoveHandler;
     if (zenSoundStartedByZen) {
       const zenSoundId = localStorage.getItem("sc_zen_sound") || "";
       if (zenSoundId) Sound.stopTrack(zenSoundId);
@@ -2596,7 +2596,7 @@ function applyFocusMode(on: boolean) {
 // gesture requirement failure degrades to a friendly toast instead of an
 // unhandled promise rejection.
 async function openMiniClockPiP() {
-  const dpip = (window as any).documentPictureInPicture;
+  const dpip = window.documentPictureInPicture;
   if (!dpip) {
     showToast("Always-on-top mini clock needs a recent Chrome");
     return;
@@ -3446,8 +3446,8 @@ function openThemeBuilder() {
   openModal("themeBuilderOverlay");
 }
 
-(window as any).SC = {
-  ...(window as any).SC,
+window.SC = {
+  ...window.SC,
   themeBuilder: {
     preview: previewCustomTheme,
     save: saveCustomTheme,
@@ -5076,7 +5076,7 @@ function showMotivationWidget(headline: string, sub: string) {
 
   // Chime
   try {
-    (window as any).__uiSounds?.sessionStart?.();
+    window.__uiSounds?.sessionStart?.();
   } catch {
     /**/
   }
@@ -5288,10 +5288,8 @@ function darkenHex2(hex: string, amt: number): string {
 // iOS notification banners separate glyph from copy. No call site needs
 // to change: this only reparses the string that's already passed in.
 const _graphemeSeg =
-  typeof Intl !== "undefined" && typeof (Intl as any).Segmenter === "function"
-    ? (new (Intl as any).Segmenter(undefined, { granularity: "grapheme" }) as {
-        segment(s: string): Iterable<{ segment: string }>;
-      })
+  typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
+    ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
     : null;
 
 function leadingEmoji(msg: string): { icon: string; text: string } {
@@ -5896,7 +5894,7 @@ function buildPaletteCommands() {
       "Random Theme (Device Shake)",
       "shake phone",
       () => {
-        (window as any).__scRandomTheme?.();
+        window.__scRandomTheme?.();
         showToast("🎲 Theme shuffled!", 2500);
       },
     ],
@@ -5912,189 +5910,189 @@ function buildPaletteCommands() {
       "💊",
       "Matrix Rain",
       'type "matrix"',
-      () => (window as any).__scTriggerKeyword?.("matrix"),
+      () => window.__scTriggerKeyword?.("matrix"),
     ],
     [
       "egg_inception",
       "🌀",
       "Dream Spin",
       'type "inception"',
-      () => (window as any).__scTriggerKeyword?.("inception"),
+      () => window.__scTriggerKeyword?.("inception"),
     ],
     [
       "egg_heisenberg",
       "⚗️",
       "Heisenberg (Breaking Bad)",
       'type "heisenberg"',
-      () => (window as any).__scTriggerKeyword?.("heisenberg"),
+      () => window.__scTriggerKeyword?.("heisenberg"),
     ],
     [
       "egg_winchester",
       "🔥",
       "The Road So Far (Supernatural)",
       'type "winchester"',
-      () => (window as any).__scTriggerKeyword?.("winchester"),
+      () => window.__scTriggerKeyword?.("winchester"),
     ],
     [
       "egg_redjohn",
       "🔴",
       "Red John (The Mentalist)",
       'type "redjohn"',
-      () => (window as any).__scTriggerKeyword?.("redjohn"),
+      () => window.__scTriggerKeyword?.("redjohn"),
     ],
     [
       "egg_badabing",
       "🥃",
       "Bada Bing! (Sopranos)",
       'type "bada bing"',
-      () => (window as any).__scTriggerKeyword?.("bada bing"),
+      () => window.__scTriggerKeyword?.("bada bing"),
     ],
     [
       "egg_winden",
       "⏳",
       "Sic Mundus (Dark)",
       'type "winden"',
-      () => (window as any).__scTriggerKeyword?.("winden"),
+      () => window.__scTriggerKeyword?.("winden"),
     ],
     [
       "egg_severance",
       "🏢",
       "Lumon Industries (Severance)",
       'type "fncs"',
-      () => (window as any).__scTriggerKeyword?.("fncs"),
+      () => window.__scTriggerKeyword?.("fncs"),
     ],
     [
       "egg_interstellar",
       "🌌",
       "Do Not Go Gentle (Interstellar)",
       'type "interstellar"',
-      () => (window as any).__scTriggerKeyword?.("interstellar"),
+      () => window.__scTriggerKeyword?.("interstellar"),
     ],
     [
       "egg_spice",
       "🏜️",
       "The Spice Must Flow (Dune)",
       'type "spice"',
-      () => (window as any).__scTriggerKeyword?.("spice"),
+      () => window.__scTriggerKeyword?.("spice"),
     ],
     [
       "egg_godfather",
       "🌹",
       "The Offer (Godfather)",
       'type "godfather"',
-      () => (window as any).__scTriggerKeyword?.("godfather"),
+      () => window.__scTriggerKeyword?.("godfather"),
     ],
     [
       "egg_mrrobot",
       "💻",
       "Hello Friend (Mr. Robot)",
       'type "mrrobot"',
-      () => (window as any).__scTriggerKeyword?.("mrrobot"),
+      () => window.__scTriggerKeyword?.("mrrobot"),
     ],
     [
       "egg_fsociety",
       "💻",
       "We Are fsociety",
       'type "fsociety"',
-      () => (window as any).__scTriggerKeyword?.("fsociety"),
+      () => window.__scTriggerKeyword?.("fsociety"),
     ],
     [
       "egg_oppenheimer",
       "☢️",
       "I Am Become Death",
       'type "oppenheimer"',
-      () => (window as any).__scTriggerKeyword?.("oppenheimer"),
+      () => window.__scTriggerKeyword?.("oppenheimer"),
     ],
     [
       "egg_thebear",
       "🍳",
       "Yes, Chef! (The Bear)",
       'type "thebear"',
-      () => (window as any).__scTriggerKeyword?.("thebear"),
+      () => window.__scTriggerKeyword?.("thebear"),
     ],
     [
       "egg_nightcity",
       "🌆",
       "Night City (Cyberpunk)",
       'type "nightcity"',
-      () => (window as any).__scTriggerKeyword?.("nightcity"),
+      () => window.__scTriggerKeyword?.("nightcity"),
     ],
     [
       "egg_cyberglitch",
       "⚡",
       "Cyberpunk Glitch Burst",
       'type "samurai"',
-      () => (window as any).__scTriggerKeyword?.("samurai"),
+      () => window.__scTriggerKeyword?.("samurai"),
     ],
     [
       "egg_hal",
       "🔴",
       '"I\'m Sorry Dave" (2001)',
       'type "hal"',
-      () => (window as any).__scTriggerKeyword?.("hal"),
+      () => window.__scTriggerKeyword?.("hal"),
     ],
     [
       "egg_daisy",
       "🎵",
       "HAL Sings Daisy",
       'type "daisy"',
-      () => (window as any).__scTriggerKeyword?.("daisy"),
+      () => window.__scTriggerKeyword?.("daisy"),
     ],
     [
       "egg_tenet",
       "⏪",
       "Clock Reverses (Tenet)",
       'type "tenet"',
-      () => (window as any).__scTriggerKeyword?.("tenet"),
+      () => window.__scTriggerKeyword?.("tenet"),
     ],
     [
       "egg_dracarys",
       "🐉",
       "Dracarys (House of Dragon)",
       'type "dracarys"',
-      () => (window as any).__scTriggerKeyword?.("dracarys"),
+      () => window.__scTriggerKeyword?.("dracarys"),
     ],
     [
       "egg_khonshu",
       "🌙",
       "Fist of Khonshu (Moon Knight)",
       'type "khonshu"',
-      () => (window as any).__scTriggerKeyword?.("khonshu"),
+      () => window.__scTriggerKeyword?.("khonshu"),
     ],
     [
       "egg_luffy",
       "🏴‍☠️",
       "King of the Pirates (One Piece)",
       'type "luffy"',
-      () => (window as any).__scTriggerKeyword?.("luffy"),
+      () => window.__scTriggerKeyword?.("luffy"),
     ],
     [
       "egg_onepiece",
       "🏴‍☠️",
       "One Piece Flash",
       'type "onepiece"',
-      () => (window as any).__scTriggerKeyword?.("onepiece"),
+      () => window.__scTriggerKeyword?.("onepiece"),
     ],
     [
       "egg_dedicate",
       "⚔️",
       "Dedicate Your Heart! (AoT)",
       'type "dedicate"',
-      () => (window as any).__scTriggerKeyword?.("dedicate"),
+      () => window.__scTriggerKeyword?.("dedicate"),
     ],
     [
       "egg_lightyagami",
       "📓",
       "L Investigates You (Death Note)",
       'type "lightyagami"',
-      () => (window as any).__scTriggerKeyword?.("lightyagami"),
+      () => window.__scTriggerKeyword?.("lightyagami"),
     ],
     [
       "egg_potatochip",
       "🍟",
       "Potato Chip (Death Note)",
       'type "potato chip"',
-      () => (window as any).__scTriggerKeyword?.("potato chip"),
+      () => window.__scTriggerKeyword?.("potato chip"),
     ],
   ];
   eggs.forEach(([id, icon, label, hint, action]) => {
@@ -6122,7 +6120,7 @@ const SPLASH_FONT_GRACE_MS = 800; // extra time we'll give web fonts specificall
 function hideSplash() {
   const el = document.getElementById("splashScreen");
   if (!el || el.classList.contains("splash-hide")) return;
-  const t0 = (window as any).__splashT0 ?? 0;
+  const t0 = window.__splashT0 ?? 0;
 
   // Held open a little longer if fonts are still loading — reaching this
   // point already means the theme/clock/first-frame are ready, but text
@@ -6130,7 +6128,7 @@ function hideSplash() {
   // the splash clears. Bounded by SPLASH_FONT_GRACE_MS so a slow/blocked
   // font CDN can't stall the reveal indefinitely.
   const fontsReady: Promise<unknown> =
-    (document as any).fonts?.ready ?? Promise.resolve();
+    document.fonts?.ready ?? Promise.resolve();
   const fontsGraceTimeout = new Promise((resolve) =>
     setTimeout(resolve, SPLASH_FONT_GRACE_MS),
   );
@@ -6230,12 +6228,12 @@ function init() {
   Palette.initPalette();
   buildPaletteCommands();
   // Expose palette open for topbar button
-  (window as any).__scPalette = Palette;
+  window.__scPalette = Palette;
   // Expose helpers for easter.ts cross-module access
-  (window as any).__scFps = () => getFps();
-  (window as any).__scTier = () => getTier();
-  (window as any).__scThemeCount = () => THEMES.length;
-  (window as any).__scAudioNodes = () => {
+  window.__scFps = () => getFps();
+  window.__scTier = () => getTier();
+  window.__scThemeCount = () => THEMES.length;
+  window.__scAudioNodes = () => {
     try {
       const a = new AudioContext();
       const n = a.destination.channelCount;
@@ -6245,14 +6243,14 @@ function init() {
       return "?";
     }
   };
-  (window as any).__scRandomTheme = () => {
+  window.__scRandomTheme = () => {
     const idx = Math.floor(Math.random() * THEMES.length);
     applyTheme(THEMES[idx]!);
   };
 
   registerSW();
   // Expose incognito check for focuslog.ts (avoids circular import)
-  (window as any).__scIncognito = Privacy.isIncognito;
+  window.__scIncognito = Privacy.isIncognito;
 
   // Drag-over visual feedback
   document.addEventListener("dragenter", () =>
@@ -6266,7 +6264,7 @@ function init() {
   );
 
   // PWA install prompt
-  let deferredInstall: Event | null = null;
+  let deferredInstall: BeforeInstallPromptEvent | null = null;
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     deferredInstall = e;
@@ -6275,7 +6273,7 @@ function init() {
     btn.className = "show";
     btn.textContent = "⬇ Install App";
     btn.addEventListener("click", () => {
-      (deferredInstall as any)?.prompt?.();
+      deferredInstall?.prompt();
       btn.remove();
       deferredInstall = null;
     });
@@ -6466,7 +6464,7 @@ function init() {
       }
     },
   };
-  (window as any).__uiSounds = uiSounds;
+  window.__uiSounds = uiSounds;
 
   // Wire UI sounds to interactions
   document.addEventListener(
@@ -6759,10 +6757,10 @@ function init() {
   }
 
   // Trust indicator — update when sync completes
-  (window as any).__onSyncComplete = (rtt: number) => {
+  window.__onSyncComplete = (rtt: number) => {
     Features.setSyncTrust("ntp");
   };
-  (window as any).__onSyncFail = () => {
+  window.__onSyncFail = () => {
     Features.setSyncTrust("offline");
   };
 
@@ -7019,8 +7017,8 @@ function buildCommandPalette() {
           existing.remove();
           return;
         }
-        const fps = (window as any).__scFps?.() ?? 0;
-        const tier = (window as any).__scTier?.() ?? "?";
+        const fps = window.__scFps?.() ?? 0;
+        const tier = window.__scTier?.() ?? "?";
         const lsSize = localStorageBytes();
         const panel = document.createElement("div");
         panel.id = "devConsole";
@@ -7030,7 +7028,7 @@ function buildCommandPalette() {
           ["🎯 Render tier", tier.toUpperCase()],
           ["📊 FPS", fps],
           ["💾 localStorage (est.)", `${(lsSize / 1024).toFixed(1)} KB`],
-          ["🎨 Themes", (window as any).__scThemeCount?.() ?? "?"],
+          ["🎨 Themes", window.__scThemeCount?.() ?? "?"],
           [
             "📋 Sessions",
             JSON.parse(localStorage.getItem("sc_focus_log") || "[]").length,

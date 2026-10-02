@@ -471,7 +471,7 @@ class GaplessLoopPlayer {
       return;
     }
     if (FEATURES.requestIdleCallback)
-      (window as any).requestIdleCallback(() => this.warmOther(), {
+      window.requestIdleCallback(() => this.warmOther(), {
         timeout: 4000,
       });
     else setTimeout(() => this.warmOther(), 1500);
@@ -823,24 +823,27 @@ export function makeFileTrack(
     // loop entirely — so scheduled source nodes here need to be started
     // explicitly, or the adopted fallback sits connected but silent.
     alt.nodes.forEach((n) => {
-      if ((n as any)._customStop) return; // skip custom stop proxies
+      if (n._customStop) return; // skip custom stop proxies
       if (
         "start" in n &&
         typeof (n as AudioScheduledSourceNode).start === "function" &&
-        !(n as any)._started
+        !n._started
       ) {
         try {
           (n as AudioScheduledSourceNode).start();
-          (n as any)._started = true;
+          n._started = true;
         } catch {}
       }
     });
     activeStop = () =>
       alt.nodes.forEach((n) => {
-        const custom = (n as any)._customStop;
+        const custom = n._customStop;
         if (custom) custom();
-        else if ("stop" in n && typeof (n as any).stop === "function")
-          (n as any).stop();
+        else if (
+          "stop" in n &&
+          typeof (n as AudioScheduledSourceNode).stop === "function"
+        )
+          (n as AudioScheduledSourceNode).stop();
       });
   };
 
@@ -851,6 +854,6 @@ export function makeFileTrack(
 
   const stopProxy = ctx.createGain();
   stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => activeStop();
+  stopProxy._customStop = () => activeStop();
   return { out, nodes: [stopProxy] };
 }
