@@ -1,3 +1,46 @@
+
+
+// ── Third-party API response shapes (only the fields read below) ────────
+interface YtPlaylistItemApi {
+  snippet?: {
+    resourceId?: { videoId?: string };
+    title?: string;
+    thumbnails?: { default?: { url: string } };
+  };
+}
+interface YtPlaylistApi {
+  id: string;
+  snippet?: { title?: string; thumbnails?: { default?: { url: string } } };
+}
+interface GCalEventApi {
+  id: string;
+  summary?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  colorId?: string;
+}
+interface NotionPageApi {
+  id: string;
+  properties?: {
+    Name?: { title?: { text?: { content: string } }[] };
+    Done?: { checkbox?: boolean };
+    Priority?: { select?: { name?: string } };
+  };
+}
+interface TodoistTaskApi {
+  id: string;
+  content: string;
+  priority: number;
+  due?: { string: string };
+}
+interface GitHubIssueApi {
+  number: number;
+  title: string;
+  repository?: { name?: string };
+  repository_url?: string;
+  html_url: string;
+  pull_request?: unknown;
+}
 // ── Integrations ──────────────────────────────────────────────────────
 // Privacy-first: all tokens stay in localStorage on this device. Nothing
 // is sent anywhere except straight to each provider's own API.
@@ -535,23 +578,12 @@ export async function youtubeGetLikedVideos(
     );
     const d = await res.json();
     return (d.items ?? [])
-      .filter(
-        (i: { snippet?: { resourceId?: { videoId?: string } } }) =>
-          i.snippet?.resourceId?.videoId,
-      )
-      .map(
-        (i: {
-          snippet: {
-            resourceId: { videoId: string };
-            title?: string;
-            thumbnails?: { default?: { url: string } };
-          };
-        }) => ({
-          videoId: i.snippet.resourceId.videoId,
-          title: i.snippet.title ?? "Untitled",
-          thumbnail: i.snippet.thumbnails?.default?.url ?? "",
-        }),
-      );
+      .filter((i: YtPlaylistItemApi) => i.snippet?.resourceId?.videoId)
+      .map((i: YtPlaylistItemApi) => ({
+        videoId: i.snippet?.resourceId?.videoId ?? "",
+        title: i.snippet?.title ?? "Untitled",
+        thumbnail: i.snippet?.thumbnails?.default?.url ?? "",
+      }));
   } catch {
     return [];
   }
@@ -570,19 +602,11 @@ export async function youtubeGetMyPlaylists(
       },
     );
     const d = await res.json();
-    return (d.items ?? []).map(
-      (i: {
-        id: string;
-        snippet?: {
-          title?: string;
-          thumbnails?: { default?: { url: string } };
-        };
-      }) => ({
-        id: i.id,
-        title: i.snippet?.title ?? "Untitled",
-        thumbnail: i.snippet?.thumbnails?.default?.url ?? "",
-      }),
-    );
+    return (d.items ?? []).map((i: YtPlaylistApi) => ({
+      id: i.id,
+      title: i.snippet?.title ?? "Untitled",
+      thumbnail: i.snippet?.thumbnails?.default?.url ?? "",
+    }));
   } catch {
     return [];
   }
@@ -629,21 +653,13 @@ export async function getUpcomingEvents(maxResults = 5): Promise<CalEvent[]> {
     }
     const res = await fetch(url, { headers });
     const d = await res.json();
-    return (d.items ?? []).map(
-      (e: {
-        id: string;
-        summary?: string;
-        start?: { dateTime?: string; date?: string };
-        end?: { dateTime?: string; date?: string };
-        colorId?: string;
-      }) => ({
-        id: e.id,
-        summary: e.summary ?? "Busy",
-        start: e.start?.dateTime ?? e.start?.date ?? "",
-        end: e.end?.dateTime ?? e.end?.date ?? "",
-        colorId: e.colorId,
-      }),
-    );
+    return (d.items ?? []).map((e: GCalEventApi) => ({
+      id: e.id,
+      summary: e.summary ?? "Busy",
+      start: e.start?.dateTime ?? e.start?.date ?? "",
+      end: e.end?.dateTime ?? e.end?.date ?? "",
+      colorId: e.colorId,
+    }));
   } catch {
     return [];
   }
@@ -707,25 +723,12 @@ export async function getNotionTasks(): Promise<NotionTask[]> {
       }),
     });
     const d = await res.json();
-    return (d.results ?? []).map(
-      (p: {
-        id: string;
-        properties?: {
-          Name?: {
-            title?: {
-              text?: { content: string };
-            }[];
-          };
-          Done?: { checkbox?: boolean };
-          Priority?: { select?: { name?: string } };
-        };
-      }) => ({
-        id: p.id,
-        title: p.properties?.Name?.title?.[0]?.text?.content ?? "Untitled",
-        checked: p.properties?.Done?.checkbox ?? false,
-        priority: p.properties?.Priority?.select?.name ?? "",
-      }),
-    );
+    return (d.results ?? []).map((p: NotionPageApi) => ({
+      id: p.id,
+      title: p.properties?.Name?.title?.[0]?.text?.content ?? "Untitled",
+      checked: p.properties?.Done?.checkbox ?? false,
+      priority: p.properties?.Priority?.select?.name ?? "",
+    }));
   } catch {
     return [];
   }
@@ -760,21 +763,12 @@ export async function getTodoistTasks(): Promise<TodoistTask[]> {
       },
     );
     const d = await res.json();
-    return (Array.isArray(d) ? d : [])
-      .slice(0, 10)
-      .map(
-        (t: {
-          id: string;
-          content: string;
-          priority: number;
-          due?: { string: string };
-        }) => ({
-          id: t.id,
-          content: t.content,
-          priority: t.priority,
-          due: t.due?.string ?? "",
-        }),
-      );
+    return (Array.isArray(d) ? d : []).slice(0, 10).map((t: TodoistTaskApi) => ({
+      id: t.id,
+      content: t.content,
+      priority: t.priority,
+      due: t.due?.string ?? "",
+    }));
   } catch {
     return [];
   }
@@ -830,23 +824,14 @@ export async function getGithubItems(): Promise<GithubItem[]> {
       },
     );
     const d = await res.json();
-    return (Array.isArray(d) ? d : []).map(
-      (i: {
-        number: number;
-        title: string;
-        repository?: { name?: string };
-        repository_url?: string;
-        html_url: string;
-        pull_request?: unknown;
-      }) => ({
-        id: i.number,
-        title: i.title,
-        repo:
-          i.repository?.name ?? i.repository_url?.split("/").slice(-1)[0] ?? "",
-        url: i.html_url,
-        type: i.pull_request ? "pr" : "issue",
-      }),
-    );
+    return (Array.isArray(d) ? d : []).map((i: GitHubIssueApi) => ({
+      id: i.number,
+      title: i.title,
+      repo:
+        i.repository?.name ?? i.repository_url?.split("/").slice(-1)[0] ?? "",
+      url: i.html_url,
+      type: i.pull_request ? "pr" : "issue",
+    }));
   } catch {
     return [];
   }

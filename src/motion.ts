@@ -152,7 +152,7 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
     });
   }
 
-  type StarSVG = SVGSVGElement & { _angle: number; _dist: number; };
+  type StarSVG = SVGSVGElement & { _angle: number; _dist: number };
 
   // 2. Star burst from the avatar's centre
   const rect = anchorEl.getBoundingClientRect();
@@ -186,8 +186,14 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
   }
 
   _animate(stars, {
-    left: (target: StarSVG) => `${cx + Math.cos(target._angle) * target._dist}px`,
-    top:  (target: StarSVG) => `${cy + Math.sin(target._angle) * target._dist}px`,
+    left: (target: unknown) => {
+      const t = target as StarSVG;
+      return `${cx + Math.cos(t._angle) * t._dist}px`;
+    },
+    top: (target: unknown) => {
+      const t = target as StarSVG;
+      return `${cy + Math.sin(t._angle) * t._dist}px`;
+    },
     opacity: [{ to: 1, duration: 180 }, { to: 0, duration: 500, delay: 500 }],
     rotate: () => (Math.random() > 0.5 ? 1 : -1) * (180 + Math.random() * 180),
     scale: [{ from: 0.3, to: 1.2, duration: 300 }, { to: 0.6, duration: 500 }],
@@ -197,6 +203,15 @@ export async function githubCelebration(anchorEl: Element | null | undefined): P
     onComplete: () => layer.remove(),
   });
 }
+
+
+/**
+ * Spotlight-style modal pop — blur+scale entrance used by the command
+ * palette; reused here for the redone GitHub support box so it reads as
+ * one deliberate "surface arriving," Apple-style, instead of individual
+ * elements fading up on separate CSS delays. Call once when the overlay
+ * gains `.open`; safe to layer on top of the existing CSS keyframes
+ * already on the card (they simply run underneath/alongside).
  */
 export async function modalSpotlightIn(modalEl: Element | null | undefined): Promise<void> {
   if (!modalEl || reducedMotion()) return;

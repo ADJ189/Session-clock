@@ -208,7 +208,29 @@ export async function getCityName(lat: number, lon: number): Promise<string> {
 }
 
 // ── Main weather fetch ─────────────────────────────────────────────────
-async function fetchWeatherData(lat: number, lon: number) {
+/** The subset of the Open-Meteo /v1/forecast response this module reads. */
+interface WeatherData {
+  current: {
+    weathercode: number;
+    temperature_2m: number;
+    apparent_temperature: number;
+    windspeed_10m: number;
+    relativehumidity_2m?: number;
+  };
+  hourly?: {
+    time: string[];
+    temperature_2m: number[];
+    weathercode: number[];
+  };
+  daily?: {
+    time: string[];
+    temperature_2m_min: number[];
+    temperature_2m_max: number[];
+    weathercode: number[];
+  };
+}
+
+async function fetchWeatherData(lat: number, lon: number): Promise<WeatherData> {
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
@@ -217,7 +239,7 @@ async function fetchWeatherData(lat: number, lon: number) {
     `&temperature_unit=celsius&windspeed_unit=kmh&timezone=auto&forecast_days=7`;
   const res = await fetchWithTimeout(url, 10000);
   if (!res.ok) throw new Error(`Weather API error ${res.status}`);
-  const data = await res.json();
+  const data: WeatherData | null = await res.json();
   if (!data?.current)
     throw new Error("Weather API returned no current conditions");
   return data;
@@ -225,7 +247,10 @@ async function fetchWeatherData(lat: number, lon: number) {
 
 // One retry after a short delay — most "unavailable" reports are a single
 // transient network blip, not a real outage, so don't give up immediately.
-async function fetchWeatherDataWithRetry(lat: number, lon: number) {
+async function fetchWeatherDataWithRetry(
+  lat: number,
+  lon: number,
+): Promise<WeatherData> {
   try {
     return await fetchWeatherData(lat, lon);
   } catch {
@@ -285,33 +310,10 @@ export async function initWeather(
     pillEl.classList.add("loaded");
   };
 
-  interface WindowWithScLat {
-    __scLat: number;
-  }
-  interface WeatherData {
-    current: {
-      weathercode: number;
-      temperature_2m: number;
-      apparent_temperature: number;
-      windspeed_10m: number;
-      relativehumidity_2m?: number;
-    };
-    hourly?: {
-      time: string[];
-      temperature_2m: number[];
-      weathercode: number[];
-    };
-    daily?: {
-      time: string[];
-      temperature_2m_min: number[];
-      temperature_2m_max: number[];
-      weathercode: number[];
-    };
-  }
-  const processWeather = async (lat: number, lon: number): Promise<void> => {
+  const processWeather = async (lat: number, lon: number) => {
     if (privacyCheck()) return;
     sunTimes = calcSunTimes(lat, lon);
-    (window as WindowWithScLat).__scLat = lat;
+    window.__scLat = lat;
     _currentLocation = { lat, lon, name: _currentLocation?.name };
     _lastFetchFailed = false;
     // Guards against the user switching location again (GPS, then a quick
@@ -330,28 +332,31 @@ export async function initWeather(
       _currentWind = Math.round(cur.windspeed_10m);
       _currentHumidity = Math.round(cur.relativehumidity_2m ?? 0);
 
-      const [icon, desc] = WMO[cur.weathercode as number] ?? ["🌡", "Unknown"];
+      const [icon, desc] = WMO[cur.weathercode] ?? ["🌡", "Unknown"];
       _currentWeatherDesc = desc;
 
       // Parse hourly (next 24h)
+      const hourly = data.hourly;
       const nowIdx =
-        data.hourly?.time?.findIndex((t: string) => new Date(t) > new Date()) ??
-        0;
-      _hourlyForecast = (data.hourly?.time ?? [])
-        .slice(nowIdx, nowIdx + 24)
-        .map((t: string, i: number) => ({
-          time: t,
-          temp: Math.round(data.hourly.temperature_2m[nowIdx + i]),
-          code: data.hourly.weathercode[nowIdx + i],
-        }));
+        hourly?.time?.findIndex((t: string) => new Date(t) > new Date()) ?? 0;
+      _hourlyForecast = hourly
+        ? hourly.time.slice(nowIdx, nowIdx + 24).map((t: string, i: number) => ({
+            time: t,
+            temp: Math.round(hourly.temperature_2m[nowIdx + i]),
+            code: hourly.weathercode[nowIdx + i],
+          }))
+        : [];
 
       // Parse daily (7 days)
-      _dailyForecast = (data.daily?.time ?? []).map((t: string, i: number) => ({
-        date: t,
-        minTemp: Math.round(data.daily!.temperature_2m_min[i]),
-        maxTemp: Math.round(data.daily!.temperature_2m_max[i]),
-        code: data.daily!.weathercode[i],
-      }));
+      const daily = data.daily;
+      _dailyForecast = daily
+        ? daily.time.map((t: string, i: number) => ({
+            date: t,
+            minTemp: Math.round(daily.temperature_2m_min[i]),
+            maxTemp: Math.round(daily.temperature_2m_max[i]),
+            code: daily.weathercode[i],
+          }))
+        : [];
 
       show(
         icon,

@@ -58,7 +58,7 @@ function safeHttpsUrl(url: string | undefined | null): string {
 }
 
 let sdkReady: Promise<void> | null = null;
-let player: Spotify.Player | null = null;
+let player: SpotifyPlayerLike | null = null;
 let deviceId: string | null = null;
 let pipWindow: Window | null = null;
 let dockEl: HTMLElement | null = null;
@@ -89,7 +89,7 @@ const state: DockState = {
 function loadSpotifySdk(): Promise<void> {
   if (sdkReady) return sdkReady;
   sdkReady = new Promise<void>((resolve) => {
-    (window as Window & { onSpotifyWebPlaybackSDKReady: () => void }).onSpotifyWebPlaybackSDKReady = () => resolve();
+    window.onSpotifyWebPlaybackSDKReady = () => resolve();
     const s = document.createElement("script");
     s.src = "https://sdk.scdn.co/spotify-player.js";
     s.async = true;
@@ -109,27 +109,16 @@ async function getSpotifyToken(): Promise<string | null> {
  * already connected). Safe to call multiple times — no-ops if already
  * initialized or not connected.
  */
-type SpotifyPlayerOptions = {
-  name: string;
-  getOAuthToken: (cb: (token: string) => void) => void;
-  volume: number;
-};
-
-type SpotifyPlayerConstructor = new (opts: SpotifyPlayerOptions) => {
-  addListener: (event: string, callback: (...args: unknown[]) => void) => void;
-  connect: () => Promise<boolean>;
-};
-
 export async function initSpotifyPlayback(): Promise<boolean> {
   if (!Integrations.isSpotifyConnected()) return false;
   if (player) return true;
 
   await loadSpotifySdk();
 
-  const spotifyGlobal = (window as unknown as { Spotify?: { Player: SpotifyPlayerConstructor } }).Spotify;
-  if (!spotifyGlobal) throw new Error("Spotify SDK not loaded");
+  const SpotifyPlayer = window.Spotify?.Player;
+  if (!SpotifyPlayer) return false;
 
-  player = new spotifyGlobal.Player({
+  const sdkPlayer = new SpotifyPlayer({
     name: "Session Clock",
     getOAuthToken: async (cb: (t: string) => void) => {
       const t = await getSpotifyToken();
@@ -138,29 +127,19 @@ export async function initSpotifyPlayback(): Promise<boolean> {
     volume: 0.7,
   });
 
-  player.addListener("ready", ({ device_id }: { device_id: string }) => {
+  player = sdkPlayer;
+
+  sdkPlayer.addListener("ready", ({ device_id }) => {
     deviceId = device_id;
   });
-  player.addListener("not_ready", () => {
+  sdkPlayer.addListener("not_ready", () => {
     deviceId = null;
   });
-  player.addListener("player_state_changed", (s: unknown) => {
-    if (!s || typeof s !== "object") return;
-    const stateObj = s as {
-      paused: boolean;
-      position?: number;
-      duration?: number;
-      track_window?: {
-        current_track?: {
-          name: string;
-          artists: Array<{ name: string }>;
-          album: { images: Array<{ url: string }> };
-        };
-      };
-    };
-    const track = stateObj.track_window?.current_track;
+  sdkPlayer.addListener("player_state_changed", (s) => {
+    if (!s) return;
+    const track = s.track_window?.current_track;
     state.title = track?.name ?? "";
-    state.artist = (track?.artists ?? []).map((a: any) => a.name).join(", ");
+    state.artist = (track?.artists ?? []).map((a) => a.name).join(", ");
     state.artUrl = safeHttpsUrl(track?.album?.images?.[0]?.url);
     state.isPlaying = !s.paused;
     state.progressMs = s.position ?? 0;
@@ -168,7 +147,7 @@ export async function initSpotifyPlayback(): Promise<boolean> {
     renderDock();
   });
 
-  const connected = await player.connect();
+  const connected = await sdkPlayer.connect();
   return !!connected;
 }
 
@@ -339,17 +318,17 @@ function dockMarkup(): string {
 }
 
 let ytApiReady: Promise<void> | null = null;
-let ytPlayers = new WeakMap<HTMLElement, YT.Player>();
+const ytPlayers = new WeakMap<HTMLElement, YtPlayerLike>();
 
 function loadYouTubeIframeApi(): Promise<void> {
   if (ytApiReady) return ytApiReady;
   ytApiReady = new Promise((resolve) => {
-    if (typeof YT !== 'undefined' && YT.Player) {
+    if (window.YT?.Player) {
       resolve();
       return;
     }
-    const prevCb = (window as unknown as { onYouTubeIframeAPIReady?: () => void }).onYouTubeIframeAPIReady;
-    (window as unknown as { onYouTubeIframeAPIReady?: () => void }).onYouTubeIframeAPIReady = () => {
+    const prevCb = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
       prevCb?.();
       resolve();
     };
@@ -409,7 +388,7 @@ function renderYtBanner(root: HTMLElement): void {
 }
 
 function updateYtMediaSession(root: HTMLElement, info: YtNowPlaying): void {
-  const ms: MediaSession | undefined = navigator.mediaSession;
+  const ms = navigator.mediaSession;
   if (!ms || !info.title) return;
   ms.metadata = new MediaMetadata({
     title: info.title,
@@ -431,7 +410,7 @@ function updateYtMediaSession(root: HTMLElement, info: YtNowPlaying): void {
     ms.setActionHandler("pause", () => p?.pauseVideo?.());
     ms.setActionHandler("previoustrack", () => p?.previousVideo?.());
     ms.setActionHandler("nexttrack", () => p?.nextVideo?.());
-    ms.setActionHandler("seekto", (d: MediaSessionActionDetails) => {
+    ms.setActionHandler("seekto", (d) => {
       if (typeof d.seekTime === "number") p?.seekTo?.(d.seekTime, true);
     });
   } catch {
@@ -471,7 +450,7 @@ async function mountYouTubePlayer(
   const existing = ytPlayers.get(root);
   if (existing?.loadVideoById) {
     if (listId) existing.loadPlaylist?.({ listType: "playlist", list: listId });
-    else existing.loadVideoById(videoId);
+    else if (videoId) existing.loadVideoById(videoId);
     return;
   }
 
@@ -482,7 +461,8 @@ async function mountYouTubePlayer(
   const mount = document.createElement("div");
   target.appendChild(mount);
   const YT = window.YT;
-  const player: YT.Player = new YT.Player(mount, {
+  if (!YT) return;
+  const player: YtPlayerLike = new YT.Player(mount, {
     height: "100%",
     width: "100%",
     videoId: listId ? undefined : videoId,
@@ -498,9 +478,9 @@ async function mountYouTubePlayer(
         });
         renderYtBanner(root);
       },
-      onStateChange: (e: YT.OnStateChangeEvent) => {
+      onStateChange: (e) => {
         const data = player.getVideoData?.() ?? {};
-        const YTState = window.YT.PlayerState;
+        const YTState = YT.PlayerState;
         ytNowPlaying.set(root, {
           title: data.title ?? "",
           channel: data.author ?? "",
@@ -511,6 +491,7 @@ async function mountYouTubePlayer(
         // A local queue (Liked videos) has no native "next" of its own —
         // when a queued video ends, advance the queue ourselves.
         if (e.data === YTState.ENDED) advanceYtQueue(root, 1);
+      },
     },
   });
   ytPlayers.set(root, player);
@@ -617,10 +598,9 @@ function wireDockEvents(el: HTMLElement): void {
   el.querySelector('[data-role="yt-play"]')?.addEventListener("click", () => {
     const p = ytPlayers.get(el);
     if (!p?.getPlayerState) return;
-    const YTState = (window as unknown as { YT?: { PlayerState: Record<string, number> } })
-      .YT?.PlayerState;
-    if (p.getPlayerState() === YTState?.PLAYING) p.pauseVideo();
-    else p.playVideo();
+    const YTState = window.YT?.PlayerState;
+    if (p.getPlayerState() === YTState?.PLAYING) p.pauseVideo?.();
+    else p.playVideo?.();
   });
   el.querySelector('[data-role="yt-next"]')?.addEventListener("click", () => {
     if (advanceYtQueue(el, 1)) return;
@@ -1032,20 +1012,14 @@ function updateMediaSession(): void {
     ms.setActionHandler("pause", () => togglePlay());
     ms.setActionHandler("previoustrack", () => prev());
     ms.setActionHandler("nexttrack", () => next());
-    ms.setActionHandler(
-      "seekto",
-      (details: MediaSessionActionDetails & { seekTime?: number }) => {
-        if (typeof details.seekTime === "number") {
-          seek(details.seekTime * 1000);
-        }
-      }
-    );
-    if (state.durationMs) {
+    ms.setActionHandler("seekto", (details) => {
+      if (typeof details.seekTime === "number") seek(details.seekTime * 1000);
+    });
+    if (state.durationMs)
       ms.setPositionState?.({
         duration: state.durationMs / 1000,
         position: Math.min(state.progressMs / 1000, state.durationMs / 1000),
       });
-    }
   } catch {
     /* not all handlers are supported everywhere — best-effort */
   }
@@ -1056,12 +1030,8 @@ function updateMediaSession(): void {
  * (dock just stays inline) on browsers without the API — this mirrors
  * how the mini-clock PIP feature already degrades in this project.
  */
-interface DocumentPictureInPicture {
-  requestWindow(options: { width: number; height: number }): Promise<Window>;
-}
-
 async function popOut(): Promise<void> {
-  const dpip = (window as Window & { documentPictureInPicture?: DocumentPictureInPicture }).documentPictureInPicture;
+  const dpip = window.documentPictureInPicture;
   if (!dpip) return;
   const win: Window = await dpip.requestWindow({ width: 320, height: 120 });
   pipWindow = win;

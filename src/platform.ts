@@ -5,49 +5,34 @@
 // as classes on <html> so CSS can react with zero JS in the render path;
 // JS call sites use the exported CAPS/helpers instead of re-detecting.
 
-export type OSFamily =
-  | "ios"
-  | "ipados"
-  | "android"
-  | "macos"
-  | "windows"
-  | "linux"
-  | "other";
-export type Engine = "webkit" | "blink" | "gecko" | "other";
-export type Browser =
-  | "safari"
-  | "chrome"
-  | "edge"
-  | "samsung"
-  | "opera"
-  | "firefox"
-  | "other";
+export type OSFamily = 'ios' | 'ipados' | 'android' | 'macos' | 'windows' | 'linux' | 'other';
+export type Engine = 'webkit' | 'blink' | 'gecko' | 'other';
+export type Browser = 'safari' | 'chrome' | 'edge' | 'samsung' | 'opera' | 'firefox' | 'other';
 
 function detectOS(): OSFamily {
   const ua = navigator.userAgent;
-  const platform = navigator.platform || "";
+  const platform = navigator.platform || '';
   // iPadOS 13+ identifies as "MacIntel" with no "iPad" in the UA string —
   // the only reliable tell left is a Mac platform that also reports touch.
-  if (platform === "MacIntel" && navigator.maxTouchPoints > 1) return "ipados";
-  if (/iPad|iPhone|iPod/.test(ua)) return "ios";
-  if (/Android/.test(ua)) return "android";
-  if (/Mac/.test(platform)) return "macos";
-  if (/Win/.test(platform)) return "windows";
-  if (/Linux/.test(platform)) return "linux";
-  return "other";
+  if (platform === 'MacIntel' && navigator.maxTouchPoints > 1) return 'ipados';
+  if (/iPad|iPhone|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  if (/Mac/.test(platform)) return 'macos';
+  if (/Win/.test(platform)) return 'windows';
+  if (/Linux/.test(platform)) return 'linux';
+  return 'other';
 }
 
 function detectEngine(): Engine {
   const ua = navigator.userAgent;
-  if (/Firefox\//.test(ua)) return "gecko";
+  if (/Firefox\//.test(ua)) return 'gecko';
   // Chrome/Edge/Opera/Samsung Internet UAs all also contain "Safari", so
   // Blink has to be checked before WebKit or every Chromium browser on iOS
   // (which itself is *forced* to use WebKit under the hood, App Store rule)
   // would misreport. On iOS this correctly still resolves to 'webkit'.
-  if (/CriOS\/|Chrome\/|Chromium\/|Edg\/|OPR\/|SamsungBrowser\//.test(ua))
-    return "blink";
-  if (/Safari\//.test(ua) || /AppleWebKit\//.test(ua)) return "webkit";
-  return "other";
+  if (/CriOS\/|Chrome\/|Chromium\/|Edg\/|OPR\/|SamsungBrowser\//.test(ua)) return 'blink';
+  if (/Safari\//.test(ua) || /AppleWebKit\//.test(ua)) return 'webkit';
+  return 'other';
 }
 
 // Distinct from Engine: several browsers share Blink/WebKit but still have
@@ -57,24 +42,22 @@ function detectEngine(): Engine {
 // token is checked before the generic engine name it also contains.
 function detectBrowser(): Browser {
   const ua = navigator.userAgent;
-  if (/SamsungBrowser\//.test(ua)) return "samsung";
-  if (/Edg\//.test(ua)) return "edge";
-  if (/OPR\/|Opera/.test(ua)) return "opera";
-  if (/Firefox\//.test(ua)) return "firefox";
-  if (/CriOS\/|Chrome\/|Chromium\//.test(ua)) return "chrome";
-  if (/Safari\//.test(ua)) return "safari";
-  return "other";
+  if (/SamsungBrowser\//.test(ua)) return 'samsung';
+  if (/Edg\//.test(ua)) return 'edge';
+  if (/OPR\/|Opera/.test(ua)) return 'opera';
+  if (/Firefox\//.test(ua)) return 'firefox';
+  if (/CriOS\/|Chrome\/|Chromium\//.test(ua)) return 'chrome';
+  if (/Safari\//.test(ua)) return 'safari';
+  return 'other';
 }
 
 export const OS: OSFamily = detectOS();
 export const ENGINE: Engine = detectEngine();
 export const BROWSER: Browser = detectBrowser();
-export const IS_APPLE = OS === "ios" || OS === "ipados" || OS === "macos";
-export const IS_TOUCH =
-  matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+export const IS_APPLE = OS === 'ios' || OS === 'ipados' || OS === 'macos';
+export const IS_TOUCH = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 export const IS_STANDALONE =
-  matchMedia("(display-mode: standalone)").matches ||
-  (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
 /** Real feature probes (not UA sniffing) for the handful of CSS/JS features
  * that still vary enough across engines/versions to need a JS-level check
@@ -84,79 +67,66 @@ function detectFeatureFlags() {
   let backdropFilter = false;
   let dvh = false;
   try {
-    backdropFilter =
-      CSS.supports("backdrop-filter", "blur(1px)") ||
-      CSS.supports("-webkit-backdrop-filter", "blur(1px)");
-  } catch {
-    /* CSS.supports itself is missing on some very old engines */
-  }
+    backdropFilter = CSS.supports('backdrop-filter', 'blur(1px)') || CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
+  } catch { /* CSS.supports itself is missing on some very old engines */ }
   try {
-    dvh = CSS.supports("height", "100dvh");
-  } catch {
-    /* same */
-  }
+    dvh = CSS.supports('height', '100dvh');
+  } catch { /* same */ }
   return {
     backdropFilter,
     dvh,
-    requestIdleCallback: "requestIdleCallback" in window,
-    hasSafeArea: CSS.supports?.("padding: env(safe-area-inset-top)") ?? false,
+    requestIdleCallback: 'requestIdleCallback' in window,
+    hasSafeArea: CSS.supports?.('padding: env(safe-area-inset-top)') ?? false,
   };
 }
 export const FEATURES = detectFeatureFlags();
+
+// Real probe (not UA sniffing) for Ogg/Opus playback — the format the
+// recorded ambient sound tracks (sound.ts / soundfiles.ts) ship in.
 // Chrome/Firefox/Edge have decoded Ogg Opus for years; Safari/WebKit only
 // gained it in Safari 17 (macOS Sonoma / iOS 17, both 2023), and there's no
 // reliable UA signal for that version gap, so this asks the engine
 // directly instead of guessing.
 function detectOggOpus(): boolean {
   try {
-    const can = document
-      .createElement("audio")
-      .canPlayType('audio/ogg; codecs="opus"');
-    return can === "probably" || can === "maybe";
+    const can = document.createElement('audio').canPlayType('audio/ogg; codecs="opus"');
+    return can === 'probably' || can === 'maybe';
   } catch {
     return false; // canPlayType itself is missing on some very old engines
   }
-}
-
-// Type definitions for unstandardized APIs
-interface Connection {
-  saveData?: boolean;
-  effectiveType?: "slow-2g" | "2g" | "3g" | "4g";
-}
-
-interface DeviceOrientationEventConstructorWithPermission {
-  requestPermission?: () => Promise<"granted" | "denied">;
 }
 
 // navigator.connection is Chromium-only and unstandardized, so this is a
 // bonus optimization signal where available and a silent no-op (defaults
 // to "not slow/saving") everywhere else — never gates a feature entirely.
 function detectSlowConnection(): boolean {
-  const conn = (navigator as Navigator & { connection?: Connection })
-    .connection;
-  return (
-    !!conn?.saveData ||
-    conn?.effectiveType === "slow-2g" ||
-    conn?.effectiveType === "2g"
-  );
+  const conn = navigator.connection;
+  return !!conn?.saveData || conn?.effectiveType === 'slow-2g' || conn?.effectiveType === '2g';
+}
+
+/** iOS 13+ exposes a static requestPermission() on DeviceOrientationEvent;
+ *  it's absent from the DOM lib, so it's typed here. */
+function iosOrientationEvent():
+  | { requestPermission?: () => Promise<'granted' | 'denied'> }
+  | undefined {
+  return (window as Window & { DeviceOrientationEvent?: unknown })
+    .DeviceOrientationEvent as
+    | { requestPermission?: () => Promise<'granted' | 'denied'> }
+    | undefined;
 }
 
 export const CAPS = {
   // Vibration API — Android Chrome/Firefox support it; iOS Safari (and thus
   // every browser on iOS, since they all run on WebKit) never has, by policy.
-  vibration: "vibrate" in navigator,
+  vibration: 'vibrate' in navigator,
   // Document Picture-in-Picture — Chromium only. Used for the mini-clock
   // and music-dock pop-out; both already degrade gracefully, this just
   // lets CSS hide the trigger entirely instead of showing a dead button.
-  documentPiP: "documentPictureInPicture" in window,
-  deviceOrientation: "DeviceOrientationEvent" in window,
+  documentPiP: 'documentPictureInPicture' in window,
+  deviceOrientation: 'DeviceOrientationEvent' in window,
   deviceOrientationNeedsPermission:
-    typeof (
-      window as typeof window & {
-        DeviceOrientationEvent?: DeviceOrientationEventConstructorWithPermission;
-      }
-    ).DeviceOrientationEvent?.requestPermission === "function",
-  webShare: typeof navigator.share === "function",
+    typeof iosOrientationEvent()?.requestPermission === 'function',
+  webShare: typeof navigator.share === 'function',
   // Recorded-audio ambient tracks (sound.ts) gate on this and fall back to
   // their procedural WebAudio synthesis (or, for the tracks with no
   // synthesized version, a disabled toggle) when it's false.
@@ -166,36 +136,35 @@ export const CAPS = {
   saveData: detectSlowConnection(),
 };
 
+/** Sets classes on <html> once at boot — call as early as possible. */
+export function applyPlatformClasses(): void {
+  const cl = document.documentElement.classList;
+  cl.add(`platform-${OS}`, `engine-${ENGINE}`, `browser-${BROWSER}`);
+  cl.toggle('is-apple', IS_APPLE);
+  cl.toggle('is-touch', IS_TOUCH);
+  cl.toggle('is-standalone', IS_STANDALONE);
+  cl.toggle('no-vibration', !CAPS.vibration);
+  cl.toggle('no-doc-pip', !CAPS.documentPiP);
+  cl.toggle('no-backdrop-filter', !FEATURES.backdropFilter);
+  cl.toggle('no-dvh', !FEATURES.dvh);
+  cl.toggle('no-ogg-opus', !CAPS.oggOpus);
+  cl.toggle('save-data', CAPS.saveData);
+}
+
 /** Small, human-readable summary for a Settings/diagnostics panel — lets
  * someone reporting a rendering bug see exactly what Session Clock detected
  * about their browser instead of guessing from a screenshot. */
 export function platformSummary(): { label: string; value: string }[] {
   return [
-    { label: "OS", value: OS },
-    { label: "Engine", value: ENGINE },
-    { label: "Browser", value: BROWSER },
-    { label: "Standalone/PWA", value: IS_STANDALONE ? "Yes" : "No" },
-    { label: "Touch input", value: IS_TOUCH ? "Yes" : "No" },
-    {
-      label: "Backdrop blur",
-      value: FEATURES.backdropFilter
-        ? "Supported"
-        : "Unsupported (fallback active)",
-    },
-    {
-      label: "Dynamic viewport",
-      value: FEATURES.dvh ? "Supported" : "Unsupported (100vh fallback)",
-    },
-    {
-      label: "Haptics",
-      value: CAPS.vibration ? "Supported" : "Unsupported (WebKit/iOS has none)",
-    },
-    {
-      label: "Recorded ambience",
-      value: CAPS.oggOpus
-        ? "Ogg/Opus supported"
-        : "Unsupported — using synthesized fallback",
-    },
+    { label: 'OS',              value: OS },
+    { label: 'Engine',          value: ENGINE },
+    { label: 'Browser',         value: BROWSER },
+    { label: 'Standalone/PWA',  value: IS_STANDALONE ? 'Yes' : 'No' },
+    { label: 'Touch input',     value: IS_TOUCH ? 'Yes' : 'No' },
+    { label: 'Backdrop blur',   value: FEATURES.backdropFilter ? 'Supported' : 'Unsupported (fallback active)' },
+    { label: 'Dynamic viewport',value: FEATURES.dvh ? 'Supported' : 'Unsupported (100vh fallback)' },
+    { label: 'Haptics',         value: CAPS.vibration ? 'Supported' : 'Unsupported (WebKit/iOS has none)' },
+    { label: 'Recorded ambience', value: CAPS.oggOpus ? 'Ogg/Opus supported' : 'Unsupported — using synthesized fallback' },
   ];
 }
 
@@ -208,12 +177,8 @@ export function platformSummary(): { label: string; value: string }[] {
  */
 export function haptic(pattern: number | number[] = 12): void {
   if (!CAPS.vibration) return;
-  if (localStorage.getItem("sc_haptics") === "0") return;
-  try {
-    navigator.vibrate(pattern);
-  } catch {
-    /* some browsers throw outside a user gesture */
-  }
+  if (localStorage.getItem('sc_haptics') === '0') return;
+  try { navigator.vibrate(pattern); } catch { /* some browsers throw outside a user gesture */ }
 }
 
 // ── Global tap haptics ───────────────────────────────────────────────
@@ -232,39 +197,23 @@ export function haptic(pattern: number | number[] = 12): void {
 // <html> covers the whole app: any tap on an interactive control gets a
 // light tick, any drag-grab of a slider gets one too. Call once at boot.
 const HAPTIC_TAP_SELECTOR = [
-  "button",
-  ".btn",
-  ".scene-btn",
-  ".pill",
-  ".pill-group button",
-  ".track-toggle",
-  ".mixer-night-toggle",
-  ".modal-close",
-  ".theme-card",
-  ".tab-btn",
-  ".kb-item",
-  ".sc-tab",
-  '[role="button"]',
-  ".saved-theme-chip",
-  'input[type="range"]',
-  'input[type="checkbox"]',
-].join(", ");
+  'button', '.btn', '.scene-btn', '.pill', '.pill-group button',
+  '.track-toggle', '.mixer-night-toggle', '.modal-close', '.theme-card',
+  '.tab-btn', '.kb-item', '.sc-tab', '[role="button"]', '.saved-theme-chip',
+  'input[type="range"]', 'input[type="checkbox"]',
+].join(', ');
 
 let globalHapticsBound = false;
 export function bindGlobalHaptics(): void {
   if (globalHapticsBound || !CAPS.vibration) return;
   globalHapticsBound = true;
-  document.addEventListener(
-    "pointerdown",
-    (e) => {
-      const target = e.target as HTMLElement | null;
-      if (!target || !target.closest) return;
-      const el = target.closest<HTMLElement>(HAPTIC_TAP_SELECTOR);
-      if (!el || (el as HTMLButtonElement).disabled) return;
-      haptic(6);
-    },
-    { passive: true, capture: true },
-  );
+  document.addEventListener('pointerdown', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target || !target.closest) return;
+    const el = target.closest<HTMLElement>(HAPTIC_TAP_SELECTOR);
+    if (!el || (el as HTMLButtonElement).disabled) return;
+    haptic(6);
+  }, { passive: true, capture: true });
 }
 
 let motionGranted = !CAPS.deviceOrientationNeedsPermission;
@@ -278,12 +227,8 @@ export async function requestMotionPermission(): Promise<boolean> {
   if (!CAPS.deviceOrientation) return false;
   if (motionGranted) return true;
   try {
-    const result = await (
-      window.DeviceOrientationEvent as {
-        requestPermission(): Promise<"granted" | "denied">;
-      }
-    ).requestPermission();
-    motionGranted = result === "granted";
+    const result = await iosOrientationEvent()?.requestPermission?.();
+    motionGranted = result === 'granted';
   } catch {
     motionGranted = false;
   }
@@ -296,25 +241,17 @@ export async function requestMotionPermission(): Promise<boolean> {
 // own 'deviceorientation' listener (duplicate work on every device tilt,
 // and duplicate iOS-permission bookkeeping), they subscribe here — the
 // real browser listener is attached lazily, once, on first subscriber.
-export interface OrientationSample {
-  alpha: number | null;
-  beta: number | null;
-  gamma: number | null;
-}
+export interface OrientationSample { alpha: number | null; beta: number | null; gamma: number | null; }
 type OrientationCB = (o: OrientationSample) => void;
 const orientationSubs = new Set<OrientationCB>();
 let orientationAttached = false;
 function attachOrientationListener(): void {
   if (orientationAttached || !CAPS.deviceOrientation) return;
   orientationAttached = true;
-  window.addEventListener("deviceorientation", (e: DeviceOrientationEvent) => {
+  window.addEventListener('deviceorientation', (e: DeviceOrientationEvent) => {
     if (orientationSubs.size === 0) return;
-    const sample: OrientationSample = {
-      alpha: e.alpha,
-      beta: e.beta,
-      gamma: e.gamma,
-    };
-    orientationSubs.forEach((cb) => cb(sample));
+    const sample: OrientationSample = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
+    orientationSubs.forEach(cb => cb(sample));
   });
 }
 /**
