@@ -18,7 +18,10 @@ interface Navigator {
 interface DocumentPictureInPictureWindow extends Window {}
 
 interface DocumentPictureInPicture {
-  requestWindow(options?: { width?: number; height?: number }): Promise<DocumentPictureInPictureWindow>;
+  requestWindow(options?: {
+    width?: number;
+    height?: number;
+  }): Promise<DocumentPictureInPictureWindow>;
 }
 
 interface Window {
@@ -28,7 +31,7 @@ interface Window {
 
 interface DeviceMotionEventConstructor {
   /** iOS 13+ gates motion events behind an explicit user-gesture permission prompt. */
-  requestPermission?: () => Promise<'granted' | 'denied'>;
+  requestPermission?: () => Promise<"granted" | "denied">;
 }
 
 // ── Non-standard / vendor-prefixed browser APIs ──────────────────────────
@@ -38,7 +41,7 @@ interface DeviceMotionEventConstructor {
 /** Network Information API — Chromium-only, unstandardized. */
 interface NetworkInformationLike {
   saveData?: boolean;
-  effectiveType?: 'slow-2g' | '2g' | '3g' | '4g' | (string & {});
+  effectiveType?: "slow-2g" | "2g" | "3g" | "4g" | (string & {});
 }
 
 interface Navigator {
@@ -117,7 +120,7 @@ interface Window {
   __scTriggerKeyword?: (keyword: string) => void;
   __checkMidnight?: () => void;
   __scIncognito?: () => boolean;
-  __scPalette?: typeof import('./palette');
+  __scPalette?: typeof import("./palette");
   __zenMoveHandler?: EventListener;
   __onSyncComplete?: (rttMs: number) => void;
   __onSyncFail?: () => void;
@@ -149,11 +152,11 @@ interface SpotifyPlaybackStateLike {
 }
 interface SpotifyPlayerLike {
   addListener(
-    event: 'ready' | 'not_ready',
+    event: "ready" | "not_ready",
     cb: (p: { device_id: string }) => void,
   ): void;
   addListener(
-    event: 'player_state_changed',
+    event: "player_state_changed",
     cb: (s: SpotifyPlaybackStateLike | null) => void,
   ): void;
   connect(): Promise<boolean>;
