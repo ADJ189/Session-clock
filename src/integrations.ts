@@ -1,5 +1,3 @@
-
-
 // ── Third-party API response shapes (only the fields read below) ────────
 interface YtPlaylistItemApi {
   snippet?: {
@@ -763,12 +761,14 @@ export async function getTodoistTasks(): Promise<TodoistTask[]> {
       },
     );
     const d = await res.json();
-    return (Array.isArray(d) ? d : []).slice(0, 10).map((t: TodoistTaskApi) => ({
-      id: t.id,
-      content: t.content,
-      priority: t.priority,
-      due: t.due?.string ?? "",
-    }));
+    return (Array.isArray(d) ? d : [])
+      .slice(0, 10)
+      .map((t: TodoistTaskApi) => ({
+        id: t.id,
+        content: t.content,
+        priority: t.priority,
+        due: t.due?.string ?? "",
+      }));
   } catch {
     return [];
   }

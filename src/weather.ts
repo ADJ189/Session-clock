@@ -230,7 +230,10 @@ interface WeatherData {
   };
 }
 
-async function fetchWeatherData(lat: number, lon: number): Promise<WeatherData> {
+async function fetchWeatherData(
+  lat: number,
+  lon: number,
+): Promise<WeatherData> {
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
@@ -340,11 +343,13 @@ export async function initWeather(
       const nowIdx =
         hourly?.time?.findIndex((t: string) => new Date(t) > new Date()) ?? 0;
       _hourlyForecast = hourly
-        ? hourly.time.slice(nowIdx, nowIdx + 24).map((t: string, i: number) => ({
-            time: t,
-            temp: Math.round(hourly.temperature_2m[nowIdx + i]),
-            code: hourly.weathercode[nowIdx + i],
-          }))
+        ? hourly.time
+            .slice(nowIdx, nowIdx + 24)
+            .map((t: string, i: number) => ({
+              time: t,
+              temp: Math.round(hourly.temperature_2m[nowIdx + i]),
+              code: hourly.weathercode[nowIdx + i],
+            }))
         : [];
 
       // Parse daily (7 days)
