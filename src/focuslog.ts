@@ -40,8 +40,15 @@ export function focusLogCount(): number {
 const load = readFocusLog;
 const save = writeFocusLog;
 
-export function record(task: string, durMs: number) {
-  if (durMs < 5000) return;
+/**
+ * Records a finished session. Returns the entry that was written, or null if
+ * nothing was recorded (too short, or Private Focus Log is on) — callers that
+ * need to amend *this* session later (e.g. its rating) must hold on to it and
+ * look it up with findEntry(), because position 0 can change underneath them
+ * when another tab records a newer session.
+ */
+export function record(task: string, durMs: number): LogEntry | null {
+  if (durMs < 5000) return null;
   const entry = {
     time: Date.now(),
     task: task || "Untitled session",
@@ -50,9 +57,17 @@ export function record(task: string, durMs: number) {
   };
   // Check incognito — import avoided via dynamic check on window
   const isIncognito = window.__scIncognito?.() ?? false;
-  if (isIncognito) return; // don't persist
+  if (isIncognito) return null; // don't persist
   const entries = load();
   entries.unshift(entry);
   if (entries.length > 500) entries.pop();
   save(entries);
+  return entry;
+}
+
+/** Finds the stored copy of an entry previously returned by record(). */
+export function findEntry(log: LogEntry[], rec: LogEntry): LogEntry | undefined {
+  return log.find(
+    (e) => e.time === rec.time && e.dur === rec.dur && e.task === rec.task,
+  );
 }

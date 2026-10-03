@@ -112,6 +112,7 @@ interface Window {
   __splashT0?: number;
   /** Boot guard hooks, defined by the inline script in index.html. */
   __bootCompleted?: boolean;
+  __scRealStorage?: { localStorage?: Storage; sessionStorage?: Storage };
   __bootFailed?: boolean;
   __scBootFail?: (reason: string, isFatal?: boolean) => void;
   __scBootOk?: () => void;

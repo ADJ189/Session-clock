@@ -281,8 +281,7 @@ function resetTimer() {
   const dur = sessionRunning
     ? performance.now() - sessionStart
     : sessionElapsed;
-  const endedAt = Date.now();
-  Log.record(DOM.focusInput.value.trim(), dur);
+  const recorded = Log.record(DOM.focusInput.value.trim(), dur);
   Features.updateDistractionUI(false);
   if (dur > 60_000) {
     window.__uiSounds?.sessionEnd?.();
@@ -321,16 +320,18 @@ function resetTimer() {
       DOM.focusInput.value.trim(),
       (rating) => {
         if (rating > 0) {
-          // Log.record() prepends, so the session just finished is entry 0.
-          // Only rate it if it really was recorded just now: a Private Focus
-          // Log session isn't written, and rating entry 0 then would silently
-          // overwrite an older, unrelated session.
+          // Rate the exact entry this session wrote, found by identity. Not
+          // "entry 0": another tab may have recorded a newer session while
+          // the prompt was open, and a Private Focus Log session writes
+          // nothing at all (recorded is null) — either way, rating whatever
+          // sits first would land on an unrelated session.
+          if (!recorded) return;
           const log = Log.readFocusLog();
-          const latest = log[0] as
-            | { time: number; rating?: number }
+          const mine = Log.findEntry(log, recorded) as
+            | (typeof recorded & { rating?: number })
             | undefined;
-          if (latest && latest.time >= endedAt - 1000) {
-            latest.rating = rating;
+          if (mine) {
+            mine.rating = rating;
             Log.writeFocusLog(log);
           }
         }
@@ -7041,8 +7042,14 @@ function buildCommandPalette() {
           ["📊 FPS", fps],
           ["💾 localStorage (est.)", `${(lsSize / 1024).toFixed(1)} KB`],
           ["🎨 Themes", window.__scThemeCount?.() ?? "?"],
-          ["📋 Sessions", Log.focusLogCount()],
-          ["🔥 Streak", `${Intel.getStreak().current} days`],
+          [
+            "📋 Sessions",
+            Log.focusLogCount(),
+          ],
+          [
+            "🔥 Streak",
+            `${Intel.getStreak().current} days`,
+          ],
         ];
         rows.forEach(([label, value]) => {
           const line = document.createElement("div");
