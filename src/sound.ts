@@ -583,7 +583,7 @@ function makeForest(): { out: AudioNode; nodes: AudioNode[] } {
   // Expose stop hook via a dummy AudioNode with custom cleanup
   const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => {
+  stopProxy._customStop = () => {
     chirpActive = false;
   };
   nodes.push(stopProxy);
@@ -720,7 +720,7 @@ function makeKeyboard(): { out: AudioNode; nodes: AudioNode[] } {
 
   const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => {
+  stopProxy._customStop = () => {
     active = false;
   };
 
@@ -790,7 +790,7 @@ function makeLibrary(): { out: AudioNode; nodes: AudioNode[] } {
 
   const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => {
+  stopProxy._customStop = () => {
     active = false;
   };
 
@@ -1005,7 +1005,7 @@ function makeCampfire(): { out: AudioNode; nodes: AudioNode[] } {
 
   const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => {
+  stopProxy._customStop = () => {
     active = false;
   };
 
@@ -1083,7 +1083,7 @@ function makeWavesRocks(): { out: AudioNode; nodes: AudioNode[] } {
 
   const stopProxy = ctx!.createGain();
   stopProxy.gain.value = 0;
-  (stopProxy as any)._customStop = () => {
+  stopProxy._customStop = () => {
     active = false;
   };
 
@@ -1179,15 +1179,15 @@ export function playTrack(id: string) {
   made.out.connect(g);
   g.connect(analyser!);
   made.nodes.forEach((n) => {
-    if ((n as any)._customStop) return; // skip custom stop proxies
+    if (n._customStop) return; // skip custom stop proxies
     if (
       "start" in n &&
       typeof (n as AudioScheduledSourceNode).start === "function" &&
-      !(n as any)._started
+      !n._started
     ) {
       try {
         (n as AudioScheduledSourceNode).start();
-        (n as any)._started = true;
+        n._started = true;
       } catch {}
     }
   });
@@ -1206,8 +1206,8 @@ export function stopTrack(id: string) {
   detachSpatialRig(id, t.gain);
   t.nodes.forEach((n) => {
     // Call custom cleanup hook if present (chirp/crackle schedulers)
-    if ((n as any)._customStop) {
-      (n as any)._customStop();
+    if (n._customStop) {
+      n._customStop();
       return;
     }
     try {

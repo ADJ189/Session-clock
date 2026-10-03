@@ -7,10 +7,11 @@
   Cross-Origin-Opener-Policy: same-origin-allow-popups
   Cross-Origin-Resource-Policy: same-origin
 
-/*.js
-  Cache-Control: public, max-age=31536000, immutable
-
-/*.css
+# Only Vite's content-hashed output is safe to cache "forever". The old
+# /*.js and /*.css globs also matched /sw.js — and Cloudflare Pages *merges*
+# every matching rule's headers rather than letting the later one win, so
+# sw.js was being served with both "immutable, max-age=1y" and "no-store".
+/assets/*
   Cache-Control: public, max-age=31536000, immutable
 
 /sounds/*.opus
@@ -18,8 +19,11 @@
   Cache-Control: public, max-age=31536000, immutable
   Accept-Ranges: bytes
 
+# no-cache (revalidate every load) instead of no-store: same freshness, but
+# no-store disables the browser's back/forward cache (a Lighthouse
+# best-practices/perf finding).
 /index.html
-  Cache-Control: no-cache, no-store, must-revalidate
+  Cache-Control: no-cache
 
 /sw.js
   Cache-Control: no-cache, no-store, must-revalidate

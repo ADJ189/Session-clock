@@ -261,6 +261,20 @@ function buildWeatherPageDOM(): HTMLElement {
 // flight — same stale-response race as the Music Dock lyrics lookup.
 let searchRequestId = 0;
 
+/** The subset of a Nominatim /search result (addressdetails=1) used below. */
+interface NominatimResult {
+  display_name: string;
+  lat: string;
+  lon: string;
+  address?: {
+    city?: string;
+    town?: string;
+    village?: string;
+    state?: string;
+    country?: string;
+  };
+}
+
 async function searchCity(query: string, overlay: HTMLElement) {
   const results = overlay.querySelector("#weatherLocResults") as HTMLElement;
   results.innerHTML = '<div class="weather-loc-loading">Searching…</div>';
@@ -271,7 +285,7 @@ async function searchCity(query: string, overlay: HTMLElement) {
       { headers: { "Accept-Language": "en" } },
       8000,
     );
-    const data = await res.json();
+    const data: NominatimResult[] = await res.json();
     if (myRequestId !== searchRequestId) return; // a newer search has since started — this result is stale
     results.innerHTML = "";
     if (!data.length) {
@@ -279,7 +293,7 @@ async function searchCity(query: string, overlay: HTMLElement) {
         '<div class="weather-loc-loading">No results found</div>';
       return;
     }
-    data.forEach((item: any) => {
+    data.forEach((item: NominatimResult) => {
       const name =
         item.address?.city ||
         item.address?.town ||

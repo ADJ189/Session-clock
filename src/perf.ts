@@ -31,15 +31,12 @@ function detectTier(): QualityTier {
   if (override === "low" || override === "med" || override === "high")
     return override;
 
-  const nav = navigator as Navigator & {
-    deviceMemory?: number;
-    hardwareConcurrency?: number;
-  };
+  const nav = navigator;
 
   // Signals: RAM, CPU cores, connection, device pixel ratio
   const ram = nav.deviceMemory ?? 4; // GB; undefined = assume 4
   const cores = nav.hardwareConcurrency ?? 4;
-  const conn = (navigator as any).connection?.effectiveType ?? "4g";
+  const conn = navigator.connection?.effectiveType ?? "4g";
   const dpr = window.devicePixelRatio ?? 1;
   const touch = navigator.maxTouchPoints > 0; // mobile proxy
 
