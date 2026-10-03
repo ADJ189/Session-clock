@@ -9,6 +9,22 @@ All notable changes to Session Clock are documented here.
 > `1.76` below is the first release under this scheme, since this update
 > bundles several larger changes together.
 
+## [1.99] — First-load reliability: boot guard, safe storage, critical splash CSS
+
+Fixes the intermittent "giant splash logo, nothing else loads until refresh" and "loads halfway then stops" reports. The splash PNG format was not the cause.
+
+### Fixed
+- **Startup could be killed by one corrupt `localStorage` value.** `init()` parsed `sc_focus_log` with a bare `JSON.parse`; malformed data threw, aborted the rest of startup, and the 3s splash timer then revealed the half-wired app. All `sc_focus_log` access now goes through `readFocusLog()`/`writeFocusLog()`/`focusLogCount()` in `src/focuslog.ts` (malformed or non-array data → empty log, and the bad value is removed). Same hardening for `sc_streak`, `sc_velocity`, `sc_custom_themes` and the per-day Pomodoro counts.
+- **Giant splash logo on a cold load.** The splash geometry lived only in the 150 KB+ external `style.css`, so until it arrived the 664×693 PNGs rendered at natural size. The critical splash layout is now inline in `<head>`, and the images have explicit `width`/`height`.
+- **Splash watchdog hid failures.** The unconditional 3s timer is replaced by a boot guard: a fatal startup error (including a failed script load) shows a Reload / Reset-local-data screen instead of a broken app; a merely slow start shows a "Still loading…" hint with Reload, and only fails at 15s (cleared if the app boots late).
+- **Module-level storage reads could throw before init** (`apis`, `i18n`, `perf`, `sound`, `privacy`, `main`) when storage is blocked. They use `safeGet()`, and `index.html` installs an in-memory stand-in if `localStorage`/`sessionStorage` is unusable.
+- **Session rating could overwrite the wrong session** — it was written to the *last* log entry, but new entries are *prepended* (and none is recorded in Private Focus Log), so the oldest/an unrelated session got the rating. It now rates only the entry just recorded.
+
+### Changed
+- New `src/storage.ts` (`safeGet/safeSet/safeRemove/safeJsonGet/safeJsonSet`).
+- Service-worker registration failures are logged instead of swallowed.
+- Legal text and GitHub stats are lazy-loaded (off the startup bundle; main chunk −7.5 KB).
+
 ## [1.98] — Redesigned toasts, sound mixer & Settings icon system, cross-browser fixes
 
 A pass over the three surfaces that read as "generic" compared to the rest of the app — toast popups, the sound mixer, and Settings — inspired by Apple's own notification/Settings-app conventions and Metrolist's per-item colored icon tiles, plus a real (not just claimed) cross-browser audit.
