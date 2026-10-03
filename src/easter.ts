@@ -530,13 +530,10 @@ function openDevConsole() {
     ["🔊 Audio nodes", audioNodes],
     ["💾 localStorage (est.)", `${(lsSize / 1024).toFixed(1)} KB`],
     ["🎨 Themes", window.__scThemeCount?.() ?? "?"],
-    [
-      "📋 Sessions",
-      focusLogCount(),
-    ],
+    ["📋 Sessions", focusLogCount()],
     [
       "🔥 Streak",
-      `${(safeJsonGet<{ current?: number } | null>("sc_streak", null)?.current ?? 0)} days`,
+      `${safeJsonGet<{ current?: number } | null>("sc_streak", null)?.current ?? 0} days`,
     ],
   ];
 
@@ -807,9 +804,7 @@ export function isPhoenixUnlocked(): boolean {
     localStorage.getItem("sc_phoenix_unlocked") === "1" ||
     (() => {
       try {
-        return (
-          focusLogCount() >= 100
-        );
+        return focusLogCount() >= 100;
       } catch {
         return false;
       }

@@ -66,7 +66,10 @@ export function record(task: string, durMs: number): LogEntry | null {
 }
 
 /** Finds the stored copy of an entry previously returned by record(). */
-export function findEntry(log: LogEntry[], rec: LogEntry): LogEntry | undefined {
+export function findEntry(
+  log: LogEntry[],
+  rec: LogEntry,
+): LogEntry | undefined {
   return log.find(
     (e) => e.time === rec.time && e.dur === rec.dur && e.task === rec.task,
   );

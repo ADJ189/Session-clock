@@ -7042,14 +7042,8 @@ function buildCommandPalette() {
           ["📊 FPS", fps],
           ["💾 localStorage (est.)", `${(lsSize / 1024).toFixed(1)} KB`],
           ["🎨 Themes", window.__scThemeCount?.() ?? "?"],
-          [
-            "📋 Sessions",
-            Log.focusLogCount(),
-          ],
-          [
-            "🔥 Streak",
-            `${Intel.getStreak().current} days`,
-          ],
+          ["📋 Sessions", Log.focusLogCount()],
+          ["🔥 Streak", `${Intel.getStreak().current} days`],
         ];
         rows.forEach(([label, value]) => {
           const line = document.createElement("div");
