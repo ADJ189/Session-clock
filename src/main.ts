@@ -326,7 +326,9 @@ function resetTimer() {
           // Log session isn't written, and rating entry 0 then would silently
           // overwrite an older, unrelated session.
           const log = Log.readFocusLog();
-          const latest = log[0] as { time: number; rating?: number } | undefined;
+          const latest = log[0] as
+            | { time: number; rating?: number }
+            | undefined;
           if (latest && latest.time >= endedAt - 1000) {
             latest.rating = rating;
             Log.writeFocusLog(log);
@@ -7039,14 +7041,8 @@ function buildCommandPalette() {
           ["📊 FPS", fps],
           ["💾 localStorage (est.)", `${(lsSize / 1024).toFixed(1)} KB`],
           ["🎨 Themes", window.__scThemeCount?.() ?? "?"],
-          [
-            "📋 Sessions",
-            Log.focusLogCount(),
-          ],
-          [
-            "🔥 Streak",
-            `${Intel.getStreak().current} days`,
-          ],
+          ["📋 Sessions", Log.focusLogCount()],
+          ["🔥 Streak", `${Intel.getStreak().current} days`],
         ];
         rows.forEach(([label, value]) => {
           const line = document.createElement("div");

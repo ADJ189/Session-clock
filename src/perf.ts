@@ -16,9 +16,7 @@ let tier: QualityTier = "high";
 // signal for "the user explicitly chose this" specifically because
 // nothing else ever wrote it, which is what lets this infer the correct
 // starting mode below without a migration.
-let qualityMode: QualityMode = safeGet("sc_quality")
-  ? "fixed"
-  : "auto";
+let qualityMode: QualityMode = safeGet("sc_quality") ? "fixed" : "auto";
 let frameCount = 0;
 let fps = 60;
 let lastFpsTs = performance.now();
