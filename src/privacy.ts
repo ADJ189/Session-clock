@@ -1,6 +1,8 @@
 // ── Privacy & Data Management ─────────────────────────────────────────
 // All data is local. This module provides transparency + control.
 
+import { safeGet } from "./storage";
+
 // Complete map of every localStorage key and what it holds
 export interface DataCategory {
   id: string;
@@ -234,7 +236,7 @@ export function setIncognito(v: boolean) {
 }
 
 // ── Auto-clear on close ───────────────────────────────────────────────
-let _autoClear = localStorage.getItem("sc_auto_clear") === "1";
+let _autoClear = safeGet("sc_auto_clear") === "1";
 
 export function isAutoClear() {
   return _autoClear;

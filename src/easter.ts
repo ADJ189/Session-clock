@@ -2,6 +2,8 @@
 // All self-contained. Imported and initialised once in main.ts.
 
 import { localStorageBytes } from "./utils";
+import { focusLogCount } from "./focuslog";
+import { safeJsonGet } from "./storage";
 import { reducedMotion } from "./motion";
 
 // ── 1. Konami Code → 8-bit theme ─────────────────────────────────────
@@ -408,7 +410,7 @@ function triggerDeathNoteEgg() {
   const lines = [
     "L speaking.",
     "I've been observing your sessions.",
-    `You have completed ${JSON.parse(localStorage.getItem("sc_focus_log") || "[]").length} sessions.`,
+    `You have completed ${focusLogCount()} sessions.`,
     "Productivity level: Kira-tier.",
     "...I'll take the case.",
   ];
@@ -530,11 +532,11 @@ function openDevConsole() {
     ["🎨 Themes", window.__scThemeCount?.() ?? "?"],
     [
       "📋 Sessions",
-      JSON.parse(localStorage.getItem("sc_focus_log") || "[]").length,
+      focusLogCount(),
     ],
     [
       "🔥 Streak",
-      `${JSON.parse(localStorage.getItem("sc_streak") || '{"current":0}').current} days`,
+      `${(safeJsonGet<{ current?: number } | null>("sc_streak", null)?.current ?? 0)} days`,
     ],
   ];
 
@@ -784,7 +786,7 @@ export function getSiderealTime(lat: number): string {
 function check100Sessions() {
   const sessions = (() => {
     try {
-      return JSON.parse(localStorage.getItem("sc_focus_log") || "[]").length;
+      return focusLogCount();
     } catch {
       return 0;
     }
@@ -806,7 +808,7 @@ export function isPhoenixUnlocked(): boolean {
     (() => {
       try {
         return (
-          JSON.parse(localStorage.getItem("sc_focus_log") || "[]").length >= 100
+          focusLogCount() >= 100
         );
       } catch {
         return false;

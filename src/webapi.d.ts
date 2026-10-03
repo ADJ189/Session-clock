@@ -110,6 +110,11 @@ interface ScUiSounds {
  *  they're assigned during boot, so callers must tolerate them being absent. */
 interface Window {
   __splashT0?: number;
+  /** Boot guard hooks, defined by the inline script in index.html. */
+  __bootCompleted?: boolean;
+  __bootFailed?: boolean;
+  __scBootFail?: (reason: string, isFatal?: boolean) => void;
+  __scBootOk?: () => void;
   __scLat?: number;
   __uiSounds?: ScUiSounds;
   __scFps?: () => number;

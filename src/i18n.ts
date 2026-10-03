@@ -3,6 +3,7 @@
 // Keys used across main.ts UI strings
 
 export type Locale = 'en'|'es'|'fr'|'de'|'ja'|'ko'|'pt'|'hi';
+import { safeGet } from './storage';
 
 export const LOCALE_NAMES: Record<Locale, string> = {
   en: 'English', es: 'Español', fr: 'Français', de: 'Deutsch',
@@ -418,7 +419,7 @@ const hi: Strings = {
 const LOCALES: Record<Locale, Strings> = { en, es, fr, de, ja, ko, pt, hi };
 
 const STORAGE_KEY = 'sc_locale';
-let _current: Locale = (localStorage.getItem(STORAGE_KEY) as Locale) || detectLocale();
+let _current: Locale = (safeGet(STORAGE_KEY) as Locale) || detectLocale();
 
 function detectLocale(): Locale {
   const lang = navigator.language.slice(0, 2).toLowerCase();

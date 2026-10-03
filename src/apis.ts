@@ -3,6 +3,7 @@
 
 // ── Notifications ─────────────────────────────────────────────────────
 let notifEnabled = false;
+import { safeGet } from './storage';
 
 export async function requestNotifications(): Promise<boolean> {
   if (!('Notification' in window)) return false;
@@ -79,7 +80,7 @@ export function clearMediaSession() {
 
 // ── Wake Lock ─────────────────────────────────────────────────────────
 let wakeLock: WakeLockSentinel | null = null;
-let _wakeLockEnabled = localStorage.getItem('sc_wake_lock') === '1';
+let _wakeLockEnabled = safeGet('sc_wake_lock') === '1';
 
 export function isWakeLockEnabled() { return _wakeLockEnabled; }
 

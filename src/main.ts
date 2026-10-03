@@ -34,6 +34,7 @@ import {
 import * as Sound from "./sound";
 import * as Pom from "./pomodoro";
 import * as Log from "./focuslog";
+import { safeGet, safeJsonGet } from "./storage";
 import {
   resize,
   buildParticles,
@@ -82,8 +83,6 @@ import {
 } from "./platform";
 import * as Palette from "./palette";
 import * as Motion from "./motion";
-import * as GitHubStats from "./github";
-import * as Legal from "./legal";
 
 // ── Platform detection ───────────────────────────────────────────────
 // Runs first, synchronously, before anything else touches the DOM — CSS
@@ -282,6 +281,7 @@ function resetTimer() {
   const dur = sessionRunning
     ? performance.now() - sessionStart
     : sessionElapsed;
+  const endedAt = Date.now();
   Log.record(DOM.focusInput.value.trim(), dur);
   Features.updateDistractionUI(false);
   if (dur > 60_000) {
@@ -314,23 +314,22 @@ function resetTimer() {
     setTimeout(() => showToast(`☕ ${smartBreak.activity}`, 7000), 1200);
 
     // Session completion rating
-    const todaySessions = JSON.parse(
-      localStorage.getItem("sc_focus_log") || "[]",
-    ).length;
+    const todaySessions = Log.focusLogCount();
     Features.setStatusState("complete", { todaySessions });
     Features.showCompletionRating(
       dur / 1000,
       DOM.focusInput.value.trim(),
       (rating) => {
         if (rating > 0) {
-          try {
-            const log = JSON.parse(
-              localStorage.getItem("sc_focus_log") || "[]",
-            );
-            if (log.length) log[log.length - 1].rating = rating;
-            localStorage.setItem("sc_focus_log", JSON.stringify(log));
-          } catch {
-            /**/
+          // Log.record() prepends, so the session just finished is entry 0.
+          // Only rate it if it really was recorded just now: a Private Focus
+          // Log session isn't written, and rating entry 0 then would silently
+          // overwrite an older, unrelated session.
+          const log = Log.readFocusLog();
+          const latest = log[0] as { time: number; rating?: number } | undefined;
+          if (latest && latest.time >= endedAt - 1000) {
+            latest.rating = rating;
+            Log.writeFocusLog(log);
           }
         }
       },
@@ -349,9 +348,7 @@ function resetTimer() {
     Pom.isActive(),
     DOM.btnStart as HTMLButtonElement,
   );
-  const todaySessions = JSON.parse(
-    localStorage.getItem("sc_focus_log") || "[]",
-  ).length;
+  const todaySessions = Log.focusLogCount();
   Features.setStatusState("idle", { todaySessions });
   DOM.sTmr.textContent = "00:00:00";
   DOM.focusInputWrap.classList.remove("visible");
@@ -366,8 +363,8 @@ DOM.btnStart.addEventListener("click", () =>
 DOM.btnReset.addEventListener("click", resetTimer);
 
 // ── Privacy toggle ────────────────────────────────────────────────────
-let privacyMode = localStorage.getItem("sc_privacy") === "1";
-let breathingBreakEnabled = localStorage.getItem("sc_breathing_break") !== "0";
+let privacyMode = safeGet("sc_privacy") === "1";
+let breathingBreakEnabled = safeGet("sc_breathing_break") !== "0";
 
 // Clock position: per clock-mode 'top' (default) | 'center'.
 // Stored as a map so each clock style (digital, analogue, flip…) remembers
@@ -420,7 +417,7 @@ function applyClockPosition(
 // card and hides the day-progress bar/quote so the clock is the obvious
 // focal point. On by default; a Display-tab toggle lets someone keep the
 // full stacked layout even in Centre mode if they prefer it.
-let centerMinimal = localStorage.getItem("sc_center_minimal") !== "0";
+let centerMinimal = safeGet("sc_center_minimal") !== "0";
 function applyCenterMinimal(on: boolean) {
   centerMinimal = on;
   localStorage.setItem("sc_center_minimal", on ? "1" : "0");
@@ -453,14 +450,19 @@ function wireGithubCelebration() {
 
     // Live star/fork counts — purely decorative, so a failed/slow fetch
     // just leaves the stat row hidden rather than showing a placeholder.
-    void GitHubStats.fetchRepoStats().then((stats) => {
-      if (!stats) return;
-      const row = $("ghStats");
-      if (!row) return;
-      row.hidden = false;
-      void Motion.countUp($("ghStatStars"), stats.stars);
-      void Motion.countUp($("ghStatForks"), stats.forks);
-    });
+    void import("./github")
+      .then((m) => m.fetchRepoStats())
+      .then((stats) => {
+        if (!stats) return;
+        const row = $("ghStats");
+        if (!row) return;
+        row.hidden = false;
+        void Motion.countUp($("ghStatStars"), stats.stars);
+        void Motion.countUp($("ghStatForks"), stats.forks);
+      })
+      .catch(() => {
+        /* decorative — leave the stat row hidden */
+      });
   });
 
   $("ghClose")?.addEventListener("click", closeIt);
@@ -485,12 +487,12 @@ function wireGithubCelebration() {
 // body-level class so each renderer's CSS (and the analogue second-hand
 // draw call) can simply check for it instead of threading a flag through
 // every render path.
-let hideSeconds = localStorage.getItem("sc_hide_seconds") === "1";
-let hideMs = localStorage.getItem("sc_hide_ms") === "1";
+let hideSeconds = safeGet("sc_hide_seconds") === "1";
+let hideMs = safeGet("sc_hide_ms") === "1";
 // 24-hour time — same body-class approach as hide-seconds/hide-ms so CSS
 // and every render path (digital/minimal/flip/segment) can react without
 // threading a flag through each function signature.
-let use24Hour = localStorage.getItem("sc_24h") === "1";
+let use24Hour = safeGet("sc_24h") === "1";
 function applyUse24Hour(on: boolean) {
   use24Hour = on;
   localStorage.setItem("sc_24h", on ? "1" : "0");
@@ -565,7 +567,16 @@ function openDataPanel() {
 }
 
 // ── Legal Panel (Privacy Policy / Terms of Service) ────────────────────
-function openLegalPanel(doc: "privacy" | "terms") {
+// The legal text is only needed when the panel is opened, so it's fetched on
+// demand instead of shipping in the startup bundle.
+let legalDocs: typeof import("./legal").LEGAL_DOCS | null = null;
+async function openLegalPanel(doc: "privacy" | "terms") {
+  try {
+    if (!legalDocs) legalDocs = (await import("./legal")).LEGAL_DOCS;
+  } catch {
+    showToast("Couldn't load this page — check your connection and retry");
+    return;
+  }
   buildLegalPanel(doc);
   openModal("legalOverlay");
 }
@@ -588,7 +599,8 @@ function buildLegalPanel(doc: "privacy" | "terms") {
   });
   el.appendChild(tabBar);
 
-  const doc_ = Legal.LEGAL_DOCS[doc];
+  if (!legalDocs) return;
+  const doc_ = legalDocs[doc];
   if (titleEl) titleEl.textContent = doc_.title;
   if (updatedEl) updatedEl.textContent = `Last updated: ${doc_.updated}`;
 
@@ -2057,7 +2069,7 @@ function toggleZen() {
 
 // ── Focus Lock Delay ──────────────────────────────────────────────────
 // When Pomodoro work is active, intercept distracting UI with a 3s delay
-let focusLockEnabled = localStorage.getItem("sc_focus_lock") === "1";
+let focusLockEnabled = safeGet("sc_focus_lock") === "1";
 let focusLockTimer: number | null = null;
 let focusLockBar: HTMLElement | null = null;
 
@@ -3334,10 +3346,15 @@ function previewCustomTheme() {
   cssVar("--clr-panel", draft.panel);
 }
 
+type SavedCustomTheme = { id: string; name: string; draft: typeof draft };
+/** Saved custom themes; corrupt or wrongly-shaped storage yields an empty list. */
+function loadSavedCustomThemes(): SavedCustomTheme[] {
+  const v = safeJsonGet<unknown>("sc_custom_themes", []);
+  return Array.isArray(v) ? (v as SavedCustomTheme[]) : [];
+}
+
 function saveCustomTheme() {
-  const saved: { id: string; name: string; draft: typeof draft }[] = JSON.parse(
-    localStorage.getItem("sc_custom_themes") || "[]",
-  );
+  const saved = loadSavedCustomThemes();
   saved.push({
     id: "custom_" + Date.now(),
     name: "Custom " + saved.length,
@@ -3416,9 +3433,7 @@ function importCustomTheme(rawCode: string): boolean {
 function renderSavedSwatches() {
   const row = $("savedThemeRow");
   if (!row) return;
-  const saved: { id: string; name: string; draft: typeof draft }[] = JSON.parse(
-    localStorage.getItem("sc_custom_themes") || "[]",
-  );
+  const saved = loadSavedCustomThemes();
   row.innerHTML = "";
   if (!saved.length) {
     const msg = document.createElement("span");
@@ -5388,13 +5403,7 @@ function showToast(msg: string, duration = 3500) {
 
 // ── Share focus card ──────────────────────────────────────────────────
 async function openShareCard() {
-  const log = (() => {
-    try {
-      return JSON.parse(localStorage.getItem("sc_focus_log") || "[]");
-    } catch {
-      return [];
-    }
-  })();
+  const log = Log.readFocusLog();
   const today = new Date().toDateString();
   const todayMs = (log as Array<{ date: string; dur: number }>)
     .filter((e) => e.date === today)
@@ -5474,8 +5483,10 @@ async function openShareCard() {
 // ── Service Worker registration ───────────────────────────────────────
 function registerSW() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      /* silent */
+    // Non-critical: the app works without a service worker, so a failure
+    // is logged for debugging rather than surfaced to the user.
+    navigator.serviceWorker.register("/sw.js").catch((err: unknown) => {
+      console.warn("Session Clock: service worker registration failed:", err);
     });
   }
 }
@@ -6120,6 +6131,7 @@ const SPLASH_FONT_GRACE_MS = 800; // extra time we'll give web fonts specificall
 function hideSplash() {
   const el = document.getElementById("splashScreen");
   if (!el || el.classList.contains("splash-hide")) return;
+  if (window.__bootFailed) return; // never reveal a half-initialised app
   const t0 = window.__splashT0 ?? 0;
 
   // Held open a little longer if fonts are still loading — reaching this
@@ -6588,9 +6600,7 @@ function init() {
     const el = document.getElementById("sessionStatusLine");
     if (el) el.textContent = text;
   });
-  const todaySessions = JSON.parse(
-    localStorage.getItem("sc_focus_log") || "[]",
-  ).length;
+  const todaySessions = Log.focusLogCount();
   Features.setStatusState("idle", { todaySessions });
   Features.updateButtonLabels(
     "idle",
@@ -7031,11 +7041,11 @@ function buildCommandPalette() {
           ["🎨 Themes", window.__scThemeCount?.() ?? "?"],
           [
             "📋 Sessions",
-            JSON.parse(localStorage.getItem("sc_focus_log") || "[]").length,
+            Log.focusLogCount(),
           ],
           [
             "🔥 Streak",
-            `${JSON.parse(localStorage.getItem("sc_streak") || '{"current":0}').current} days`,
+            `${Intel.getStreak().current} days`,
           ],
         ];
         rows.forEach(([label, value]) => {
@@ -7290,9 +7300,7 @@ function buildCommandPalette() {
       desc: "Complete 100 sessions to unlock · check progress here",
       keywords: "phoenix unlock 100 sessions veteran fire rise",
       action: () => {
-        const count = JSON.parse(
-          localStorage.getItem("sc_focus_log") || "[]",
-        ).length;
+        const count = Log.focusLogCount();
         if (Easter.isPhoenixUnlocked()) {
           applyTheme(THEME_BY_ID["phoenix"]!);
           showToast("🔥 You rise.", 4000);
@@ -7637,4 +7645,16 @@ function buildCommandPalette() {
   Cmd.registerItems(items);
 }
 
-init();
+// Boot guard: init() is one long synchronous sequence, so an exception partway
+// through used to leave a half-wired app (the splash watchdog then revealed
+// it anyway). Now a throw is reported to the boot guard in index.html, which
+// shows a Reload / Reset screen, and hideSplash() refuses to reveal the app.
+try {
+  init();
+  window.__scBootOk?.();
+} catch (err) {
+  console.error("Session Clock failed to start:", err);
+  const reason = err instanceof Error ? err.message : String(err);
+  if (window.__scBootFail) window.__scBootFail(reason, true);
+  else window.__bootFailed = true;
+}

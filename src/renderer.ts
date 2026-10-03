@@ -12,6 +12,7 @@ import {
   isTabVisible,
 } from "./perf";
 import { reducedMotion } from "./motion";
+import { readFocusLog } from "./focuslog";
 
 // Parallax offset — set by main.ts via mouse/gyro
 let _parallaxX = 0,
@@ -82,7 +83,7 @@ function getSMPTEClips(today: string) {
   const now = Date.now();
   if (now - smpteLastCacheTs < 30_000) return smpteCachedClips; // 30s cache
   try {
-    const entries = JSON.parse(localStorage.getItem("sc_focus_log") || "[]");
+    const entries = readFocusLog();
     smpteCachedClips = entries
       .filter((e: { date: string }) => e.date === today)
       .map((e: { time: number; dur: number; task: string }, idx: number) => {

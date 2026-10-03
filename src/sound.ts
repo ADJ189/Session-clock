@@ -2,6 +2,7 @@ import type { SoundDef, SoundNode } from "./types";
 import { CAPS, subscribeOrientation } from "./platform";
 import { makeFileTrack, isFileTrackSupported } from "./soundfiles";
 import { makeSynthTrack } from "./soundsynth";
+import { safeGet } from "./storage";
 
 export const SOUNDS: SoundDef[] = [
   { id: "rain", name: "Rain", icon: "🌧", desc: "Gentle rainfall on a window" },
@@ -1280,7 +1281,7 @@ export function setFade(v: number) {
 // read as sharply directional when it does (rain, wind) — this is the
 // per-ambience tuning knob the profiles below use.
 
-let spatialEnabled = localStorage.getItem("sc_spatial") === "1";
+let spatialEnabled = safeGet("sc_spatial") === "1";
 
 interface SpatialRig {
   panner: StereoPannerNode;
@@ -1788,7 +1789,7 @@ export function tickSpatial(now: number) {
 // toward or away from them, instead of rotating with you. Built on the
 // same gyroscope stream platform.ts already shares with the background
 // parallax effect, so enabling this attaches no new hardware listener.
-let headTrackingEnabled = localStorage.getItem("sc_head_tracking") === "1";
+let headTrackingEnabled = safeGet("sc_head_tracking") === "1";
 let headingOffset = 0; // -1..1, derived from live device gamma (left/right tilt)
 let unsubscribeHeadTracking: (() => void) | null = null;
 
