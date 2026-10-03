@@ -1,4 +1,5 @@
 import type { PomodoroSettings, PomPhase } from "./types";
+import { safeJsonGet } from "./storage";
 import { p2 } from "./utils";
 import { playChime } from "./sound";
 
@@ -55,6 +56,14 @@ export function init(opts: {
   labelEl = opts.label;
   onPhaseChange = opts.onPhase;
   load();
+}
+
+/** Per-day completed-pomodoro counts; corrupt storage yields an empty map. */
+function loadCounts(): Record<string, number> {
+  const v = safeJsonGet<unknown>(COUNT_KEY, {});
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, number>)
+    : {};
 }
 
 function load() {
@@ -144,11 +153,13 @@ function nextPhase() {
   if (phase === "work") {
     pomCount++;
     const today = new Date().toDateString();
-    const stored: Record<string, number> = JSON.parse(
-      localStorage.getItem(COUNT_KEY) || "{}",
-    );
+    const stored = loadCounts();
     stored[today] = (stored[today] || 0) + 1;
-    localStorage.setItem(COUNT_KEY, JSON.stringify(stored));
+    try {
+      localStorage.setItem(COUNT_KEY, JSON.stringify(stored));
+    } catch {
+      /* storage full/blocked — the in-memory count still advances */
+    }
     phase = pomCount % settings.longBreakAfter === 0 ? "longBreak" : "break";
   } else {
     phase = "work";
@@ -232,10 +243,7 @@ export function updateSettings(patch: Partial<PomodoroSettings>) {
 
 export function todayCount(): number {
   const today = new Date().toDateString();
-  const stored: Record<string, number> = JSON.parse(
-    localStorage.getItem(COUNT_KEY) || "{}",
-  );
-  return stored[today] || 0;
+  return loadCounts()[today] || 0;
 }
 
 export function getPhase(): import("./types").PomPhase {

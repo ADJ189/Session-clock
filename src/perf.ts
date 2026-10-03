@@ -4,6 +4,7 @@
 // Can be overridden by user in settings.
 
 export type QualityTier = "low" | "med" | "high";
+import { safeGet } from "./storage";
 export type QualityMode = "auto" | "fixed";
 
 let tier: QualityTier = "high";
@@ -15,9 +16,7 @@ let tier: QualityTier = "high";
 // signal for "the user explicitly chose this" specifically because
 // nothing else ever wrote it, which is what lets this infer the correct
 // starting mode below without a migration.
-let qualityMode: QualityMode = localStorage.getItem("sc_quality")
-  ? "fixed"
-  : "auto";
+let qualityMode: QualityMode = safeGet("sc_quality") ? "fixed" : "auto";
 let frameCount = 0;
 let fps = 60;
 let lastFpsTs = performance.now();
@@ -27,7 +26,7 @@ let tabVisible = true;
 // ── Tier detection ────────────────────────────────────────────────────
 function detectTier(): QualityTier {
   // Check localStorage override first
-  const override = localStorage.getItem("sc_quality") as QualityTier | null;
+  const override = safeGet("sc_quality") as QualityTier | null;
   if (override === "low" || override === "med" || override === "high")
     return override;
 

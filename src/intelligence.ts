@@ -1,7 +1,8 @@
 // ── Session Intelligence Engine ───────────────────────────────────────
 // All data stays in localStorage. Zero cloud. Zero tracking.
+import { readFocusLog } from "./focuslog";
+import { safeJsonGet } from "./storage";
 
-const LOG_KEY = "sc_focus_log";
 const STREAK_KEY = "sc_streak";
 const VELOCITY_KEY = "sc_velocity";
 
@@ -22,23 +23,16 @@ interface VelocityData {
 }
 
 function loadLog(): LogEntry[] {
-  try {
-    return JSON.parse(localStorage.getItem(LOG_KEY) || "[]");
-  } catch {
-    return [];
-  }
+  return readFocusLog();
 }
 
 // ── Streak ────────────────────────────────────────────────────────────
 export function getStreak(): StreakData {
-  try {
-    return JSON.parse(
-      localStorage.getItem(STREAK_KEY) ||
-        '{"current":0,"best":0,"lastDate":""}',
-    );
-  } catch {
-    return { current: 0, best: 0, lastDate: "" };
-  }
+  const fallback: StreakData = { current: 0, best: 0, lastDate: "" };
+  const v = safeJsonGet<unknown>(STREAK_KEY, null);
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? { ...fallback, ...(v as Partial<StreakData>) }
+    : fallback;
 }
 
 export function updateStreak(): StreakData {
@@ -93,13 +87,11 @@ export function getStreakMilestone(streak: number): string | null {
 export const MIN_ABANDON_MS = 5_000;
 
 export function getVelocity(): VelocityData {
-  try {
-    return JSON.parse(
-      localStorage.getItem(VELOCITY_KEY) || '{"completed":0,"abandoned":0}',
-    );
-  } catch {
-    return { completed: 0, abandoned: 0 };
-  }
+  const fallback: VelocityData = { completed: 0, abandoned: 0 };
+  const v = safeJsonGet<unknown>(VELOCITY_KEY, null);
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? { ...fallback, ...(v as Partial<VelocityData>) }
+    : fallback;
 }
 
 export function recordCompleted() {

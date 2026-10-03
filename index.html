@@ -12,6 +12,461 @@
     />
     <meta name="theme-color" content="#06030f" />
     <meta name="color-scheme" content="dark light" />
+    <!-- ── Critical splash CSS (inline) ─────────────────────────────────────
+     Only the geometry that must be right on the very first paint. The
+     splash images are 664×693 PNGs: if these sizing rules lived only in the
+     large external style.css (still downloading, or stale/failed), the
+     browser would lay the marks out at their natural size — the "giant
+     logo" first-load bug. The animations/effects stay in style.css. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #06030f;
+      }
+      #splashScreen {
+        position: fixed;
+        inset: 0;
+        z-index: 100000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: #06030f;
+        overflow: hidden;
+      }
+      .splash-glow {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: min(70vw, 480px);
+        aspect-ratio: 1;
+        transform: translate(-50%, -50%) scale(0.85);
+        pointer-events: none;
+      }
+      .splash-mark-card {
+        position: relative;
+        padding: 18px;
+      }
+      .splash-mark-wrap {
+        position: relative;
+        width: min(30vw, 132px);
+        aspect-ratio: 664 / 693;
+      }
+      .splash-mark-base,
+      .splash-mark-triangle {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        max-width: 100%;
+        display: block;
+      }
+      .splash-title {
+        font:
+          600 0.82rem/1.2 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #eef7f2;
+      }
+      .splash-progress {
+        width: 84px;
+        height: 3px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+      .splash-progress-fill {
+        display: block;
+        width: 40%;
+        height: 100%;
+      }
+      /* Slow-start hint + boot-failure screen (built by the boot script below) */
+      .sc-boot-note {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        margin-top: 4px;
+        font:
+          400 0.8rem/1.4 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        color: rgba(238, 247, 242, 0.7);
+        text-align: center;
+      }
+      #scBootErr {
+        position: fixed;
+        inset: 0;
+        z-index: 100001;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #06030f;
+        color: #eef7f2;
+        font:
+          400 0.95rem/1.5 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      .sc-boot-card {
+        width: min(100%, 420px);
+        padding: 28px 24px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.08) inset,
+          0 20px 60px rgba(0, 0, 0, 0.45);
+        text-align: center;
+      }
+      .sc-boot-card h1 {
+        margin: 0 0 8px;
+        font-size: 1.15rem;
+        font-weight: 650;
+      }
+      .sc-boot-card p {
+        margin: 0 0 14px;
+        color: rgba(238, 247, 242, 0.75);
+      }
+      .sc-boot-card code {
+        display: block;
+        margin: 0 0 18px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.35);
+        color: rgba(238, 247, 242, 0.6);
+        font:
+          400 0.72rem/1.4 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        word-break: break-word;
+        text-align: left;
+      }
+      .sc-boot-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .sc-boot-btn {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 999px;
+        padding: 9px 18px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+      .sc-boot-btn.primary {
+        background: #6ee7b7;
+        border-color: #6ee7b7;
+        color: #06130d;
+        font-weight: 600;
+      }
+      .sc-boot-btn:focus-visible {
+        outline: 2px solid #6ee7b7;
+        outline-offset: 2px;
+      }
+    </style>
+    <!-- ── Boot guard + storage safety net ──────────────────────────────────
+     Runs before any module. (1) If localStorage/sessionStorage is blocked or
+     throws (privacy modes, embedded webviews, quota), an in-memory stand-in
+     is installed so no module can crash at import/boot time on a storage
+     call. (2) Any fatal error before the app reports itself booted (module
+     failed to load, init() threw) shows a recoverable Reload / Reset screen
+     instead of silently revealing a half-initialised app. -->
+    <script>
+      (function () {
+        ["localStorage", "sessionStorage"].forEach(function (name) {
+          var real = null;
+          var usable = false;
+          try {
+            real = window[name];
+            var probe = "__sc_probe__";
+            real.setItem(probe, "1");
+            real.removeItem(probe);
+            usable = true;
+          } catch (e) {
+            usable = false;
+          }
+          if (usable) return;
+          // Remember the genuine (read-only-ish) store: "Reset local app data"
+          // must clear *it*, not just the in-memory copy installed below, or a
+          // bad saved value that broke startup comes straight back on reload.
+          if (real) {
+            (window.__scRealStorage = window.__scRealStorage || {})[name] =
+              real;
+          }
+          var mem = {};
+          // Keep whatever is still readable so saved settings keep applying
+          // for this session even if writing is refused.
+          try {
+            if (real) {
+              for (var i = 0; i < real.length; i++) {
+                var k = real.key(i);
+                if (k != null) mem[k] = real.getItem(k);
+              }
+            }
+          } catch (e) {
+            /* unreadable — start empty */
+          }
+          function def(prop, value) {
+            Object.defineProperty(mem, prop, {
+              value: value,
+              enumerable: false,
+              configurable: true,
+              writable: true,
+            });
+          }
+          function has(k) {
+            return Object.prototype.hasOwnProperty.call(mem, k);
+          }
+          def("getItem", function (k) {
+            return has(k) ? mem[k] : null;
+          });
+          def("setItem", function (k, v) {
+            mem[k] = String(v);
+          });
+          def("removeItem", function (k) {
+            delete mem[k];
+          });
+          def("clear", function () {
+            Object.keys(mem).forEach(function (k) {
+              delete mem[k];
+            });
+          });
+          def("key", function (i) {
+            var ks = Object.keys(mem);
+            return i >= 0 && i < ks.length ? ks[i] : null;
+          });
+          Object.defineProperty(mem, "length", {
+            get: function () {
+              return Object.keys(mem).length;
+            },
+            enumerable: false,
+            configurable: true,
+          });
+          try {
+            Object.defineProperty(window, name, {
+              value: mem,
+              configurable: true,
+            });
+          } catch (e) {
+            /* cannot override — the app's own safe-storage helpers still apply */
+          }
+        });
+      })();
+
+      (function () {
+        window.__bootCompleted = false;
+        window.__bootFailed = false;
+        var fatal = false;
+
+        function removeNode(id) {
+          var n = document.getElementById(id);
+          if (n && n.parentNode) n.parentNode.removeChild(n);
+        }
+
+        // Wipes every sc_* key (same scope as Settings → Privacy → delete all),
+        // service workers and caches, then reloads from a clean slate.
+        function resetAndReload() {
+          function wipe(store) {
+            try {
+              // Collect first (removing while indexing shifts the keys), and
+              // use the standard length/key() API rather than Object.keys.
+              var doomed = [];
+              for (var i = 0; i < store.length; i++) {
+                var k = store.key(i);
+                if (k != null && k.indexOf("sc_") === 0) doomed.push(k);
+              }
+              doomed.forEach(function (k) {
+                try {
+                  store.removeItem(k);
+                } catch (e) {
+                  /* keep going */
+                }
+              });
+            } catch (e) {
+              /* ignore */
+            }
+          }
+          var real = window.__scRealStorage || {};
+          [
+            window.localStorage,
+            real.localStorage,
+            window.sessionStorage,
+            real.sessionStorage,
+          ].forEach(function (store) {
+            if (store) wipe(store);
+          });
+          var pending = [];
+          try {
+            if (
+              navigator.serviceWorker &&
+              navigator.serviceWorker.getRegistrations
+            ) {
+              pending.push(
+                navigator.serviceWorker.getRegistrations().then(function (rs) {
+                  return Promise.all(
+                    rs.map(function (r) {
+                      return r.unregister();
+                    }),
+                  );
+                }),
+              );
+            }
+            if (window.caches && caches.keys) {
+              pending.push(
+                caches.keys().then(function (ks) {
+                  return Promise.all(
+                    ks.map(function (k) {
+                      return caches.delete(k);
+                    }),
+                  );
+                }),
+              );
+            }
+          } catch (e) {
+            /* ignore */
+          }
+          var done = false;
+          function go() {
+            if (done) return;
+            done = true;
+            location.reload();
+          }
+          setTimeout(go, 1500);
+          Promise.all(pending).then(go, go);
+        }
+
+        function button(label, cls, onClick) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "sc-boot-btn" + (cls ? " " + cls : "");
+          b.textContent = label;
+          b.addEventListener("click", onClick);
+          return b;
+        }
+
+        function showFailure(reason) {
+          removeNode("scBootErr");
+          removeNode("splashScreen");
+          var wrap = document.createElement("div");
+          wrap.id = "scBootErr";
+          wrap.setAttribute("role", "alertdialog");
+          wrap.setAttribute("aria-modal", "true");
+          wrap.setAttribute("aria-labelledby", "scBootErrTitle");
+          var card = document.createElement("div");
+          card.className = "sc-boot-card";
+          var h = document.createElement("h1");
+          h.id = "scBootErrTitle";
+          h.textContent = "Session Clock couldn\u2019t finish loading";
+          var p = document.createElement("p");
+          p.textContent =
+            "Something went wrong while starting up. Reloading usually fixes it. If it keeps happening, resetting the app\u2019s saved data on this device will.";
+          card.appendChild(h);
+          card.appendChild(p);
+          if (reason) {
+            var c = document.createElement("code");
+            c.textContent = String(reason).slice(0, 240);
+            card.appendChild(c);
+          }
+          var actions = document.createElement("div");
+          actions.className = "sc-boot-actions";
+          var reload = button("Reload", "primary", function () {
+            location.reload();
+          });
+          var armed = false;
+          var reset = button("Reset local app data", "", function () {
+            if (!armed) {
+              armed = true;
+              reset.textContent = "Tap again \u2014 erases settings & history";
+              setTimeout(function () {
+                armed = false;
+                reset.textContent = "Reset local app data";
+              }, 5000);
+              return;
+            }
+            resetAndReload();
+          });
+          actions.appendChild(reload);
+          actions.appendChild(reset);
+          card.appendChild(actions);
+          wrap.appendChild(card);
+          (document.body || document.documentElement).appendChild(wrap);
+          try {
+            reload.focus();
+          } catch (e) {
+            /* ignore */
+          }
+        }
+
+        // isFatal=true: the app threw during init() and will not recover on
+        // its own. isFatal=false: a timeout — cleared again if the app does
+        // finish booting late.
+        window.__scBootFail = function (reason, isFatal) {
+          if (window.__bootCompleted) return;
+          if (window.__bootFailed && fatal) return;
+          window.__bootFailed = true;
+          fatal = fatal || !!isFatal;
+          showFailure(reason);
+        };
+
+        window.__scBootOk = function () {
+          if (fatal) return;
+          window.__bootCompleted = true;
+          if (window.__bootFailed) {
+            window.__bootFailed = false;
+            removeNode("scBootErr");
+          }
+          removeNode("scBootNote");
+        };
+
+        window.addEventListener(
+          "error",
+          function (e) {
+            var t = e.target;
+            if (t && t !== window && t.tagName) {
+              // Resource load failure: only a failed script is fatal. A failed
+              // stylesheet/image must not take the app down — the critical
+              // splash CSS above is inline for exactly that reason.
+              if (t.tagName === "SCRIPT") {
+                console.error("Session Clock: failed to load", t.src);
+                window.__scBootFail(
+                  "Failed to load " + (t.src || "a script"),
+                  true,
+                );
+              }
+              return;
+            }
+            console.error("Session Clock error:", e.error || e.message);
+            if (window.__bootCompleted) return;
+            // Errors from extensions / cross-origin scripts aren't ours.
+            if (e.message === "Script error." && !e.filename) return;
+            if (e.filename && e.filename.indexOf(location.origin) !== 0) return;
+            window.__scBootFail(
+              (e.error && e.error.message) || e.message || "Unexpected error",
+              true,
+            );
+          },
+          true,
+        );
+        window.addEventListener("unhandledrejection", function (e) {
+          console.error("Session Clock unhandled rejection:", e.reason);
+        });
+      })();
+    </script>
     <!-- The splash marks are the very first thing painted, so they get their own
      preload rather than waiting on the browser to discover them mid-body-parse. -->
     <link rel="preload" as="image" href="/splash-base.png" />
@@ -110,12 +565,18 @@
             class="splash-mark-base"
             alt=""
             aria-hidden="true"
+            width="132"
+            height="138"
+            decoding="async"
             src="/splash-base.png"
           />
           <img
             class="splash-mark-triangle"
             alt=""
             aria-hidden="true"
+            width="132"
+            height="138"
+            decoding="async"
             src="/splash-triangle.png"
           />
         </div>
@@ -129,22 +590,48 @@
       // Marks when the splash first appeared, so main.ts can hold it for a
       // short minimum time (feels intentional) without ever overstaying.
       window.__splashT0 = performance.now();
-      // Hard ceiling: whatever happens, the splash is gone by 3s after it first
-      // appeared. main.ts's own reveal logic (1s floor, extended slightly for
-      // slow-loading fonts) normally fires well before this — this is only the
-      // safety net for a stalled/failed module load, so it's measured from
-      // __splashT0 directly rather than from the 'load' event (which main.ts's
-      // module script may fire well before or after, making it an unreliable
-      // and inconsistently-timed anchor for a "you've waited long enough" cap).
+      // Watchdog. main.ts reports success via window.__scBootOk() and its own
+      // reveal logic (1s floor, extended slightly for slow-loading fonts)
+      // normally clears the splash well before this fires. This is the safety
+      // net, and it distinguishes outcomes instead of hiding all of them:
+      //   booted     → just make sure the splash is gone (nothing is wrong)
+      //   failed     → the boot guard has already shown the Reload screen
+      //   still going → app hasn't reported in: say so and offer Reload
+      //                 (a slow connection), and only declare failure at 15s.
       setTimeout(function () {
         var s = document.getElementById("splashScreen");
-        if (s && !s.classList.contains("splash-hide")) {
-          s.classList.add("splash-hide");
-          setTimeout(function () {
-            s.remove();
-          }, 400);
+        if (window.__bootCompleted) {
+          if (s && !s.classList.contains("splash-hide")) {
+            s.classList.add("splash-hide");
+            setTimeout(function () {
+              if (s.parentNode) s.parentNode.removeChild(s);
+            }, 400);
+          }
+          return;
         }
+        if (window.__bootFailed || !s || document.getElementById("scBootNote"))
+          return;
+        var note = document.createElement("div");
+        note.id = "scBootNote";
+        note.className = "sc-boot-note";
+        note.setAttribute("role", "status");
+        var msg = document.createElement("span");
+        msg.textContent = "Still loading\u2026 slow connection?";
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "sc-boot-btn";
+        b.textContent = "Reload";
+        b.addEventListener("click", function () {
+          location.reload();
+        });
+        note.appendChild(msg);
+        note.appendChild(b);
+        s.appendChild(note);
       }, 3000);
+      setTimeout(function () {
+        if (!window.__bootCompleted && window.__scBootFail)
+          window.__scBootFail("Startup timed out after 15 seconds", false);
+      }, 15000);
     </script>
 
     <!-- Canvas layers -->
