@@ -1,371 +1,215 @@
 # Changelog
 
-All notable changes to Session Clock are documented here.
+All notable changes to this project are documented here.
 
-> **Versioning note (starting this release):** version numbers are now a
-> plain two-decimal `x.xx`, bumped by **+0.05** for a larger update (new
-> features, redesigns, multiple significant changes bundled together) and
-> **+0.01** for a minor patch or small fix. `1.71` (previously `1.7.1`) →
-> `1.76` below is the first release under this scheme, since this update
-> bundles several larger changes together.
-
-## [1.99] — First-load reliability: boot guard, safe storage, critical splash CSS
-
-Fixes the intermittent "giant splash logo, nothing else loads until refresh" and "loads halfway then stops" reports. The splash PNG format was not the cause.
-
-### Fixed
-
-- **Startup could be killed by one corrupt `localStorage` value.** `init()` parsed `sc_focus_log` with a bare `JSON.parse`; malformed data threw, aborted the rest of startup, and the 3s splash timer then revealed the half-wired app. All `sc_focus_log` access now goes through `readFocusLog()`/`writeFocusLog()`/`focusLogCount()` in `src/focuslog.ts` (malformed or non-array data → empty log, and the bad value is removed). Same hardening for `sc_streak`, `sc_velocity`, `sc_custom_themes` and the per-day Pomodoro counts.
-- **Giant splash logo on a cold load.** The splash geometry lived only in the 150 KB+ external `style.css`, so until it arrived the 664×693 PNGs rendered at natural size. The critical splash layout is now inline in `<head>`, and the images have explicit `width`/`height`.
-- **Splash watchdog hid failures.** The unconditional 3s timer is replaced by a boot guard: a fatal startup error (including a failed script load) shows a Reload / Reset-local-data screen instead of a broken app; a merely slow start shows a "Still loading…" hint with Reload, and only fails at 15s (cleared if the app boots late).
-- **Module-level storage reads could throw before init** (`apis`, `i18n`, `perf`, `sound`, `privacy`, `main`) when storage is blocked. They use `safeGet()`, and `index.html` installs an in-memory stand-in if `localStorage`/`sessionStorage` is unusable. "Reset local app data" clears the real stores too, not just that stand-in, so a bad saved value can't survive a reset on a read-only store.
-- **Session rating could land on the wrong session** — it was written to the _last_ log entry, but new entries are _prepended_ (and none is recorded in Private Focus Log). It now rates the exact entry that session wrote (`Log.record()` returns it; looked up by identity), so a newer session recorded in another tab while the prompt is open is never touched.
-
-### Changed
-
-- New `src/storage.ts` (`safeGet/safeSet/safeRemove/safeJsonGet/safeJsonSet`).
-- Service-worker registration failures are logged instead of swallowed.
-- Legal text and GitHub stats are lazy-loaded (off the startup bundle; main chunk −7.5 KB).
-
-## [1.98] — Redesigned toasts, sound mixer & Settings icon system, cross-browser fixes
-
-A pass over the three surfaces that read as "generic" compared to the rest of the app — toast popups, the sound mixer, and Settings — inspired by Apple's own notification/Settings-app conventions and Metrolist's per-item colored icon tiles, plus a real (not just claimed) cross-browser audit.
-
-### Changed
-
-- **Toast notifications redesigned** (`showToast()`, `src/main.ts`) — replaced the glowing conic-bordered pill (bold uppercase-ish text with a pulsing accent-color box-shadow loop) with a quiet macOS/iOS-notification-style card: translucent panel, hairline border, no looping glow animation. Most call sites already prefixed their message with an emoji for quick scanning (🔒, 🎵, ⚠️, …) — that glyph is now auto-detected and pulled out into its own icon tile instead of sitting inline in bold text, and the rest renders as plain sentence-case copy. This needed zero call-site changes across all ~164 `showToast()` calls in `main.ts`/`easter.ts`/`integrations.ts` — it's a reparse of the string that was already being passed in. Toasts now **stack** (newest at the bottom, like Notification Center) instead of replacing each other, capped at 3 concurrent so a fast burst never towers up the screen. Leading `⚠️` gets a tinted amber icon tile; everything else is neutral.
-- **Shared `.icon-tile` component** — generalized the Integrations tab's existing `.int-tile`/`--int-accent` pattern (brand-colored icon chip per provider, added back in v1.89) into a reusable class, then applied it to the surfaces that were still using bare floating emoji:
-  - **Settings tab bar** — each tab (General/Sound/Focus/Display/Privacy) now has its own colored icon tile instead of a plain emoji character, using an Apple-Settings-inspired palette (gray/pink/indigo/blue/green). The active tab's tile brightens.
-  - **General → Presets cards** (Student/Office Worker/Deep Work/Minimalist) — same tile treatment, one accent color per preset.
-  - **Sound mixer tracks** — added `Sound.SOUND_ACCENT`, a per-sound-id color map (rain=blue, fire=orange, forest=green, library=purple, etc., `src/sound.ts`) so every track and binaural preset gets its own tile color instead of one uniform icon style across the whole grid — active-state border/icon tint now follows that per-track color instead of the single global accent.
-  - Dropped the redundant leading 🎵 from the mixer launch card's title text (the animated EQ-bar icon beside it already signals "sound") and removed inline emoji from the Sound Mixer and Settings modal `<h2>` titles for a calmer, sentence-case header — matching the "Apple ID card" restraint already applied to the GitHub support box in v1.88.
-- **Settings rows** — changed from one continuous flat list (only a hover tint revealed any shape) to individually-boxed grouped rows, matching the treatment the Compatibility diagnostics panel already used elsewhere in the same modal, for real visual structure instead of a flat list.
-
-### Fixed — cross-browser/device audit
-
-- The Firefox blur-fallback rule (`@-moz-document url-prefix() { ... }`) **never actually applied** — that at-rule only works for chrome/userContent stylesheets in shipped Firefox, not regular page CSS, so pre-103 Firefox visitors were silently getting blur-less transparent panels this whole time with no visible fallback. Replaced with a real `@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))` feature query, which actually fires in any engine lacking the feature — Firefox <103, older Safari, or a reduced-capability WebView.
-- New toast banners and icon tiles are wired into the existing `force-no-backdrop-filter` opt-out (Settings → Compatibility) and the `backdrop-filter`/`-webkit-backdrop-filter` pairing already used consistently everywhere else in `style.css`.
-- Found and removed 3 places where `-webkit-backdrop-filter` was accidentally declared twice in the same rule (`.topbar`, `.feat-dock`, `body.clock-center .session-card`) — harmless (last one wins) but dead weight.
-- Removed the stale first copies of `.settings-section-title`/`.settings-row`/`.settings-toggle` (a fuller, later block in the same file already redefined every property on all three and silently won the cascade) and dead `.toast`/`.toggle-thumb` rules left over from an earlier design that JS never actually creates elements for — the exact "same selector declared multiple times" pattern flagged as an open backlog item in v1.93.
-
-### Verification
-
-`tsc --noEmit`, `oxlint .` (144 warnings, same pre-existing baseline, 0 errors), `vite build` all pass. No visual/browser testing was possible in this environment — worth checking the toast stacking/dismiss behavior, the Settings tab bar and sound mixer tile colors in both dark and light theme, and the mixer's active-track accent tinting on an actual device before shipping.
-
-## [1.86] — Fixed topbar/notch overlap bug, redesigned onboarding wizard
-
-### Fixed
-
-- **Content overlapping the topbar on notched/cutout phones** — the app never accounted for `env(safe-area-inset-top)` despite setting `viewport-fit=cover` (which draws edge-to-edge under a notch/camera-cutout/status-bar by design, and makes the page responsible for its own clearance). On a phone with any top-of-screen cutout, this could push the topbar's own icons under the cutout and, worse, leave the clock/greeting/date stack starting too high and overlapping the topbar and the theme tagline badge — the mess reported in-app. Root-caused to three separate places disagreeing about the topbar's real height (52px, 48px, and 46px-on-mobile were all live in different rules, with cascade order picking a different winner depending on viewport), none of which included the notch inset. Replaced all of them with one `--topbar-h: calc(48px + env(safe-area-inset-top, 0px))` custom property, and pointed every element that clears the topbar at it: the topbar itself, `.main`'s top padding in both Top and Center clock-position modes, the centered-mode min-height calc, the theme tagline badge (both its desktop-centered and mobile-strip positioning), and the Flow State badge (both its focus-mode-hidden and refined variants).
-- The Top-position clock layout specifically had a `padding-top: 40px` that was already shorter than the topbar's own height even before considering any notch — fixed to `calc(var(--topbar-h) + 16px)`.
-
-### Changed
-
-- **Redesigned the first-run onboarding wizard** (Welcome → Session length → Theme → Sound, `src/features.ts`) — it was built entirely with inline styles from before the app's current design language existed, so it looked like a generic, unstyled wizard bolted onto a polished app. Rebuilt against real CSS classes matching everywhere else: a glowing icon badge for the welcome step (same visual language as the redesigned splash mark), spacious springy option cards matching the Themes tab's swatch/media-card treatment, an accent-glow primary button, understated ghost-style skip links, progress dots that grow with the `--ease-spring` token, and a staggered anime.js entrance per step via the existing `Motion.staggerIn()`. The onboarding modal's background is also slightly more opaque than a standard `.sc-modal` now, so it stays legible over any theme's background on a new visitor's very first screen.
-
-### Verification
-
-`tsc --noEmit`, `oxlint .` (144 warnings, same pre-existing baseline, 0 errors), `vite build` all pass. No physical-device testing was possible in this environment — worth checking the topbar/clock clearance specifically on a notched Android phone and an iPhone with Dynamic Island, and clicking through all 4 onboarding steps, before shipping.
-
-## [1.81] — Shared motion system, hold-to-confirm destructive actions, Spotlight-style command palette
-
-A full pass over every place in the app that animates something, checked against how [motion.dev](https://motion.dev), [Kokonut UI](https://kokonutui.com), and Apple's own product pages approach motion, then applied where it actually improved something rather than just for its own sake.
-
-### Added
-
-- **Shared motion-system tokens** (`style.css` `:root`) — `--ease-enter`/`--ease-exit`/`--ease-smooth`/`--ease-snap` (named after and matching motion.dev's own published easing tokens) plus `--ease-spring`, a real damped-harmonic-oscillator curve expressed as a CSS `linear()` easing (motion.dev's "spring" token) with an automatic `@supports` fallback to `--ease-snap` on engines that don't support `linear()` easing yet (pre-Safari 17.2/Firefox 112/Chrome 113). Applied to the theme panel, settings pane slide, toasts, and the toggle switch so these no longer carry one-off hand-tuned `cubic-bezier()` values.
-- **Hold-to-confirm destructive actions** (`Motion.bindHoldToConfirm()`, `src/motion.ts`) — replaced the native `confirm()` popup on "Clear [category]" and "Delete Everything" (Settings → Privacy) with a press-and-hold gesture: a fill sweeps across the button while held, and only a _completed_ hold fires the action; releasing early cancels with a spring snap-back. Inspired by Kokonut UI's HoldButton pattern. The hold timing itself is plain `requestAnimationFrame`, not anime.js, so it keeps working even if anime.js fails to load — anime.js only adds the cancel snap-back.
-- **Command palette redesigned as a Spotlight-style pop** — now blurs and scales in (from `blur(4px) scale(.94)` to sharp/full-size) rather than a flat scale, closer to macOS Spotlight/Alfred, using the new `--ease-spring` token.
-- **Shiny-button hover sweep** on `.btn-primary` (Kokonut UI's "Button Shiny" pattern) — a single diagonal light glint passes across the Start/Pause button on hover-in, separate from the existing spinning conic-gradient ring used during an active session so the two effects never collide.
-
-### Changed
-
-- Theme panel open/close, settings-pane tab switch, and toast in/out now use the shared easing tokens instead of inline `cubic-bezier()` values.
-
-### Verification
-
-`tsc --noEmit`, `oxlint .` (144 warnings, same pre-existing baseline, 0 errors), `vite build` all pass. No visual/browser testing was possible in this environment — worth checking the command palette's blur-in, the hold-to-confirm buttons' fill/cancel/complete states, and the Start/Pause button's hover sweep before shipping.
-
-## [1.76] — Redesigned intro screen, 24-hour time, spacious/animated Themes tab, 2 new themes, cross-browser hardening
-
-### Added
-
-- **Redesigned splash/intro screen** — replaced the static icon + bouncing dots with a calmer, more Apple-like entrance: a soft pulsing ambient glow behind the mark, the mark itself mounted on a frosted "app card" with a spring pop-in, and a slim indeterminate progress line instead of dots. The dismissal is now animated too — `Motion.splashExit()` (`src/motion.ts`) eases the mark up and out while the whole screen softly scales and blurs away, using the app's existing lazy-loaded anime.js — with the original plain CSS opacity fade kept as the fallback if anime.js fails to load or Reduce Motion is on.
-- **24-Hour Time** — new Settings → Digits toggle and command-palette entry. Applies to Digital, Minimal, Flip, and Segment clock styles (the Analogue face stays 12-hour, since that's how an analogue dial reads; Terminal already always showed 24-hour and is unaffected).
-- **2 new themes** (101 → 103): **Lanterns** (HBO/DC) — a faceted power-ring symbol that pulses like an oath recharging, plus a dedicated `ringcharge` intro transition (a green ring contracting inward through a construct lattice); **YOU** — a small, restrained watching-eye motif with a slow drifting gaze, plus a quiet `whisperfade` iris-close intro transition, deliberately understated to match the show's tone.
-- **Cross-browser/engine hardening** (`src/platform.ts`) — real browser detection (Safari/Chrome/Edge/Samsung Internet/Opera/Firefox) alongside the existing OS/engine detection, plus genuine feature probes (`CSS.supports` checks for `backdrop-filter` and `100dvh`, not UA-sniffing) so fallbacks are based on what a browser can actually do. Added a **Settings → Compatibility** panel showing a live OS/engine/browser/feature summary, plus a manual "Force Simplified Surfaces" override for anyone whose device technically supports blur but renders it slowly.
-- Global `-webkit-tap-highlight-color: transparent` and `touch-action: manipulation` on buttons/toggles/sliders/cards — removes the grey tap-flash and the ~300ms double-tap-zoom delay some mobile browsers (Safari, Samsung Internet) still apply by default.
-- A solid-background fallback (`html.no-backdrop-filter` / `html.force-no-backdrop-filter`) for the topbar, modals, theme panel, command palette, feature dock, and side cards, for the rare engine with no `backdrop-filter` support at all.
-
-### Changed
-
-- **Themes tab** — more spacious layout across both the natural-swatch grid and the TV/Movie/Anime/F1 media-card grids (bigger gaps, padding, and swatch/card size), springier hover and press transforms with real `:active` states for touch, a subtle logo-scale on card hover, and a staggered anime.js pop-in (`Motion.staggerIn`) when switching tabs.
-- Theme-count references across `README.md`, `index.html`, `public/manifest.json`, and `CREDITS.md` updated from 101 to 103.
-
-### Verification
-
-`tsc --noEmit`, `oxlint .`, and `vite build` — see repo for current results. No visual/browser testing was possible in this environment — worth checking the new splash animation timing, the Lanterns/YOU theme renders, the 24-hour toggle across each clock style, and the Compatibility panel's detected values before shipping.
-
-## [1.7.1] — anime.js star-burst for the GitHub celebration, DeepSource cleanup
-
-### Added
-
-- **anime.js GitHub star-celebration** (`src/motion.ts`, `githubCelebration()`) — fires alongside the existing canvas confetti when the topbar GitHub link is clicked, not replacing it: the avatar ring now draws itself in with a stroke-dashoffset sweep, and 12 small star shapes (reusing the "Star on GitHub" button's own SVG path) burst outward from the avatar and fade — themed around "starring" rather than generic confetti.
-- Every `Motion` export (`popIn`, `staggerIn`, `bounceIn`, `githubCelebration`) now checks the app's own Reduce Motion setting and the OS `prefers-reduced-motion` before running — previously these new animations had no reduced-motion gate at all.
-- `.deepsource.toml` — enables the JavaScript (TypeScript dialect) and Secrets analyzers explicitly, excludes `dist/`, `node_modules/`, `.wrangler/`, and documents (for future maintainers) which of DeepSource's findings are false positives vs. real.
-
-### Fixed (DeepSource findings)
-
-- `src/apis.ts` — replaced 4 `any` casts with real ambient types for the Battery Status, Document Picture-in-Picture, and iOS `DeviceMotionEvent.requestPermission` APIs (new `src/webapi.d.ts`); removed a non-null assertion on `canvas.getContext('2d')!` with a real null check; fixed an unused `catch (e)` binding; commented the two genuinely-empty `catch {}` blocks.
-- `src/cmdpalette.ts` — removed an unused `Theme` import and an unused `modal` variable; replaced 4 non-null-assertion DOM lookups with a `must()` helper that throws a clear error instead of silently trusting `!`.
-- `functions/api/oauth/token.ts` — removed the last `any`, changed a string concatenation to a template literal, and split the 14-branch handler into `parseBody`/`resolveCredentials`/`buildTokenParams`/`buildHeaders` to bring cyclomatic complexity down.
-- The 2 "hardcoded credential" Secrets findings (`sc_google_client_id`, `sc_sound_presets`) are false positives — both are localStorage key _names_, not credential values. Left as-is in code; documented in `.deepsource.toml` for dismissal from the dashboard.
-- The remaining ~1900 JS-0067 ("function declaration in global scope") / JS-C1002 ("variable name too small") findings are a rule/architecture mismatch, not real bugs — this project is `"type": "module"`, so top-level functions are already module-scoped. Left as-is rather than restructuring ~90 files into IIFEs for a purely cosmetic change; documented the rationale in `.deepsource.toml`.
-
-### Verification
-
-`tsc --noEmit` and `vite build` both pass. `oxlint .` warnings went from 147 → 144 (no new warnings introduced, some overlapped with the fixes above). No visual/browser testing was possible in this environment — worth a quick click on the GitHub topbar link to confirm the star-burst looks right before shipping.
-
-## [1.7.0] — Privacy Policy & Terms of Service, anime.js micro-interactions, 5 new themes
-
-### Added
-
-- **Privacy Policy & Terms of Service** — added as a new "Legal" section in Settings → Privacy (`src/legal.ts`, new `legalOverlay` modal), and mirrored as [`PRIVACY.md`](PRIVACY.md) and [`TERMS.md`](TERMS.md) at the repo root. Content is generated from the app's actual data-handling code (`src/privacy.ts`'s `DATA_CATEGORIES`, the OAuth relay functions) rather than boilerplate, so it accurately reflects that everything is stored in `localStorage`, no analytics run anywhere, and the only server-side code is a stateless OAuth token-exchange proxy that logs nothing.
-- **anime.js micro-interactions** (`src/motion.ts`, new dependency: [anime.js](https://animejs.com) v4) — dynamically imported on first use so it never sits in the critical-path bundle. Three touches: an elastic "pop" when a theme swatch/card is selected, a staggered fade+rise when a Settings pane or the new Legal modal is rebuilt, and a spring entrance for toast notifications. Layered on top of the app's existing CSS spring transitions, not replacing them.
-- **5 new themes** (96 → 101): Hannibal, Slow Horses, The Boys, Ted Lasso, For All Mankind — each with its own dedicated canvas renderer (`src/renderer.ts` DRAW + SYMBOLS entries), not the generic particle fallback.
-
-### Changed
-
-- Theme-count references across `README.md`, `index.html`, and `public/manifest.json` updated from 96 to 101.
-- `CREDITS.md` updated to reflect the new anime.js dependency and 101 themes.
-
-### Verification
-
-`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing baseline, 0 errors), `vite build` all pass, and anime.js confirmed to land in its own lazy-loaded chunk rather than the main bundle. No visual/browser testing was possible in this environment — worth checking the new themes render correctly, the pop/stagger/bounce animations feel right, and the Legal modal reads well before shipping.
-
-## [1.6.1] — Spotify connect button was missing, minimizable Integrations dialog, real playlist/queue support
-
-The Spotify pane in the music dock had static "Not connected" text but no actual button to connect with — a real gap, now fixed — plus two follow-ups: the Integrations dialog can now be minimized instead of only closed, and YouTube's Liked Videos (which has no real playlist ID) now supports next/prev through a local queue instead of silently doing nothing.
-
-### Added
-
-- **Connect Spotify button** — the dock's Spotify pane now shows a real "Connect Spotify" button when not connected (using the one-click default-app flow from `src/authconfig.ts`, falling back to a manual Client ID prompt), and swaps to the live player automatically once connected.
-- **Minimizable Integrations dialog** — a new minimize (–) button collapses the dialog to a small pill docked bottom-right instead of only closing it; click the pill to restore. Useful since connecting Spotify/Google briefly navigates away and back.
-- **Local playback queue for Liked Videos** (`ytQueue` in `musicdock.ts`) — YouTube has no shareable playlist ID for "Liked videos," so next/prev previously did nothing there. Clicking into Liked videos now starts a local queue that next/prev advance through (wrapping at either end), while real playlists keep using YouTube's own native playlist navigation, which is more robust when a real playlist ID exists.
-
-### Fixed
-
-- **Spotify Playback SDK never initialized after connecting** — `initSpotifyPlayback()` was only called once at page load, before the OAuth redirect's token had landed, so the SDK device silently never came up until the user manually reloaded. Now called again right after the OAuth callback resolves.
-- **YouTube player rebuilt from scratch on every click** — `mountYouTubePlayer` now reuses the existing player instance (`loadVideoById`/`loadPlaylist`) when one exists instead of tearing down and recreating the iframe, so switching tracks/playlists is instant with no blank-player flash.
-
-### Verification
-
-`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing count, 0 errors), `vite build` all pass. No visual/browser testing was possible in this environment — worth a click-through of connect → play → next/prev on both tabs, and the minimize/restore pill, before shipping.
-
-## [1.6.0] — Synced lyrics, OS media controls, one-click music sign-in, real README screenshot
-
-Looked at two desktop YouTube Music clients (Limusic, Zuno — both Rust/Tauri apps) for ideas worth borrowing for the music dock. Their actual playback approach — pulling raw audio via YouTube's internal, non-public API and decoding it with mpv/ffmpeg — is deliberately **not** replicated here: this project is a static site with no server process to run mpv/ffmpeg against, and doing it "for real" means extracting streams in a way that's outside YouTube's terms, which the existing YouTube integration (official read-only Data API + required-visible IFrame player, see the comment at the top of `musicdock.ts`) was already built to avoid. Everything else genuinely useful about those two apps — synced lyrics, OS-level media key/lock-screen integration, a collapsible mini player, and low-friction sign-in — carries over below, built entirely on public web APIs.
-
-### Added
-
-- **Synced lyrics** (`src/lyrics.ts`) — a 🎤 button on both the Spotify and YouTube tabs looks up line-synced lyrics via [LRCLIB](https://lrclib.net), the same free public lyrics database Limusic/Zuno use, matched on title + artist + duration to avoid grabbing the wrong cut of a song. The active line highlights and auto-scrolls in time with playback (polled from the Spotify SDK's position for Spotify, from the YouTube IFrame API's `getCurrentTime()` for YouTube). Falls back to plain unsynced lyrics, or a "not found" message, with results cached per track for the session.
-- **OS-level media controls** via the [MediaSession API](https://developer.mozilla.org/en-US/docs/Web/API/MediaSession) — lock-screen/notification now-playing info (title, artist, artwork) and hardware/Bluetooth media keys (play, pause, next, previous, seek) now work for both the Spotify and YouTube tabs, the browser-native equivalent of the MPRIS/SMTC integration native apps like Limusic/Zuno get from mpv.
-- **Collapsible mini-player capsule** — a new ▸ button shrinks the dock down to just album art (Zuno's "morphing capsule" mini player, redone in plain CSS); hover or focus to expand it back out. State persists across reloads.
-- **One-click music sign-in** (`src/authconfig.ts`) — if you register your own Spotify app and Google OAuth client and drop their (public, non-secret) Client IDs into `src/authconfig.ts`, visitors to your deployed site get a real "Connect with Spotify" / "Connect Google" button with zero setup of their own. Leave a field blank and that integration quietly falls back to the existing "paste your own Client ID" form — a collapsed "use your own app instead ▾" link keeps that option available either way, so self-hosters aren't locked out.
-- **Real UI screenshot in the README** (`public/preview.png`) — replaces the SVG mockup that sat below the banner with an actual screenshot of the app.
-
-### Verification
-
-`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing count, 0 errors), `vite build` all pass. LRCLIB and MediaSession calls are try/caught and degrade silently (no lyrics found / API unsupported), so neither feature can break existing playback. No visual/browser testing was possible in this environment — worth a quick look at the lyrics panel timing and the capsule hover transition before shipping.
-
-## [1.5.0] — Minimal Centre mode, GitHub star/support celebration, removed the sync pill
-
-### Added
-
-- **Minimal Session Panel (Centre mode)** — when Clock Position is set to Centre, the session timer now shrinks and docks to the side (bottom-right on narrow screens) instead of stacking under the clock, and the day-progress bar + quote hide, so the clock stays the obvious focal point. New Settings → Display → **Minimal Session Panel** toggle (on by default) lets you keep the old full-stacked layout in Centre mode if you'd rather have it.
-- **GitHub star/support celebration** — clicking the GitHub icon in the top bar now shows a small colourful animated card (avatar with a spinning accent ring, gradient title, confetti via the existing Easter-egg confetti function) with **Star on GitHub** and **Support the project** buttons before opening GitHub, plus a plain "Just take me to GitHub →" link for anyone who'd rather skip it. Closes on Escape, backdrop click, or the × — it's a moment, not a wall.
-  - ⚠️ **Needs your input:** the Support button currently points to `https://github.com/sponsors/ADJ189` as a placeholder — swap it for wherever you actually want support to go (GitHub Sponsors once set up, Ko-fi, Buy Me a Coffee, etc.) in `index.html` (`#ghBtnDonate`).
-
-### Removed
-
-- **The sync status pill** ("Syncing…" / "Synced · ±Xms" / "Local clock") — removed per request. The underlying sync-trust logic it fed is untouched (the UTC pill in the top bar still reflects NTP vs local-clock trust), and the "time for a break" pulse hint that used to flash on this pill now flashes on the session status line instead, so that feature still works with the pill gone.
-
-### Verification
-
-`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing count, 0 errors), `vite build` all pass. No visual/browser testing was possible in this environment — worth a quick look at Centre mode and the GitHub card before shipping.
-
-## [1.4.2] — Every theme now has its own background: 35 themes were silently falling back to generic particles
-
-A full theme-by-theme audit, prompted by a direct ask to check every theme's rendering, intro, and settings against each other. The finding: of 96 themes, **35 had no dedicated background renderer wired up** — they compiled fine and worked, but silently fell back to the generic drifting-particle background (`drawParticles`) instead of the bespoke scene/symbol treatment every other theme gets. This was verified mechanically (cross-referencing every theme's `bgType` against the `DRAW` dispatch table in `renderer.ts`, not by eyeballing), so it's a solid finding, not a guess.
-
-Two things were already correct and NOT part of the gap, worth calling out because they could easily have been assumed broken too:
-
-- **Every theme already had a bespoke intro `transition`** (the animation that plays when you switch to it) — only `8bit` and `smpte` didn't, both now fixed (`glitch` and `flash` respectively, both reusing existing transition code).
-- **Two of the 35 "missing" themes weren't actually missing** — `8bit` and `smpte` (SMPTE Timeline) each already had a real, unused renderer function sitting in the file (`draw8Bit`, and a genuinely sophisticated `drawSMPTE` that draws your actual focus-log clips onto a broadcast-style timeline), just never wired into the dispatch table. Found and wired those up instead of duplicating them.
-
-### Added — background renderers for 35 themes
-
-- **3 F1 team liveries** (Alpine, Racing Bulls, Williams) — extended the existing `drawF1Bg`/`drawF1Symbol` team-fns pattern used by the other 5 F1 themes, using each team's own accent colors.
-- **20 movie/TV/anime themes** (Andor, Chernobyl, Cowboy Bebop, Drive, Fargo, Ghost in the Shell, Grand Budapest Hotel, Gravity Falls, Jujutsu Kaisen, John Wick, Mad Men, No Country for Old Men, Se7en, Spider-Verse, The Batman, True Detective, Twin Peaks, Vinland Saga, Whiplash, Your Name, Adventure Time) — each now gets `drawMediaBg` (the same subtle accent vignette every other cinematic theme uses) plus a new bespoke `SYMBOLS` entry: a small animated motif specific to that title (e.g. a sweeping bat-signal beam for The Batman, a slow spiral for True Detective, halftone comic dots for Spider-Verse, falling snow + a blood-red dot for Fargo).
-- **11 atmosphere-only themes** (8-BIT — wired to the existing renderer, Deep Bioluminescence, Northern Cabin, Coffee Shop Rain, Studio Ghibli, Greenhouse, Lava Lamp, Midnight Library, SMPTE Timeline — wired to the existing renderer, Vinyl Warmth, Zen Garden) — new standalone scene functions matching their name (drifting glow motes, falling snow with a warm window glow, rain on glass, rising lava blobs, raked zen-garden sand lines, spinning vinyl grooves, etc.), following the same lightweight canvas patterns already used by Aurora/Forest/Ocean/Midnight.
-
-### Verified while auditing (confirmed correct, no change needed)
-
-- `THEME_CATEGORIES` (nat/tv/movie/f1/anime/animation) — all 96 themes use a valid category, none orphaned.
-- The `grain`/`scanlines`/`lb` (letterbox)/`hdr` per-theme flags are all consistently read and applied in `main.ts` for every theme, regardless of category.
-- No other pre-built-but-unwired functions exist elsewhere in `renderer.ts` (checked systematically, not just for the two found above).
-
-### Verification
-
-`tsc --noEmit`, `oxlint .` (147 warnings, same pre-existing count, 0 errors), and `vite build` all pass. Bundle grew ~2.2 kB gzip for 34 genuinely new render functions — expected, and small. **Note:** this environment can't render a browser canvas, so every new function was checked for correctness the way the rest of the file was (types, structure, reused proven helpers/gradient patterns) but not visually screenshotted — worth a quick look through the theme picker after pulling this in, in case any motif needs a color or timing tweak.
-
-## [1.4.1] — Full codebase audit: dead-code removal, verified clean build
-
-A maintenance pass — no user-facing feature changes. `tsc --noEmit`, `oxlint .`, and `vite build` all run clean before and after.
-
-### Removed
-
-- **24 confirmed-dead exported functions/values**, deleted after a repo-wide reference check (grep across every `.ts` file, `functions/`, `public/`, and `index.html` confirmed zero call sites outside the declaration): `palette.ts` (`addCommand`), `features.ts` (`buildEmptyState`), `sound.ts` (`adaptOnWorkNearEnd`, `currentId`, `setVolume`), `weather.ts` (`getCurrentLocation`), `integrations.ts` (`spotifyTogglePlay`, `spotifySearchFocusPlaylists`, `spotifyPlayPlaylist`, `youtubeSearchFocusPlaylists`, `completeTodoistTask`, `getLinearIssues`), `apis.ts` (`updateMediaSessionTrack`, `shareCard`, `copyCardToClipboard`, `getBatteryLevel`, `isOnBattery`), `renderer.ts` (`isBreathing`), `cmdpalette.ts` (`addItems`), `sidetasks.ts` (`stopSideStack`), `musicdock.ts` (`isConnected`, `getState`), `privacy.ts` (`getMemoryLog`, `pushMemoryLog`). These were superseded internal implementations left exported after earlier refactors (e.g. `spotifyTogglePlay`/`spotifyPlayPlaylist` predate the current `musicdock.ts` playback path, which calls the Web Playback SDK transport directly).
-
-### Verified (no change needed)
-
-- **Bundle size**: Rollup was already tree-shaking the 24 dead exports out of the production bundle (423.78 kB → 423.69 kB gzip-compressed JS, effectively a wash) — the value here is source-level, not bytes-on-the-wire.
-- **iOS/Android touch handling**: the custom-theme gradient/hue color pickers use `touch-action: none` in CSS rather than a non-passive `touchmove` + `preventDefault()`, which is the more efficient pattern (avoids blocking the compositor thread on scroll) — confirmed this is intentional, not a bug.
-- **PWA/mobile meta tags**: `viewport-fit=cover`, `apple-mobile-web-app-*` tags, `100dvh` with a `100vh` fallback, and per-platform capability flags (`platform.ts`) are all already in place and correct.
-- **No leftover `console.log`/`console.debug`, no stray `TODO`/`FIXME` beyond one pre-existing tracked item.**
-
-### Known backlog (flagged, not changed this pass — see below)
-
-- `main.ts` statically imports every feature module (`cmdpalette`, `easter`, `integrations`, `musicdock`, `sidetasks`, `weatherpage`, etc.), so all ~4,200 lines of it plus its dependents ship in one 423 kB (124 kB gzip) chunk, versus `qr`/`share`/`litclock` which are already lazily `import()`-ed. Several of these (`easter`, `weatherpage`) are read from inside the boot/tick path, so splitting them safely means restructuring init order, not just adding `import()` — left as a follow-up rather than risking a blind refactor of the app's entry point without a browser to test against.
-- No `Content-Security-Policy` is set (`public/_headers` has the other standard security headers — `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, COOP/CORP — but not CSP). Given how many external origins this app legitimately talks to (Spotify Web Playback SDK, YouTube IFrame API, Google Identity Services, the Notion/GitHub/Todoist/Linear OAuth proxy, Nominatim, weather API), a CSP needs to be built against a real enumerated allow-list and tested live rather than guessed at.
-- `oxlint` still reports 147 pre-existing warnings (mostly `no-unused-vars`/`no-new-array`, intentionally downgraded from error in `.oxlintrc.json` per an earlier decision — see that file's comments) — unchanged this pass, left as incremental cleanup.
-
-## [1.4.0] — Head-tracked spatial audio, 4 new ambient sounds, sound-engine fixes
-
-### Added
-
-- **Head Tracking** (Settings → Sound → Head Tracking, shown only on devices with a gyroscope): turning your phone shifts the ambient soundstage the opposite way, so sources stay anchored in place as you turn toward or away from them — the same illusion behind AirPods-style spatial audio head tracking. Built on the existing ILD+ITD 3D Spatial Audio panning engine, driven by live device-orientation samples through the same shared gyroscope subscription `platform.ts` already uses for background parallax (no duplicate permission prompt, no duplicate listener).
-- **4 new ambient tracks**, bringing the mixer to 17: **White Noise** (flat full-spectrum hiss), **Pink Noise** (−3dB/octave, softer and more natural than white), **Rain on Roof** (heavier, more percussive than the existing window Rain — resonant peak simulating a hard overhead surface, plus stronger gust swells), and **Airplane Cabin** (steady low engine drone + pressurization hiss — deliberately almost motionless, since real cabin noise's constancy is what makes it effective as a masking sound).
-- Every track — including the 4 new ones — already had its own volume slider in the mixer; see **Fixed** below for two tracks where that slider was silently being ignored.
-
-### Fixed
-
-- **Forest's bird chirps and Fireplace's crackle ignored their own volume slider.** Both were wired directly to the output analyser instead of through their track's own gain node — so dragging either slider down did nothing to those specific layers (wind/rustle in Forest, and the fire's base roar, both worked correctly; only the birds and the crackle bursts were affected), and neither layer responded to 3D Spatial Audio panning either. Both now route through their track's normal mix bus like every other sound, so per-track volume and spatial panning apply correctly across the board.
-- **Gyroscope-driven effects (parallax, and now head-tracked audio) share one orientation listener** instead of each attaching its own — a small correctness/perf cleanup alongside the audio work above, and the reason head tracking needed no separate iOS permission flow.
-
-### Changed
-
-- De-duplicated the pink-noise generation algorithm (Paul Kellett's IIR approximation), previously copy-pasted identically into both the Forest and Wind generators, into one shared helper — also now reused by the new standalone Pink Noise track.
-
-## [1.3.0] — Platform-aware optimizations, mobile header fix, repo rename
-
-### Added
-
-- **Platform/browser detection engine** (`src/platform.ts`): detects OS (iOS, iPadOS, Android, macOS, Windows, Linux) and rendering engine (WebKit, Blink, Gecko) once at boot, and exposes real capability flags — Vibration API support, Document Picture-in-Picture support, and whether `DeviceOrientationEvent` needs an explicit permission prompt (iOS 13+) — instead of assuming a feature exists just because the browser is a certain brand.
-- **Haptic Feedback** setting (Settings → Motion & Animations): a short vibration on Pomodoro work-start and work-complete. Only ever shown/offered on devices that actually support the Vibration API (Android Chrome/Firefox) — hidden entirely elsewhere rather than shown as a dead toggle, since no browser on iOS (all WebKit, by Apple's platform rule) implements it.
-- **Document Picture-in-Picture buttons now hidden on unsupported browsers** instead of being tappable dead buttons — affects the music dock's pop-out (⧉) button on Firefox and Safari/iOS, which don't implement the Chromium-only Document PiP API. (The mini-clock's own "Always on Top" pop-out was already conditionally rendered and needed no change.)
-
-### Fixed
-
-- **Gyroscope-based parallax silently never worked on iPhone/iPad.** The code attached a `deviceorientation` listener directly on load, but iOS 13+ requires that permission be requested from inside a user gesture — since that never happened, the browser never granted it and the listener simply never fired. The Parallax toggle in Settings now requests motion permission at the moment it's switched on (a real tap, satisfying iOS's requirement), and only attaches the gyroscope listener once granted; mouse-based parallax is unaffected and still works everywhere.
-- **Mobile header was overflowing/overlapping on phones.** The top bar (Themes button, weather pill, rotating info strip, UTC clock, clock-position toggle, GitHub/search/keyboard-shortcut icons) was laid out for a wide desktop row and had no real mobile treatment — on an iPhone-width viewport it visibly overlapped itself. A themed tagline badge (e.g. "☕ The owls are not what they seem." for Twin Peaks) is also absolutely centred over the header, which made things worse on narrow screens where the flex clusters reach much closer to centre. Below 600px width: the info strip, UTC clock, and clock-position toggle are now hidden (the last two are redundant with Settings → Display, which already has its own clock-position and hide-seconds controls); the tagline badge renders as its own slim strip just under the header instead of overlapping it; and the keyboard-shortcuts button plus the "⌘K" text label are hidden on any touch device, since both assume a physical keyboard that isn't there.
-
-### Changed
-
-- **Repository moved** from `ADJ189/Accurate-Time-` to [`ADJ189/Session-clock`](https://github.com/ADJ189/Session-clock) — updated every reference across `README.md`, `CONTRIBUTING.md`, and the in-app GitHub/star links.
-- **README** now has an actual preview screenshot instead of a "pick an option" placeholder, and its version numbering follows this changelog (previously README/`package.json` used one number and this file used another, with neither kept in sync).
-- **SECURITY.md**, previously an unfilled GitHub template, now describes the app's actual (client-side-only, two small OAuth-proxy Functions) security model and points to GitHub's private vulnerability reporting.
-
-## [1.2.0] — Logo fix, per-style clock scaling, hide seconds/ms
-
-### Added
-
-- **Hide Seconds / Hide Milliseconds**: two independent toggles in Settings → Display. Hiding seconds drops the seconds digits (or the analogue second hand / the last segment-clock group / the Sec flip card) across every clock style and re-centers the remaining hour/minute display at a larger size. Hiding milliseconds just drops the fractional-second readout under the digital clock.
-- **Per-clock-style center mode**: "Clock Position" (Top/Centre) is no longer one global setting — each clock style (Digital, Analogue, Flip, Word, Minimal, Segment) now remembers its own preference. Existing single-value settings are migrated automatically on first load.
-- **Larger, sharper clock scaling in center mode**: Analogue and Segment clocks are canvas-based and previously had a hard-coded small size cap regardless of screen size (Analogue: 340px, Segment: 520×110) — they now scale meaningfully larger in center mode and render at devicePixelRatio for crisp digits/hands instead of a slightly blurry fixed-size canvas. Flip, Word, and Minimal clocks previously only grew in center mode via generic layout CSS; they now have their own dedicated center-mode scale-up (previously only the digital clock's font actually got bigger when centered).
-- **New animated splash intro**, built the same way as the CompressF/CompressZ splash: independent icon pop-in and wordmark pop-in timings, then a 0.4s fade. Uses the new hourglass logo, with the inner sand-triangle isolated into its own layer so it spins continuously while the app's sources are still loading, then eases to a smooth stop exactly when loading finishes (rather than being cut off mid-turn or spinning on a fixed timer unrelated to actual load time).
-- **New app logo/icons**: replaced `logo.png`, `icon-192.png`, and `icon-512.png` with a properly centered, evenly padded version of the mark. The previous asset had the artwork sitting off-center in a mostly-blank canvas, which is what caused it to look shifted/oddly scaled wherever it was cropped or masked (browser tab, home-screen icon, app switcher, etc).
-
-### Changed
-
-- **Install button moved to bottom-left.** It used to appear bottom-right and sit directly on top of the music dock / side-task cards (Spotify, YouTube, GitHub, etc.), hiding them the moment it showed up. The dock stays bottom-right as before; the install prompt no longer competes with it for the same corner.
-
-### Removed
-
-- **Token Shop remnants.** An early version of Session Clock had a Token Shop (earn tokens from focus sessions, spend them on cosmetic items/equipped items). The shop's actual logic was removed in a previous pass, but dead leftovers remained: the shop modal markup in `index.html`, its dedicated CSS block and unused keyframes, the "Token Shop" entry under Settings → Manage Privacy, and an unused `shop` i18n string across every supported language. All of it has been removed; a stray "check the shop!" toast on the 100-session Phoenix-theme unlock now points at Clock Style settings instead.
-
-## [1.1.0] — What's new in this version
-
-### Added
-
-- **Music dock**: a floating widget next to the clock with real in-page Spotify playback via the official Web Playback SDK (Premium required) — play/pause/skip/scrub actually control audio in the tab, not just a remote device.
-- **Pop-out dock**: click the ⧉ icon to pop the dock into a real OS-level window via Document Picture-in-Picture (same API the mini clock already uses), so it stays visible above other windows/tabs.
-- **Auto-sync with focus sessions**: optional 🔁 toggle on the dock — when on, Spotify playback auto-resumes when a focus session starts and pauses on break/stop.
-- **YouTube tab**: paste a YouTube video or playlist URL into the dock's YouTube tab to play it via YouTube's official IFrame Player API, docked at a small fixed size (kept visible per YouTube's own terms — no audio-only/hidden playback).
-- **Focus sidebar task cards**: compact GitHub (issues/PRs), Notion (tasks), Todoist (tasks), and Calendar (upcoming events) cards next to the music dock, built on the existing integrations data layer — nothing new is fetched, just new compact UI for data you're already pulling in.
-
-## [1.0] —
-
-### Added
-
-- **33 new themes** (96 total, up from 63): Fargo, Mad Men, True Detective, Chernobyl, Andor, Twin Peaks, Grand Budapest Hotel, No Country for Old Men, Drive, Se7en, Whiplash, The Batman, John Wick, Cowboy Bebop, Ghost in the Shell, Your Name, Studio Ghibli, Vinland Saga, Jujutsu Kaisen, Gravity Falls, Adventure Time, Spider-Verse, Williams Racing, Alpine F1 Team, Racing Bulls, Deep Bioluminescence, Zen Garden, Coffee Shop Rain, Vinyl Warmth, Midnight Library, Greenhouse, Lava Lamp, Northern Cabin.
-- **23 new cinematic transitions** to go with them (snowfall + blood drop for Fargo, red curtains for Twin Peaks, bat-signal sweep for The Batman, halftone comic burst for Spider-Verse, and 19 more), reusing existing transitions where one was already a perfect fit (Andor → hyperspace warp, Studio Ghibli → sakura petals, Northern Cabin → blizzard, etc.).
-- **7 new ambient sound tracks**: Wind, Snowfall, Keyboard, Library, Spaceship, Campfire, Waves & Rocks — fully synthesized in-browser (no audio files), all correctly routed through the per-track volume slider.
-- **Sound Mixer redesign**: live output VU meter, night mode (auto 9pm–6am or manual), glowing/pulsing active-track indicators, glass panel styling.
-- **Crossfade Scenes**: save your current ambient mix as a "Focus" or "Break" scene; optionally auto-crossfades between them (2.5s) as Pomodoro switches phases, instead of a hard cut.
-- **Now Playing → Theme**: matches ~30 known soundtracks/shows against the currently playing track (via the existing Spotify integration, or a manual "what's playing" box that works with any player) and switches the theme to match. Toggle in Settings → Sound.
-- **Custom Pomodoro cycles**: free numeric input for work/break/long-break minutes (previously fixed presets only), plus long-break-duration presets that had no UI before.
-- **Break reminders**: configurable interval (30/45/60/90/120 min), now actually shows a toast + notification.
-- **Idle Nudge**: optional, off by default — a "still there?" toast after 15 minutes of no input. Never pauses or alters the timer.
-- **Calm Mode**: one toggle that reduces motion, disables parallax, and lowers render quality together.
-- **Focus Mode**: header and dock fade out after a few idle seconds, back on any input.
-- **Always-on-top mini clock** via Document Picture-in-Picture (Chrome 116+).
-- Session/focus-block completion now triggers the existing milestone confetti + motivation widget.
-- **Splash screen** on load: your bunny artwork (background removed, cropped, served as a cached PNG) at a much bigger size, with a gentle float animation and a "loading" dot sequence. Held for a short minimum (~0.9s) so it reads as intentional rather than a flash, hard-capped at 1.5s no matter how long loading actually takes.
-- **Weather pill** now shows a proper scalable outline cloud icon (was a plain-text `☁` glyph that rendered inconsistently across platforms) as its default/placeholder state; real condition icons still swap in once weather data loads.
-- **Support card**: hovering the weather pill (after a short hover-intent delay) shows a small card with GitHub avatar, a "Star on GitHub" link, and a short message.
-- **Location picker now opens automatically** the first time you open the weather page with no location set, instead of leaving you on an empty hero section — no more hunting for the "Set location" button.
-- **Weather fetch retry + clear failure state**: a single transient network blip now retries once automatically instead of immediately showing "unavailable"; if it genuinely fails, the weather page shows a distinct "tap to retry" state instead of an indefinite "Fetching weather…".
-- **Weather-adaptive theme effects**: sunny/clear now gets a warm drifting glow and cloudy gets soft drifting cloud-shadow patches (previously only rain/snow/thunder/fog had an ambient effect). Thunderstorms now get an actual bright double-flash "strike" instead of just an ambient purple pulse.
-
-### Fixed
-
-- **Weather showing "unavailable" after every location change.** `setManualLocation()` was only persisting `{ name }` to storage — the actual coordinates were silently dropped. Any reload, or even just reopening the weather page right after picking a location, read back `undefined` lat/lon, fetched `NaN, NaN` from the API, and failed every time. Now persists the coordinates too (rounded to ~11km precision, so it's still not storing an exact GPS fix in clear text).
-- Weather overlay effects (rain/snow/thunder/fog, and the two new ones above) now respect `prefers-reduced-motion` — they never did before.
-- **Location permission prompt firing on startup.** `initWeather()` called `navigator.geolocation.getCurrentPosition()` automatically on every page load if no location was stored yet, popping the browser's native permission dialog before the user had asked for weather at all. It now only uses a location the user explicitly set via the weather page's "Use GPS" button or city search; the pill shows a neutral "Set location" prompt instead until then.
-- Deduplicated the reverse-geocoding request — `weatherpage.ts`'s GPS button had its own inline copy of the Nominatim fetch instead of reusing `weather.ts`'s `getCityName()`.
-- Unreachable dead code in `getStoredLocation()` (a legacy-coordinate fallback sitting after an unconditional `return`, so it could never run).
-- **Theme picker icons weren't rendering.** `DOMParser` requires an explicit `xmlns="http://www.w3.org/2000/svg"` on the root `<svg>` to assign it the SVG namespace — without it the element parses "successfully" but silently fails to render once appended to the page. Confirmed via a live namespace check; fixed by injecting the attribute if missing.
-- **Rain and fireplace sounds silently failed to play.** Both are auto-started via `setTimeout` when the "Common Room" theme loads, which browsers don't treat as a user gesture — so the `AudioContext` stayed permanently suspended. Fixed by priming the context on the very first real interaction with the page.
-- **"Smart Break Reminder" toggle did nothing.** The setting was saved but never actually read anywhere.
-- Memory leak in the theme color-picker (window drag listeners stacked up on every swatch click, uncapped).
-- Animedoro break timer drifted in backgrounded tabs (`setInterval` is throttled there); now computed from a fixed end-timestamp.
-- `renderFrame` wrote to the DOM on every single frame even when the displayed value hadn't changed.
-- Dangling `setTimeout` leak in the fetch-timeout helper used by weather and time-sync requests (fired even after a successful request).
-- Vite now minifies with `esbuild` instead of `terser` — build time down from ~12s to ~2s.
-- Google Fonts now load via `preload` + swap instead of a render-blocking stylesheet.
-- Removed 3 accidental duplicate themes (Blade Runner 2049, 2001: A Space Odyssey, House of the Dragon all already existed under different IDs).
-
-### Changed
-
-- Service worker cache bumped to v4 (and the splash image added to its precache list) so returning visitors pick up this update instead of a stale cached build.
-- Splash artwork moved from an inline base64 PNG back to a normal cached file (`/splash-bunny.png`). Base64-inlining briefly seemed like a win for first paint, but it forces the browser to re-download the image as part of the HTML on _every_ visit — bad tradeoff for a PWA people reopen daily. `index.html` dropped from 116KB back to ~25KB; the image itself is now cached by the service worker like any other asset.
+## [1.8.0] — Audit fixes, security hardening, cinematic redesign
 
 ### Security
+- **undici → 7.30.0** (npm `overrides`, lockfile regenerated). Clears all six reported advisories (the BalancedPool TLS bypass is fixed from 7.29.1; 7.30.0 is the newest 7.x). `npm audit` reports 0 vulnerabilities. undici is a dev-only transitive dependency of `wrangler`, so nothing ships to browsers.
+- **`/api/recommend` hardened:** same-origin only (wildcard CORS removed), 16 KB body cap, strict allow-list input schema, de-duplicated/validated model output (every candidate returned exactly once), generic client errors (provider text and raw model output now stay in server logs), optional per-IP rate-limit binding.
+- **COEP `require-corp` → `credentialless`.** Keeps the page cross-origin isolated for the on-device AI without blocking third-party TMDB images; also adds `nosniff` and a referrer policy to asset responses.
 
-- **XSS via city search results.** The weather page's city-search dropdown inserted Nominatim API results (`name`, `state`, `country`) directly into `innerHTML`. That's untrusted external data — a malicious or spoofed response could have injected arbitrary HTML/script. Rebuilt with `textContent`-based DOM construction instead.
-- `npm audit`: fixed a high-severity path-traversal advisory in a transitive `postcss` build dependency (`npm audit` now reports 0 vulnerabilities). Build-tool only — never shipped to users.
+### Fixed
+- **movie + sitcom returned zero candidates** (both media types disabled). Sitcom now forces series.
+- **TMDB outages looked like "No matches."** Discovery and similar-title lookups now distinguish "every request failed" (retryable outage state) from a genuinely empty result, which offers a one-click "Broaden my matches".
+- **Lazy-screen import failure left the app stuck loading.** Now shows a retry/reload state, with one guarded automatic reload for stale-chunk-after-deploy.
+- **Theme storage could crash startup** in storage-blocked browsers; all storage goes through `src/lib/storage.ts`.
+- **Profile JSON is now schema-validated** field by field; corrupt rows are dropped instead of trusted.
+- **Match % is absolute.** It used to be min/max-scaled per batch ("92%" meant "top of this batch"). Now a fixed calibration curve, so the same title/taste gives the same % across searches. A separate relative `rankPct` is kept for ordering.
+- **External (OMDb) ratings now influence ranking.** The top candidates are enriched (bounded concurrency, cached) before the scoring pass instead of after selection.
+- **Letterboxd import rewritten:** the whole export (most recent 400 rows) is resolved on TMDB by title + year, half-star precision is kept, results are de-duplicated by TMDB id and persisted to the profile, all of it calibrates the engine, and a summary reports imported / matched / unidentified.
+- **People/cast feature is wired end to end:** cast & director row in the detail sheet, person results in search, person pages, and the pending-search handoff.
+- Search requests are cancellable (`AbortController`); landing avatar honors the chosen emoji; landing copy says seven questions and no longer overclaims privacy; demo mode makes no TMDB poster lookups; streaming availability says when it fell back from your region; fluid canvas pauses when off-screen; search no longer autofocuses on touch devices.
+- **Accessibility:** detail view is a real dialog (focus moves in, Tab is trapped, Escape closes, focus returns, `aria-labelledby`); poster/title controls are real buttons with visible focus; reduced-motion removes movement instead of shrinking durations to 1ms.
 
----
+### Changed (design)
+- Landing: new headline/CTA, staged entrance, trust line, spotlight + grain backdrop.
+- Quiz: slide transitions (reverse on Back), option stagger, selection pulse, dot progress with stage labels.
+- Results: real-progress loading steps, featured #1 pick, themed shelves (Strong matches / Hidden gems / Worth a stretch), match meter with confidence label, "why it matched" chips, poster hover choreography, "Give me another".
+- Detail view: "Why this recommendation?", cast row, bottom sheet on mobile.
+- New design tokens: shadows, glows, focus ring, spacing scale, motion levels.
 
-## Earlier versions [0.1 - 0.9]
+### Review follow-ups (also in 1.8.0)
+- Letterboxd matching no longer sends TMDB's `year` filter (it hid films dated one year off); the ±1-year check now runs on unfiltered results, exact year preferred.
+- A rating is counted once: titles that are both a seed/result rating and in the saved history are no longer applied twice.
+- Taste affinities are saturated and large imported libraries are down-weighted, so heavy imports can't push every title to the top of the match curve (curve re-fitted).
+- Search: an older person/title response can no longer overwrite a newer selection.
+- Quiz: Back during the post-answer pause cancels the pending submit; the timer is cleared on leaving the screen.
+- Results: OMDb lookups have a 3.5s timeout and a 6s overall budget, so a hung request can't block the first batch.
+- Stale-chunk reload guard is reset only after a lazy screen actually loads, so a persistent failure shows the retry screen instead of reloading repeatedly.
+- `/api/recommend` enforces the 16 KB cap while streaming the body (stops reading at the limit) rather than after buffering it.
 
-- 63-theme baseline, SvelteKit fork, weather module .
-- background audio .
-- Initial svelte config , re written to typescript .
-- Cloudflare pages hosted.
-- Deploy to github , but replaced with cloudflare pages .
-- f1 , movies ,tv show themes implementations.
-- integration of spotify , youtube , google notes , todolist , notion .
--
-- "Forgot to LOG everything before". ( too invested in the project ) .
+### Not changed (still open from the audit)
+Watched/Not-for-me feedback, Tonight mode, Group Match, provider-aware filtering, browse collections, IMDb import, unit/E2E tests, and the shared-element poster transition are larger features and are not in this release.
+
+## [1.7.1] — Lint and Lighthouse CI
+
+### Added
+- **oxlint.** Config in `.oxlintrc.json`, scripts `npm run lint` / `npm run lint:fix`. Chosen over ESLint/`typescript-eslint` because `typescript-eslint` hard-fails against TS 7's native compiler (no programmatic API yet — confirmed via live testing, known unresolved upstream gap pending TS 7.1); oxlint has no dependency on the `typescript` package so it's unaffected and needed no workarounds. Runs clean (0 findings) against the current codebase.
+- **Lighthouse CI.** `lighthouserc.json` runs three headless-Chrome passes (desktop preset) against the built `dist/` and asserts on the four category scores only — accessibility is a hard `error` gate at 0.9, performance/best-practices/SEO are `warn` at 0.85–0.9. (Deliberately not the `lighthouse:recommended` preset, which also hard-asserts individual diagnostic-only audits.)
+- **Two CI workflows:** `.github/workflows/ci.yml` (typecheck → lint → build, Node 22) and `.github/workflows/lighthouse.yml` (`treosh/lighthouse-ci-action` against the build).
+
+## [1.7.0] — Manual streaming region, contributor docs
+
+### Added
+- **Region picker for streaming availability.** `getWatchProviders()` used to silently guess your country from the browser's locale and never let you change it — wrong for a browser locale that doesn't match where you actually subscribe, checking availability somewhere you're traveling to, or a household with multiple regional accounts. A new `region.ts` persists an explicit override (or falls back to the old locale guess) across ~50 JustWatch-covered countries; a dropdown next to the provider logos (search hero + results detail modal) lets you switch instantly and re-fetches for the new region. `providers-ui.ts` now exports `mountProviders()`, which owns the whole fetch → render → refetch-on-change lifecycle, replacing the old pattern of each call site fetching providers itself and calling a pure row-builder.
+- **CONTRIBUTING.md, CODE_OF_CONDUCT.md, CREDITS.md, PRIVACY.md.** The README already had a short "Contributing" section and SECURITY.md already covered vulnerability reporting; these fill the remaining gaps a public repo's community-health checklist expects — a fuller PR/dev workflow doc, a Contributor Covenant code of conduct, attribution for the data sources and libraries this project depends on, and a plain-language explainer of what is and isn't collected (short version: nothing leaves the browser except the direct TMDB/OMDb API calls needed to fetch and score titles).
+
+### Roadmap note
+Letterboxd *review text* (not just star ratings, which `letterboxd.ts` already imports) is scoped for a future update — see the README's Roadmap section. Not part of this release.
+
+## [1.6.0] — Search actors/directors, cast & crew, person pages
+
+The Jellyfin/Plex "click a cast member to see their other work" pattern,
+built on top of what 1.5.0 added. Jellyfin itself is a self-hosted media
+*server* (C#/.NET, scans a local library) — a fundamentally different
+architecture from this client-only, no-library TMDB app, so there's no
+literal code to port. What carried over is the actual UX pattern, backed
+by TMDB's own person/credits data instead of a local library scan.
+
+### Added
+- **Search people, not just titles.** The search screen now runs a title search and a person search (`/search/person`) together — search "Denis Villeneuve" or "Zendaya" as directly as a movie title.
+- **Person pages.** Photo, department, birthday/place of birth, a short bio, and a "Best of {name}" grid — their combined filmography (`/person/{id}/combined_credits`) ranked by rating with a vote-count floor (same reasoning `discoverCandidates()` already applies elsewhere, so a one-review 9.8 short doesn't outrank a broadly-loved title).
+- **Cast & crew on every title.** Both the search screen's title hero and the quiz-results detail modal now show the top-billed cast and director(s)/creator(s) (`getCredits()` — director comes from the crew list for movies, from TMDB's separate `created_by` field for TV, which genuinely differ, not an oversight). Click anyone to jump straight to their person page — from the results modal, that means closing the modal and switching to the search screen already loaded on that person, via a new `store.openInSearch()` navigation helper.
+- **`getTitleDetails()`** in `tmdb.ts` — resolves a bare (id, type) to a full title, needed when navigation only carries an id (e.g. jumping to a title from someone's filmography).
+
+### Changed — code quality
+- **Extracted `src/lib/rating-ui.ts`.** The watchlist-toggle button and 5-star rating row were byte-for-byte duplicated between `results.ts` and `search.ts`; both now import one shared implementation.
+- **Extracted `src/lib/credits-ui.ts`** for the same reason, shared between the search hero and the results modal.
+- Net effect: two more real features shipped with *less* net duplication than before, not more — the shared-module pattern from 1.5.0 (`providers-ui.ts`) is now applied consistently rather than each new feature growing its own copy of card/button-building code.
+
+## [1.5.0] — Title search + real similarity data, streaming availability, more avatars
+
+### Added
+- **Search screen (`src/screens/search.ts`).** Search for a specific movie or show and see what's actually similar to it. Deliberately *not* run through the quiz-calibrated engine — people's taste isn't the same every session, so a single title's similarity is better answered by TMDB's own data than by re-scoring it against stated quiz preferences from a different visit. `getSimilarTitles()` in `tmdb.ts` merges `/recommendations` (collaborative filtering — what people who engaged with this title also engaged with) with `/similar` (genre/keyword/cast overlap) as a fallback for titles where recommendations data is thin.
+- **Streaming availability**, originally slated for a later v1.4.5 — feasible to include now, so it shipped here instead. `getWatchProviders()` pulls TMDB's JustWatch-sourced region data (guessed from the browser's locale, falling back to US) and renders stream/rent/buy provider logos with a link to full availability. Shown on the search screen's hero and, for consistency, on the quiz-results detail modal too — loaded asynchronously so it never blocks the rest of the detail view from rendering. Always paired with a "full availability" link, never presented as a standalone play action, since JustWatch/TMDB data isn't guaranteed complete or current.
+- **On-device AI now also summarizes search-similar picks.** The same local model used to rewrite quiz-result reasons into one sentence (`explainPick()`) is reused here with a similarity-specific prompt instead of a quiz summary — "use AI to summarize/precise the recommends" is the same underlying feature applied to a second context, not a second AI integration.
+- **More avatar options.** The color palette grew from 7 to 11, and a small picker for a curated, film-themed emoji set (🎬🍿🎭👾🐉🚀🔮🕵️👻🦇🧙📼) was added to the profile popover — pick a color, an icon, or both. The plain initial-letter avatar is still there as the default/fallback, never required to change.
+
+### Changed — performance
+- **Screens are now lazily loaded.** Landing is the only screen bundled into the initial script; quiz/rating/results/search each became a separate chunk, fetched on first navigation to that screen. Initial JS dropped from ~17.4 kB gzip to ~9.5 kB gzip — meaningful for the (common) case of someone previewing the landing page and leaving, who now never downloads the search screen's TMDB-similarity/watch-provider code at all.
+- **`tmdbFetch()` now caches by request URL and de-dupes in-flight requests.** Reopening a detail modal, retyping a search you already ran, or two UI elements requesting the same title's watch providers in the same render all used to mean duplicate network calls; they now resolve from a session-lifetime cache (bounded to 300 entries) or collapse into the one request already in flight.
+- **Extracted `src/lib/providers-ui.ts`.** The watch-providers row was on track to become two near-identical implementations (search screen + results modal); it's a single shared module instead.
+
+### Scope note
+File count is up (`search.ts`, `providers-ui.ts`, `search.css` are new — see the README's file list for the full upload manifest). The per-option emoji on the quiz screen are still untouched, same reasoning as 1.4.1.
+
+## [1.4.1] — Custom icon set, warmer light theme
+
+A continuation of 1.4.0's "closer to seriesgraph.com" pass — this part is
+the visual craft layer on top of last version's functional one (local
+profile, watchlist, hover preview).
+
+### Added
+- **`src/lib/icons.ts`** — a small custom inline-SVG icon set replacing the emoji chrome that was scattered through buttons and badges (🔀🌙☀️🍅Ⓜ️⭐✕ℹ️). Emoji render inconsistently across OS/browser (different weight, color, sometimes a completely different silhouette); a custom set inherits `currentColor` so it themes for free and reads as considered rather than default. Wired into the theme toggle, shuffle/back/close buttons, rating badges, the results note banner, and the empty-state actions.
+- Rating rows (hover preview + detail modal) now use a middle-dot separator between icon+label pairs (`⭐ 8.4 · 🍅 91% · IMDb 8.2` → the same idea, rendered with the new icons) — a small nod to the "eps · rating · votes" chip style used on seriesgraph.com's show pages.
+
+### Changed
+- **Light theme is warmer.** The neutral canvas (backgrounds, surfaces, borders) shifted from a cool violet-tinted white to a warm cream/paper base — closer to the editorial, poster-forward feel of sites like seriesgraph.com, whose own `theme-color` is a warm `#f4eff0`. The violet/cyan/amber accent colors are unchanged; only the neutral canvas underneath them moved warm, since that's what was reading as "generic dark-app light-mode" rather than a considered light theme.
+- `theme-color` meta (static in `index.html` and the JS-driven update in `src/lib/theme.ts`) both updated to match.
+
+### Scope note
+The per-option emoji on the quiz screen (mood/era/company/etc.) were left as-is — replacing dozens of option icons is a much larger, separate pass, and unlike the button/badge chrome, playful per-choice emoji in a quiz UI is a reasonably normal pattern rather than a polish problem.
+
+## [1.4.0] — Local profile, watchlist, richer result previews
+
+Moves the app from "everything resets when you close the tab" toward the
+seriesgraph.com-style feel of a site that remembers you — without adding a
+backend, a password, or anything that leaves the browser.
+
+### Added
+- **Local profile (`src/lib/profile.ts`).** A localStorage-backed identity — display name, avatar, and a full rating history — created automatically on first visit, no signup. Framed honestly in the UI as exactly what it is: on-this-device only, nothing synced, nothing sent anywhere. Falls back to session-only behavior (rather than crashing) if the browser is blocking storage (private mode etc.), and says so.
+- **Ratings persist across sessions**, both from the calibration screen and the results screen. Closing the tab no longer resets your taste profile.
+- **The engine now uses that whole history, every run.** Every previously-rated title (not just this session's) is fed into `engine.processResultRating()` before scoring, and excluded from ever being re-recommended — so a returning user's very first batch is already informed instead of a cold start every time. This is the concrete version of "let the AI use more data."
+- **Watchlist.** A bookmark toggle on every result card and in the detail modal, a persistent watchlist panel in the header's profile popover (reachable from every screen), stored in the same local profile.
+- **Hover/click info preview.** Hovering a result poster now reveals a quick-glance panel — synopsis snippet + TMDB/RT/IMDb ratings — using data already on the card (no extra fetch). Clicking still opens the full detail modal (cast-level synopsis, full ratings breakdown, trailer link, watchlist toggle, rate). Touch devices skip straight to the tap-through modal since there's no hover state to reveal the panel in.
+- A landing-screen "Welcome back" banner for returning profiles, showing how many titles have been rated on this device and swapping the CTA to "Get fresh picks."
+
+### Changed
+- Landing page eyebrow copy updated from "no account" to "no server account / nothing leaves your device untracked" — still accurate (there's genuinely no backend or sync), now precise about what the local profile is.
+
+### Scope note
+This is the functional core of the "make it feel like seriesgraph.com" ask — persistence, a watchlist, richer previews. A full visual pass (new type scale, poster-wall layouts, a broader custom icon set matching that specific editorial look) is a separate, larger design pass and wasn't attempted wholesale here to avoid a half-finished reskin sitting on top of a half-tested one.
+
+## [1.3.0] — Worker migration, three real bug fixes, resilience pass
+
+### Fixed
+- **On-device AI failed with "unavailable/error" on most devices.** Root cause: `ai-worker.ts` manually pointed `wasmPaths` at `@huggingface/transformers`'s own CDN dist folder to "pin" the WASM source — but that folder only ships a JS glue file, not the actual `.wasm` binaries (those live in the separate `onnxruntime-web` package, at a specific version transformers.js resolves internally). Every WASM-tier load 404'd on the binary fetch, which is most devices — WebGPU is the minority path. Fixed by not overriding `wasmPaths` at all; the library's own default is version-correct by construction. Also added a real `navigator.gpu.requestAdapter()` check instead of trusting `'gpu' in navigator` (true even with no usable adapter behind it), and gated multi-threaded WASM behind `self.crossOriginIsolated` (it needs `SharedArrayBuffer`, which throws without COOP/COEP headers — see "Changed" below for where those now come from).
+- **Selecting an era (e.g. "Classic — pre-2000") could still surface newer titles.** `engine.ts` only applied era as a soft +12/-4 score nudge; TMDB's server-side date filter isn't airtight (re-release dates, missing region, occasional bad data), and a strong genre/vibe match could outscore the penalty regardless. Era is now hard-filtered in `engine.getResults()` before scoring — the era you pick is the era you get.
+- **Recommendations "ran out" after rating just a few results.** Every rating triggered a debounced `rescore()` that excluded everything already in `shownIds` — which, for a narrower filter combination, could already cover the entire fetched pool after only 2-3 ratings. The next rescore silently returned an empty array and got rendered as-is: no fallback, no message, just a blank grid. Replaced with `ensureBatch()`, which escalates through fallbacks — retry ignoring the shown-set, pull a later TMDB page window, drop Precise mode's match floor, and only as a last resort show the pool's best titles again — surfacing an honest note (`.results-note`) whenever it had to compromise, and a real inline empty-state card (with "Different picks" / "Adjust answers" actions) in the true last-resort case instead of ever leaving the grid blank.
+
+### Changed — architecture
+- **Migrated from Cloudflare Pages to a genuine Cloudflare Worker.** `functions/api/recommend.ts` (a Pages Functions convention) is now `worker/index.ts`, a real `fetch` handler: it serves `dist/` via the `ASSETS` binding for everything except `/api/recommend`, and stamps `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp` onto every response. Those two headers are what actually make `self.crossOriginIsolated` true, which is what unlocks the multi-threaded WASM fast path referenced above. `wrangler.jsonc` now declares `main` (previously assets-only) and keeps the same Worker name so redeploying doesn't orphan the existing project's Cloudflare variables. `wrangler` was also missing from `devDependencies` despite `wrangler.jsonc` existing — added, along with `worker:dev` and `deploy` scripts.
+- `tsconfig.json` now typechecks `worker/` — the old `functions/` directory was never actually covered by `tsc --noEmit`, so a break there could ship silently.
+- `package.json` version corrected to track this changelog (it had drifted to `3.2.0` against a `1.2.0` changelog top).
+
+### Added
+- Small, targeted motion in the two places users actually watch: the match% badge on each result card now pops in on render, and a star pops on fill — both via the existing `--dur-fast`/`--ease-spring` tokens, so `prefers-reduced-motion` still disables them for free.
+
+## [1.2.0] — Adaptive quiz, genre-weighted calibration, resource-aware AI, perf pass
+
+### Fixed
+- **On-device AI still failed on some devices/networks.** A single hardcoded CDN and a single model repo meant any one of: that CDN being blocked by a network/proxy, a transient CDN outage, or that specific Hugging Face repo being briefly rate-limited, took the whole feature down. `ai-worker.ts` now tries a short list of CDNs for the library itself and a short list of model repos per resource tier, in order, until one combination actually finishes loading. WASM execution is now explicitly multi-threaded (sized to leave one core free for the UI) instead of single-threaded.
+- **Posters appearing not to load.** Cards used to sit as blank/empty boxes with no feedback while a poster image was still in flight. `dom.ts`'s new `buildPosterImage()` keeps a visible skeleton shimmer until the image actually finishes decoding, then crossfades it in; a failed image falls back to a letter placeholder instead of staying blank. Off-screen posters use native lazy-loading so they don't compete with the first results batch for bandwidth.
+- Recommendations no longer stall on a cold connection: TMDB requests now carry a 9s timeout + one retry (`tmdbFetch`), instead of an in-flight request hanging indefinitely on a flaky mobile network.
+
+### Added
+- **Resource-aware model selection.** `ai-worker.ts` picks a tier (model + quantization + device) from `navigator.deviceMemory`, `hardwareConcurrency`, WebGPU availability, and mobile detection — a 16-core desktop with a GPU and a budget phone no longer get the identical request.
+- **Genre-weighted taste calibration** (`src/lib/rating-pool.ts`). Picking a mood in the quiz now pulls ~75% of the rating step's titles live from TMDB in that genre (diversified by vibe, capped by vote count), instead of always showing the same fixed 15 regardless of answer.
+- **Adaptive quiz.** The vibe question filters out options that would directly contradict the mood just picked (e.g. "horror" removes "light & fun" / "feel-good"); previously-selected options are highlighted when navigating back.
+- **Anime / cartoon / sitcom as their own dimension** — a new `contentType` quiz question, separate from mood/tone, mapped to TMDB's Animation genre (split into anime vs. cartoon by original language) and TV Comedy for sitcom (which also forces series-only, since "sitcom movie" isn't a meaningful TMDB query).
+- **Precise / Grouped results toggle** — Grouped is the original wide, forgiving pool; Precise holds results to a 68%+ match floor and returns fewer, tighter picks.
+- **Debounced in-place rating.** Rating a result card updates its stars immediately but waits ~1.6s (resetting on each new tap) before re-curating the grid, with a "Curating your picks…" indicator — avoids a full re-render on every single click during a quick rating streak.
+- Boot-time loading spinner (inlined critical CSS in `index.html`, dismissed by `main.ts` once the first screen mounts) for the gap between first paint and the JS bundle finishing parse/exec on slower connections/devices.
+- `preconnect` hints for the TMDB API and image CDN.
+
+### Changed
+- The landing page's fluid background sim now runs at a lower grid resolution on mobile or ≤4-core devices — it's CPU-bound Canvas2D, not GPU work, so full resolution was a real jank/battery cost on phones.
+- Results toolbar restructured: the mode toggle is now a visually distinct segmented control instead of competing with action buttons in one row; buttons stack full-width on screens under 640px instead of squeezing.
+- `engine.processRatings` signal source and `rating.ts`'s seed list are now read from the store (`ratingSeeds`/`ratingSignals`), populated by whichever pool (static or genre-weighted) actually got shown and rated.
+
+## [1.1.0] — Reliability, refinement loop, and a design pass
+
+### Fixed
+- **On-device AI failed intermittently.** It loaded on the main thread with no explicit quantization or device selection, so it silently pulled the largest available build (often full `fp32`) regardless of connection speed or device memory — the most likely reason loads stalled out or ran out of memory on ordinary laptops and most phones. A WebGPU-only path also had no fallback, so it failed outright on browsers/systems without WebGPU. Rewritten as `src/lib/ai-worker.ts` + `src/lib/llm.ts`: runs off the main thread in a Web Worker, requests the smallest quantization each backend supports (`q4` WebGPU → `q8` WASM → `q4` WASM), points the WASM loader at a reliable CDN path, uses proper chat-formatted prompts instead of string-splitting a raw completion, and enforces load/generate timeouts so a stalled connection degrades to the rule-based reasons instead of hanging forever.
+
+### Added
+- **Keep rating after you get results.** Every result card has an inline star row; rating a title feeds its own genre/vibe signal straight back into the engine (`RecommendationEngine.processResultRating`) and the whole grid re-curates immediately — no restart needed.
+- **"Show me different picks."** Pulls a genuinely new batch: first from the unseen remainder of the already-fetched pool, then by paging further into TMDB, falling back to allowing repeats only once a filter combination is truly exhausted.
+- **Movie detail modal.** Click any poster or title to check a synopsis, genre/vibe tags, TMDB/RT/Metacritic/IMDb scores, and a link to the title's TMDB page before deciding to watch — with the same rating control built in.
+- **Dark mode / light mode**, persisted in `localStorage`, defaulting to system preference, applied pre-paint to avoid a flash of the wrong theme (`src/lib/theme.ts`).
+- **Persistent header** with the CineMatch logo, a GitHub link, and the theme toggle (`src/lib/header.ts`), present across all four screens.
+- `tmdb.ts`'s `discoverCandidates` now accepts a page offset so callers can pull a later results window instead of only ever seeing pages 1-3.
+
+### Changed
+- Display font swapped from Bricolage Grotesque to **Sora** — a cleaner geometric grotesque that reads as product-grade rather than editorial.
+- More motion throughout: staggered card entrance on the results grid, a subtle animated gradient on primary buttons, hover glow on quiz options, smoother cross-theme transitions.
+- `engine.processRatings` now accumulates across repeated calls instead of overwriting, since the results screen re-runs it on every re-score.
+- README and SECURITY.md rewritten.
+
+## [0.1 - 0.9.] — Full rebuild
+
+### Fixed
+- **Recommendations no longer repeat regardless of quiz answers.** Root cause was two-fold: the AI recommendation call silently failed (Workers AI binding not active) and fell back to a client-side scorer running against a **hardcoded 30-title catalog**, whose flat quality bonus (`(rating - 7) * 5`, up to ±12.5) outweighed the actual quiz signal (max ±30 across 6 questions). Fixed by rewriting the scoring model and replacing the fixed catalog with a live TMDB pool.
+- `package.json` had duplicate `svelte`/`typescript`/`vite` keys from a bad merge — removed entirely along with Svelte.
+
+### Changed — architecture
+- **Framework removed.** Svelte 5 + SvelteKit → vanilla TypeScript + Vite. Initial JS payload dropped to ~5 kB gzipped.
+- **Catalog is now live, not static.** `src/lib/tmdb.ts` queries TMDB's `/discover/movie` and `/discover/tv` directly, filtered by genre/era/language — hundreds of candidates per query instead of 30 fixed ones.
+- **Scoring rebalanced.** Quality bonus capped to ±3 (tiebreaker, not driver); rating-derived taste signal weighted above one-off quiz picks; match% now normalized against the actual score spread of each query instead of a fixed clamp, so results meaningfully separate instead of clustering near 99%.
+
+### Added
+- OMDb connector for Rotten Tomatoes / Metacritic / IMDb as a secondary signal (`src/lib/omdb.ts`)
+- Letterboxd `ratings.csv` import for taste calibration (`src/lib/letterboxd.ts`)
+- Optional on-device AI reason-writer, CDN-loaded and opt-in only (`src/lib/llm.ts`)
+- New landing screen, quiz flow with progress bar and back navigation, taste-calibration screen with live poster resolution
+- Custom logo (`public/logo.svg`, `public/favicon.svg`)
+- This changelog
+
+### Removed
+- All `.svelte` components and `svelte.config.js`
+- The hardcoded 30-item catalog (`src/lib/data.ts`)
+- `src/stores/appState.svelte.ts` (replaced by `src/lib/store.ts`, framework-free)
+
+### Security
+- `npm audit`: 0 vulnerabilities. The on-device AI dependency (`@huggingface/transformers`) was deliberately kept out of `package.json` — its Node backend pulls in `onnxruntime-node` and `sharp` as hard dependencies (native postinstall, irrelevant for a browser-only feature) and previously carried transitive `protobufjs` vulnerabilities via the older `@xenova/transformers`. It's loaded from CDN at runtime only if a user opts in.
