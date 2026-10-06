@@ -13,7 +13,11 @@ import { test as base, expect } from "@playwright/test";
  */
 type Fixtures = {
   firstRun: boolean;
-  problems: { pageErrors: string[]; failedRequests: string[]; consoleErrors: string[] };
+  problems: {
+    pageErrors: string[];
+    failedRequests: string[];
+    consoleErrors: string[];
+  };
 };
 
 // Browser-generated noise from the aborted third-party requests above — not
@@ -78,11 +82,15 @@ export { expect };
 /** Waits until the app reports a successful boot and the splash is gone. */
 export async function waitForBoot(page: import("@playwright/test").Page) {
   await page.waitForFunction(
-    () => (window as unknown as { __bootCompleted?: boolean }).__bootCompleted === true,
+    () =>
+      (window as unknown as { __bootCompleted?: boolean }).__bootCompleted ===
+      true,
     undefined,
     { timeout: 20_000 },
   );
-  await expect(page.locator("#splashScreen")).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.locator("#splashScreen")).toHaveCount(0, {
+    timeout: 15_000,
+  });
   await expect(page.locator("#scBootErr")).toHaveCount(0);
   await expect(page.locator("#mainUI")).toBeVisible();
 }

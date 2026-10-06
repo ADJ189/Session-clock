@@ -10,10 +10,10 @@ test.describe("storage resilience", () => {
 
   for (const [label, value] of corrupted) {
     test(`survives sc_focus_log = ${label}`, async ({ page, problems }) => {
-      await page.addInitScript(
-        ([k, v]) => localStorage.setItem(k, v),
-        ["sc_focus_log", value] as [string, string],
-      );
+      await page.addInitScript(([k, v]) => localStorage.setItem(k, v), [
+        "sc_focus_log",
+        value,
+      ] as [string, string]);
       await page.goto("/");
       await waitForBoot(page);
       expect(problems.pageErrors).toEqual([]);
@@ -36,8 +36,13 @@ test.describe("storage resilience", () => {
     if (raw !== null) expect(() => JSON.parse(raw)).not.toThrow();
   });
 
-  test("survives an unknown/invalid saved theme id", async ({ page, problems }) => {
-    await page.addInitScript(() => localStorage.setItem("sc_last_theme", "no-such-theme"));
+  test("survives an unknown/invalid saved theme id", async ({
+    page,
+    problems,
+  }) => {
+    await page.addInitScript(() =>
+      localStorage.setItem("sc_last_theme", "no-such-theme"),
+    );
     await page.goto("/");
     await waitForBoot(page);
     expect(problems.pageErrors).toEqual([]);
@@ -51,8 +56,17 @@ test.describe("storage resilience", () => {
       const boom = () => {
         throw new DOMException("denied", "SecurityError");
       };
-      for (const name of ["getItem", "setItem", "removeItem", "clear", "key"] as const) {
-        Object.defineProperty(Storage.prototype, name, { value: boom, configurable: true });
+      for (const name of [
+        "getItem",
+        "setItem",
+        "removeItem",
+        "clear",
+        "key",
+      ] as const) {
+        Object.defineProperty(Storage.prototype, name, {
+          value: boom,
+          configurable: true,
+        });
       }
     });
     await page.goto("/");
@@ -63,10 +77,14 @@ test.describe("storage resilience", () => {
   test("saved theme survives a reload", async ({ page }) => {
     await page.goto("/");
     await waitForBoot(page);
-    const before = await page.evaluate(() => localStorage.getItem("sc_last_theme"));
+    const before = await page.evaluate(() =>
+      localStorage.getItem("sc_last_theme"),
+    );
     expect(before).not.toBeNull();
     await page.reload();
     await waitForBoot(page);
-    expect(await page.evaluate(() => localStorage.getItem("sc_last_theme"))).toBe(before);
+    expect(
+      await page.evaluate(() => localStorage.getItem("sc_last_theme")),
+    ).toBe(before);
   });
 });

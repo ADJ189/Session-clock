@@ -64,7 +64,10 @@
         display: block;
       }
       .splash-title {
-        font: 600 0.82rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font:
+          600 0.82rem/1.2 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
           sans-serif;
         letter-spacing: 0.16em;
         text-transform: uppercase;
@@ -90,7 +93,10 @@
         align-items: center;
         gap: 10px;
         margin-top: 4px;
-        font: 400 0.8rem/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font:
+          400 0.8rem/1.4 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
           sans-serif;
         color: rgba(238, 247, 242, 0.7);
         text-align: center;
@@ -105,7 +111,10 @@
         padding: 24px;
         background: #06030f;
         color: #eef7f2;
-        font: 400 0.95rem/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI",
+        font:
+          400 0.95rem/1.5 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
           sans-serif;
       }
       .sc-boot-card {
@@ -113,7 +122,8 @@
         padding: 28px 24px;
         border-radius: 20px;
         background: rgba(255, 255, 255, 0.05);
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset,
+        box-shadow:
+          0 1px 0 rgba(255, 255, 255, 0.08) inset,
           0 20px 60px rgba(0, 0, 0, 0.45);
         text-align: center;
       }
@@ -133,7 +143,11 @@
         border-radius: 10px;
         background: rgba(0, 0, 0, 0.35);
         color: rgba(238, 247, 242, 0.6);
-        font: 400 0.72rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        font:
+          400 0.72rem/1.4 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
         word-break: break-word;
         text-align: left;
       }
@@ -191,7 +205,8 @@
           // must clear *it*, not just the in-memory copy installed below, or a
           // bad saved value that broke startup comes straight back on reload.
           if (real) {
-            (window.__scRealStorage = window.__scRealStorage || {})[name] = real;
+            (window.__scRealStorage = window.__scRealStorage || {})[name] =
+              real;
           }
           var mem = {};
           // Keep whatever is still readable so saved settings keep applying
@@ -297,7 +312,10 @@
           });
           var pending = [];
           try {
-            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            if (
+              navigator.serviceWorker &&
+              navigator.serviceWorker.getRegistrations
+            ) {
               pending.push(
                 navigator.serviceWorker.getRegistrations().then(function (rs) {
                   return Promise.all(
@@ -425,7 +443,10 @@
               // splash CSS above is inline for exactly that reason.
               if (t.tagName === "SCRIPT") {
                 console.error("Session Clock: failed to load", t.src);
-                window.__scBootFail("Failed to load " + (t.src || "a script"), true);
+                window.__scBootFail(
+                  "Failed to load " + (t.src || "a script"),
+                  true,
+                );
               }
               return;
             }

@@ -17,7 +17,9 @@ test.describe("startup", () => {
   test("splash is shown, then goes away", async ({ page }) => {
     await page.goto("/", { waitUntil: "commit" });
     await expect(page.locator("#splashScreen")).toBeVisible();
-    await expect(page.locator("#splashScreen")).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.locator("#splashScreen")).toHaveCount(0, {
+      timeout: 15_000,
+    });
     await expect(page.locator("#mainUI")).toBeVisible();
   });
 
@@ -34,20 +36,29 @@ test.describe("startup", () => {
     expect(box!.height).toBeLessThanOrEqual(150);
   });
 
-  test("a blocked stylesheet/font does not take the app down", async ({ page, context, problems }) => {
+  test("a blocked stylesheet/font does not take the app down", async ({
+    page,
+    context,
+    problems,
+  }) => {
     await context.route(/\.css(\?|$)/, (route) => route.abort());
     await page.goto("/");
     await waitForBoot(page);
     expect(problems.pageErrors).toEqual([]);
   });
 
-  test("a failed app script shows the recoverable boot-error screen", async ({ page, context }) => {
+  test("a failed app script shows the recoverable boot-error screen", async ({
+    page,
+    context,
+  }) => {
     await context.route(/\/assets\/.*\.js(\?|$)/, (route) => route.abort());
     await page.goto("/");
     const err = page.locator("#scBootErr");
     await expect(err).toBeVisible({ timeout: 15_000 });
     await expect(err.getByRole("button", { name: "Reload" })).toBeVisible();
-    await expect(err.getByRole("button", { name: /Reset local app data/ })).toBeVisible();
+    await expect(
+      err.getByRole("button", { name: /Reset local app data/ }),
+    ).toBeVisible();
   });
 
   test("repeated cold loads stay stable", async ({ page, problems }) => {
@@ -63,7 +74,9 @@ test.describe("startup", () => {
   test.describe("first run", () => {
     test.use({ firstRun: true });
 
-    test("shows the onboarding overlay for a brand-new visitor", async ({ page }) => {
+    test("shows the onboarding overlay for a brand-new visitor", async ({
+      page,
+    }) => {
       await page.goto("/");
       await waitForBoot(page);
       await expect(page.locator("#onboardOverlay")).toHaveClass(/open/);

@@ -1,7 +1,10 @@
 import { test, expect, waitForBoot } from "./fixtures";
 
 test.describe("PWA / service worker", () => {
-  test("registers, activates, and the app still boots after a reload", async ({ page, problems }) => {
+  test("registers, activates, and the app still boots after a reload", async ({
+    page,
+    problems,
+  }) => {
     await page.goto("/");
     await waitForBoot(page);
 
@@ -18,7 +21,9 @@ test.describe("PWA / service worker", () => {
 
   test("manifest is valid and icons resolve", async ({ page, request }) => {
     await page.goto("/");
-    const href = await page.locator('link[rel="manifest"]').getAttribute("href");
+    const href = await page
+      .locator('link[rel="manifest"]')
+      .getAttribute("href");
     expect(href).toBeTruthy();
     const res = await request.get(href!);
     expect(res.ok()).toBe(true);
@@ -40,14 +45,23 @@ test.describe("PWA / service worker", () => {
 
   // Chromium only: offline emulation + service workers is unreliable in
   // Playwright's Firefox/WebKit builds, so this would produce false failures.
-  test("loads offline after the first visit (Chromium)", async ({ page, context, browserName }) => {
-    test.skip(browserName !== "chromium", "offline + SW emulation is only reliable in Chromium");
+  test("loads offline after the first visit (Chromium)", async ({
+    page,
+    context,
+    browserName,
+  }) => {
+    test.skip(
+      browserName !== "chromium",
+      "offline + SW emulation is only reliable in Chromium",
+    );
     await page.goto("/");
     await waitForBoot(page);
     await page.evaluate(() => navigator.serviceWorker.ready);
     // Let install-time precaching finish.
     await expect
-      .poll(() => page.evaluate(async () => (await caches.keys()).length), { timeout: 15_000 })
+      .poll(() => page.evaluate(async () => (await caches.keys()).length), {
+        timeout: 15_000,
+      })
       .toBeGreaterThan(0);
 
     await context.setOffline(true);
