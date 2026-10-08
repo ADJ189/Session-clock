@@ -1,0 +1,119 @@
+name: E2E (Playwright)
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "LICENSE"]
+  pull_request:
+    branches: [main]
+    paths-ignore: ["**.md", "LICENSE"]
+  # Nightly check of the DEPLOYED site (catches Cloudflare headers / service
+  # worker / stale-cache problems that a local build can't).
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Test this deployed URL instead of a local build (optional)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Empty on push/PR → tests the production bundle built from the commit.
+  # Set on schedule/dispatch → tests the live site.
+  PLAYWRIGHT_TEST_BASE_URL: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (inputs.base_url || vars.PROD_URL || 'https://accurate-time.pages.dev') || '' }}
+
+jobs:
+  e2e:
+    name: ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false # one engine failing must not hide the others
+      matrix:
+        include:
+          - { project: chromium,      browser: chromium } # Blink
+          - { project: firefox,       browser: firefox }  # Gecko
+          - { project: webkit,        browser: webkit }   # WebKit
+          - { project: mobile-chrome, browser: chromium } # Blink, Pixel 7
+          - { project: mobile-safari, browser: webkit }   # WebKit, iPhone 13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Only the engine this job needs (not all three) — faster and smaller.
+      # Browser binaries are intentionally NOT cached: Playwright advises
+      # against it, since restoring costs about as much as downloading.
+      - name: Install ${{ matrix.browser }}
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Run tests (${{ matrix.project }})
+        run: npx playwright test --project=${{ matrix.project }}
+
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: blob-report-${{ matrix.project }}
+          path: blob-report/
+          retention-days: 7
+
+      - name: Upload traces / screenshots / videos (failures only)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: failure-artifacts-${{ matrix.project }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  report:
+    name: Merged HTML report
+    if: ${{ !cancelled() }}
+    needs: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v8
+        with:
+          path: all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+
+      - name: Merge into one HTML report
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
