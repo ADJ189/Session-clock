@@ -25,8 +25,9 @@
     "@playwright/test": "^1.63.0",
     "@types/node": "^24.19.1",
     "oxlint": "^1.86.0",
+    "oxlint": "^1.87.0",
     "typescript": "^7.0.2",
-    "vite": "^6.3.5"
+    "vite": "^6.4.4"
   },
   "dependencies": {
     "ambiently": "^1.0.0",
