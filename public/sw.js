@@ -48,6 +48,13 @@ const CACHEABLE_EXTERNAL_ORIGINS = new Set([
   "worldtimeapi.org", // public, no-auth time data
 ]);
 
+// respondWith() must always be given a Response. caches.match() resolves to
+// `undefined` on a miss, and handing that to respondWith() throws
+// "TypeError: Returned response is null" (surfaced as a page error). Every
+// fallback path therefore goes through this: a cache hit, or a clean network
+// error that the page's own fetch().catch() handles normally.
+const orNetworkError = (cached) => cached || Response.error();
+
 // Resolved once at install time: the manifest's `version` if the fetch
 // succeeds, else FALLBACK_CACHE. Every other handler below reads this
 // rather than a hardcoded string.
@@ -137,7 +144,7 @@ self.addEventListener("fetch", (e) => {
           }
           return r;
         })
-        .catch(() => caches.match(req)),
+        .catch(() => caches.match(req).then(orNetworkError)),
     );
     return;
   }
@@ -157,7 +164,8 @@ self.addEventListener("fetch", (e) => {
         .catch(() =>
           caches
             .match(req)
-            .then((cached) => cached || caches.match("/index.html")),
+            .then((cached) => cached || caches.match("/index.html"))
+            .then(orNetworkError),
         ),
     );
     return;
@@ -170,11 +178,20 @@ self.addEventListener("fetch", (e) => {
   // problem the way caching the unhashed HTML shell could.
   e.respondWith(
     caches.match(req).then((cached) => {
-      const net = fetch(req).then((r) => {
+      if (cached) {
+        // Cache-first: refresh in the background, never let a failed
+        // revalidation surface as an unhandled rejection.
+        fetch(req)
+          .then((r) => {
+            if (r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));
+          })
+          .catch(() => {});
+        return cached;
+      }
+      return fetch(req).then((r) => {
         if (r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));
         return r;
       });
-      return cached || net;
     }),
   );
 });
