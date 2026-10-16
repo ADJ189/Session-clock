@@ -32,9 +32,22 @@ test.describe("responsive layout", () => {
       page,
       isMobile,
     }) => {
-      // Mobile projects already run at phone size; resizing them is redundant.
-      test.skip(isMobile, "covered by the desktop engines at phone width");
-      await page.setViewportSize({ width: vp.width, height: vp.height });
+      // Mobile projects (Pixel 7, iPhone 13) run with their real device
+      // viewport, touch, and DPR settings. Resizing a desktop browser does not
+      // reproduce those, so the mobile projects do one overflow check at their
+      // own device size instead of the desktop-resized cases.
+      test.skip(
+        isMobile && vp.name !== "phone",
+        "mobile projects check their device viewport once, in the phone case",
+      );
+      if (!isMobile) {
+        await page.setViewportSize({ width: vp.width, height: vp.height });
+      }
+      // The device viewport differs from the case label (Pixel 7 is 412px,
+      // iPhone 13 is 390px) — guard that it really is phone-sized.
+      if (isMobile) {
+        expect(page.viewportSize()?.width ?? 0).toBeLessThanOrEqual(430);
+      }
       await page.goto("/");
       await waitForBoot(page);
       await expect(page.locator("#btnStart")).toBeVisible();
