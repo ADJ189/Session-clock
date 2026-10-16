@@ -94,3 +94,18 @@ export async function waitForBoot(page: import("@playwright/test").Page) {
   await expect(page.locator("#scBootErr")).toHaveCount(0);
   await expect(page.locator("#mainUI")).toBeVisible();
 }
+
+/**
+ * Closes the Themes panel through its real toggle, then asserts it no longer
+ * covers the page. The panel is a fixed overlay and, when open, intercepts
+ * pointer events on controls under it (e.g. #btnStart on short viewports).
+ */
+export async function closeThemePanel(page: import("@playwright/test").Page) {
+  const panel = page.locator("#themePanel");
+  if (!(await panel.evaluate((el) => el.classList.contains("collapsed")))) {
+    await page.locator("#panelToggle").click();
+  }
+  await expect(panel).toHaveClass(/collapsed/);
+  // Collapsed state is pointer-events:none, so it can no longer intercept.
+  await expect(panel).toHaveCSS("pointer-events", "none");
+}

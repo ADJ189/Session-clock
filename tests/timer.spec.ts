@@ -1,9 +1,10 @@
-import { test, expect, waitForBoot } from "./fixtures";
+import { test, expect, waitForBoot, closeThemePanel } from "./fixtures";
 
 test.describe("session timer", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await waitForBoot(page);
+    await closeThemePanel(page);
   });
 
   test("start → pause → resume → reset", async ({ page, problems }) => {
