@@ -67,7 +67,8 @@ export default defineConfig({
         // silently moving to another port and testing the wrong thing.
         command: `npm run build && npm run preview -- --host 127.0.0.1 --port ${PORT} --strictPort`,
         url: baseURL,
-        reuseExistingServer: !isCI,
+        // Always run the build; an existing preview may serve stale output.
+        reuseExistingServer: false,
         timeout: 180_000,
         stdout: "ignore",
         stderr: "pipe",

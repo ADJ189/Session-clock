@@ -48,7 +48,7 @@ const CACHEABLE_EXTERNAL_ORIGINS = new Set([
   "worldtimeapi.org", // public, no-auth time data
 ]);
 
-// Cache lookups ignore `Vary`. Precaching fetches each file with a bare
+// App asset cache lookups ignore `Vary`. Precaching fetches each file with a bare
 // request, but the browser's own requests carry extra headers (module
 // scripts are CORS-mode and send `Origin`). Any server that answers with
 // `Vary: Origin` (vite preview, many CDNs) would otherwise make every
@@ -150,7 +150,7 @@ self.addEventListener("fetch", (e) => {
           }
           return r;
         })
-        .catch(() => caches.match(req, MATCH).then(orOffline)),
+        .catch(() => caches.match(req).then(orOffline)),
     );
     return;
   }
@@ -187,11 +187,14 @@ self.addEventListener("fetch", (e) => {
       if (cached) {
         // Cache-first: refresh in the background, never let a failed
         // revalidation surface as an unhandled rejection.
-        fetch(req)
-          .then((r) => {
-            if (r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));
-          })
-          .catch(() => {});
+        e.waitUntil(
+          fetch(req)
+            .then((r) => {
+              if (r.ok)
+                return caches.open(CACHE).then((c) => c.put(req, r.clone()));
+            })
+            .catch(() => {}),
+        );
         return cached;
       }
       return fetch(req)
