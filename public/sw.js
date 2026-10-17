@@ -48,6 +48,26 @@ const CACHEABLE_EXTERNAL_ORIGINS = new Set([
   "worldtimeapi.org", // public, no-auth time data
 ]);
 
+// App asset cache lookups ignore `Vary`. Precaching fetches each file with a bare
+// request, but the browser's own requests carry extra headers (module
+// scripts are CORS-mode and send `Origin`). Any server that answers with
+// `Vary: Origin` (vite preview, many CDNs) would otherwise make every
+// cached JS/CSS file miss, so a cached app failed to boot offline. The
+// asset URLs are content-hashed, so ignoring Vary can't serve a wrong file.
+const MATCH = { ignoreVary: true };
+
+// respondWith() must always be given a usable Response:
+//  - caches.match() resolves to `undefined` on a miss, and passing that on
+//    throws "TypeError: Returned response is null" (a page error);
+//  - Response.error() is logged by the browser as "Response served by
+//    service worker is an error" (also a page error).
+// So a miss becomes an ordinary 504. fetch() callers see !res.ok and fall
+// back as they would for any failed request; <script>/<link> still fire
+// their `error` events, which the boot guard already handles.
+const offlineResponse = () =>
+  new Response("", { status: 504, statusText: "Offline (service worker)" });
+const orOffline = (cached) => cached || offlineResponse();
+
 // Resolved once at install time: the manifest's `version` if the fetch
 // succeeds, else FALLBACK_CACHE. Every other handler below reads this
 // rather than a hardcoded string.
@@ -104,26 +124,19 @@ self.addEventListener("fetch", (e) => {
   // Cache Storage entries are meant for GET/HEAD; never attempt to write
   // (or read stale writes for) anything else — POST/PUT OAuth token
   // exchanges and the like just go straight to network.
-  if (req.method !== "GET") {
-    e.respondWith(fetch(req));
-    return;
-  }
+  if (req.method !== "GET") return; // not intercepted: browser handles it
 
   // Never cache a request carrying credentials — an Authorization header
   // (every one of this app's authenticated API calls) or a same-origin
   // request explicitly sent with cookies. Straight network passthrough.
-  if (req.headers.has("Authorization")) {
-    e.respondWith(fetch(req));
-    return;
-  }
+  if (req.headers.has("Authorization")) return;
 
   if (url.origin !== location.origin) {
     if (!CACHEABLE_EXTERNAL_ORIGINS.has(url.hostname)) {
       // Not on the public-origin allowlist (Spotify/Google/Notion/GitHub/
       // Todoist API + accounts.* endpoints, etc.) — network-only, no
       // Cache Storage involvement at all.
-      e.respondWith(fetch(req));
-      return;
+      return; // not intercepted: plain network, errors stay the page's own
     }
     // Allowlisted public origin — network with cache fallback (offline
     // support for fonts/thumbnails/ambient audio/lyrics/weather), and
@@ -137,7 +150,7 @@ self.addEventListener("fetch", (e) => {
           }
           return r;
         })
-        .catch(() => caches.match(req)),
+        .catch(() => caches.match(req).then(orOffline)),
     );
     return;
   }
@@ -156,8 +169,9 @@ self.addEventListener("fetch", (e) => {
         })
         .catch(() =>
           caches
-            .match(req)
-            .then((cached) => cached || caches.match("/index.html")),
+            .match(req, MATCH)
+            .then((cached) => cached || caches.match("/index.html", MATCH))
+            .then((cached) => cached || Response.error()),
         ),
     );
     return;
@@ -169,12 +183,26 @@ self.addEventListener("fetch", (e) => {
   // version" are never the same URL, so this can't reproduce SW1's
   // problem the way caching the unhashed HTML shell could.
   e.respondWith(
-    caches.match(req).then((cached) => {
-      const net = fetch(req).then((r) => {
-        if (r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));
-        return r;
-      });
-      return cached || net;
+    caches.match(req, MATCH).then((cached) => {
+      if (cached) {
+        // Cache-first: refresh in the background, never let a failed
+        // revalidation surface as an unhandled rejection.
+        e.waitUntil(
+          fetch(req)
+            .then((r) => {
+              if (r.ok)
+                return caches.open(CACHE).then((c) => c.put(req, r.clone()));
+            })
+            .catch(() => {}),
+        );
+        return cached;
+      }
+      return fetch(req)
+        .then((r) => {
+          if (r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));
+          return r;
+        })
+        .catch(offlineResponse);
     }),
   );
 });
