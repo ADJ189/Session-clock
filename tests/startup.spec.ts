@@ -27,13 +27,22 @@ test.describe("startup", () => {
     page,
   }) => {
     await page.goto("/", { waitUntil: "commit" });
-    const logo = page.locator(".splash-mark-base").first();
-    await expect(logo).toBeVisible();
-    const box = await logo.boundingBox();
-    expect(box).not.toBeNull();
+    // Measure inside the page in one step: the splash is removed as soon as
+    // the app boots, so a separate "is visible" check followed by a second
+    // round-trip for the box can lose the race on a fast (or loaded) machine.
+    const sizeHandle = await page.waitForFunction(() => {
+      const el = document.querySelector(".splash-mark-base");
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 ? { width: r.width, height: r.height } : null;
+    });
+    const box = (await sizeHandle.jsonValue()) as {
+      width: number;
+      height: number;
+    };
     // Inline CSS caps the mark at min(30vw, 132px) wrapper width.
-    expect(box!.width).toBeLessThanOrEqual(140);
-    expect(box!.height).toBeLessThanOrEqual(150);
+    expect(box.width).toBeLessThanOrEqual(140);
+    expect(box.height).toBeLessThanOrEqual(150);
   });
 
   test("a blocked stylesheet/font does not take the app down", async ({
@@ -62,6 +71,9 @@ test.describe("startup", () => {
   });
 
   test("repeated cold loads stay stable", async ({ page, problems }) => {
+    // 8 full boots (each waits out the splash): ~30s on its own, which is
+    // right at the default 30s timeout. Triple it instead of flaking.
+    test.slow();
     for (let i = 0; i < 4; i++) {
       await page.goto("/");
       await waitForBoot(page);
