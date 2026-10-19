@@ -22,9 +22,9 @@
     "e2e:install": "playwright install --with-deps"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^24.19.1",
-    "oxlint": "^1.87.0",
+    "oxlint": "^1.88.0",
     "typescript": "^7.0.2",
     "vite": "^6.4.4"
   },
