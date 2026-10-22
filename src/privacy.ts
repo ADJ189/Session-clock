@@ -60,6 +60,8 @@ export const DATA_CATEGORIES: DataCategory[] = [
     desc: "Theme, clock, quality, Pomodoro, mode & layout settings",
     keys: [
       "sc_last_theme",
+      "sc_theme_favs_v1",
+      "sc_theme_recent_v1",
       "sc_clock_mode",
       "sc_clock_pos",
       "sc_clock_pos_map",

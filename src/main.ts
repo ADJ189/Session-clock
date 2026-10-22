@@ -1,12 +1,6 @@
 import type { Theme } from "./types";
 import { THEMES, THEME_BY_ID, THEMES_BY_CAT, NAT_QUOTES } from "./themes";
-import { THEME_CATEGORIES } from "./types";
 
-// Media categories shown as picker tabs — everything except 'nat', which
-// renders in its own non-tabbed section. Derived once from the single
-// category source of truth so a new category added there needs no
-// matching edit here.
-const MEDIA_CATEGORIES = THEME_CATEGORIES.filter((c) => c !== "nat");
 import type { TimeString, LitEntry } from "./types";
 import {
   p2,
@@ -83,6 +77,7 @@ import {
 } from "./platform";
 import * as Palette from "./palette";
 import * as Motion from "./motion";
+import * as ThemeLib from "./themelib";
 
 // ── Platform detection ───────────────────────────────────────────────
 // Runs first, synchronously, before anything else touches the DOM — CSS
@@ -926,14 +921,7 @@ function applyTheme(theme: Theme, instant = false) {
     }
 
     updateSyncDisplay(synced ? "ok" : "failed");
-    document
-      .querySelectorAll<HTMLElement>(".nat-btn,.media-card")
-      .forEach((b) => {
-        const isNowActive = b.dataset.id === theme.id;
-        const wasActive = b.classList.contains("active");
-        b.classList.toggle("active", isNowActive);
-        if (isNowActive && !wasActive && !instant) void Motion.popIn(b);
-      });
+    ThemeLib.onThemeApplied(theme.id);
     lastQKey = "";
     localStorage.setItem("sc_last_theme", theme.id);
     if (!applyingRemoteTheme) bcBroadcast("theme", { id: theme.id });
@@ -1576,144 +1564,49 @@ function setLogoContent(
 }
 
 // ── Theme panel ────────────────────────────────────────────────────────
-let activePanelTab = "nat";
-
 function buildPanel() {
-  const panelRows = $("themePanelRows");
-  panelRows.innerHTML = "";
   const featBar = $("featBar");
   featBar.innerHTML = "";
 
-  // ── Tab bar ──────────────────────────────────────────────────────────
-  const tabs = document.createElement("div");
-  tabs.className = "panel-tabs";
-  const tabDefs: [string, string, string][] = [
-    ["nat", "🌿", "Natural"],
-    ["tv", "📺", "TV Shows"],
-    ["movie", "🎬", "Movies"],
-    ["animation", "🎨", "Animation"],
-    ["anime", "⛩", "Anime"],
-    ["f1", "🏎", "F1 Teams"],
-  ];
-  const contents: Record<string, HTMLElement> = {};
-  tabDefs.forEach(([id, icon, label]) => {
-    const btn = document.createElement("button");
-    btn.className = "panel-tab" + (id === activePanelTab ? " active" : "");
-    btn.dataset.tab = id;
-    const iconEl = document.createElement("span");
-    iconEl.className = "tab-icon";
-    iconEl.textContent = icon;
-    const lblEl = document.createElement("span");
-    lblEl.className = "tab-label";
-    lblEl.textContent = label;
-    btn.append(iconEl, lblEl);
-    btn.addEventListener("click", () => switchPanelTab(id));
-    tabs.appendChild(btn);
-  });
-  panelRows.appendChild(tabs);
-
-  // ── Tab contents ──────────────────────────────────────────────────────
-  const makeNatBtn = (t: Theme) => {
-    const btn = document.createElement("button");
-    btn.className = "nat-btn" + (t.id === currentTheme.id ? " active" : "");
-    btn.dataset.id = t.id;
-    btn.title = t.name;
-    btn.style.background = t.swatch ?? t.accent;
-    const tip = document.createElement("span");
-    tip.className = "nat-tip";
-    tip.textContent = t.name;
-    btn.appendChild(tip);
-    btn.addEventListener("click", () => applyTheme(t));
-    return btn;
-  };
-
-  const makeCard = (t: Theme) => {
-    const card = document.createElement("button");
-    card.className = "media-card" + (t.id === currentTheme.id ? " active" : "");
-    card.dataset.id = t.id;
-    card.addEventListener("click", () => applyTheme(t));
-    const logo = document.createElement("div");
-    logo.className = "media-logo";
-    setLogoContent(logo, LOGOS[t.id], () => makeFallbackLogo(t));
-    const nm = document.createElement("div");
-    nm.className = "media-name";
-    nm.textContent = t.name;
-    const sb = document.createElement("div");
-    sb.className = "media-sub";
-    sb.style.color = t.accent;
-    sb.textContent = t.sub ?? "";
-    const txt = document.createElement("div");
-    txt.className = "media-card-text";
-    txt.append(nm, sb);
-
-    card.append(logo, txt);
-    return card;
-  };
-
-  // Natural tab
-  const natContent = document.createElement("div");
-  natContent.className =
-    "tab-content" + (activePanelTab === "nat" ? " active" : "");
-  natContent.dataset.tab = "nat";
-
-  const pureNat = THEMES_BY_CAT.nat.filter((t) => !["literary"].includes(t.id));
-  const specialNat = THEMES_BY_CAT.nat.filter((t) =>
-    ["literary"].includes(t.id),
-  );
-
-  const natGrid = document.createElement("div");
-  natGrid.className = "nat-grid";
-  pureNat.forEach((t) => natGrid.appendChild(makeNatBtn(t)));
-  natContent.appendChild(natGrid);
-
-  if (specialNat.length) {
-    const specLabel = document.createElement("div");
-    specLabel.className = "tab-sub-label";
-    specLabel.textContent = "Special";
-    const specRow = document.createElement("div");
-    specRow.className = "media-grid";
-    specialNat.forEach((t) => specRow.appendChild(makeCard(t)));
-    natContent.append(specLabel, specRow);
-  }
-  contents["nat"] = natContent;
-
-  // TV, Movie, Anime, F1 tabs
-  MEDIA_CATEGORIES.forEach((cat) => {
-    const content = document.createElement("div");
-    content.className =
-      "tab-content" + (activePanelTab === cat ? " active" : "");
-    content.dataset.tab = cat;
-    const grid = document.createElement("div");
-    grid.className = "media-grid";
-    THEMES_BY_CAT[cat].forEach((t) => grid.appendChild(makeCard(t)));
-    content.appendChild(grid);
-    contents[cat] = content;
+  ThemeLib.init({
+    apply: (t) => applyTheme(t),
+    currentId: () => currentTheme.id,
+    fillMark: (el, t) => setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
+    openOverlay: () => openModal("themeLibOverlay"),
+    closeOverlay: () => closeModal("themeLibOverlay"),
   });
 
-  Object.values(contents).forEach((c) => panelRows.appendChild(c));
-
-  // ── Feature bar — 5 essential actions ────────────────────────────────
+  // ── Feature dock — Sound, Zen, Settings (the three runtime actions) ──
+  // Utility icons share one stroke style (24px grid, 1.8 stroke); emoji stay in
+  // theme identity only.
+  const ICON = (d: string) =>
+    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const ICONS = {
+    sound: ICON('<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>'),
+    zen: ICON('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>'),
+    settings: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+  };
   const featDefs: [string, string, string, () => void][] = [
-    // [id, emoji, label, action]
+    // [id, icon svg, label, action]
     [
       "btnSound",
-      "🎵",
+      ICONS.sound,
       "Sound",
       () => {
         buildSoundUI();
         openModal("soundOverlay");
       },
     ],
-    ["btnZen", "🧘", "Zen", toggleZen],
-    ["btnSettings", "⚙️", "Settings", openSettings],
+    ["btnZen", ICONS.zen, "Zen", toggleZen],
+    ["btnSettings", ICONS.settings, "Settings", openSettings],
   ];
-  featDefs.forEach(([id, emoji, label, action]) => {
+  featDefs.forEach(([id, icon, label, action]) => {
     const b = document.createElement("button");
     b.className = "feat-btn";
     b.id = id;
     const iconEl = document.createElement("span");
     iconEl.className = "feat-icon";
-    iconEl.textContent = emoji;
+    iconEl.innerHTML = icon; // developer-authored constant SVG above
     const lblEl = document.createElement("span");
     lblEl.className = "feat-label";
     lblEl.textContent = label;
@@ -1721,21 +1614,6 @@ function buildPanel() {
     b.addEventListener("click", action);
     featBar.appendChild(b);
   });
-}
-
-function switchPanelTab(id: string) {
-  activePanelTab = id;
-  document
-    .querySelectorAll<HTMLElement>(".panel-tab")
-    .forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
-  document
-    .querySelectorAll<HTMLElement>(".tab-content")
-    .forEach((c) => c.classList.toggle("active", c.dataset.tab === id));
-  // A tasteful staggered pop-in for the grid that just became visible — the
-  // CSS tabFadeIn keyframe still handles the container-level fade, this
-  // adds a per-swatch/per-card cascade on top of it.
-  const active = document.querySelector<HTMLElement>(".tab-content.active");
-  void Motion.staggerIn(active, ".nat-btn, .media-card");
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
@@ -1879,7 +1757,7 @@ const SHORTCUTS: [string, string, () => void][] = [
   ],
   [
     "K",
-    "Collapse / expand panel",
+    "Open the theme library",
     () => {
       toggleThemePanel();
     },
@@ -1928,7 +1806,14 @@ document.addEventListener("keydown", (e) => {
       (key === "Space" && e.code === "Space") ||
       (key === "?" && (e.key === "?" || (e.code === "Slash" && e.shiftKey))) ||
       (key === "Escape" && e.key === "Escape") ||
-      (key.length === 1 && key.toLowerCase() === ek && key !== "?");
+      // Plain single-key shortcuts must not fire with Ctrl/Cmd/Alt held:
+      // Ctrl+K belongs to the command palette, Ctrl+R to the browser, etc.
+      (key.length === 1 &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        key.toLowerCase() === ek &&
+        key !== "?");
     if (match) {
       e.preventDefault();
       action();
@@ -2132,8 +2017,11 @@ function setThemePanelCollapsed(collapsed: boolean) {
   DOM.themePanel.classList.toggle("collapsed", collapsed);
   document.body.classList.toggle("theme-panel-collapsed", collapsed);
 }
+// The legacy bottom panel is retired: it stays in the DOM (permanently
+// collapsed) so existing hooks keep working, and every "Themes" action opens
+// the Theme Library instead.
 function toggleThemePanel() {
-  setThemePanelCollapsed(!DOM.themePanel.classList.contains("collapsed"));
+  ThemeLib.toggle();
 }
 
 $("panelToggle").onclick = () => {
@@ -2144,7 +2032,7 @@ $("panelToggle").onclick = () => {
 
 document
   .getElementById("themesRevealBtn")
-  ?.addEventListener("click", () => setThemePanelCollapsed(false));
+  ?.addEventListener("click", () => ThemeLib.open());
 
 // ── Pomodoro UI ────────────────────────────────────────────────────────
 Pom.init({
@@ -6523,6 +6411,7 @@ function init() {
 
   wireGithubCelebration();
 
+  setThemePanelCollapsed(true);
   const lastId = localStorage.getItem("sc_last_theme");
   applyTheme(
     lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0],
