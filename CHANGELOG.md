@@ -9,6 +9,24 @@ All notable changes to Session Clock are documented here.
 > `1.76` below is the first release under this scheme, since this update
 > bundles several larger changes together.
 
+## [2.0.0] — V2 line begins
+
+Session Clock moves to standard three-part semantic versioning (`MAJOR.MINOR.PATCH`) starting with this release; the two-decimal `x.xx` scheme described below applies to releases up to `1.99`.
+
+### Added
+
+- **Theme Library**: a searchable gallery replaces the bottom theme panel. Collections for all themes, recently used, favourites and the six categories; A–Z sort; favourites and recents stored as IDs only (`sc_theme_favs_v1`, `sc_theme_recent_v1`, included in the Privacy data export/delete). Every card still applies through `applyTheme()`.
+- Neutral V2 interface tokens (`--ui-*`) with a light-surface variant for light themes.
+- `npm run previews` (`scripts/gen-theme-previews.mjs`): experimental scene-thumbnail generator; no thumbnails are shipped yet, cards use a gradient preview.
+- Playwright coverage for the library (`tests/themelib.spec.ts`).
+
+### Changed
+
+- Feature dock is now a floating capsule (Sound, Zen, Settings) with one consistent SVG icon set.
+- The "K" shortcut and the Themes buttons open the Theme Library; the old bottom panel stays in the DOM, collapsed.
+- README header refreshed: the app logo now leads, followed by the badges, the app preview, and the rest of the page.
+- Version bumped to `2.0.0` in `package.json` and `package-lock.json`.
+
 ## [1.99] — First-load reliability: boot guard, safe storage, critical splash CSS
 
 Fixes the intermittent "giant splash logo, nothing else loads until refresh" and "loads halfway then stops" reports. The splash PNG format was not the cause.
