@@ -64,7 +64,8 @@ export function sanitizeIds(raw: unknown, max = Infinity): string[] {
       typeof v !== "string" ||
       seen.has(v) ||
       !Object.prototype.hasOwnProperty.call(THEME_BY_ID, v)
-    ) continue;
+    )
+      continue;
     seen.add(v);
     out.push(v);
     if (out.length >= max) break;
