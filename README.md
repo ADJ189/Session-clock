@@ -22,16 +22,16 @@
 
 Session Clock is a precision focus timer built on one idea: **the environment you work in shapes the quality of your work**. 103 animated canvas themes (each with its own bespoke intro transition), a synthesized ambient sound mixer with crossfade scenes, binaural audio, session intelligence, voice control, and Zen Mode — running entirely locally with zero backend.
 
-| | |
-|---|---|
-| **Themes** | 103 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
-| **Sound Mixer** | 17 synthesized ambient tracks · crossfade scenes · night mode · live VU meter |
-| **Now Playing** | Matches ~30 soundtracks against Spotify (or any player, manually) and switches theme |
-| **Modes** | Pomodoro (fully custom cycles) · **Zen** · **Calm** · **Focus** · Kiosk · PiP · Voice |
-| **Intelligence** | Streaks · Velocity · **Flow Intensity** · Configurable break reminders |
-| **Always on Top** | Document PiP — mini clock floats over other apps |
-| **Languages** | EN ES FR DE JA KO PT HI |
-| **Privacy** | Zero backend · localStorage only · No tracking |
+|                   |                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------- |
+| **Themes**        | 103 animated, each with a custom intro — TV, film, animation, anime, F1, natural      |
+| **Sound Mixer**   | 17 synthesized ambient tracks · crossfade scenes · night mode · live VU meter         |
+| **Now Playing**   | Matches ~30 soundtracks against Spotify (or any player, manually) and switches theme  |
+| **Modes**         | Pomodoro (fully custom cycles) · **Zen** · **Calm** · **Focus** · Kiosk · PiP · Voice |
+| **Intelligence**  | Streaks · Velocity · **Flow Intensity** · Configurable break reminders                |
+| **Always on Top** | Document PiP — mini clock floats over other apps                                      |
+| **Languages**     | EN ES FR DE JA KO PT HI                                                               |
+| **Privacy**       | Zero backend · localStorage only · No tracking                                        |
 
 **[→ Full documentation on the Wiki](https://github.com/ADJ189/Session-clock/wiki)** &nbsp;·&nbsp; **[→ Changelog](CHANGELOG.md)**
 
@@ -92,5 +92,6 @@ Third-party fonts, APIs, and tooling are listed in [CREDITS.md](CREDITS.md).
 
 Made with ❤️ by **ADJ189**
 
-*"Focus is the art of knowing what to ignore."*
+_"Focus is the art of knowing what to ignore."_
+
 </div>

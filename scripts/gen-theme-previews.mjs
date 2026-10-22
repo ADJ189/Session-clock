@@ -27,7 +27,9 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH || undefined,
   args: ["--no-sandbox"],
 });
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+const ctx = await browser.newContext({
+  viewport: { width: 1280, height: 720 },
+});
 await ctx.addInitScript(() => {
   try {
     localStorage.setItem("sc_onboarded_v2", "1");
@@ -47,10 +49,16 @@ const done = [];
 for (const id of ids) {
   if (only && !only.has(id)) continue;
   const page = await ctx.newPage();
-  await page.addInitScript((tid) => localStorage.setItem("sc_last_theme", tid), id);
+  await page.addInitScript(
+    (tid) => localStorage.setItem("sc_last_theme", tid),
+    id,
+  );
   try {
     await page.goto(base, { waitUntil: "load" });
-    await page.waitForSelector("#splashScreen", { state: "detached", timeout: 20000 });
+    await page.waitForSelector("#splashScreen", {
+      state: "detached",
+      timeout: 20000,
+    });
     await page.waitForTimeout(Number(process.env.SETTLE_MS ?? 2200)); // let the scene settle past its first frames
     const data = await page.evaluate(
       ([w, h]) => {
@@ -69,8 +77,12 @@ for (const id of ids) {
       },
       [W, H],
     );
-    if (!data || !data.startsWith("data:image/webp")) throw new Error("no canvas data");
-    writeFileSync(join(outDir, `${id}.webp`), Buffer.from(data.split(",")[1], "base64"));
+    if (!data || !data.startsWith("data:image/webp"))
+      throw new Error("no canvas data");
+    writeFileSync(
+      join(outDir, `${id}.webp`),
+      Buffer.from(data.split(",")[1], "base64"),
+    );
     done.push(id);
     process.stdout.write(`✓ ${id}\n`);
   } catch (e) {

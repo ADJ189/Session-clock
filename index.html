@@ -1147,18 +1147,72 @@
             <span class="tl-count" id="tlCount" aria-live="polite"></span>
           </div>
           <div class="tl-search">
-            <svg class="tl-search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input id="tlSearch" type="search" placeholder="Search themes, shows, films, moods" aria-label="Search themes" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" />
-            <button type="button" id="tlClear" class="tl-clear" aria-label="Clear search" hidden>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            <svg
+              class="tl-search-ico"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              id="tlSearch"
+              type="search"
+              placeholder="Search themes, shows, films, moods"
+              aria-label="Search themes"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              enterkeyhint="search"
+            />
+            <button
+              type="button"
+              id="tlClear"
+              class="tl-clear"
+              aria-label="Clear search"
+              hidden
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
             </button>
           </div>
           <select id="tlSort" class="tl-sort" aria-label="Sort themes">
             <option value="default">Default order</option>
             <option value="az">A–Z</option>
           </select>
-          <button class="modal-close tl-close" aria-label="Close theme library" onclick="SC.modals.close('themeLibOverlay')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <button
+            class="modal-close tl-close"
+            aria-label="Close theme library"
+            onclick="SC.modals.close('themeLibOverlay')"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
         <div class="tl-body">

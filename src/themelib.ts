@@ -268,7 +268,10 @@ function renderNav() {
       b.classList.add("active");
       b.setAttribute("aria-current", "true");
     }
-    b.append(el("span", "tl-nav-label", label), el("span", "tl-nav-count", String(count)));
+    b.append(
+      el("span", "tl-nav-label", label),
+      el("span", "tl-nav-count", String(count)),
+    );
     b.addEventListener("click", () => setView(v));
     return b;
   };
@@ -291,7 +294,10 @@ function renderNav() {
 }
 
 function setEmpty(title: string, body: string, action?: [string, () => void]) {
-  empty.replaceChildren(el("p", "tl-empty-title", title), el("p", "tl-empty-body", body));
+  empty.replaceChildren(
+    el("p", "tl-empty-title", title),
+    el("p", "tl-empty-body", body),
+  );
   if (action) {
     const b = el("button", "tl-empty-btn", action[0]);
     b.type = "button";
@@ -311,7 +317,10 @@ function render() {
       if (!inCat.length) return;
       const h = el("div", "tl-sec");
       h.setAttribute("role", "presentation");
-      h.append(el("span", "tl-sec-name", CATEGORY_LABELS[c]), el("span", "tl-sec-count", String(inCat.length)));
+      h.append(
+        el("span", "tl-sec-name", CATEGORY_LABELS[c]),
+        el("span", "tl-sec-count", String(inCat.length)),
+      );
       nodes.push(h);
       inCat.forEach((t) => nodes.push(cardFor(t)));
     });
@@ -331,15 +340,17 @@ function render() {
         ["Clear search", clearSearch],
       );
     } else if (view === "favs") {
-      setEmpty("No favourites yet", "Tap the star on any theme to keep it here.", [
-        "Browse all themes",
-        () => setView("all"),
-      ]);
+      setEmpty(
+        "No favourites yet",
+        "Tap the star on any theme to keep it here.",
+        ["Browse all themes", () => setView("all")],
+      );
     } else if (view === "recent") {
-      setEmpty("Your selected themes will appear here", "Pick a theme and it shows up in this list.", [
-        "Browse all themes",
-        () => setView("all"),
-      ]);
+      setEmpty(
+        "Your selected themes will appear here",
+        "Pick a theme and it shows up in this list.",
+        ["Browse all themes", () => setView("all")],
+      );
     }
   }
 
