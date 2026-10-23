@@ -264,7 +264,19 @@ const cardFor = (t: Theme) => {
 
 // ── Persistence ───────────────────────────────────────────────────────
 
+function readFavs(): string[] {
+  return sanitizeIds(safeJsonGet<unknown>(FAV_KEY, []));
+}
+
+function readRecents(): string[] {
+  return sanitizeIds(safeJsonGet<unknown>(RECENT_KEY, []), RECENT_MAX);
+}
+
 function toggleFav(id: string) {
+  // Storage is the source of truth, not this module's snapshot: another tab
+  // may have added or removed a favourite since we loaded, and writing our
+  // stale copy back would silently drop that change.
+  favs = readFavs();
   favs = favs.includes(id) ? favs.filter((f) => f !== id) : [...favs, id];
   safeJsonSet(FAV_KEY, favs);
   const t = THEME_BY_ID[id];
@@ -277,7 +289,11 @@ function toggleFav(id: string) {
 }
 
 function pushRecent(id: string) {
-  if (!THEME_BY_ID[id] || recents[0] === id) return;
+  if (!THEME_BY_ID[id]) return;
+  // Same reasoning as toggleFav: merge into the latest persisted list so a
+  // recent recorded in another tab isn't overwritten by this one.
+  recents = readRecents();
+  if (recents[0] === id) return;
   recents = [id, ...recents.filter((r) => r !== id)].slice(0, RECENT_MAX);
   safeJsonSet(RECENT_KEY, recents);
 }
@@ -309,12 +325,13 @@ function renderSpotlight(show = view === "all" && !query) {
   deps.fillMark(markWrap, t);
   const titles = el("div", "tl-spotlight-titles");
   const eyebrow = el("span", "tl-eyebrow");
-  eyebrow.append(
-    el("span", "tl-live-dot"),
-    document.createTextNode("Using now"),
-  );
+  eyebrow.append(el("span", "tl-live-dot"), document.createTextNode("Using now"));
   const name = el("h3", "tl-spotlight-name", t.name);
-  const sub = el("p", "tl-spotlight-sub", t.sub ?? CATEGORY_LABELS[t.cat]);
+  const sub = el(
+    "p",
+    "tl-spotlight-sub",
+    t.sub ?? CATEGORY_LABELS[t.cat],
+  );
   titles.append(eyebrow, name, sub);
   top.append(markWrap, titles);
   content.appendChild(top);
@@ -476,10 +493,7 @@ function renderNav() {
 }
 
 function setEmpty(title: string, body: string, action?: [string, () => void]) {
-  empty.replaceChildren(
-    el("p", "tl-empty-title", title),
-    el("p", "tl-empty-body", body),
-  );
+  empty.replaceChildren(el("p", "tl-empty-title", title), el("p", "tl-empty-body", body));
   if (action) {
     const b = el("button", "tl-empty-btn", action[0]);
     b.type = "button";
@@ -497,8 +511,7 @@ function render() {
 
   const nodes: HTMLElement[] = list.map((t) => cardFor(t));
   cards.forEach((c) => c.classList.remove("tl-card--featured"));
-  if (editorial && nodes.length > 1)
-    nodes[0]!.classList.add("tl-card--featured");
+  if (editorial && nodes.length > 1) nodes[0]!.classList.add("tl-card--featured");
   grid.replaceChildren(...nodes);
 
   const none = list.length === 0;
@@ -512,17 +525,15 @@ function render() {
         ["Clear search", clearSearch],
       );
     } else if (view === "favs") {
-      setEmpty(
-        "No favourites yet",
-        "Tap the star on any theme to keep it here.",
-        ["Browse all themes", () => setView("all")],
-      );
+      setEmpty("No favourites yet", "Tap the star on any theme to keep it here.", [
+        "Browse all themes",
+        () => setView("all"),
+      ]);
     } else if (view === "recent") {
-      setEmpty(
-        "Your selected themes will appear here",
-        "Pick a theme and it shows up in this list.",
-        ["Browse all themes", () => setView("all")],
-      );
+      setEmpty("Your selected themes will appear here", "Pick a theme and it shows up in this list.", [
+        "Browse all themes",
+        () => setView("all"),
+      ]);
     }
   }
 
@@ -595,8 +606,17 @@ export function init(d: ThemeLibDeps) {
   wallCount = $id("tlWallCount");
   wallEyebrow = $id("tlWallEyebrow");
 
-  favs = sanitizeIds(safeJsonGet<unknown>(FAV_KEY, []));
-  recents = sanitizeIds(safeJsonGet<unknown>(RECENT_KEY, []), RECENT_MAX);
+  favs = readFavs();
+  recents = readRecents();
+
+  // Keep the module's lists in sync when they change outside this tab, or
+  // when Privacy deletes them in this tab (that path dispatches the custom
+  // event, because same-tab writes never fire `storage`).
+  window.addEventListener("storage", (e) => {
+    if (e.key === null || e.key === FAV_KEY || e.key === RECENT_KEY)
+      resetSavedLists();
+  });
+  window.addEventListener("sc-theme-lists-reset", resetSavedLists);
 
   search.addEventListener("input", () => {
     query = search.value.trim();
@@ -660,10 +680,31 @@ export function onThemeApplied(id: string) {
     const t = THEME_BY_ID[cid];
     if (t) syncCard(c, t);
   });
+  // Counts and ordering both depend on `recents`, so refresh the rail before
+  // choosing a view — "recent" needs render() for order, every other view
+  // needs the shelves patched in place.
+  renderNav();
   if (view === "recent") render();
   else {
-    renderNav();
     renderSpotlight(view === "all" && !query);
     renderRecents(view === "all" && !query);
   }
+}
+
+/** Re-read favourites/recents from storage and repaint.
+ *
+ * Used when another tab changes them, and after Privacy → delete removes the
+ * saved keys: the lists are cached in module memory, so without this a
+ * deleted favourite would still render and would be written back the next
+ * time anything toggled a star. */
+export function resetSavedLists() {
+  if (!overlay) return;
+  favs = readFavs();
+  recents = readRecents();
+  cards.forEach((c, id) => {
+    const t = THEME_BY_ID[id];
+    if (t) syncCard(c, t);
+  });
+  renderNav();
+  if (isOpen()) render();
 }

@@ -1564,8 +1564,7 @@ function buildPanel() {
   ThemeLib.init({
     apply: (t) => applyTheme(t),
     currentId: () => currentTheme.id,
-    fillMark: (el, t) =>
-      setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
+    fillMark: (el, t) => setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
     openOverlay: () => openModal("themeLibOverlay"),
     closeOverlay: () => closeModal("themeLibOverlay"),
   });
@@ -1577,12 +1576,8 @@ function buildPanel() {
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICONS = {
     sound: ICON('<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>'),
-    zen: ICON(
-      '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>',
-    ),
-    settings: ICON(
-      '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
-    ),
+    zen: ICON('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>'),
+    settings: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
   };
   const featDefs: [string, string, string, () => void][] = [
     // [id, icon svg, label, action]
@@ -1679,6 +1674,10 @@ function onModalClosed(overlay: HTMLElement) {
 
 function trapModalTab(e: KeyboardEvent, overlay: HTMLElement) {
   if (e.key !== "Tab") return;
+  // Listeners live on the overlay for its whole lifetime, but a closed overlay
+  // is only faded out — trapping Tab there would cycle focus through controls
+  // nobody can see. Only an open dialog owns the keyboard.
+  if (!overlay.classList.contains("open")) return;
   const panel = modalPanel(overlay);
   const items = Array.from(
     panel.querySelectorAll<HTMLElement>(FOCUSABLE),
@@ -1705,8 +1704,16 @@ const modalObserver = new MutationObserver((records) => {
     const el = r.target as HTMLElement;
     const wasOpen = (r.oldValue ?? "").split(/\s+/).includes("open");
     const isOpen = el.classList.contains("open");
-    if (isOpen && !wasOpen) onModalOpened(el);
-    else if (!isOpen && wasOpen) onModalClosed(el);
+    if (isOpen && !wasOpen) {
+      el.removeAttribute("aria-hidden");
+      onModalOpened(el);
+    } else if (!isOpen && wasOpen) {
+      onModalClosed(el);
+      // CSS `visibility: hidden` already removes the closed panel from the
+      // Tab order; aria-hidden keeps that explicit for assistive tech.
+      if (!el.contains(document.activeElement))
+        el.setAttribute("aria-hidden", "true");
+    }
   }
 });
 document.querySelectorAll<HTMLElement>(".sc-overlay").forEach((el) => {
@@ -1715,6 +1722,7 @@ document.querySelectorAll<HTMLElement>(".sc-overlay").forEach((el) => {
     attributeFilter: ["class"],
     attributeOldValue: true,
   });
+  if (!el.classList.contains("open")) el.setAttribute("aria-hidden", "true");
   el.addEventListener("keydown", (e) => trapModalTab(e, el));
   el.addEventListener("click", (e) => {
     if (e.target === el) closeModal(el.id);
@@ -2775,26 +2783,22 @@ Sound.setTrackChangeHandler(() => {
 function syncFadeLabel(v: number) {
   const label = $("fadeLabel");
   if (label) label.textContent = v === 0 ? "Off" : `${v} min`;
-  document
-    .querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip")
-    .forEach((chip) => {
-      const active = +chip.dataset.fade! === v;
-      chip.classList.toggle("active", active);
-      chip.setAttribute("aria-pressed", String(active));
-    });
-}
-document
-  .querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip")
-  .forEach((chip) => {
-    chip.addEventListener("click", () => {
-      const v = +chip.dataset.fade!;
-      const slider = $("fadeSlider") as HTMLInputElement;
-      slider.value = String(v);
-      Sound.setFade(v);
-      syncFadeLabel(v);
-      slider.focus();
-    });
+  document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
+    const active = +chip.dataset.fade! === v;
+    chip.classList.toggle("active", active);
+    chip.setAttribute("aria-pressed", String(active));
   });
+}
+document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const v = +chip.dataset.fade!;
+    const slider = $("fadeSlider") as HTMLInputElement;
+    slider.value = String(v);
+    Sound.setFade(v);
+    syncFadeLabel(v);
+    slider.focus();
+  });
+});
 syncFadeLabel(+($("fadeSlider") as HTMLInputElement).value);
 
 // ── Custom Theme Builder — full RGB/HSL palette ───────────────────────

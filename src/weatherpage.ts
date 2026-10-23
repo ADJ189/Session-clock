@@ -92,6 +92,7 @@ const SUNRISE_SVG =
 const SUNSET_SVG =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18M6 18a6 6 0 0 1 12 0M12 6v3M5.6 10.6l1.4-1.4M18.4 10.6 17 9.2"/></svg>';
 
+
 // ── Open the weather page overlay ─────────────────────────────────────
 export function openWeatherPage() {
   let overlay = document.getElementById("weatherPageOverlay");
@@ -274,7 +275,8 @@ function buildWeatherPageDOM(): HTMLElement {
   overlay.querySelector("#weatherLocGPS")!.addEventListener("click", () => {
     if (!navigator.geolocation) return;
     const btn = overlay.querySelector("#weatherLocGPS") as HTMLButtonElement;
-    btn.innerHTML = `<span class="weather-loc-icon">${GPS_SVG}</span><span><span class="weather-loc-btn-label">Locating…</span><span class="weather-loc-btn-sub">Please wait</span></span>`;
+    btn.innerHTML =
+      `<span class="weather-loc-icon">${GPS_SVG}</span><span><span class="weather-loc-btn-label">Locating…</span><span class="weather-loc-btn-sub">Please wait</span></span>`;
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lon } }) => {
         const name = await getCityName(lat, lon);
@@ -285,7 +287,8 @@ function buildWeatherPageDOM(): HTMLElement {
         refreshWeather(overlay as HTMLElement);
       },
       () => {
-        btn.innerHTML = `<span class="weather-loc-icon">${PIN_SVG}</span><span><span class="weather-loc-btn-label">GPS unavailable</span><span class="weather-loc-btn-sub">Search for a city instead</span></span>`;
+        btn.innerHTML =
+          `<span class="weather-loc-icon">${PIN_SVG}</span><span><span class="weather-loc-btn-label">GPS unavailable</span><span class="weather-loc-btn-sub">Search for a city instead</span></span>`;
       },
       { timeout: 10000 },
     );
@@ -516,9 +519,12 @@ function renderHourly(overlay: HTMLElement) {
     const time = new Date(h.time);
     const label =
       i === 0 ? "Now" : time.toLocaleTimeString([], { hour: "numeric" });
+    const condition = getWMOInfo(h.code)[1];
     const item = document.createElement("div");
     item.className = "weather-hourly-item";
-    item.innerHTML = `<span class="weather-hourly-time">${label}</span><span class="weather-hourly-icon">${weatherIconSvg(h.code, 26)}</span><span class="weather-hourly-temp">${h.temp}°</span>`;
+    // The icon is decorative; name the condition on its wrapper so the hour
+    // reads as "Now, Drizzle, 9°" instead of "Now, 9°".
+    item.innerHTML = `<span class="weather-hourly-time">${label}</span><span class="weather-hourly-icon" role="img" aria-label="${condition}">${weatherIconSvg(h.code, 26)}</span><span class="weather-hourly-temp">${h.temp}°</span>`;
     strip.appendChild(item);
   });
 }
