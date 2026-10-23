@@ -1,10 +1,12 @@
-// Theme Library — the searchable gallery behind the "Themes" actions.
+// Theme Finder — the visual discovery gallery behind every "Themes" action.
 //
 // This module owns browsing only: search, collections (all / recent /
 // favourites / the six categories), favourite + recent persistence, and the
-// card DOM. It never applies a theme itself — selection goes through the
-// `apply` callback (main.ts `applyTheme`), so there is exactly one code path
-// that drives the renderer, transitions, CSS variables and `sc_last_theme`.
+// editorial DOM (active-theme spotlight, recent rail, category worlds and the
+// all-theme wall). It never applies a theme itself — selection goes through
+// the `apply` callback (main.ts `applyTheme`), so there is exactly one code
+// path that drives the renderer, transitions, CSS variables and
+// `sc_last_theme`.
 //
 // Cards are built once per theme and cached; filtering only re-orders and
 // re-attaches existing nodes, so typing in the search box never rebuilds
@@ -14,6 +16,7 @@ import { THEMES, THEME_BY_ID } from "./themes";
 import { THEME_CATEGORIES, type Theme, type ThemeCategory } from "./types";
 import { safeJsonGet, safeJsonSet } from "./storage";
 import { PREVIEW_IDS } from "./themepreviews";
+import { themeFinderReveal } from "./motion";
 
 export const FAV_KEY = "sc_theme_favs_v1";
 export const RECENT_KEY = "sc_theme_recent_v1";
@@ -60,12 +63,7 @@ export function sanitizeIds(raw: unknown, max = Infinity): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const v of raw) {
-    if (
-      typeof v !== "string" ||
-      seen.has(v) ||
-      !Object.prototype.hasOwnProperty.call(THEME_BY_ID, v)
-    )
-      continue;
+    if (typeof v !== "string" || seen.has(v) || !THEME_BY_ID[v]) continue;
     seen.add(v);
     out.push(v);
     if (out.length >= max) break;
@@ -115,6 +113,14 @@ let clearBtn: HTMLButtonElement;
 let sortSel: HTMLSelectElement;
 let countEl: HTMLElement;
 let mainEl: HTMLElement;
+let spotlight: HTMLElement;
+let recentSection: HTMLElement;
+let recentRail: HTMLElement;
+let worldsSection: HTMLElement;
+let worldsGrid: HTMLElement;
+let wallTitle: HTMLElement;
+let wallCount: HTMLElement;
+let wallEyebrow: HTMLElement;
 
 const $id = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -134,6 +140,42 @@ const SVG_STAR =
   '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z" stroke-width="2" stroke-linejoin="round"/></svg>';
 const SVG_CHECK =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const SVG_ARROW =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+// ── Shared art helpers ────────────────────────────────────────────────
+
+/** Theme data drives every preview surface. Values are compile-time
+ *  constants from themes.ts, never user input. */
+function applyThemeVars(node: HTMLElement, t: Theme) {
+  node.style.setProperty("--tl-bg0", t.baseBg[0] ?? "#000");
+  node.style.setProperty("--tl-bg1", t.baseBg[1] ?? t.baseBg[0] ?? "#000");
+  node.style.setProperty("--tl-bg2", t.baseBg[2] ?? t.baseBg[0] ?? "#000");
+  node.style.setProperty("--tl-accent", t.accent);
+  node.style.setProperty("--tl-accent2", t.accent2);
+  node.style.setProperty("--tl-text", t.text);
+  node.style.setProperty("--tl-font", t.font);
+  node.dataset.bg = t.bgType;
+}
+
+/** Adds the static scene canvas + real thumbnail when one has been
+ *  generated. Missing/failed previews simply leave the layered CSS scene
+ *  in place — a designed fallback, never a broken-image icon. */
+function addPreviewArt(parent: HTMLElement, t: Theme) {
+  const scene = el("span", "tl-scene");
+  scene.setAttribute("aria-hidden", "true");
+  parent.appendChild(scene);
+  if (PREVIEW_IDS.has(t.id)) {
+    const img = new Image(640, 360);
+    img.className = "tl-img";
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.src = `${import.meta.env.BASE_URL}theme-previews/${t.id}.webp`;
+    img.addEventListener("error", () => img.remove());
+    parent.appendChild(img);
+  }
+}
 
 // ── Cards ─────────────────────────────────────────────────────────────
 
@@ -141,38 +183,21 @@ function buildCard(t: Theme): HTMLElement {
   const card = el("div", "tl-card");
   card.dataset.id = t.id;
   card.setAttribute("role", "listitem");
-  // Theme data drives the preview. Values are compile-time constants from
-  // themes.ts, never user input.
-  card.style.setProperty("--tl-bg0", t.baseBg[0] ?? "#000");
-  card.style.setProperty("--tl-bg1", t.baseBg[1] ?? t.baseBg[0] ?? "#000");
-  card.style.setProperty("--tl-bg2", t.baseBg[2] ?? t.baseBg[0] ?? "#000");
-  card.style.setProperty("--tl-accent", t.accent);
-  card.style.setProperty("--tl-accent2", t.accent2);
-  card.style.setProperty("--tl-text", t.text);
-  card.style.setProperty("--tl-font", t.font);
+  applyThemeVars(card, t);
 
   const main = el("button", "tl-pick");
   main.type = "button";
-  main.addEventListener("click", () => deps.apply(t));
 
   const prev = el("span", "tl-prev");
   prev.setAttribute("aria-hidden", "true");
-  const time = el("span", "tl-time", "10:42");
-  prev.appendChild(time);
+  addPreviewArt(prev, t);
   const mark = el("span", "tl-mark");
   deps.fillMark(mark, t);
   prev.appendChild(mark);
-
-  if (PREVIEW_IDS.has(t.id)) {
-    const img = new Image(320, 180);
-    img.className = "tl-img";
-    img.alt = "";
-    img.loading = "lazy";
-    img.decoding = "async";
-    img.src = `${import.meta.env.BASE_URL}theme-previews/${t.id}.webp`;
-    // A missing or broken thumbnail falls back to the gradient underneath.
-    img.addEventListener("error", () => img.remove());
-    prev.appendChild(img);
+  const tagline = stripEmoji(t.tagline ?? "");
+  if (tagline) {
+    const line = el("span", "tl-tagline", tagline);
+    prev.appendChild(line);
   }
 
   const meta = el("span", "tl-meta");
@@ -184,6 +209,7 @@ function buildCard(t: Theme): HTMLElement {
   meta.append(name, sub, using);
 
   main.append(prev, meta);
+  main.addEventListener("click", () => chooseTheme(t, prev));
 
   const fav = el("button", "tl-fav");
   fav.type = "button";
@@ -198,6 +224,13 @@ function buildCard(t: Theme): HTMLElement {
   card.append(main, fav);
   syncCard(card, t);
   return card;
+}
+
+function chooseTheme(t: Theme, origin: HTMLElement | null) {
+  // Decorative reveal only — the theme applies on the same tick either way.
+  const rect = origin ? origin.getBoundingClientRect() : null;
+  themeFinderReveal(rect, t.accent);
+  deps.apply(t);
 }
 
 function syncCard(card: HTMLElement, t: Theme) {
@@ -240,12 +273,143 @@ function toggleFav(id: string) {
   renderNav();
   // Removing a favourite while viewing Favourites drops the card.
   if (view === "favs") render();
+  else renderSpotlight();
 }
 
 function pushRecent(id: string) {
   if (!THEME_BY_ID[id] || recents[0] === id) return;
   recents = [id, ...recents.filter((r) => r !== id)].slice(0, RECENT_MAX);
   safeJsonSet(RECENT_KEY, recents);
+}
+
+// ── Editorial sections ────────────────────────────────────────────────
+
+/** The wide "using now" spotlight. Compact enough that the catalogue is
+ *  still visible on a laptop screen without scrolling past a giant hero. */
+function renderSpotlight(show = view === "all" && !query) {
+  if (!spotlight) return;
+  const t = THEME_BY_ID[deps.currentId()];
+  spotlight.hidden = !show || !t;
+  if (!show || !t) return;
+
+  applyThemeVars(spotlight, t);
+  spotlight.dataset.id = t.id;
+  spotlight.replaceChildren();
+
+  const bg = el("div", "tl-spotlight-bg");
+  bg.setAttribute("aria-hidden", "true");
+  addPreviewArt(bg, t);
+  const scrim = el("div", "tl-spotlight-scrim");
+  scrim.setAttribute("aria-hidden", "true");
+  spotlight.append(bg, scrim);
+
+  const content = el("div", "tl-spotlight-content");
+  const top = el("div", "tl-spotlight-top");
+  const markWrap = el("div", "tl-spotlight-mark");
+  deps.fillMark(markWrap, t);
+  const titles = el("div", "tl-spotlight-titles");
+  const eyebrow = el("span", "tl-eyebrow");
+  eyebrow.append(el("span", "tl-live-dot"), document.createTextNode("Using now"));
+  const name = el("h3", "tl-spotlight-name", t.name);
+  const sub = el(
+    "p",
+    "tl-spotlight-sub",
+    t.sub ?? CATEGORY_LABELS[t.cat],
+  );
+  titles.append(eyebrow, name, sub);
+  top.append(markWrap, titles);
+  content.appendChild(top);
+
+  const tagline = stripEmoji(t.tagline ?? "");
+  if (tagline) content.appendChild(el("p", "tl-spotlight-tagline", tagline));
+
+  const actions = el("div", "tl-spotlight-actions");
+  const cont = el("button", "tl-continue");
+  cont.type = "button";
+  cont.innerHTML = `<span>Keep this atmosphere</span>${SVG_ARROW}`;
+  cont.addEventListener("click", close);
+  const fav = el("button", "tl-spotlight-fav");
+  fav.type = "button";
+  const isFav = favs.includes(t.id);
+  fav.classList.toggle("is-fav", isFav);
+  fav.setAttribute("aria-pressed", String(isFav));
+  fav.setAttribute(
+    "aria-label",
+    isFav ? `Remove ${t.name} from favourites` : `Add ${t.name} to favourites`,
+  );
+  fav.innerHTML = SVG_STAR;
+  fav.addEventListener("click", () => toggleFav(t.id));
+  actions.append(cont, fav);
+  content.appendChild(actions);
+
+  const meta = el("div", "tl-spotlight-meta");
+  meta.append(
+    el("span", "tl-chip", CATEGORY_LABELS[t.cat]),
+    el("span", "tl-chip", `${THEMES.length} worlds to explore`),
+  );
+  content.appendChild(meta);
+
+  spotlight.appendChild(content);
+}
+
+function renderRecents(show = view === "all" && !query) {
+  if (!recentSection || !recentRail) return;
+  const list = recents
+    .map((id) => THEME_BY_ID[id])
+    .filter((t): t is Theme => Boolean(t));
+  recentSection.hidden = !show || list.length === 0;
+  if (!show || !list.length) return;
+  recentRail.replaceChildren(
+    ...list.map((t) => {
+      const b = el("button", "tl-recent-card");
+      b.type = "button";
+      b.dataset.id = t.id;
+      applyThemeVars(b, t);
+      const art = el("span", "tl-recent-art");
+      art.setAttribute("aria-hidden", "true");
+      addPreviewArt(art, t);
+      const mark = el("span", "tl-recent-mark");
+      deps.fillMark(mark, t);
+      art.appendChild(mark);
+      const label = el("span", "tl-recent-name", t.name);
+      b.append(art, label);
+      b.setAttribute("aria-label", `Use ${t.name}`);
+      b.addEventListener("click", () => chooseTheme(t, art));
+      return b;
+    }),
+  );
+}
+
+function renderWorlds(show = view === "all" && !query) {
+  if (!worldsSection || !worldsGrid) return;
+  worldsSection.hidden = !show;
+  if (!show) return;
+  worldsGrid.replaceChildren();
+  CATEGORY_ORDER.filter((c) => THEME_CATEGORIES.includes(c)).forEach((cat) => {
+    const themed = THEMES.filter((t) => t.cat === cat);
+    if (!themed.length) return;
+    // A representative scene from the existing catalogue; counts always
+    // come from the data so a new theme needs no bespoke markup here.
+    const rep = themed[Math.min(1, themed.length - 1)]!;
+    const b = el("button", "tl-world");
+    b.type = "button";
+    b.dataset.cat = cat;
+    applyThemeVars(b, rep);
+    const art = el("span", "tl-world-art");
+    art.setAttribute("aria-hidden", "true");
+    addPreviewArt(art, rep);
+    const body = el("span", "tl-world-body");
+    const label = el("span", "tl-world-name", CATEGORY_LABELS[cat]);
+    const count = el(
+      "span",
+      "tl-world-count",
+      `${themed.length} theme${themed.length === 1 ? "" : "s"}`,
+    );
+    body.append(label, count);
+    b.append(art, body);
+    b.addEventListener("click", () => setView(cat));
+    worldsGrid.appendChild(b);
+  });
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────
@@ -263,46 +427,57 @@ function themesForView(): Theme[] {
   return list;
 }
 
-function renderNav() {
+// Nav buttons are built once and then updated in place. Rebuilding them on
+// every theme change replaced the node under the user's (or a test's) pointer
+// mid-click, which made the rail feel unstable and could drop focus.
+const navItems = new Map<View, HTMLButtonElement>();
+let navBuilt = false;
+
+function buildNav() {
   nav.replaceChildren();
-  const item = (v: View, label: string, count: number) => {
+  navItems.clear();
+  const item = (v: View, label: string) => {
     const b = el("button", "tl-nav-item");
     b.type = "button";
     b.dataset.view = v;
-    if (v === view) {
-      b.classList.add("active");
-      b.setAttribute("aria-current", "true");
-    }
-    b.append(
-      el("span", "tl-nav-label", label),
-      el("span", "tl-nav-count", String(count)),
-    );
+    b.append(el("span", "tl-nav-label", label), el("span", "tl-nav-count"));
     b.addEventListener("click", () => setView(v));
+    navItems.set(v, b);
     return b;
   };
-  const group = (title: string) => {
-    const g = el("div", "tl-nav-title", title);
-    return g;
-  };
   nav.append(
-    group("Browse"),
-    item("all", "All themes", THEMES.length),
-    item("recent", "Recently used", recents.length),
-    item("favs", "Favourites", favs.length),
-    group("Categories"),
+    item("all", "All themes"),
+    item("recent", "Recently used"),
+    item("favs", "Favourites"),
   );
+  nav.appendChild(el("span", "tl-nav-divider"));
   CATEGORY_ORDER.filter((c) => THEME_CATEGORIES.includes(c)).forEach((c) =>
-    nav.appendChild(
-      item(c, CATEGORY_LABELS[c], THEMES.filter((t) => t.cat === c).length),
-    ),
+    nav.appendChild(item(c, CATEGORY_LABELS[c])),
   );
+  navBuilt = true;
+}
+
+function countFor(v: View): number {
+  if (v === "all") return THEMES.length;
+  if (v === "recent") return recents.length;
+  if (v === "favs") return favs.length;
+  return THEMES.filter((t) => t.cat === v).length;
+}
+
+function renderNav() {
+  if (!navBuilt) buildNav();
+  navItems.forEach((b, v) => {
+    const active = v === view;
+    b.classList.toggle("active", active);
+    if (active) b.setAttribute("aria-current", "true");
+    else b.removeAttribute("aria-current");
+    const count = b.querySelector<HTMLElement>(".tl-nav-count");
+    if (count) count.textContent = String(countFor(v));
+  });
 }
 
 function setEmpty(title: string, body: string, action?: [string, () => void]) {
-  empty.replaceChildren(
-    el("p", "tl-empty-title", title),
-    el("p", "tl-empty-body", body),
-  );
+  empty.replaceChildren(el("p", "tl-empty-title", title), el("p", "tl-empty-body", body));
   if (action) {
     const b = el("button", "tl-empty-btn", action[0]);
     b.type = "button";
@@ -313,25 +488,14 @@ function setEmpty(title: string, body: string, action?: [string, () => void]) {
 
 function render() {
   const list = themesForView();
-  const nodes: HTMLElement[] = [];
-  const grouped = view === "all" && !query && sort === "default";
+  const editorial = view === "all" && !query;
+  renderSpotlight(editorial);
+  renderRecents(editorial);
+  renderWorlds(editorial);
 
-  if (grouped) {
-    CATEGORY_ORDER.forEach((c) => {
-      const inCat = list.filter((t) => t.cat === c);
-      if (!inCat.length) return;
-      const h = el("div", "tl-sec");
-      h.setAttribute("role", "presentation");
-      h.append(
-        el("span", "tl-sec-name", CATEGORY_LABELS[c]),
-        el("span", "tl-sec-count", String(inCat.length)),
-      );
-      nodes.push(h);
-      inCat.forEach((t) => nodes.push(cardFor(t)));
-    });
-  } else {
-    list.forEach((t) => nodes.push(cardFor(t)));
-  }
+  const nodes: HTMLElement[] = list.map((t) => cardFor(t));
+  cards.forEach((c) => c.classList.remove("tl-card--featured"));
+  if (editorial && nodes.length > 1) nodes[0]!.classList.add("tl-card--featured");
   grid.replaceChildren(...nodes);
 
   const none = list.length === 0;
@@ -345,17 +509,15 @@ function render() {
         ["Clear search", clearSearch],
       );
     } else if (view === "favs") {
-      setEmpty(
-        "No favourites yet",
-        "Tap the star on any theme to keep it here.",
-        ["Browse all themes", () => setView("all")],
-      );
+      setEmpty("No favourites yet", "Tap the star on any theme to keep it here.", [
+        "Browse all themes",
+        () => setView("all"),
+      ]);
     } else if (view === "recent") {
-      setEmpty(
-        "Your selected themes will appear here",
-        "Pick a theme and it shows up in this list.",
-        ["Browse all themes", () => setView("all")],
-      );
+      setEmpty("Your selected themes will appear here", "Pick a theme and it shows up in this list.", [
+        "Browse all themes",
+        () => setView("all"),
+      ]);
     }
   }
 
@@ -365,6 +527,30 @@ function render() {
     : `${THEMES.length} themes`;
   clearBtn.hidden = !query;
   sortSel.disabled = view === "recent";
+
+  // Wall heading tracks the active collection so the full catalogue still
+  // reads as one coherent surface under the editorial shelves.
+  if (wallTitle) {
+    wallTitle.textContent = query
+      ? "Search results"
+      : view === "all"
+        ? "All atmospheres"
+        : view === "recent"
+          ? "Recently used"
+          : view === "favs"
+            ? "Favourites"
+            : CATEGORY_LABELS[view];
+  }
+  if (wallEyebrow) {
+    wallEyebrow.textContent = query
+      ? "Filtered catalogue"
+      : view === "all"
+        ? "The full catalogue"
+        : "Your collection";
+  }
+  if (wallCount) {
+    wallCount.textContent = `${list.length} theme${list.length === 1 ? "" : "s"}`;
+  }
 }
 
 function setView(v: View) {
@@ -395,6 +581,14 @@ export function init(d: ThemeLibDeps) {
   sortSel = $id<HTMLSelectElement>("tlSort");
   countEl = $id("tlCount");
   mainEl = $id("tlMain");
+  spotlight = $id("tlSpotlight");
+  recentSection = $id("tlRecentSection");
+  recentRail = $id("tlRecentRail");
+  worldsSection = $id("tlWorldsSection");
+  worldsGrid = $id("tlWorldsGrid");
+  wallTitle = $id("tlWallTitle");
+  wallCount = $id("tlWallCount");
+  wallEyebrow = $id("tlWallEyebrow");
 
   favs = sanitizeIds(safeJsonGet<unknown>(FAV_KEY, []));
   recents = sanitizeIds(safeJsonGet<unknown>(RECENT_KEY, []), RECENT_MAX);
@@ -413,6 +607,7 @@ export function init(d: ThemeLibDeps) {
     }
   });
   clearBtn.addEventListener("click", clearSearch);
+  $id("tlRecentAll")?.addEventListener("click", () => setView("recent"));
   sortSel.addEventListener("change", () => {
     sort = sortSel.value === "az" ? "az" : "default";
     render();
@@ -434,8 +629,12 @@ export function open() {
   // but only with a fine pointer so phones don't pop the keyboard unasked.
   setTimeout(() => {
     if (window.matchMedia("(pointer: fine)").matches) search.focus();
-    const active = grid.querySelector<HTMLElement>(".tl-card.active");
-    if (active && !query) active.scrollIntoView({ block: "center" });
+    if (query || view !== "all") {
+      const active = grid.querySelector<HTMLElement>(".tl-card.active");
+      if (active) active.scrollIntoView({ block: "center" });
+    } else {
+      mainEl.scrollTop = 0;
+    }
   }, 0);
 }
 
@@ -456,4 +655,10 @@ export function onThemeApplied(id: string) {
     const t = THEME_BY_ID[cid];
     if (t) syncCard(c, t);
   });
+  if (view === "recent") render();
+  else {
+    renderNav();
+    renderSpotlight(view === "all" && !query);
+    renderRecents(view === "all" && !query);
+  }
 }

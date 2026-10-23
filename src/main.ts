@@ -422,9 +422,11 @@ function applyCenterMinimal(on: boolean) {
   document.body.classList.toggle("center-minimal", on);
 }
 
-// GitHub star/support celebration — intercepts the topbar GitHub link so
-// clicking it shows a small animated "star us" moment (with confetti)
-// before following through, instead of navigating away instantly.
+// GitHub project card — the top-bar mark opens a small, useful repository
+// card. The old forced avatar-ring/confetti celebration is gone: visiting
+// the repository is a common navigation action, so it must never wait on an
+// animation or a support sequence. Live counts remain optional and are
+// simply hidden when the request fails, privacy mode is on, or we're offline.
 function wireGithubCelebration() {
   const link = document.querySelector<HTMLAnchorElement>(
     '.topbar-icon-btn[href*="github.com"]',
@@ -433,17 +435,10 @@ function wireGithubCelebration() {
   if (!link || !overlay) return;
 
   const closeIt = () => overlay.classList.remove("open");
-  const proceedTo = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
-    closeIt();
-  };
 
   link.addEventListener("click", (e) => {
     e.preventDefault();
     overlay.classList.add("open");
-    Easter.fireConfetti();
-    setTimeout(() => Easter.fireConfetti(), 350);
-    void Motion.githubCelebration(document.querySelector(".gh-avatar"));
     void Motion.modalSpotlightIn($("ghOverlay")?.querySelector(".gh-modal"));
 
     // Live star/fork counts — purely decorative, so a failed/slow fetch
@@ -464,10 +459,7 @@ function wireGithubCelebration() {
   });
 
   $("ghClose")?.addEventListener("click", closeIt);
-  $("ghSkip")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    proceedTo(link.href);
-  });
+  $("ghSkip")?.addEventListener("click", closeIt);
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) closeIt();
   });
@@ -475,8 +467,9 @@ function wireGithubCelebration() {
     if (e.key === "Escape" && overlay.classList.contains("open")) closeIt();
   });
 
-  // Star/Support links keep their normal target="_blank" navigation —
-  // just close the modal shortly after so it doesn't linger.
+  // Repository / star / sponsor links keep their normal target="_blank"
+  // navigation — just close the card shortly after so it doesn't linger.
+  $("ghBtnView")?.addEventListener("click", () => setTimeout(closeIt, 400));
   $("ghBtnStar")?.addEventListener("click", () => setTimeout(closeIt, 400));
   $("ghBtnDonate")?.addEventListener("click", () => setTimeout(closeIt, 400));
 }
@@ -1571,8 +1564,7 @@ function buildPanel() {
   ThemeLib.init({
     apply: (t) => applyTheme(t),
     currentId: () => currentTheme.id,
-    fillMark: (el, t) =>
-      setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
+    fillMark: (el, t) => setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
     openOverlay: () => openModal("themeLibOverlay"),
     closeOverlay: () => closeModal("themeLibOverlay"),
   });
@@ -1584,12 +1576,8 @@ function buildPanel() {
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICONS = {
     sound: ICON('<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>'),
-    zen: ICON(
-      '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>',
-    ),
-    settings: ICON(
-      '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
-    ),
+    zen: ICON('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>'),
+    settings: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
   };
   const featDefs: [string, string, string, () => void][] = [
     // [id, icon svg, label, action]
@@ -2370,6 +2358,7 @@ function applyMixerNightMode() {
   const btn = document.getElementById("mixerNightToggle");
   if (btn) {
     btn.classList.toggle("active", mode === "on");
+    btn.setAttribute("aria-pressed", String(mode === "on"));
     btn.title = `Night mode: ${mode}`;
   }
 }
@@ -2776,8 +2765,28 @@ Sound.setTrackChangeHandler(() => {
 ($("fadeSlider") as HTMLInputElement).addEventListener("input", (e) => {
   const v = +(e.target as HTMLInputElement).value;
   Sound.setFade(v);
-  $("fadeLabel").textContent = v === 0 ? "Off" : `${v}m`;
+  syncFadeLabel(v);
 });
+function syncFadeLabel(v: number) {
+  const label = $("fadeLabel");
+  if (label) label.textContent = v === 0 ? "Off" : `${v} min`;
+  document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
+    const active = +chip.dataset.fade! === v;
+    chip.classList.toggle("active", active);
+    chip.setAttribute("aria-pressed", String(active));
+  });
+}
+document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const v = +chip.dataset.fade!;
+    const slider = $("fadeSlider") as HTMLInputElement;
+    slider.value = String(v);
+    Sound.setFade(v);
+    syncFadeLabel(v);
+    slider.focus();
+  });
+});
+syncFadeLabel(+($("fadeSlider") as HTMLInputElement).value);
 
 // ── Custom Theme Builder — full RGB/HSL palette ───────────────────────
 const THEME_FIELDS = [

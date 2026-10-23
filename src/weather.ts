@@ -310,6 +310,12 @@ export async function initWeather(
     if (icon) iconEl.textContent = icon;
     textEl.textContent = text;
     if (title) pillEl.title = title;
+    pillEl.setAttribute(
+      "aria-label",
+      text === "Set location"
+        ? "Set your weather location"
+        : `Open weather — ${text}`,
+    );
     pillEl.classList.add("loaded");
   };
 
