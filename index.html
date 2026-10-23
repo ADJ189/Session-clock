@@ -672,7 +672,11 @@
           aria-label="Open weather"
           title="Weather"
         >
-          <span id="weatherIcon" class="weather-icon-default" aria-hidden="true">
+          <span
+            id="weatherIcon"
+            class="weather-icon-default"
+            aria-hidden="true"
+          >
             <svg
               viewBox="0 0 24 16"
               width="17"
@@ -1032,7 +1036,21 @@
               aria-pressed="false"
               title="Night mode: auto"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z"/></svg>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z"
+                />
+              </svg>
               <span class="mixer-night-label">Night</span>
             </button>
             <button
@@ -1055,7 +1073,10 @@
           </div>
         </div>
         <div class="sound-mixer">
-          <section class="mixer-tracks-section" aria-labelledby="mixerTracksTitle">
+          <section
+            class="mixer-tracks-section"
+            aria-labelledby="mixerTracksTitle"
+          >
             <div class="mixer-section-head">
               <div>
                 <span class="tl-eyebrow">Layer a mix</span>
@@ -1079,10 +1100,27 @@
               <div class="mix-card mix-card--master">
                 <div class="mix-card-head">
                   <span class="mix-card-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.9"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+                      <path
+                        d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"
+                      />
+                    </svg>
                     Master volume
                   </span>
-                  <output class="mix-value" id="volLabel" for="volSlider">70%</output>
+                  <output class="mix-value" id="volLabel" for="volSlider"
+                    >70%</output
+                  >
                 </div>
                 <input
                   type="range"
@@ -1101,24 +1139,56 @@
               <div class="mix-card mix-card--output">
                 <div class="mix-card-head">
                   <span class="mix-card-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4"/></svg>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.9"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4" />
+                    </svg>
                     Output
                   </span>
                   <span class="mix-live">Live</span>
                 </div>
-                <div class="mixer-vu-track" role="img" aria-label="Output level meter">
+                <div
+                  class="mixer-vu-track"
+                  role="img"
+                  aria-label="Output level meter"
+                >
                   <div class="mixer-vu-fill" id="mixerVuFill"></div>
                 </div>
-                <p class="mix-card-desc">Combined level of the tracks currently playing.</p>
+                <p class="mix-card-desc">
+                  Combined level of the tracks currently playing.
+                </p>
               </div>
 
               <div class="mix-card mix-card--fade">
                 <div class="mix-card-head">
                   <span class="mix-card-title">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h10M10 8l4 4-4 4M18 7v10"/></svg>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.9"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 12h10M10 8l4 4-4 4M18 7v10" />
+                    </svg>
                     Fade out
                   </span>
-                  <output class="mix-value" id="fadeLabel" for="fadeSlider">Off</output>
+                  <output class="mix-value" id="fadeLabel" for="fadeSlider"
+                    >Off</output
+                  >
                 </div>
                 <input
                   type="range"
@@ -1129,12 +1199,26 @@
                   max="60"
                   value="0"
                 />
-                <div class="fade-chips" id="fadeChips" aria-label="Fade out presets">
-                  <button type="button" class="fade-chip" data-fade="0">Off</button>
-                  <button type="button" class="fade-chip" data-fade="5">5m</button>
-                  <button type="button" class="fade-chip" data-fade="10">10m</button>
-                  <button type="button" class="fade-chip" data-fade="30">30m</button>
-                  <button type="button" class="fade-chip" data-fade="60">60m</button>
+                <div
+                  class="fade-chips"
+                  id="fadeChips"
+                  aria-label="Fade out presets"
+                >
+                  <button type="button" class="fade-chip" data-fade="0">
+                    Off
+                  </button>
+                  <button type="button" class="fade-chip" data-fade="5">
+                    5m
+                  </button>
+                  <button type="button" class="fade-chip" data-fade="10">
+                    10m
+                  </button>
+                  <button type="button" class="fade-chip" data-fade="30">
+                    30m
+                  </button>
+                  <button type="button" class="fade-chip" data-fade="60">
+                    60m
+                  </button>
                 </div>
                 <p class="mix-card-desc">Ease ambience out when stopping.</p>
               </div>
@@ -1154,18 +1238,28 @@
               </div>
               <div class="mixer-scenes-row">
                 <button class="scene-card" id="sceneFocusBtn" type="button">
-                  <span class="scene-art scene-art--focus" aria-hidden="true"></span>
+                  <span
+                    class="scene-art scene-art--focus"
+                    aria-hidden="true"
+                  ></span>
                   <span class="scene-info">
                     <span class="scene-title">Focus mix</span>
-                    <span class="scene-desc">Save this blend as your work preset.</span>
+                    <span class="scene-desc"
+                      >Save this blend as your work preset.</span
+                    >
                   </span>
                   <span class="scene-action">Save current mix</span>
                 </button>
                 <button class="scene-card" id="sceneBreakBtn" type="button">
-                  <span class="scene-art scene-art--break" aria-hidden="true"></span>
+                  <span
+                    class="scene-art scene-art--break"
+                    aria-hidden="true"
+                  ></span>
                   <span class="scene-info">
                     <span class="scene-title">Break mix</span>
-                    <span class="scene-desc">Save this blend as your rest preset.</span>
+                    <span class="scene-desc"
+                      >Save this blend as your rest preset.</span
+                    >
                   </span>
                   <span class="scene-action">Save current mix</span>
                 </button>
@@ -1186,31 +1280,91 @@
             <span class="tl-count" id="tlCount" aria-live="polite"></span>
           </div>
           <div class="tl-search">
-            <svg class="tl-search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input id="tlSearch" type="search" placeholder="Search worlds, shows, films, moods" aria-label="Search themes" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" />
-            <button type="button" id="tlClear" class="tl-clear" aria-label="Clear search" hidden>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            <svg
+              class="tl-search-ico"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              id="tlSearch"
+              type="search"
+              placeholder="Search worlds, shows, films, moods"
+              aria-label="Search themes"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              enterkeyhint="search"
+            />
+            <button
+              type="button"
+              id="tlClear"
+              class="tl-clear"
+              aria-label="Clear search"
+              hidden
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
             </button>
           </div>
           <select id="tlSort" class="tl-sort" aria-label="Sort themes">
             <option value="default">Default order</option>
             <option value="az">A–Z</option>
           </select>
-          <button class="modal-close tl-close" aria-label="Close theme library" onclick="SC.modals.close('themeLibOverlay')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <button
+            class="modal-close tl-close"
+            aria-label="Close theme library"
+            onclick="SC.modals.close('themeLibOverlay')"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
         <nav class="tl-nav" id="tlNav" aria-label="Theme collections"></nav>
         <div class="tl-body">
           <div class="tl-main" id="tlMain">
-            <section class="tl-spotlight" id="tlSpotlight" aria-label="Current theme"></section>
+            <section
+              class="tl-spotlight"
+              id="tlSpotlight"
+              aria-label="Current theme"
+            ></section>
             <section class="tl-shelf" id="tlRecentSection" hidden>
               <div class="tl-shelf-head">
                 <div>
                   <span class="tl-eyebrow">Continue where you left off</span>
                   <h3 class="tl-shelf-title">Recently used</h3>
                 </div>
-                <button class="tl-shelf-link" type="button" id="tlRecentAll">View all</button>
+                <button class="tl-shelf-link" type="button" id="tlRecentAll">
+                  View all
+                </button>
               </div>
               <div class="tl-recent-rail" id="tlRecentRail"></div>
             </section>
@@ -1225,10 +1379,16 @@
             </section>
             <div class="tl-wall-head">
               <div>
-                <span class="tl-eyebrow" id="tlWallEyebrow">The full catalogue</span>
+                <span class="tl-eyebrow" id="tlWallEyebrow"
+                  >The full catalogue</span
+                >
                 <h3 class="tl-wall-title" id="tlWallTitle">All atmospheres</h3>
               </div>
-              <span class="tl-wall-count" id="tlWallCount" aria-hidden="true"></span>
+              <span
+                class="tl-wall-count"
+                id="tlWallCount"
+                aria-hidden="true"
+              ></span>
             </div>
             <div class="tl-grid" id="tlGrid" role="list"></div>
             <div class="tl-empty" id="tlEmpty" hidden></div>
@@ -1467,7 +1627,17 @@
             referrerpolicy="no-referrer"
           >
             View repository
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
               <path d="M7 17 17 7M9 7h8v8" />
             </svg>
           </a>
