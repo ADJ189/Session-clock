@@ -1564,7 +1564,8 @@ function buildPanel() {
   ThemeLib.init({
     apply: (t) => applyTheme(t),
     currentId: () => currentTheme.id,
-    fillMark: (el, t) => setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
+    fillMark: (el, t) =>
+      setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
     openOverlay: () => openModal("themeLibOverlay"),
     closeOverlay: () => closeModal("themeLibOverlay"),
   });
@@ -1576,8 +1577,12 @@ function buildPanel() {
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICONS = {
     sound: ICON('<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>'),
-    zen: ICON('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>'),
-    settings: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+    zen: ICON(
+      '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>',
+    ),
+    settings: ICON(
+      '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    ),
   };
   const featDefs: [string, string, string, () => void][] = [
     // [id, icon svg, label, action]
@@ -2770,22 +2775,26 @@ Sound.setTrackChangeHandler(() => {
 function syncFadeLabel(v: number) {
   const label = $("fadeLabel");
   if (label) label.textContent = v === 0 ? "Off" : `${v} min`;
-  document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
-    const active = +chip.dataset.fade! === v;
-    chip.classList.toggle("active", active);
-    chip.setAttribute("aria-pressed", String(active));
-  });
+  document
+    .querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip")
+    .forEach((chip) => {
+      const active = +chip.dataset.fade! === v;
+      chip.classList.toggle("active", active);
+      chip.setAttribute("aria-pressed", String(active));
+    });
 }
-document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
-  chip.addEventListener("click", () => {
-    const v = +chip.dataset.fade!;
-    const slider = $("fadeSlider") as HTMLInputElement;
-    slider.value = String(v);
-    Sound.setFade(v);
-    syncFadeLabel(v);
-    slider.focus();
+document
+  .querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip")
+  .forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const v = +chip.dataset.fade!;
+      const slider = $("fadeSlider") as HTMLInputElement;
+      slider.value = String(v);
+      Sound.setFade(v);
+      syncFadeLabel(v);
+      slider.focus();
+    });
   });
-});
 syncFadeLabel(+($("fadeSlider") as HTMLInputElement).value);
 
 // ── Custom Theme Builder — full RGB/HSL palette ───────────────────────

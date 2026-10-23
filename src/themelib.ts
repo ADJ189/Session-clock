@@ -309,13 +309,12 @@ function renderSpotlight(show = view === "all" && !query) {
   deps.fillMark(markWrap, t);
   const titles = el("div", "tl-spotlight-titles");
   const eyebrow = el("span", "tl-eyebrow");
-  eyebrow.append(el("span", "tl-live-dot"), document.createTextNode("Using now"));
-  const name = el("h3", "tl-spotlight-name", t.name);
-  const sub = el(
-    "p",
-    "tl-spotlight-sub",
-    t.sub ?? CATEGORY_LABELS[t.cat],
+  eyebrow.append(
+    el("span", "tl-live-dot"),
+    document.createTextNode("Using now"),
   );
+  const name = el("h3", "tl-spotlight-name", t.name);
+  const sub = el("p", "tl-spotlight-sub", t.sub ?? CATEGORY_LABELS[t.cat]);
   titles.append(eyebrow, name, sub);
   top.append(markWrap, titles);
   content.appendChild(top);
@@ -477,7 +476,10 @@ function renderNav() {
 }
 
 function setEmpty(title: string, body: string, action?: [string, () => void]) {
-  empty.replaceChildren(el("p", "tl-empty-title", title), el("p", "tl-empty-body", body));
+  empty.replaceChildren(
+    el("p", "tl-empty-title", title),
+    el("p", "tl-empty-body", body),
+  );
   if (action) {
     const b = el("button", "tl-empty-btn", action[0]);
     b.type = "button";
@@ -495,7 +497,8 @@ function render() {
 
   const nodes: HTMLElement[] = list.map((t) => cardFor(t));
   cards.forEach((c) => c.classList.remove("tl-card--featured"));
-  if (editorial && nodes.length > 1) nodes[0]!.classList.add("tl-card--featured");
+  if (editorial && nodes.length > 1)
+    nodes[0]!.classList.add("tl-card--featured");
   grid.replaceChildren(...nodes);
 
   const none = list.length === 0;
@@ -509,15 +512,17 @@ function render() {
         ["Clear search", clearSearch],
       );
     } else if (view === "favs") {
-      setEmpty("No favourites yet", "Tap the star on any theme to keep it here.", [
-        "Browse all themes",
-        () => setView("all"),
-      ]);
+      setEmpty(
+        "No favourites yet",
+        "Tap the star on any theme to keep it here.",
+        ["Browse all themes", () => setView("all")],
+      );
     } else if (view === "recent") {
-      setEmpty("Your selected themes will appear here", "Pick a theme and it shows up in this list.", [
-        "Browse all themes",
-        () => setView("all"),
-      ]);
+      setEmpty(
+        "Your selected themes will appear here",
+        "Pick a theme and it shows up in this list.",
+        ["Browse all themes", () => setView("all")],
+      );
     }
   }
 
