@@ -1660,8 +1660,16 @@ function onModalOpened(overlay: HTMLElement) {
     startMixerMeter();
     applyMixerNightMode();
   }
-  // Pause background rendering while a full-screen modal is open.
-  if (overlay.classList.contains("fullscreen")) document.body.classList.add("modal-open");
+}
+
+// Background rendering pauses only while a dialog actually covers the app.
+// Derived from the DOM on every overlay change rather than toggled per-modal,
+// so closing one dialog while another is still open (modal chaining) can't
+// un-pause rendering early, and a minimized overlay (a small docked pill that
+// leaves the app usable) doesn't freeze the background.
+function syncModalOpen() {
+  const covering = document.querySelector(".sc-overlay.open:not(.minimized)");
+  document.body.classList.toggle("modal-open", !!covering);
 }
 
 function onModalClosed(overlay: HTMLElement) {
@@ -1675,8 +1683,6 @@ function onModalClosed(overlay: HTMLElement) {
   const focusLost =
     !active || active === document.body || overlay.contains(active);
   if (ret && ret.isConnected && focusLost) ret.focus({ preventScroll: true });
-  // Resume background rendering.
-  if (overlay.classList.contains("fullscreen")) document.body.classList.remove("modal-open");
 }
 
 function trapModalTab(e: KeyboardEvent, overlay: HTMLElement) {
@@ -1722,6 +1728,8 @@ const modalObserver = new MutationObserver((records) => {
         el.setAttribute("aria-hidden", "true");
     }
   }
+  // Covers open, close, and minimize/restore (class changes with no open flip).
+  syncModalOpen();
 });
 document.querySelectorAll<HTMLElement>(".sc-overlay").forEach((el) => {
   modalObserver.observe(el, {
