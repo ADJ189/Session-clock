@@ -796,8 +796,15 @@ body.modal-open *::before,
 body.modal-open *::after {
   animation-play-state: paused !important;
 }
+body.modal-open .sc-overlay.open,
 body.modal-open .sc-overlay.open * { 
   animation-play-state: running !important; 
+}
+/* The theme-selection reveal is appended to <body>, outside the open
+   overlay, but is a one-shot (~0.6s) effect the user just triggered. */
+body.modal-open .tl-reveal,
+body.modal-open .tl-reveal * {
+  animation-play-state: running !important;
 }
 
 .sc-modal {
