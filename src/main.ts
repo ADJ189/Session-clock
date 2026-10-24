@@ -45,6 +45,7 @@ import {
   setTier,
   setAutoQuality,
   tickFps,
+  resetFpsSampling,
   getFps,
   isTabVisible,
   type QualityTier,
@@ -956,7 +957,8 @@ let lastTs = 0,
   lastSec = -1,
   lastQKey = "",
   _rafSkip = 0,
-  _modalFrameTs = 0;
+  _modalFrameTs = 0,
+  _fpsPaused = false;
 // While a dialog covers the app, the clock behind it only needs to stay
 // roughly current. Running the full per-frame DOM work (digits, day-progress
 // bar, session timer) at display rate under a backdrop-filter makes the
@@ -1020,8 +1022,18 @@ function renderFrame(ts: number) {
   const dt = Math.min((ts - lastTs) / 1000, modalThrottled ? 0.3 : 0.05);
   lastTs = ts;
 
-  // FPS tracking + auto quality tier
-  tickFps(ts);
+  // FPS tracking + auto quality tier. Frames slowed on purpose while a dialog
+  // is open say nothing about device performance, so they are not sampled;
+  // the window restarts clean on the first full-rate frame afterwards.
+  if (modalThrottled) {
+    _fpsPaused = true;
+  } else {
+    if (_fpsPaused) {
+      _fpsPaused = false;
+      resetFpsSampling(ts);
+    }
+    tickFps(ts);
+  }
 
   // Parallax — skip on LOW tier, reduce-motion, or user disabled
   const parallaxEnabled =
@@ -1750,6 +1762,27 @@ const modalObserver = new MutationObserver((records) => {
   // Covers open, close, and minimize/restore (class changes with no open flip).
   syncModalOpen();
 });
+// Overlays created after startup (the weather page is built on first open)
+// are not in the query below, so nothing would ever tell us when they close —
+// and if one is the last dialog closed, `modal-open` would stay set and the
+// background would stay frozen. They only need the pause flag kept in sync,
+// not the full dialog lifecycle, so watch just their class list.
+const lateOverlayObserver = new MutationObserver(() => syncModalOpen());
+new MutationObserver((records) => {
+  for (const r of records) {
+    r.addedNodes.forEach((n) => {
+      if (n instanceof HTMLElement && n.classList.contains("sc-overlay")) {
+        lateOverlayObserver.observe(n, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+      }
+    });
+    // A dialog removed from the DOM while open also stops covering the app.
+    if (r.removedNodes.length) syncModalOpen();
+  }
+  syncModalOpen();
+}).observe(document.body, { childList: true });
 document.querySelectorAll<HTMLElement>(".sc-overlay").forEach((el) => {
   modalObserver.observe(el, {
     attributes: true,
