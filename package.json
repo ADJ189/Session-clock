@@ -1,6 +1,6 @@
 {
   "name": "session-clock",
-  "version": "1.99",
+  "version": "2.0.0",
   "description": "Beautiful animated clock — 101+ themes, Pomodoro, ambient sound, literary clock, focus log.",
   "private": true,
   "type": "module",
@@ -19,7 +19,8 @@
     "test:e2e:firefox": "playwright test --project=firefox",
     "test:e2e:webkit": "playwright test --project=webkit",
     "test:e2e:report": "playwright show-report",
-    "e2e:install": "playwright install --with-deps"
+    "e2e:install": "playwright install --with-deps",
+    "previews": "node scripts/gen-theme-previews.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

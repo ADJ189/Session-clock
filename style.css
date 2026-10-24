@@ -23,6 +23,25 @@
   --radius-lg:   18px;
   --radius-md:   12px;
   --radius-sm:   8px;
+  /* ── V2 interface tokens (neutral chrome; the theme supplies accents) ── */
+  --ui-font:           'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ui-text:           #F3F5F9;
+  --ui-muted:          #A7AFBD;
+  --ui-surface:        rgba(16,19,27,.82);
+  --ui-surface-raised: rgba(25,29,39,.95);
+  --ui-fill:           rgba(255,255,255,.05);
+  --ui-fill-hover:     rgba(255,255,255,.09);
+  --ui-border:         rgba(255,255,255,.10);
+  --ui-border-strong:  rgba(255,255,255,.22);
+  --ui-accent:         var(--clr-accent);
+  --ui-focus:          #7CB7FF;
+  --ui-radius-panel:   20px;
+  --ui-radius-card:    16px;
+  --ui-radius-control: 12px;
+  --ui-hit:            44px;
+  --ui-shadow-panel:   0 24px 64px rgba(0,0,0,.45), 0 2px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+  --ui-motion-fast:    160ms;
+  --ui-motion-panel:   260ms;
 
   /* ── Motion system ──────────────────────────────────────────────
      A small shared vocabulary of easing curves instead of one-off
@@ -747,15 +766,45 @@ body.theme-flash::after {
   -webkit-backdrop-filter: blur(0px) saturate(100%);
   backdrop-filter: blur(0px) saturate(100%);
   opacity: 0; pointer-events: none;
+  /* Closed overlays stay mounted so they can fade/scale on the next open.
+     `visibility` takes them (and every control inside) out of the Tab order
+     and the accessibility tree; it flips only after the close transition so
+     the fade still plays. `.open` restores it immediately. */
+  visibility: hidden;
   transition:
     opacity .38s cubic-bezier(.22,1,.36,1),
     -webkit-backdrop-filter .5s cubic-bezier(.22,1,.36,1),
-    backdrop-filter .5s cubic-bezier(.22,1,.36,1);
+    backdrop-filter .5s cubic-bezier(.22,1,.36,1),
+    visibility 0s linear .38s;
 }
 .sc-overlay.open {
   opacity: 1; pointer-events: all;
+  visibility: visible;
   -webkit-backdrop-filter: blur(16px) saturate(165%);
   backdrop-filter: blur(16px) saturate(165%);
+  transition:
+    opacity .38s cubic-bezier(.22,1,.36,1),
+    -webkit-backdrop-filter .5s cubic-bezier(.22,1,.36,1),
+    backdrop-filter .5s cubic-bezier(.22,1,.36,1),
+    visibility 0s linear 0s;
+}
+
+/* Pause ambient animations while a full-screen modal is open so
+   WebKit can present stable frames for Playwright actionability. */
+body.modal-open *, 
+body.modal-open *::before, 
+body.modal-open *::after {
+  animation-play-state: paused !important;
+}
+body.modal-open .sc-overlay.open,
+body.modal-open .sc-overlay.open * { 
+  animation-play-state: running !important; 
+}
+/* The theme-selection reveal is appended to <body>, outside the open
+   overlay, but is a one-shot (~0.6s) effect the user just triggered. */
+body.modal-open .tl-reveal,
+body.modal-open .tl-reveal * {
+  animation-play-state: running !important;
 }
 
 .sc-modal {
@@ -816,13 +865,15 @@ body.theme-flash::after {
   color: var(--clr-text); opacity: .42; margin: 16px 22px 8px;
 }
 
-/* Scrollable content padding */
-.sc-modal > *:not(.modal-header):not(h3) { padding-left: 22px; padding-right: 22px; }
+/* Scrollable content padding. Close buttons are excluded: a bare
+   .modal-close child (e.g. the GitHub card) would otherwise inherit 22px
+   side padding inside its fixed 28px box, collapsing the icon to 0 width. */
+.sc-modal > *:not(.modal-header):not(.modal-close):not(h3) { padding-left: 22px; padding-right: 22px; }
 .sc-modal > *:last-child { padding-bottom: 22px; }
 
 .modal-close {
   background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
-  border-radius: 50%; width: 28px; height: 28px;
+  border-radius: 50%; width: 28px; height: 28px; padding: 0; flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
   color: rgba(255,255,255,.5); cursor: pointer;
   transition: color .15s, background .15s, transform .12s;
@@ -1752,6 +1803,7 @@ body.flow-state .session-card { background: rgba(255,255,255,.03); border-color:
 .sc-toast.visible { opacity: 1; transform: translateY(0) scale(1); }
 .sc-toast.leaving {
   opacity: 0; transform: translateY(-6px) scale(.97);
+  pointer-events: none; /* a fading toast must not intercept clicks underneath */
   transition: opacity .2s ease, transform .2s ease;
 }
 .sc-toast-icon {
@@ -4330,7 +4382,7 @@ body.reduced-motion .zen-ring { animation: none; }
   transform: translateZ(0);
   will-change: contents;
   contain: strict;
-  image-rendering: optimizeSpeed;
+  image-rendering: auto;
 }
 
 /* Main UI — layout isolation so repaints don't propagate */
@@ -4680,7 +4732,7 @@ body.hyperfocus #featBar { display: none !important; }
 /* Reduced data — skip grain animation for slow connections */
 @media (prefers-reduced-data: reduce) {
   body::after { display: none; }
-  #bgCanvas { image-rendering: optimizeSpeed; }
+  #bgCanvas { image-rendering: auto; }
 }
 
 /* Print — hide everything except clock */
@@ -5800,3 +5852,2026 @@ body.light-theme .sc-dock-yt-connect-btn:hover { background: rgba(0,0,0,.06); }
 @media (max-width: 640px) {
   .legal-body { max-height: 60vh; }
 }
+
+/* ════════════════════════════════════════════════════════════
+   V2 · LIGHT SURFACE TOKENS
+   Neutral chrome flips for light scenes (Nordic, Lemon) so dialogs
+   never pair a dark surface with dark theme text.
+════════════════════════════════════════════════════════════ */
+body.light-theme {
+  --ui-text:           #0F172A;
+  --ui-muted:          #475569;
+  --ui-surface:        rgba(246,248,252,.86);
+  --ui-surface-raised: rgba(248,250,252,.97);
+  --ui-fill:           rgba(15,23,42,.05);
+  --ui-fill-hover:     rgba(15,23,42,.09);
+  --ui-border:         rgba(15,23,42,.12);
+  --ui-border-strong:  rgba(15,23,42,.30);
+  --ui-focus:          #1D4ED8;
+  --ui-shadow-panel:   0 24px 64px rgba(15,23,42,.22), 0 2px 10px rgba(15,23,42,.14);
+}
+
+/* ════════════════════════════════════════════════════════════
+   V2 · THEME LIBRARY
+   Replaces the old bottom #themePanel. The panel node stays in the DOM,
+   permanently collapsed, so older hooks keep working.
+════════════════════════════════════════════════════════════ */
+#themePanel { display: none; }
+
+/* The old floating "Themes" reveal pill is only needed where the top bar is
+   hidden (kiosk / present); everywhere else the top bar opens the library. */
+body.theme-panel-collapsed:not(.kiosk):not(.present) #themesRevealBtn,
+body:has(#themePanel.collapsed):not(.kiosk):not(.present) #themesRevealBtn {
+  opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(80px);
+}
+
+#themeLibOverlay { background: rgba(5,7,12,.46); }
+#themeLibOverlay.open { -webkit-backdrop-filter: blur(6px) saturate(120%); backdrop-filter: blur(6px) saturate(120%); }
+html.no-backdrop-filter #themeLibOverlay,
+html.force-no-backdrop-filter #themeLibOverlay { background: rgba(5,7,12,.72); }
+
+.sc-modal.themelib {
+  width: min(1120px, calc(100vw - 48px));
+  /* vh first: engines without dvh support (Safari <15.4, Chrome <108) would
+     otherwise drop the declaration entirely, and `max-height: none` below
+     would let the 103-card dialog grow past the viewport with no scroll. */
+  height: min(780px, calc(100vh - 48px));
+  height: min(780px, calc(100dvh - 48px));
+  max-height: none;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-panel);
+  box-shadow: var(--ui-shadow-panel);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  transition: transform var(--ui-motion-panel) cubic-bezier(.2,.9,.3,1), opacity var(--ui-motion-fast) ease-out;
+}
+/* Same selector shape as the generic .sc-modal gutter rule (incl. :not(h3)) so this reset wins. */
+.sc-modal.themelib > *:not(.modal-header):not(h3) { padding-left: 0; padding-right: 0; }
+.sc-modal.themelib > *:last-child { padding-bottom: 0; }
+.themelib :focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+
+.tl-head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: nowrap;
+  padding: 20px 24px 16px !important;
+  border-bottom: 1px solid var(--ui-border);
+}
+.tl-titles { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.sc-modal.themelib h2 {
+  margin: 0; font-family: var(--ui-font); font-size: 1.3rem; font-weight: 650;
+  letter-spacing: -.01em; text-transform: none; color: var(--ui-text);
+}
+.tl-count { font-size: .82rem; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
+
+.tl-search { position: relative; flex: 1 1 auto; min-width: 0; }
+.tl-search input {
+  width: 100%; height: var(--ui-hit); box-sizing: border-box;
+  padding: 0 44px; font: inherit; font-size: .95rem;
+  color: var(--ui-text); background: var(--ui-fill);
+  border: 1px solid var(--ui-border); border-radius: var(--ui-radius-control);
+  transition: border-color var(--ui-motion-fast), background var(--ui-motion-fast);
+}
+.tl-search input::placeholder { color: var(--ui-muted); opacity: 1; }
+.tl-search input:hover { border-color: var(--ui-border-strong); }
+.tl-search input::-webkit-search-cancel-button { display: none; }
+.tl-search-ico { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--ui-muted); pointer-events: none; }
+.tl-clear {
+  position: absolute; right: 0; top: 0; width: var(--ui-hit); height: var(--ui-hit);
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--ui-muted); cursor: pointer; border-radius: var(--ui-radius-control);
+}
+.tl-clear:hover { color: var(--ui-text); }
+.tl-clear[hidden] { display: none; }
+
+.tl-sort {
+  height: var(--ui-hit); padding: 0 12px; font: inherit; font-size: .9rem;
+  color: var(--ui-text); background: var(--ui-fill);
+  border: 1px solid var(--ui-border); border-radius: var(--ui-radius-control); cursor: pointer;
+}
+.tl-sort:disabled { cursor: default; color: var(--ui-muted); }
+.tl-sort option { color: #0F172A; background: #F8FAFC; }
+.sc-modal.themelib .tl-close {
+  width: var(--ui-hit); height: var(--ui-hit); border-radius: var(--ui-radius-control);
+  color: var(--ui-muted); background: var(--ui-fill); border: 1px solid var(--ui-border);
+}
+.sc-modal.themelib .tl-close:hover { color: var(--ui-text); background: var(--ui-fill-hover); transform: none; }
+
+.tl-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 200px minmax(0,1fr); }
+.tl-nav {
+  overflow-y: auto; padding: 16px 12px !important;
+  border-right: 1px solid var(--ui-border);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tl-nav-title { font-size: .78rem; font-weight: 600; color: var(--ui-muted); padding: 12px 12px 6px; }
+.tl-nav-title:first-child { padding-top: 0; }
+.tl-nav-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 40px; padding: 0 12px; border: 0; border-radius: var(--ui-radius-control);
+  background: none; color: var(--ui-muted); font: inherit; font-size: .9rem; text-align: left; cursor: pointer;
+  transition: background var(--ui-motion-fast), color var(--ui-motion-fast);
+}
+.tl-nav-item:hover { background: var(--ui-fill-hover); color: var(--ui-text); }
+.tl-nav-item.active { background: var(--ui-fill-hover); color: var(--ui-text); font-weight: 600; box-shadow: inset 3px 0 0 var(--ui-accent); }
+.tl-nav-count { font-size: .78rem; font-variant-numeric: tabular-nums; opacity: .8; }
+
+.tl-main { overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 28px !important; scrollbar-width: thin; }
+.tl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.tl-grid[hidden], .tl-empty[hidden] { display: none; }
+.tl-sec { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; margin-top: 10px; }
+.tl-sec:first-child { margin-top: 0; }
+.tl-sec-name { font-size: 1rem; font-weight: 650; color: var(--ui-text); }
+.tl-sec-count { font-size: .82rem; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
+
+.tl-card {
+  position: relative; border-radius: var(--ui-radius-card); overflow: hidden;
+  background: var(--ui-fill); border: 1px solid var(--ui-border);
+  transition: border-color var(--ui-motion-fast), transform var(--ui-motion-fast);
+}
+.tl-card:hover { border-color: var(--ui-border-strong); transform: translateY(-2px); }
+.tl-card.active { border-color: var(--ui-accent); box-shadow: 0 0 0 1px var(--ui-accent); }
+.tl-pick {
+  display: block; width: 100%; padding: 0; margin: 0; border: 0; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.tl-pick:focus-visible { outline-offset: -3px; border-radius: var(--ui-radius-card); }
+
+.tl-prev {
+  position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden;
+  background: linear-gradient(155deg, var(--tl-bg0), var(--tl-bg1) 55%, var(--tl-bg2));
+}
+.tl-prev::before {
+  content: ""; position: absolute; inset: 0; opacity: .55;
+  background:
+    radial-gradient(70% 95% at 14% 8%, var(--tl-accent), transparent 62%),
+    radial-gradient(60% 85% at 96% 100%, var(--tl-accent2), transparent 64%);
+}
+.tl-time {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1;
+  font-family: var(--tl-font); font-size: 1.7rem; font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  color: var(--tl-text); text-shadow: 0 1px 8px rgba(0,0,0,.28);
+}
+.tl-mark { position: absolute; top: 8px; left: 8px; width: 30px; height: 22px; z-index: 2; display: block; opacity: .92; }
+.tl-mark > svg, .tl-mark > img, .tl-mark > div { width: 100%; height: 100%; display: block; object-fit: contain; }
+.tl-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 3; }
+
+.tl-meta { display: grid; gap: 2px; padding: 12px 56px 14px 14px; min-height: 64px; }
+.tl-name { font-size: .95rem; font-weight: 600; line-height: 1.25; color: var(--ui-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-sub { font-size: .8rem; color: var(--ui-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-using { display: none; align-items: center; gap: 6px; margin-top: 4px; font-size: .8rem; font-weight: 600; color: var(--ui-text); }
+.tl-using svg { color: var(--ui-accent); flex: none; }
+.tl-card.active .tl-using { display: inline-flex; }
+
+.tl-fav {
+  position: absolute; right: 2px; bottom: 2px; width: var(--ui-hit); height: var(--ui-hit);
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  background: none; border: 0; cursor: pointer; color: var(--ui-muted); -webkit-tap-highlight-color: transparent;
+}
+.tl-fav-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background var(--ui-motion-fast), color var(--ui-motion-fast); }
+.tl-fav svg { fill: none; stroke: currentColor; }
+.tl-fav:hover .tl-fav-icon { background: var(--ui-fill-hover); color: var(--ui-text); }
+.tl-fav[aria-pressed="true"] { color: var(--ui-accent); }
+.tl-fav[aria-pressed="true"] svg { fill: currentColor; }
+
+.tl-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 72px 16px; gap: 6px; }
+.tl-empty-title { font-size: 1.1rem; font-weight: 650; color: var(--ui-text); margin: 0; }
+.tl-empty-body { font-size: .92rem; color: var(--ui-muted); max-width: 34ch; margin: 0 0 12px; }
+.tl-empty-btn {
+  min-height: var(--ui-hit); padding: 0 18px; font: inherit; font-size: .9rem; font-weight: 600; cursor: pointer;
+  color: var(--ui-text); background: var(--ui-fill-hover); border: 1px solid var(--ui-border-strong); border-radius: var(--ui-radius-control);
+}
+.tl-empty-btn:hover { background: var(--ui-fill); }
+
+/* Medium widths: the category rail becomes filter chips above the grid. */
+@media (max-width: 900px) {
+  .tl-body { grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
+  .tl-nav { flex-direction: row; align-items: center; gap: 8px; overflow-x: auto; overflow-y: hidden; padding: 10px 16px !important; border-right: 0; border-bottom: 1px solid var(--ui-border); scrollbar-width: none; }
+  .tl-nav::-webkit-scrollbar { display: none; }
+  .tl-nav-title { display: none; }
+  .tl-nav-item { flex: 0 0 auto; min-height: var(--ui-hit); border-radius: 22px; padding: 0 16px; border: 1px solid var(--ui-border); }
+  .tl-nav-item.active { box-shadow: none; border-color: var(--ui-accent); }
+  .tl-nav-item.active::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ui-accent); margin-right: 8px; }
+  .tl-nav-count { display: none; }
+}
+
+/* Phones: near-full-height bottom sheet with a pinned header and search. */
+@media (max-width: 720px) {
+  #themeLibOverlay { align-items: flex-end; }
+  .sc-modal.themelib {
+    width: 100vw; height: calc(100vh - max(12px, env(safe-area-inset-top)));
+    height: calc(100dvh - max(12px, env(safe-area-inset-top)));
+    border-radius: var(--ui-radius-panel) var(--ui-radius-panel) 0 0; border-bottom: 0;
+    transform: translateY(32px);
+  }
+  #themeLibOverlay.open .sc-modal.themelib { transform: none; }
+  .tl-head { flex-wrap: wrap; gap: 10px; padding: 14px 16px 12px !important; }
+  .tl-titles { flex: 1 1 0; }
+  .tl-close { order: 2; }
+  .tl-search { order: 3; flex: 1 0 100%; }
+  .tl-search input { font-size: 1rem; } /* 16px: stops iOS zooming the page on focus */
+  .tl-sort { display: none; }
+  .tl-main { padding: 16px 16px calc(24px + env(safe-area-inset-bottom)) !important; }
+  .tl-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+  .tl-time { font-size: 1.35rem; }
+  .tl-meta { padding: 10px 46px 12px 12px; }
+}
+@media (min-width: 560px) and (max-width: 720px) {
+  .tl-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-card, .tl-card:hover { transition: none; transform: none; }
+  .sc-modal.themelib { transition: opacity var(--ui-motion-fast) linear; transform: none; }
+}
+body.reduced-motion .tl-card, body.reduced-motion .tl-card:hover { transition: none; transform: none; }
+
+/* ════════════════════════════════════════════════════════════
+   V2 · FEATURE DOCK — one floating capsule: Sound, Zen, Settings
+   (Earlier .feat-dock/.feat-btn rules are layered above; `body` raises
+   specificity so this block wins without !important. Consolidate those
+   duplicates once the rest of V2 lands.)
+════════════════════════════════════════════════════════════ */
+body .feat-dock {
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: auto; max-width: none; gap: 4px; padding: 6px;
+  border-radius: 20px; border: 1px solid var(--ui-border);
+  background: var(--ui-surface); box-shadow: var(--ui-shadow-panel);
+  -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+}
+html.no-backdrop-filter body .feat-dock, html.force-no-backdrop-filter body .feat-dock { background: var(--ui-surface-raised); }
+body .feat-btn {
+  flex: 0 0 auto; width: 76px; min-height: 56px; gap: 4px; padding: 8px 6px;
+  border-radius: 14px; opacity: 1; color: var(--ui-muted);
+  transition: background var(--ui-motion-fast), color var(--ui-motion-fast), transform var(--ui-motion-fast);
+}
+body .feat-btn:hover { background: var(--ui-fill-hover); color: var(--ui-text); filter: none; }
+body .feat-btn:active { transform: scale(.96) !important; }
+body .feat-btn:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+body .feat-btn.on, body .feat-btn.active-tab { color: var(--ui-text); background: var(--ui-fill-hover); box-shadow: inset 0 -2px 0 var(--ui-accent); }
+body .feat-icon { display: flex; font-size: 0; line-height: 0; }
+body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 600; letter-spacing: 0; text-transform: none; }
+@media (max-width: 480px) {
+  body .feat-btn { width: 72px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   V3 · SHARED EDITORIAL TYPE
+   Small uppercase eyebrows used by the Theme Finder, Mix Console, and
+   Weather Room. One shared rhythm keeps the panels feeling like one system.
+   ═══════════════════════════════════════════════════════════════════════ */
+.tl-eyebrow,
+.weather-section-eyebrow,
+.weather-page-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ui-font);
+  font-size: .64rem;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   V3 · THEME FINDER
+   Editorial discovery: active-theme spotlight, recent rail, category
+   worlds, then the visual wall. All scene art is data-driven from each
+   theme's own baseBg/accent/bgType values, so it survives missing preview
+   captures and additions to the catalogue without bespoke markup.
+   ═══════════════════════════════════════════════════════════════════════ */
+.sc-modal.themelib {
+  width: min(1180px, calc(100vw - 40px));
+  height: min(840px, calc(100vh - 40px));
+  height: min(840px, calc(100dvh - 40px));
+}
+.sc-modal.themelib .tl-head {
+  align-items: flex-end;
+  gap: 14px;
+  padding: 18px 24px 14px !important;
+}
+.sc-modal.themelib .tl-titles {
+  min-width: 210px;
+  gap: 3px;
+}
+.sc-modal.themelib .tl-titles .tl-eyebrow { color: var(--ui-muted); }
+.sc-modal.themelib h2 {
+  font-size: clamp(1.28rem, 2.2vw, 1.55rem);
+  font-weight: 680;
+  letter-spacing: -.025em;
+}
+.sc-modal.themelib .tl-count {
+  font-size: .78rem;
+  color: var(--ui-muted);
+}
+
+/* Navigation becomes a horizontal collection chip rail directly under the
+   header, keeping search + collections visually adjacent. The rail is a
+   sibling of `.tl-body` (not a column inside it), so the body is a single
+   full-width pane — but it must stay a *bounded* flex container: the modal is
+   a fixed-height flex column, and `.tl-main` has to take the leftover height
+   and scroll internally. As a plain block, `.tl-main` would grow to the height
+   of all 103 cards and the modal's `overflow: hidden` would clip the tail with
+   no way to scroll to it. */
+.tl-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.tl-nav {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px 24px !important;
+  border-right: 0;
+  border-bottom: 1px solid var(--ui-border);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tl-nav::-webkit-scrollbar { display: none; }
+.tl-nav-item {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: .84rem;
+  box-shadow: none;
+}
+.tl-nav-item:hover { border-color: var(--ui-border-strong); }
+.tl-nav-item.active {
+  background: var(--ui-text);
+  color: var(--ui-surface-raised);
+  border-color: var(--ui-text);
+  box-shadow: none;
+  font-weight: 650;
+}
+.tl-nav-item.active .tl-nav-count { opacity: .65; }
+.tl-nav-divider {
+  flex: 0 0 1px;
+  width: 1px;
+  height: 22px;
+  margin: 0 3px;
+  background: var(--ui-border);
+}
+
+.tl-main {
+  flex: 1 1 auto;
+  min-height: 0; /* lets the flex item shrink so overflow-y actually scrolls */
+  padding: 20px 24px 32px !important;
+  scroll-behavior: smooth;
+}
+
+/* ── Scene art fallback ──────────────────────────────────────────────
+   Layered from the theme's real palette. The class hooks let especially
+   distinctive scene families (rain, snow, night, neon city) add a little
+   texture instead of every fallback reading as the same gradient. */
+.tl-scene {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  background:
+    radial-gradient(115% 90% at 18% 0%, color-mix(in srgb, var(--tl-accent) 52%, transparent) 0%, transparent 62%),
+    radial-gradient(105% 105% at 100% 100%, color-mix(in srgb, var(--tl-accent2) 42%, transparent) 0%, transparent 66%),
+    linear-gradient(155deg, var(--tl-bg0) 0%, var(--tl-bg1) 56%, var(--tl-bg2) 100%);
+  transition: transform .65s var(--ease-smooth);
+}
+.tl-scene::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background:
+    repeating-linear-gradient(112deg, rgba(255,255,255,.055) 0 1px, transparent 1px 17px),
+    radial-gradient(50% 40% at 70% 18%, rgba(255,255,255,.14), transparent 70%);
+  opacity: .45;
+  transform: rotate(-2deg);
+}
+.tl-scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 38%, rgba(0,0,0,.34) 100%);
+}
+[data-bg*="rain"] .tl-scene::before,
+[data-bg*="storm"] .tl-scene::before {
+  background:
+    repeating-linear-gradient(104deg, rgba(210,232,255,.16) 0 1px, transparent 1px 9px);
+  opacity: .65;
+}
+[data-bg*="snow"] .tl-scene::before {
+  background:
+    radial-gradient(circle at 22% 30%, rgba(255,255,255,.7) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 68% 62%, rgba(255,255,255,.5) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 44% 82%, rgba(255,255,255,.55) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 82% 20%, rgba(255,255,255,.45) 0 1px, transparent 1.6px);
+  background-size: 46px 46px, 61px 61px, 54px 54px, 72px 72px;
+  opacity: .8;
+}
+[data-bg*="night"] .tl-scene::before,
+[data-bg*="neon"] .tl-scene::before,
+[data-bg*="city"] .tl-scene::before {
+  background:
+    radial-gradient(circle at 24% 20%, rgba(255,255,255,.65) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 76% 32%, rgba(255,255,255,.5) 0 1px, transparent 1.5px),
+    linear-gradient(180deg, transparent 62%, color-mix(in srgb, var(--tl-accent) 22%, transparent) 100%);
+  background-size: 38px 38px, 54px 54px, auto;
+  opacity: .7;
+}
+.tl-scene--strong { opacity: .84; }
+.tl-spotlight-bg .tl-scene { filter: saturate(1.08) contrast(1.02); }
+
+/* ── Active-theme spotlight ────────────────────────────────────────── */
+.tl-spotlight {
+  /* The scrim is always dark, so text on top of it is always light — even
+     for light themes whose own `text` token is near-black. */
+  --tl-on-scrim: #f8fafc;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 196px;
+  margin-bottom: 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: calc(var(--ui-radius-card) + 4px);
+  background: var(--tl-bg0);
+  color: var(--tl-on-scrim);
+  box-shadow: 0 12px 36px rgba(0,0,0,.22);
+}
+.tl-spotlight[hidden] { display: none; }
+.tl-spotlight-bg,
+.tl-spotlight-scrim {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.tl-spotlight-bg { z-index: 0; }
+.tl-spotlight-scrim {
+  z-index: 1;
+  background:
+    linear-gradient(100deg, rgba(4,6,12,.82) 0%, rgba(4,6,12,.52) 46%, rgba(4,6,12,.16) 100%),
+    linear-gradient(0deg, rgba(4,6,12,.58), transparent 60%);
+}
+.tl-spotlight-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px 24px;
+  max-width: 660px;
+}
+.tl-spotlight-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.tl-spotlight-mark {
+  width: 58px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,.4));
+}
+.tl-spotlight-mark > svg,
+.tl-spotlight-mark > img,
+.tl-spotlight-mark > div {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.tl-spotlight-titles { min-width: 0; }
+/* Double class + the h3 element beats `body.light-theme .sc-modal h3`,
+   which otherwise forces the light theme's near-black text onto the
+   always-dark spotlight scrim. */
+.sc-modal .tl-spotlight .tl-spotlight-name {
+  margin: 1px 0 0;
+  opacity: 1;
+  font-family: var(--tl-font);
+  font-size: clamp(1.7rem, 3.4vw, 2.25rem);
+  font-weight: 650;
+  line-height: 1.06;
+  letter-spacing: -.02em;
+  color: var(--tl-on-scrim);
+  text-shadow: 0 2px 22px rgba(0,0,0,.32);
+  text-transform: none;
+}
+.tl-spotlight-sub {
+  margin: 3px 0 0;
+  font-family: var(--ui-font);
+  font-size: .8rem;
+  color: color-mix(in srgb, var(--tl-on-scrim) 74%, transparent);
+}
+.tl-spotlight .tl-eyebrow {
+  color: color-mix(in srgb, var(--tl-on-scrim) 74%, transparent);
+  font-size: .6rem;
+}
+.tl-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tl-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tl-accent) 18%, transparent);
+  animation: tlLivePulse 2.8s ease-in-out infinite;
+}
+@keyframes tlLivePulse {
+  0%, 100% { opacity: .55; transform: scale(.92); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.tl-spotlight-tagline {
+  max-width: 54ch;
+  margin: 0;
+  font-family: var(--ui-font);
+  font-size: .84rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--tl-on-scrim) 82%, transparent);
+}
+.tl-spotlight-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+.tl-continue,
+.tl-spotlight-fav {
+  min-height: var(--ui-hit);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--ui-font);
+  transition: background var(--ui-motion-fast), border-color var(--ui-motion-fast), transform var(--ui-motion-fast);
+}
+.tl-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--tl-on-scrim) 30%, transparent);
+  background: color-mix(in srgb, var(--tl-on-scrim) 14%, transparent);
+  color: var(--tl-on-scrim);
+  font-size: .8rem;
+  font-weight: 650;
+}
+.tl-continue:hover { background: color-mix(in srgb, var(--tl-on-scrim) 22%, transparent); }
+.tl-spotlight-fav {
+  width: var(--ui-hit);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--tl-on-scrim) 26%, transparent);
+  background: color-mix(in srgb, var(--tl-on-scrim) 10%, transparent);
+  color: var(--tl-on-scrim);
+}
+.tl-spotlight-fav svg { fill: none; stroke: currentColor; }
+.tl-spotlight-fav.is-fav { color: var(--tl-accent); border-color: color-mix(in srgb, var(--tl-accent) 60%, transparent); }
+.tl-spotlight-fav.is-fav svg { fill: currentColor; }
+.tl-spotlight-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.tl-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tl-on-scrim) 20%, transparent);
+  background: color-mix(in srgb, var(--tl-on-scrim) 9%, transparent);
+  font-family: var(--ui-font);
+  font-size: .66rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--tl-on-scrim) 84%, transparent);
+}
+
+/* ── Editorial shelves ─────────────────────────────────────────────── */
+.tl-shelf { margin-top: 26px; }
+.tl-shelf[hidden] { display: none; }
+.tl-shelf-head,
+.tl-wall-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.tl-shelf-head .tl-shelf-title,
+.tl-wall-head .tl-wall-title {
+  margin: 1px 0 0;
+  opacity: 1;
+  font-family: var(--ui-font);
+  font-size: 1.02rem;
+  font-weight: 680;
+  line-height: 1.25;
+  letter-spacing: -.015em;
+  text-transform: none;
+  color: var(--ui-text);
+}
+.tl-shelf-link {
+  flex: none;
+  min-height: 32px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ui-muted);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tl-shelf-link:hover { color: var(--ui-text); }
+
+/* Recent rail — low-height, scene-led, horizontally scrollable. */
+.tl-recent-rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.tl-recent-rail::-webkit-scrollbar { display: none; }
+.tl-recent-card {
+  flex: 0 0 156px;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 13px;
+  background: var(--ui-fill);
+  color: var(--ui-text);
+  cursor: pointer;
+  text-align: left;
+  scroll-snap-align: start;
+  transition: border-color var(--ui-motion-fast), transform var(--ui-motion-fast);
+}
+.tl-recent-card:hover { border-color: var(--ui-border-strong); transform: translateY(-2px); }
+.tl-recent-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+.tl-recent-mark {
+  position: absolute;
+  z-index: 2;
+  left: 8px;
+  bottom: 7px;
+  width: 30px;
+  height: 22px;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.45));
+}
+.tl-recent-mark > svg,
+.tl-recent-mark > img,
+.tl-recent-mark > div { width: 100%; height: 100%; object-fit: contain; }
+.tl-recent-name {
+  display: block;
+  padding: 9px 11px 10px;
+  overflow: hidden;
+  font-size: .78rem;
+  font-weight: 620;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Category worlds — large, image-led navigation tiles. */
+.tl-worlds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.tl-world {
+  --tl-on-scrim: #f8fafc;
+  position: relative;
+  isolation: isolate;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 7.4;
+  padding: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 15px;
+  background: var(--tl-bg0);
+  color: var(--tl-on-scrim);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--ui-motion-fast), transform var(--ui-motion-fast);
+}
+.tl-world:hover { border-color: var(--ui-border-strong); transform: translateY(-2px); }
+.tl-world-art {
+  position: absolute;
+  inset: 0;
+  display: block;
+  z-index: 0;
+}
+.tl-world::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(0,0,0,.04) 12%, rgba(0,0,0,.64) 100%);
+}
+.tl-world-body {
+  position: absolute;
+  z-index: 2;
+  left: 14px;
+  right: 14px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tl-world-name {
+  font-family: var(--tl-font);
+  font-size: 1.04rem;
+  font-weight: 650;
+  line-height: 1.16;
+  letter-spacing: -.01em;
+  color: var(--tl-on-scrim);
+  text-shadow: 0 2px 16px rgba(0,0,0,.4);
+}
+.tl-world-count {
+  font-family: var(--ui-font);
+  font-size: .66rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: color-mix(in srgb, var(--tl-on-scrim) 72%, transparent);
+}
+
+/* Wall heading + rhythm card. */
+.tl-wall-head { margin: 26px 0 12px; }
+.tl-wall-count {
+  flex: none;
+  font-family: var(--ui-font);
+  font-size: .76rem;
+  color: var(--ui-muted);
+  font-variant-numeric: tabular-nums;
+}
+.tl-grid {
+  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+  gap: 14px;
+}
+.tl-card {
+  border-radius: 15px;
+  background: var(--ui-fill);
+  transform: none;
+}
+.tl-card:hover { transform: none; border-color: var(--ui-border-strong); }
+.tl-card--featured { grid-column: span 2; }
+.tl-card--featured .tl-prev { aspect-ratio: 2.28 / 1; }
+.tl-card--featured .tl-mark { width: 46px; height: 34px; }
+.tl-card--featured .tl-name { font-size: 1.05rem; }
+.tl-card--featured .tl-tagline { font-size: .78rem; }
+
+.tl-prev {
+  background: var(--tl-bg0);
+  isolation: isolate;
+}
+.tl-prev .tl-scene { z-index: 0; }
+.tl-prev .tl-img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.tl-pick:hover .tl-prev .tl-scene,
+.tl-pick:focus-visible .tl-prev .tl-scene { transform: scale(1.03); }
+.tl-prev::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 34%, rgba(255,255,255,.13) 49%, transparent 62%);
+  opacity: 0;
+  transform: translateX(-30%);
+  transition: opacity .45s var(--ease-smooth), transform .7s var(--ease-smooth);
+}
+.tl-pick:hover .tl-prev::after,
+.tl-pick:focus-visible .tl-prev::after { opacity: 1; transform: translateX(30%); }
+.tl-mark {
+  z-index: 3;
+  width: 32px;
+  height: 24px;
+  padding: 3px;
+  border-radius: 6px;
+  background: rgba(4,6,12,.24);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.tl-tagline {
+  position: absolute;
+  z-index: 3;
+  left: 10px;
+  right: 10px;
+  bottom: 9px;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-family: var(--ui-font);
+  font-size: .68rem;
+  line-height: 1.35;
+  color: var(--tl-text);
+  text-shadow: 0 1px 12px rgba(0,0,0,.6);
+  opacity: .9;
+}
+.tl-card.active { border-color: var(--ui-accent); box-shadow: 0 0 0 1px var(--ui-accent); }
+.tl-card.active .tl-prev::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--ui-accent);
+  border-radius: inherit;
+}
+.tl-fav-icon { transition: background var(--ui-motion-fast), color var(--ui-motion-fast), transform var(--ui-motion-fast); }
+.tl-fav:active .tl-fav-icon { transform: scale(.9); }
+
+/* ── Frame-to-world selection reveal ───────────────────────────────── */
+.tl-reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 4200;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at var(--tl-reveal-x, 50%) var(--tl-reveal-y, 50%),
+    color-mix(in srgb, var(--tl-reveal-accent, #fff) 55%, transparent) 0%,
+    color-mix(in srgb, var(--tl-reveal-accent, #fff) 18%, transparent) 34%,
+    transparent 68%
+  );
+  opacity: 0;
+}
+.tl-reveal.is-active {
+  animation: tlReveal .62s var(--ease-enter) forwards;
+}
+@keyframes tlReveal {
+  0% {
+    opacity: 0;
+    clip-path: circle(0 at var(--tl-reveal-x, 50%) var(--tl-reveal-y, 50%));
+  }
+  22% { opacity: .82; }
+  100% {
+    opacity: 0;
+    clip-path: circle(130vmax at var(--tl-reveal-x, 50%) var(--tl-reveal-y, 50%));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   V3 · MIX CONSOLE
+   Tracks stay the first task. Global playback controls become a distinct
+   lower console: master volume, output meter, fade, then scene presets.
+   ═══════════════════════════════════════════════════════════════════════ */
+.sc-modal--mixer {
+  display: flex;
+  flex-direction: column;
+  width: min(780px, 96vw);
+  max-height: min(880px, 92dvh);
+  overflow: hidden;
+  border-radius: 24px;
+}
+.sc-modal--mixer > .mixer-header {
+  flex: none;
+  align-items: center;
+  margin: 0;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--ui-border);
+}
+.mixer-header .mixer-title { min-width: 0; }
+.mixer-header .mixer-title h2 {
+  margin: 1px 0 0;
+  font-family: var(--ui-font);
+  font-size: 1.28rem;
+  font-weight: 680;
+  letter-spacing: -.02em;
+  text-transform: none;
+  color: var(--ui-text);
+}
+.mixer-header .tl-eyebrow { color: var(--ui-muted); }
+.mixer-header-actions { gap: 8px; }
+.mixer-night-toggle {
+  width: auto;
+  height: 36px;
+  padding: 0 12px;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-fill);
+  color: var(--ui-muted);
+  font-family: var(--ui-font);
+  font-size: .76rem;
+  font-weight: 600;
+  transform: none;
+}
+.mixer-night-toggle:hover { transform: none; background: var(--ui-fill-hover); color: var(--ui-text); }
+.mixer-night-toggle.active,
+.mixer-night-toggle[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+  color: var(--ui-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 20%, transparent);
+}
+.mixer-night-toggle:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+
+.sc-modal--mixer .sound-mixer {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 22px 22px !important;
+  gap: 18px;
+}
+.mixer-section-head,
+.mix-console-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.mixer-section-head h3,
+.mix-console-head h3 {
+  margin: 1px 0 0;
+  font-family: var(--ui-font);
+  font-size: 1.02rem;
+  font-weight: 680;
+  letter-spacing: -.015em;
+  text-transform: none;
+  color: var(--ui-text);
+}
+.mixer-section-note,
+.mix-console-hint {
+  font-family: var(--ui-font);
+  font-size: .7rem;
+  color: var(--ui-muted);
+}
+.sound-tracks { gap: 10px; }
+
+.mix-console {
+  margin-top: 2px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--ui-border);
+  background:
+    radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--ui-accent) 9%, transparent), transparent 58%),
+    color-mix(in srgb, var(--ui-surface-raised) 82%, transparent);
+}
+.mix-console-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mix-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 15px;
+  background: var(--ui-fill);
+}
+.mix-card--master { grid-column: 1 / -1; }
+.mix-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.mix-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--ui-font);
+  font-size: .8rem;
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.mix-card-title svg { color: var(--ui-muted); flex: none; }
+.mix-value {
+  font-family: var(--ui-font);
+  font-size: .84rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text);
+}
+.mix-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--ui-font);
+  font-size: .64rem;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
+}
+.mix-live::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 14%, transparent);
+}
+.mix-card-desc {
+  margin: 10px 0 0;
+  font-family: var(--ui-font);
+  font-size: .69rem;
+  line-height: 1.45;
+  color: var(--ui-muted);
+}
+.mix-card--master .master-vol-slider,
+.mix-card--fade .fade-slider {
+  display: block;
+  width: 100%;
+  height: 6px;
+  margin: 4px 0 0;
+}
+.mix-card--fade .fade-slider {
+  background: linear-gradient(90deg, var(--ui-accent) 0%, color-mix(in srgb, var(--ui-accent) 40%, transparent) 65%, var(--ui-border) 100%);
+}
+.mix-card input[type="range"].sc-range:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 5px;
+  border-radius: 99px;
+}
+.mix-card input[type="range"].sc-range::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--ui-text);
+  border: 2px solid var(--ui-surface-raised);
+  box-shadow: 0 1px 5px rgba(0,0,0,.4);
+}
+.mix-card input[type="range"].sc-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--ui-text);
+  border: 2px solid var(--ui-surface-raised);
+}
+.mix-card--master input[type="range"].master-vol-slider::-webkit-slider-thumb {
+  background: var(--clr-accent);
+  border-color: var(--ui-surface-raised);
+}
+.mix-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--ui-font);
+  font-size: .61rem;
+  color: var(--ui-muted);
+}
+.mix-card--output .mixer-vu-track {
+  height: 12px;
+  border-radius: 4px;
+  margin: 9px 0 0;
+  background: color-mix(in srgb, var(--ui-text) 10%, transparent);
+}
+.mixer-vu-fill {
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 72%, #fff), var(--ui-accent));
+  transition: width .08s linear;
+}
+.fade-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+.fade-chip {
+  min-width: 38px;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ui-muted);
+  font-family: var(--ui-font);
+  font-size: .66rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background var(--ui-motion-fast), border-color var(--ui-motion-fast), color var(--ui-motion-fast);
+}
+.fade-chip:hover { background: var(--ui-fill-hover); color: var(--ui-text); }
+.fade-chip.active,
+.fade-chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent);
+  color: var(--ui-text);
+}
+.fade-chip:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+
+/* Scene presets */
+.mixer-scenes {
+  margin-top: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.mixer-scenes-hdr {
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+.mixer-scenes-hdr h3 {
+  margin: 1px 0 0;
+  font-family: var(--ui-font);
+  font-size: 1.02rem;
+  font-weight: 680;
+  letter-spacing: -.015em;
+  text-transform: none;
+  color: var(--ui-text);
+}
+.mixer-scene-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  font-family: var(--ui-font);
+  font-size: .72rem;
+  font-weight: 550;
+  color: var(--ui-muted);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 1;
+}
+.mixer-scene-auto input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.mixer-switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-text) 16%, transparent);
+  transition: background var(--ui-motion-fast);
+}
+.mixer-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ui-text);
+  transition: transform var(--ui-motion-fast) var(--ease-snap);
+}
+.mixer-scene-auto input:checked + .mixer-switch { background: var(--ui-accent); }
+.mixer-scene-auto input:checked + .mixer-switch::after { transform: translateX(16px); }
+.mixer-scene-auto input:focus-visible + .mixer-switch { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.mixer-scenes-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.scene-card {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--ui-border);
+  border-radius: 15px;
+  background: var(--ui-fill);
+  color: var(--ui-text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: background var(--ui-motion-fast), border-color var(--ui-motion-fast), transform var(--ui-motion-fast);
+}
+.scene-card:hover { background: var(--ui-fill-hover); border-color: var(--ui-border-strong); transform: translateY(-1px); }
+.scene-card:active { transform: scale(.99); }
+.scene-card:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.scene-art {
+  grid-row: span 2;
+  width: 54px;
+  height: 54px;
+  border-radius: 13px;
+  border: 1px solid var(--ui-border);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 5px, rgba(255,255,255,.16) 5px 6px),
+    linear-gradient(145deg, color-mix(in srgb, var(--ui-accent) 48%, transparent), rgba(0,0,0,.35));
+}
+.scene-art--break {
+  background:
+    radial-gradient(circle at 30% 35%, rgba(255,214,150,.55), transparent 58%),
+    linear-gradient(145deg, rgba(255,167,103,.32), rgba(0,0,0,.35));
+}
+.scene-info { min-width: 0; }
+.scene-title {
+  display: block;
+  font-size: .82rem;
+  font-weight: 650;
+}
+.scene-desc {
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
+  font-size: .67rem;
+  line-height: 1.35;
+  color: var(--ui-muted);
+  text-overflow: ellipsis;
+}
+.scene-action {
+  grid-column: 2;
+  font-size: .68rem;
+  font-weight: 650;
+  color: var(--ui-accent);
+}
+.scene-action::after { content: " →"; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   V3 · GITHUB PROJECT CARD
+   A quiet repository popover: identity, one-line description, optional
+   live stats, then direct actions. No forced celebration.
+   ═══════════════════════════════════════════════════════════════════════ */
+.gh-overlay .gh-modal {
+  width: min(392px, 94vw);
+  max-width: 392px;
+  padding: 22px 22px 18px;
+  overflow: visible;
+  text-align: left;
+  border-radius: 20px;
+  border: 1px solid var(--ui-border);
+  background:
+    radial-gradient(100% 80% at 0% 0%, color-mix(in srgb, var(--ui-accent) 10%, transparent), transparent 58%),
+    var(--ui-surface-raised);
+  box-shadow: var(--ui-shadow-panel);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+}
+.gh-overlay .gh-card-top {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-right: 26px;
+}
+.gh-mark {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-fill);
+  color: var(--ui-text);
+}
+.gh-card-titles { min-width: 0; }
+.gh-overlay .gh-title {
+  margin: 1px 0 0;
+  opacity: 1;
+  font-family: var(--ui-font);
+  font-size: 1.24rem;
+  font-weight: 680;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  color: var(--ui-text);
+  text-transform: none;
+}
+.gh-overlay .gh-eyebrow {
+  display: block;
+  margin: 3px 0 0;
+  opacity: 1;
+  color: var(--ui-muted);
+  font-size: .68rem;
+  font-weight: 550;
+  letter-spacing: .01em;
+  filter: none;
+}
+.gh-overlay .gh-body {
+  max-width: none;
+  margin: 14px 0 14px;
+  opacity: 1;
+  color: var(--ui-muted);
+  font-size: .8rem;
+  line-height: 1.6;
+  filter: none;
+}
+.gh-overlay .gh-stats {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+  opacity: 1;
+}
+.gh-overlay .gh-chip {
+  background: var(--ui-fill);
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+  font-size: .7rem;
+}
+.gh-overlay .gh-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  opacity: 1;
+}
+.gh-overlay .gh-actions .btn {
+  width: auto;
+  flex: 1 1 auto;
+  min-height: 38px;
+  padding: 0 13px;
+  justify-content: center;
+  font-size: .76rem;
+  opacity: 1;
+}
+.gh-overlay .gh-actions .gh-btn-donate { flex: 0 0 auto; }
+.gh-overlay .gh-btn-star {
+  box-shadow: none;
+  background: var(--ui-fill);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text);
+}
+.gh-overlay .gh-btn-star::after { display: none; }
+.gh-overlay .gh-btn-donate {
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  color: var(--ui-muted);
+}
+.gh-overlay .gh-skip {
+  margin: 14px 0 0;
+  padding: 0;
+  opacity: 1;
+  color: var(--ui-muted);
+  font-size: .7rem;
+  text-align: left;
+  text-decoration: none;
+  filter: none;
+}
+.gh-overlay .gh-skip:hover { color: var(--ui-text); }
+/* Neutralise the retired avatar/celebration entrance rules. */
+.gh-avatar-wrap, .gh-avatar-glow, .gh-avatar, .gh-avatar-ring, .gh-badge { display: none; }
+.gh-overlay.open .gh-avatar-glow,
+.gh-overlay.open .gh-avatar,
+.gh-overlay.open .gh-avatar-ring circle,
+.gh-overlay.open .gh-badge,
+.gh-overlay.open .gh-eyebrow,
+.gh-overlay.open .gh-title,
+.gh-overlay.open .gh-body,
+.gh-overlay.open .gh-stats,
+.gh-overlay.open .gh-actions,
+.gh-overlay.open .gh-skip {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   V3 · WEATHER ROOM
+   The top-bar pill stays tiny; this is the designed room behind it.
+   ═══════════════════════════════════════════════════════════════════════ */
+#weatherPill {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  transform: none;
+}
+#weatherPill.loaded {
+  opacity: .82;
+  border-color: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.035);
+}
+#weatherPill:hover {
+  transform: none;
+  background: rgba(255,255,255,.1);
+  border-color: rgba(255,255,255,.14);
+}
+#weatherPill:active { transform: scale(.98); }
+#weatherPill:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+#weatherPill #weatherIcon { display: inline-flex; align-items: center; }
+#weatherPill #weatherIcon svg { display: block; }
+
+.weather-page {
+  right: 12px;
+  top: 12px;
+  bottom: 12px;
+  width: min(560px, calc(100vw - 24px));
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 24px;
+  background: rgba(9,11,18,.9);
+  box-shadow: 0 30px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+  color: #f4f6fb;
+  transform: translateX(calc(100% + 20px));
+  transition: transform .42s var(--ease-enter);
+}
+#weatherPageOverlay.open .weather-page { transform: translateX(0); }
+.weather-page-bg { border-radius: inherit; opacity: .94; }
+.weather-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.035), transparent 30%),
+    radial-gradient(100% 70% at 80% 0%, rgba(255,255,255,.05), transparent 62%);
+}
+.weather-page-header {
+  z-index: 3;
+  gap: 12px;
+  padding: 17px 20px 13px;
+  border-bottom-color: rgba(255,255,255,.08);
+}
+.weather-close-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.07);
+  color: #f4f6fb;
+}
+.weather-close-btn:hover { background: rgba(255,255,255,.14); }
+.weather-close-btn:focus-visible,
+.weather-set-location-btn:focus-visible,
+.weather-loc-cancel:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.weather-page-kicker {
+  display: block;
+  color: rgba(244,246,251,.5);
+  font-size: .59rem;
+  margin-bottom: 1px;
+}
+.weather-location-name {
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.weather-location-time { color: rgba(244,246,251,.5); font-size: .68rem; }
+.weather-set-location-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.07);
+  color: #f4f6fb;
+  font-size: .7rem;
+  font-weight: 600;
+  gap: 6px;
+}
+.weather-set-location-btn:hover { background: rgba(255,255,255,.13); }
+.weather-set-location-btn svg { flex: none; opacity: .8; }
+.weather-page-content { padding-bottom: 12px; }
+.weather-page-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); }
+
+.weather-hero {
+  margin: 16px 20px 0;
+  min-height: 188px;
+  padding: 24px 24px 22px;
+  overflow: hidden;
+  text-align: left;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 22px;
+  background:
+    radial-gradient(100% 130% at 0% 0%, rgba(255,255,255,.12), transparent 58%),
+    linear-gradient(155deg, rgba(255,255,255,.08), rgba(255,255,255,.018));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+.weather-hero-particles { border-radius: inherit; opacity: .8; }
+.weather-hero-copy { position: relative; z-index: 1; }
+.weather-hero-kicker {
+  display: block;
+  color: rgba(244,246,251,.56);
+  font-size: .62rem;
+  font-weight: 650;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.weather-hero-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 12px 0 15px;
+}
+.weather-condition-icon {
+  flex: none;
+  width: 78px;
+  height: 78px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(255,255,255,.07);
+  color: #fff;
+  filter: none;
+  animation: none;
+}
+.weather-condition-icon svg { width: 46px; height: 46px; }
+.weather-hero-reading { min-width: 0; }
+.weather-hero-temp {
+  margin: 0;
+  font-size: clamp(3.6rem, 9vw, 4.6rem);
+  font-weight: 720;
+  line-height: .92;
+  letter-spacing: -.045em;
+  color: #fff;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+.weather-hero-desc {
+  margin: 6px 0 0;
+  color: rgba(244,246,251,.74);
+  font-size: .86rem;
+  letter-spacing: 0;
+  opacity: 1;
+}
+.weather-hero-meta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 6px;
+  opacity: 1;
+  font-size: inherit;
+}
+.weather-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 999px;
+  background: rgba(255,255,255,.055);
+  color: rgba(244,246,251,.76);
+  font-size: .68rem;
+  font-weight: 550;
+}
+.weather-meta-chip:empty { display: none; }
+.weather-hero--retry { cursor: pointer; border-color: rgba(255,180,120,.35); }
+.weather-hero--retry .weather-condition-icon { color: #ffcf9a; }
+
+.weather-section { padding: 24px 20px 0; }
+.weather-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+.weather-section-head .weather-section-eyebrow {
+  display: block;
+  margin-bottom: 2px;
+  color: rgba(244,246,251,.46);
+  font-size: .58rem;
+}
+.weather-section .weather-section-label {
+  padding: 0;
+  opacity: 1;
+  font-family: var(--ui-font);
+  font-size: 1.02rem;
+  font-weight: 680;
+  line-height: 1.25;
+  letter-spacing: -.015em;
+  text-transform: none;
+  color: #f4f6fb;
+}
+.weather-section-note {
+  flex: none;
+  color: rgba(244,246,251,.42);
+  font-size: .66rem;
+}
+.weather-hourly-strip {
+  gap: 8px;
+  padding: 2px 0 4px;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.weather-hourly-item {
+  gap: 7px;
+  min-width: 64px;
+  padding: 11px 8px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 15px;
+  background: rgba(255,255,255,.045);
+}
+.weather-hourly-item:hover { background: rgba(255,255,255,.08); }
+.weather-hourly-item:first-child {
+  border-color: rgba(255,255,255,.18);
+  background: rgba(255,255,255,.1);
+}
+.weather-hourly-time { color: rgba(244,246,251,.56); font-size: .62rem; font-weight: 600; opacity: 1; }
+.weather-hourly-icon { color: #fff; font-size: 0; line-height: 0; opacity: .9; }
+.weather-hourly-icon svg { display: block; }
+.weather-hourly-temp { font-size: .82rem; font-weight: 680; font-variant-numeric: tabular-nums; }
+.weather-hourly-empty {
+  width: 100%;
+  padding: 18px;
+  border: 1px dashed rgba(255,255,255,.12);
+  border-radius: 14px;
+  color: rgba(244,246,251,.48);
+  font-size: .72rem;
+}
+.weather-sun-arc-wrap {
+  padding: 16px 16px 13px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 20px;
+  background:
+    radial-gradient(100% 120% at 50% 100%, rgba(255,191,102,.09), transparent 62%),
+    rgba(255,255,255,.04);
+}
+.weather-sun-canvas { height: auto; }
+.weather-sun-times {
+  gap: 14px;
+  padding: 4px 2px 0;
+  opacity: 1;
+  font-size: inherit;
+}
+.weather-sun-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.weather-sun-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 50%;
+  background: rgba(255,255,255,.055);
+  color: #ffd28a;
+}
+.weather-sun-label {
+  display: block;
+  color: rgba(244,246,251,.46);
+  font-size: .58rem;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.weather-sun-time strong {
+  display: block;
+  margin-top: 1px;
+  font-size: .82rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.weather-sun-empty { color: rgba(244,246,251,.48); font-size: .72rem; }
+.weather-daily-list {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 20px;
+  background: rgba(255,255,255,.04);
+}
+.weather-daily-row {
+  grid-template-columns: 50px 26px 1fr;
+  gap: 10px;
+  padding: 12px 15px;
+  border-bottom-color: rgba(255,255,255,.055);
+}
+.weather-daily-day { font-size: .78rem; font-weight: 600; }
+.weather-daily-icon { display: flex; align-items: center; justify-content: center; color: #fff; opacity: .9; }
+.weather-daily-icon svg { display: block; }
+.weather-daily-min,
+.weather-daily-max {
+  min-width: 30px;
+  color: rgba(244,246,251,.5);
+  font-size: .72rem;
+  opacity: 1;
+}
+.weather-daily-max { color: rgba(244,246,251,.86); }
+.weather-daily-bar { height: 5px; background: rgba(255,255,255,.12); }
+.weather-daily-bar-fill {
+  background: linear-gradient(90deg, #8db9ff, #ffd28a);
+  box-shadow: 0 0 10px rgba(255,210,138,.18);
+}
+.weather-section--theme-control { padding-top: 24px; padding-bottom: 10px; }
+.weather-theme-toggle-row {
+  gap: 14px;
+  padding: 15px 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 18px;
+  background:
+    linear-gradient(130deg, rgba(255,255,255,.055), rgba(255,255,255,.018));
+}
+.weather-theme-toggle-label {
+  margin-bottom: 3px;
+  font-size: .8rem;
+  font-weight: 650;
+}
+.weather-theme-toggle-desc {
+  max-width: 42ch;
+  color: rgba(244,246,251,.5);
+  font-size: .67rem;
+  line-height: 1.45;
+  opacity: 1;
+}
+.weather-theme-toggle-row .settings-toggle { flex: none; }
+
+/* Location sheet inside the room — a bottom sheet that hugs its content
+   rather than a full-height overlay, so opening it never leaves a large
+   empty area below the options. */
+.weather-location-panel {
+  z-index: 20;
+  inset: auto 0 0 0;
+  height: auto;
+  max-height: min(88%, 560px);
+  border-radius: 22px 22px 0 0;
+  background: rgba(10,12,19,.97);
+  box-shadow: 0 -24px 60px rgba(0,0,0,.45);
+  transform: translateY(calc(100% + 14px));
+  transition: transform .34s var(--ease-enter);
+}
+.weather-location-panel.open { transform: translateY(0); }
+.weather-location-panel::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.22);
+  transform: translateX(-50%);
+}
+.weather-location-panel-header {
+  align-items: flex-start;
+  padding: 22px 20px 13px;
+  border-bottom-color: rgba(255,255,255,.08);
+}
+.weather-location-panel-header > div { display: flex; flex-direction: column; gap: 1px; }
+.weather-location-panel-header #weatherLocTitle {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+.weather-loc-cancel {
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.07);
+  color: #f4f6fb;
+  font-size: .7rem;
+  font-weight: 600;
+}
+.weather-loc-options {
+  padding: 16px 20px calc(20px + env(safe-area-inset-bottom));
+  gap: 11px;
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.weather-loc-search-wrap { order: -1; }
+.weather-loc-search {
+  min-height: 46px;
+  padding: 0 14px 0 38px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 13px;
+  background: rgba(255,255,255,.06);
+  color: #f4f6fb;
+  font-size: .84rem;
+}
+.weather-loc-search::placeholder { color: rgba(244,246,251,.4); }
+.weather-loc-search:focus { border-color: rgba(140,185,255,.7); }
+.weather-loc-results { gap: 5px; }
+.weather-loc-result {
+  padding: 11px 13px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+}
+.weather-loc-result:hover { background: rgba(255,255,255,.09); }
+.weather-loc-result-name { font-size: .78rem; font-weight: 650; }
+.weather-loc-result-sub { color: rgba(244,246,251,.5); font-size: .66rem; opacity: 1; }
+.weather-loc-loading { color: rgba(244,246,251,.5); font-size: .72rem; }
+.weather-loc-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(244,246,251,.35);
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+}
+.weather-loc-sep::before,
+.weather-loc-sep::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,.08);
+}
+.weather-loc-btn {
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 14px;
+  background: rgba(255,255,255,.05);
+  color: #f4f6fb;
+  font-size: .8rem;
+}
+.weather-loc-btn:hover { background: rgba(255,255,255,.1); }
+.weather-loc-btn > .weather-loc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.07);
+  color: #ffd28a;
+  font-size: 0;
+}
+.weather-loc-btn > span:last-child { display: flex; flex-direction: column; gap: 1px; }
+.weather-loc-btn-label { font-size: .78rem; font-weight: 650; }
+.weather-loc-btn-sub { margin-top: 0; color: rgba(244,246,251,.48); font-size: .66rem; opacity: 1; }
+.weather-loc-privacy {
+  margin: 2px 2px 0;
+  color: rgba(244,246,251,.38);
+  font-size: .66rem;
+  line-height: 1.45;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   V3 · RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .sc-modal.themelib { width: calc(100vw - 28px); }
+  .tl-worlds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tl-nav { padding-left: 18px !important; padding-right: 18px !important; }
+  .tl-main { padding-left: 18px !important; padding-right: 18px !important; }
+  .mix-console-grid { grid-template-columns: minmax(0, 1fr); }
+  .mix-card--master { grid-column: auto; }
+}
+@media (max-width: 720px) {
+  .sc-modal.themelib {
+    width: 100vw;
+    height: calc(100vh - max(8px, env(safe-area-inset-top)));
+    height: calc(100dvh - max(8px, env(safe-area-inset-top)));
+  }
+  .sc-modal.themelib .tl-head { align-items: center; }
+  .sc-modal.themelib .tl-titles { min-width: 0; }
+  .tl-nav { padding: 8px 14px !important; }
+  .tl-nav-item { min-height: 34px; font-size: .8rem; }
+  .tl-main { padding: 16px 14px calc(26px + env(safe-area-inset-bottom)) !important; }
+  .tl-spotlight { min-height: 178px; }
+  .tl-spotlight-content { padding: 18px; max-width: none; }
+  .sc-modal .tl-spotlight .tl-spotlight-name { font-size: clamp(1.55rem, 7vw, 1.95rem); }
+  .tl-spotlight-tagline { font-size: .79rem; }
+  .tl-spotlight-mark { width: 46px; height: 36px; }
+  .tl-worlds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tl-world { aspect-ratio: 16 / 8.6; }
+  .tl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .tl-card--featured { grid-column: span 2; }
+  .tl-card--featured .tl-prev { aspect-ratio: 16 / 8.2; }
+  .tl-card--featured .tl-name { font-size: .92rem; }
+  .tl-meta { padding: 10px 46px 11px 11px; }
+  .tl-shelf-head, .tl-wall-head { margin-bottom: 9px; }
+  .tl-shelf-head .tl-shelf-title, .tl-wall-head .tl-wall-title { font-size: .95rem; }
+  .weather-page {
+    right: 0;
+    top: max(8px, env(safe-area-inset-top));
+    bottom: 0;
+    width: 100vw;
+    border-radius: 22px 22px 0 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+  .gh-overlay { align-items: flex-end; padding: 12px; }
+  .gh-overlay .gh-modal {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 20px 20px 12px 12px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 620px) {
+  .sc-modal--mixer {
+    width: 100vw;
+    max-height: calc(100dvh - max(8px, env(safe-area-inset-top)));
+    border-radius: 22px 22px 0 0;
+    margin-top: auto;
+  }
+  .sc-overlay:has(.sc-modal--mixer) { align-items: flex-end; }
+  .sc-modal--mixer .mixer-header { padding: 15px 16px 12px; }
+  .sc-modal--mixer .sound-mixer { padding: 15px 16px calc(20px + env(safe-area-inset-bottom)) !important; }
+  .mix-console { padding: 14px; border-radius: 17px; }
+  .mixer-scenes-row { grid-template-columns: minmax(0, 1fr); }
+  .mixer-scenes-hdr { align-items: flex-start; flex-direction: column; }
+  .mixer-scene-auto { align-self: stretch; justify-content: space-between; }
+  .scene-card { grid-template-columns: 46px minmax(0, 1fr); padding: 12px; }
+  .scene-art { width: 46px; height: 46px; }
+  .tl-worlds { grid-template-columns: minmax(0, 1fr); }
+  .tl-world { aspect-ratio: 16 / 6.4; }
+  .tl-card--featured { grid-column: span 2; }
+  .tl-spotlight-actions { gap: 7px; }
+  .tl-continue { flex: 1 1 auto; justify-content: center; }
+  .tl-wall-count { display: none; }
+  .weather-hero { margin: 12px 14px 0; padding: 20px 18px; }
+  .weather-hero-main { gap: 14px; }
+  .weather-condition-icon { width: 68px; height: 68px; }
+  .weather-condition-icon svg { width: 40px; height: 40px; }
+  .weather-section { padding: 20px 14px 0; }
+  .weather-page-header { padding: 14px 14px 11px; }
+  .weather-set-location-btn span { display: none; }
+  .weather-set-location-btn { padding: 0 11px; }
+  .weather-section-note { display: none; }
+  .weather-sun-times { flex-direction: column; align-items: stretch; gap: 8px; }
+  .weather-sun-time { justify-content: flex-start; }
+}
+@media (max-width: 400px) {
+  .tl-grid { grid-template-columns: minmax(0, 1fr); }
+  .tl-card--featured { grid-column: auto; }
+  .tl-card--featured .tl-prev { aspect-ratio: 16 / 9; }
+  .sc-modal.themelib .tl-head { padding: 12px 12px 10px !important; }
+  .sc-modal.themelib h2 { font-size: 1.18rem; }
+  .tl-nav { padding: 7px 12px !important; }
+  .tl-nav-item { min-height: 32px; padding: 0 12px; font-size: .76rem; }
+  .tl-main { padding: 12px 12px calc(22px + env(safe-area-inset-bottom)) !important; }
+  .tl-spotlight-content { padding: 15px; }
+  .tl-spotlight-top { gap: 10px; }
+  .tl-spotlight-mark { width: 40px; height: 32px; }
+  .sc-modal .tl-spotlight .tl-spotlight-name { font-size: 1.42rem; }
+  .tl-spotlight-tagline { display: none; }
+  .tl-recent-card { flex-basis: 138px; }
+  .mix-console-grid { gap: 8px; }
+  .mix-card { padding: 12px; }
+  .mix-card--master .mix-card-head { flex-wrap: wrap; }
+  .fade-chip { min-width: 36px; padding: 0 8px; }
+  .weather-page-header { gap: 8px; }
+  .weather-set-location-btn { width: 36px; padding: 0; justify-content: center; font-size: 0; }
+  .weather-set-location-btn svg { width: 16px; height: 16px; }
+  .weather-location-name { font-size: .92rem; }
+  .weather-hero-temp { font-size: 3.5rem; }
+  .weather-hero-meta { gap: 4px; }
+  .weather-meta-chip { font-size: .63rem; padding: 0 8px; }
+  .weather-daily-row { grid-template-columns: 42px 24px 1fr; padding: 11px 11px; }
+  .weather-daily-min, .weather-daily-max { min-width: 26px; font-size: .68rem; }
+  .gh-overlay .gh-actions { flex-direction: column; align-items: stretch; }
+  .gh-overlay .gh-actions .btn,
+  .gh-overlay .gh-actions .gh-btn-donate { width: 100%; }
+}
+@media (max-height: 660px) {
+  .weather-hero { min-height: 0; padding: 18px; }
+  .weather-condition-icon { width: 60px; height: 60px; }
+  .weather-condition-icon svg { width: 36px; height: 36px; }
+  .weather-hero-temp { font-size: 3.3rem; }
+  .tl-spotlight { min-height: 0; }
+  .tl-spotlight-tagline { display: none; }
+}
+
+/* Reduce-motion support for the V3 surfaces. The app's own "Reduce motion"
+   preference toggles body.reduced-motion, so both are covered. */
+@media (prefers-reduced-motion: reduce) {
+  .tl-reveal, .tl-reveal.is-active { animation: none; display: none; }
+  .tl-live-dot { animation: none; }
+  .tl-scene,
+  .tl-pick:hover .tl-prev .tl-scene,
+  .tl-pick:focus-visible .tl-prev .tl-scene,
+  .tl-card,
+  .tl-recent-card,
+  .tl-world,
+  .scene-card,
+  .tl-nav-item,
+  .fade-chip { transition: none; transform: none; }
+  .tl-prev::after { display: none; }
+  .weather-page { transition-duration: .01ms; }
+  .weather-hero-particles,
+  .weather-hero-particles::before,
+  .weather-hero-particles::after { animation: none !important; }
+  .mixer-vu-fill { transition: none; }
+}
+body.reduced-motion .tl-reveal,
+body.reduced-motion .tl-reveal.is-active { animation: none; display: none; }
+body.reduced-motion .tl-live-dot { animation: none; }
+body.reduced-motion .tl-scene,
+body.reduced-motion .tl-card,
+body.reduced-motion .tl-recent-card,
+body.reduced-motion .tl-world,
+body.reduced-motion .scene-card { transition: none; transform: none; }
+body.reduced-motion .weather-hero-particles,
+body.reduced-motion .weather-hero-particles::before,
+body.reduced-motion .weather-hero-particles::after { animation: none !important; }
+body.reduced-motion .mixer-vu-fill { transition: none; }

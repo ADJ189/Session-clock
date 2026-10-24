@@ -44,6 +44,14 @@ export function open(prefill = '') {
     inp.value = prefill;
     inp.focus();
     render(prefill);
+    // WebKit can decline focus in the exact frame the overlay starts to
+    // appear (e.g. while another dialog's focus is still being released).
+    // One short retry; skipped if the palette was closed in the meantime.
+    if (document.activeElement !== inp) {
+      setTimeout(() => {
+        if (_isOpen) inp.focus();
+      }, 60);
+    }
   });
 }
 
