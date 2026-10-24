@@ -361,7 +361,14 @@ let audioUnlocked = false;
 export function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
-  ensureCtx();
+  // Web Audio can be missing or blocked (some WebKit builds, Lockdown Mode,
+  // privacy settings). This runs inside the page's very first gesture, so a
+  // throw here would surface as an uncaught page error on the first click.
+  try {
+    ensureCtx();
+  } catch {
+    /* audio is optional — the rest of the app must keep working */
+  }
 }
 
 export function getAudioLevel(): number {

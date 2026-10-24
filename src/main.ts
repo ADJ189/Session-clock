@@ -955,7 +955,14 @@ setSyncHandler(updateSyncDisplay);
 let lastTs = 0,
   lastSec = -1,
   lastQKey = "",
-  _rafSkip = 0;
+  _rafSkip = 0,
+  _modalFrameTs = 0;
+// While a dialog covers the app, the clock behind it only needs to stay
+// roughly current. Running the full per-frame DOM work (digits, day-progress
+// bar, session timer) at display rate under a backdrop-filter makes the
+// browser re-blur the whole screen every frame, which starves the main
+// thread on software-rendered WebKit.
+const MODAL_FRAME_MS = 250;
 
 // Lazy-loaded literary-clock quote database — a ~300-line dataset only
 // used by one specific theme, so it's fetched on demand (kicked off as
@@ -997,8 +1004,20 @@ function renderFrame(ts: number) {
     }
   }
 
+  const modalThrottled = document.body.classList.contains("modal-open");
+  if (modalThrottled) {
+    if (ts - _modalFrameTs < MODAL_FRAME_MS) {
+      requestAnimationFrame(renderFrame);
+      return;
+    }
+    _modalFrameTs = ts;
+  }
+
   requestAnimationFrame(renderFrame);
-  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  // Normally capped at 50ms so a stalled tab can't produce a huge jump; the
+  // throttled path legitimately has ~250ms between frames, so allow that
+  // through or time-based ticks (flow intensity) would run ~5x slow.
+  const dt = Math.min((ts - lastTs) / 1000, modalThrottled ? 0.3 : 0.05);
   lastTs = ts;
 
   // FPS tracking + auto quality tier
@@ -6170,10 +6189,11 @@ function init() {
   );
 
   // ── Command Palette ───────────────────────────────────────────────────
-  Palette.initPalette();
+  // The real palette is cmdpalette.ts (#cmdOverlay, wired via Cmd.initPalette
+  // below). The legacy palette.ts has no styles, and its own Ctrl+K listener
+  // used to build a second, unstyled overlay + input on every press and race
+  // the real one for focus — so it is deliberately NOT initialised here.
   buildPaletteCommands();
-  // Expose palette open for topbar button
-  window.__scPalette = Palette;
   // Expose helpers for easter.ts cross-module access
   window.__scFps = () => getFps();
   window.__scTier = () => getTier();
