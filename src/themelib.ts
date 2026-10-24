@@ -652,7 +652,10 @@ export function open() {
   deps.openOverlay();
   // The modal lifecycle focuses the dialog on open; move to search afterwards,
   // but only with a fine pointer so phones don't pop the keyboard unasked.
+  // Guard with isOpen() to avoid focus race when Ctrl+K opens palette while
+  // this deferred callback is still pending (themelib closes, palette opens).
   setTimeout(() => {
+    if (!isOpen()) return;
     if (window.matchMedia("(pointer: fine)").matches) search.focus();
     if (query || view !== "all") {
       const active = grid.querySelector<HTMLElement>(".tl-card.active");

@@ -1016,7 +1016,10 @@ function renderFrame(ts: number) {
     setParallax(0, 0);
   }
 
-  drawBg(dt, currentTheme, Intel.getFlowIntensity());
+  // Skip background rendering while a full-screen modal is open.
+  if (!document.body.classList.contains("modal-open")) {
+    drawBg(dt, currentTheme, Intel.getFlowIntensity());
+  }
 
   // Tick flow intensity
   Intel.tickFlowIntensity(sessionRunning, dt);
@@ -1657,6 +1660,8 @@ function onModalOpened(overlay: HTMLElement) {
     startMixerMeter();
     applyMixerNightMode();
   }
+  // Pause background rendering while a full-screen modal is open.
+  if (overlay.classList.contains("fullscreen")) document.body.classList.add("modal-open");
 }
 
 function onModalClosed(overlay: HTMLElement) {
@@ -1670,6 +1675,8 @@ function onModalClosed(overlay: HTMLElement) {
   const focusLost =
     !active || active === document.body || overlay.contains(active);
   if (ret && ret.isConnected && focusLost) ret.focus({ preventScroll: true });
+  // Resume background rendering.
+  if (overlay.classList.contains("fullscreen")) document.body.classList.remove("modal-open");
 }
 
 function trapModalTab(e: KeyboardEvent, overlay: HTMLElement) {
