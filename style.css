@@ -789,6 +789,17 @@ body.theme-flash::after {
     visibility 0s linear 0s;
 }
 
+/* Pause ambient animations while a full-screen modal is open so
+   WebKit can present stable frames for Playwright actionability. */
+body.modal-open *, 
+body.modal-open *::before, 
+body.modal-open *::after {
+  animation-play-state: paused !important;
+}
+body.modal-open .sc-overlay.open * { 
+  animation-play-state: running !important; 
+}
+
 .sc-modal {
   background: var(--clr-panel, rgba(14,12,30,.92));
   border: 1px solid rgba(255,255,255,.1);
