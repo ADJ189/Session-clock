@@ -297,7 +297,7 @@ function resetTimer() {
 
     // Smart break recommendation
     const sessionMins = Math.floor(dur / 60000);
-    const distractionCount = parseInt(
+    const distractionCount = Number.parseInt(
       localStorage.getItem("sc_distraction_today") ?? "0",
     );
     const smartBreak = Features.calcSmartBreak(
@@ -822,7 +822,7 @@ let applyingRemoteTheme = false;
 
 /** Expand a single hex nibble (`f`) to its two-digit form (`ff`). */
 function expandHexPair(ch: string): number {
-  return parseInt(ch + ch, 16);
+  return Number.parseInt(ch + ch, 16);
 }
 
 /** sRGB 8-bit channel → linear-light value, per WCAG 2.x. */
@@ -848,9 +848,9 @@ function relativeLuminance(color: string): number {
       g = expandHexPair(hex.charAt(1));
       b = expandHexPair(hex.charAt(2));
     } else if (hex.length >= 6) {
-      r = parseInt(hex.slice(0, 2), 16);
-      g = parseInt(hex.slice(2, 4), 16);
-      b = parseInt(hex.slice(4, 6), 16);
+      r = Number.parseInt(hex.slice(0, 2), 16);
+      g = Number.parseInt(hex.slice(2, 4), 16);
+      b = Number.parseInt(hex.slice(4, 6), 16);
     }
   } else {
     const parts = value.match(/[\d.]+/g);
@@ -921,7 +921,7 @@ function applyTheme(theme: Theme, instant = false) {
       ? theme.accent
           .slice(1)
           .match(/.{2}/g)!
-          .map((h) => parseInt(h, 16))
+          .map((h) => Number.parseInt(h, 16))
           .join(",")
       : "110,231,183";
     cssVar("--clr-accent-rgb", accentRgb);
@@ -2080,7 +2080,7 @@ let zenSoundStartedByZen = false;
 
 function getZenDimDelayMs(): number {
   const v = localStorage.getItem("sc_zen_dim_delay");
-  return v ? parseInt(v, 10) : 2500;
+  return v ? Number.parseInt(v, 10) : 2500;
 }
 
 function toggleZen() {
@@ -3018,12 +3018,12 @@ const rgbaToHex = (s: string): string => {
   return m
     ? "#" +
         [m[0], m[1], m[2]]
-          .map((v) => parseInt(v).toString(16).padStart(2, "0"))
+          .map((v) => Number.parseInt(v).toString(16).padStart(2, "0"))
           .join("")
     : "#ffffff";
 };
 const hexToRgb = (h: string): [number, number, number] => {
-  const v = parseInt(h.slice(1), 16);
+  const v = Number.parseInt(h.slice(1), 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 };
 const hexToHsl = (h: string): [number, number, number] => {
@@ -3345,7 +3345,7 @@ function buildColorRows() {
   );
   inputRow.appendChild(
     makeValueInput("RGB", "picker-rgb", `${ar}, ${ag_}, ${ab}`, (v) => {
-      const parts = v.split(",").map((s) => parseInt(s.trim()));
+      const parts = v.split(",").map((s) => Number.parseInt(s.trim()));
       if (
         parts.length === 3 &&
         parts.every((p) => !isNaN(p) && p >= 0 && p <= 255)
@@ -4217,7 +4217,7 @@ function buildSettingsUI(activeTab = "general") {
       opt.value = String(m);
       opt.textContent = `${m} min`;
       if (
-        parseInt(localStorage.getItem("sc_break_reminder_mins") || "90", 10) ===
+        Number.parseInt(localStorage.getItem("sc_break_reminder_mins") || "90", 10) ===
         m
       )
         opt.selected = true;
@@ -4789,7 +4789,7 @@ function applyHandoffState() {
     DOM.focusInput.value = task;
   }
   if (p.get("ses") === "1") {
-    const elapsed = parseInt(p.get("elapsed") ?? "0");
+    const elapsed = Number.parseInt(p.get("elapsed") ?? "0");
     sessionElapsed = elapsed;
     setTimeout(() => DOM.btnStart.click(), 800); // auto-resume
   } else if (p.get("start") === "1") {
@@ -5289,7 +5289,7 @@ function resetMilestones() {
 let breakBadgeShown = false;
 
 function getBreakReminderMins(): number {
-  const v = parseInt(
+  const v = Number.parseInt(
     localStorage.getItem("sc_break_reminder_mins") || "90",
     10,
   );
@@ -5439,7 +5439,7 @@ function initWallpaperDrop() {
 
 function lightenHex(hex: string, amt: number): string {
   if (!hex.startsWith("#")) return hex;
-  const n = parseInt(hex.slice(1), 16);
+  const n = Number.parseInt(hex.slice(1), 16);
   const r = Math.min(255, Math.round(((n >> 16) & 0xff) + 255 * amt));
   const g = Math.min(255, Math.round(((n >> 8) & 0xff) + 255 * amt));
   const b = Math.min(255, Math.round((n & 0xff) + 255 * amt));
@@ -5448,7 +5448,7 @@ function lightenHex(hex: string, amt: number): string {
 
 function darkenHex2(hex: string, amt: number): string {
   if (!hex.startsWith("#")) return hex;
-  const n = parseInt(hex.slice(1), 16);
+  const n = Number.parseInt(hex.slice(1), 16);
   const r = Math.max(0, Math.round(((n >> 16) & 0xff) * (1 - amt)));
   const g = Math.max(0, Math.round(((n >> 8) & 0xff) * (1 - amt)));
   const b = Math.max(0, Math.round((n & 0xff) * (1 - amt)));
@@ -6789,16 +6789,26 @@ function init() {
   const countdownContent = document.getElementById("countdownContent");
   if (countdownContent) {
     Features.buildCountdownUI(countdownContent, (label, target) => {
-      Features.setCountdownTarget(label, target, (display, done) => {
-        if (done) {
+      Features.setCountdownTarget(
+        label,
+        target,
+        (display, done) => {
+          if (done) {
+            countdownText = null;
+            refreshContextPill();
+            showToast(`⏳ ${display}`, 5000);
+            return;
+          }
+          countdownText = display;
+          refreshContextPill();
+        },
+        () => {
+          // Cancelled by the user — drop the cached text so the top bar
+          // returns to theme / focus status instead of a frozen countdown.
           countdownText = null;
           refreshContextPill();
-          showToast(`⏳ ${display}`, 5000);
-          return;
-        }
-        countdownText = display;
-        refreshContextPill();
-      });
+        },
+      );
       showToast(`⏳ Counting down to ${label}`);
     });
   }
@@ -6827,7 +6837,7 @@ function init() {
     MusicDock.getProviderPref() !== "youtube" &&
     Integrations.isSpotifyConnected()
   )
-    MusicDock.initSpotifyPlayback();
+    void MusicDock.initSpotifyPlayback();
   // Handle OAuth redirect callbacks — one handler for every provider
   // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here
   // with ?code=&state=<provider>:<nonce>).
@@ -6853,7 +6863,7 @@ function init() {
           MusicDock.isMusicDeckEnabled() &&
           MusicDock.getProviderPref() !== "youtube"
         )
-          MusicDock.initSpotifyPlayback().then(() =>
+          void MusicDock.initSpotifyPlayback().then(() =>
             MusicDock.refreshDockConnectionState(),
           );
         // Same reasoning for Google: the "Connect YouTube" click that

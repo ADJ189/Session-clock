@@ -84,6 +84,7 @@ function safeHttpsUrl(url: string | undefined | null): string {
 
 let sdkReady: Promise<void> | null = null;
 let player: SpotifyPlayerLike | null = null;
+let spotifyInitPromise: Promise<boolean> | null = null;
 let deviceId: string | null = null;
 let pipWindow: Window | null = null;
 let dockEl: HTMLElement | null = null;
@@ -135,11 +136,23 @@ async function getSpotifyToken(): Promise<string | null> {
  * already connected). Safe to call multiple times — no-ops if already
  * initialized or not connected.
  */
-export async function initSpotifyPlayback(): Promise<boolean> {
-  if (!Integrations.isSpotifyConnected()) return false;
-  if (player) return true;
+export function initSpotifyPlayback(): Promise<boolean> {
+  if (!Integrations.isSpotifyConnected()) return Promise.resolve(false);
+  if (player) return Promise.resolve(true);
+  // Share one in-flight initialization so concurrent callers (provider
+  // switch + "Both", startup, OAuth callback) never create two players.
+  if (!spotifyInitPromise) {
+    spotifyInitPromise = createSpotifyPlayer().finally(() => {
+      spotifyInitPromise = null;
+    });
+  }
+  return spotifyInitPromise;
+}
 
+async function createSpotifyPlayer(): Promise<boolean> {
   await loadSpotifySdk();
+  // Re-check: another path may have finished while the SDK was loading.
+  if (player) return true;
 
   const SpotifyPlayer = window.Spotify?.Player;
   if (!SpotifyPlayer) return false;

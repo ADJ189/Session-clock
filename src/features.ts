@@ -847,22 +847,36 @@ export function shouldSuggestDayNightTheme(currentThemeId: string): boolean {
 let _countdownTarget: Date | null = null;
 let _countdownLabel = "";
 let _countdownCb: ((display: string, done: boolean) => void) | null = null;
+let _countdownOnClear: (() => void) | null = null;
 
 export function setCountdownTarget(
   label: string,
   target: Date,
   cb: (display: string, done: boolean) => void,
+  onClear?: () => void,
 ) {
+  // Replacing an active countdown: let the old owner reset its cached state.
+  const prevOnClear = _countdownOnClear;
   _countdownLabel = label;
   _countdownTarget = target;
   _countdownCb = cb;
+  _countdownOnClear = onClear ?? null;
+  if (prevOnClear && prevOnClear !== onClear) prevOnClear();
   tickCountdown();
 }
 
-export function clearCountdown() {
+function resetCountdownState() {
   _countdownTarget = null;
   _countdownLabel = "";
   _countdownCb = null;
+  _countdownOnClear = null;
+}
+
+/** User-initiated cancel: drops the countdown and notifies its owner. */
+export function clearCountdown() {
+  const onClear = _countdownOnClear;
+  resetCountdownState();
+  onClear?.();
 }
 
 export function tickCountdown() {
@@ -870,7 +884,7 @@ export function tickCountdown() {
   const diff = _countdownTarget.getTime() - Date.now();
   if (diff <= 0) {
     _countdownCb("Time is up! — " + _countdownLabel, true);
-    clearCountdown();
+    resetCountdownState();
     return;
   }
   const d = Math.floor(diff / 86400000);
