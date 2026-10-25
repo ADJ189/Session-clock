@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: 2026-08-28**
+**Last updated: 2026-10-25**
 
 > This document is mirrored inside the app itself — Settings → Privacy → Legal → Privacy Policy (`src/legal.ts`). If you edit one, please update the other.
 
@@ -27,7 +27,7 @@ Some features are entirely opt-in and only activate if you explicitly connect th
 
 When you do connect one, authentication uses the provider's standard OAuth flow (PKCE where supported). For providers that require a client secret (Notion, GitHub, Todoist, Linear), the token exchange is relayed through a small, stateless Cloudflare Pages Function (`functions/api/oauth/token.ts`, `functions/api/notion/[[path]].ts`) that we run — it passes the exchange through and does not log, store, or retain your tokens or any response data. Access tokens themselves are then kept only in your browser's local storage, the same as everything else.
 
-Enabling **Privacy Mode** in Settings disables weather lookups, time sync, and Google Fonts loading, so the app runs fully offline-capable with zero outbound requests beyond loading the app itself.
+Enabling **Privacy Mode** in Settings disables weather lookups and Google Fonts loading, so the app runs fully offline-capable with zero outbound requests beyond loading the app itself.
 
 ## Incognito sessions & auto-clear
 

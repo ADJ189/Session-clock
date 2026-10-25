@@ -12,7 +12,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-clean-16a34a?style=flat-square)](https://github.com/ADJ189/Session-clock/security)
 
-<img src="public/preview.png" width="900" alt="Session Clock app preview — Good Night clock view, session timer, and the Spotify/YouTube music dock" />
+<img src="public/preview.png" width="900" alt="Session Clock app preview — a centred clock, a compact session timer, and the optional music dock" />
 
 [**Open App →**](https://accurate-time.pages.dev/)&nbsp;&nbsp;·&nbsp;&nbsp;[**Wiki →**](https://github.com/ADJ189/Session-clock/wiki)&nbsp;&nbsp;·&nbsp;&nbsp;[Issues](https://github.com/ADJ189/Session-clock/issues)
 
@@ -26,6 +26,7 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 |---|---|
 | **Themes** | 103 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
 | **Sound Mixer** | 17 synthesized ambient tracks · crossfade scenes · night mode · live VU meter |
+| **Music** | Opt-in player, hidden by default · YouTube-first · Spotify only when selected |
 | **Now Playing** | Matches ~30 soundtracks against Spotify (or any player, manually) and switches theme |
 | **Modes** | Pomodoro (fully custom cycles) · **Zen** · **Calm** · **Focus** · Kiosk · PiP · Voice |
 | **Intelligence** | Streaks · Velocity · **Flow Intensity** · Configurable break reminders |
