@@ -4070,6 +4070,12 @@ function buildSettingsUI(activeTab = "general") {
       MusicDock.setProviderPref(
         providerSelect.value as MusicDock.MusicProviderPref,
       );
+      if (
+        MusicDock.isMusicDeckEnabled() &&
+        MusicDock.getProviderPref() !== "youtube" &&
+        Integrations.isSpotifyConnected()
+      )
+        void MusicDock.initSpotifyPlayback();
       showToast(`Music panel: ${providerSelect.selectedOptions[0]?.textContent}`);
     });
     providerRow.append(providerInfo, providerSelect);
