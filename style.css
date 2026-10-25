@@ -3019,7 +3019,11 @@ body.clock-center.center-minimal .session-timer {
 }
 body.clock-center.center-minimal .session-controls {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  /* Primary action gets its own full-width row; Reset and the pomodoro
+     toggle share the row beneath. A three-across row left each text
+     button ~100px on tablets/phones, which clipped "Begin Session" in
+     Firefox and WebKit (their text metrics are wider than Blink's). */
+  grid-template-columns: 1fr auto;
   gap: 6px;
   width: 100%;
   margin: 0;
@@ -3079,18 +3083,12 @@ body.clock-center.center-minimal #btnPomToggle {
     bottom: auto;
   }
 }
-/* Desktop Center sidebar: the card is intentionally narrow (<=260px), which
-   left each of the two text buttons only ~77px and clipped "Begin Session".
-   Give the primary action a full-width row and pair Reset with the pomodoro
-   toggle underneath; this also accommodates longer translations. */
-@media (min-width: 1025px) {
-  body.clock-center.center-minimal .session-controls {
-    grid-template-columns: 1fr auto;
-  }
-  body.clock-center.center-minimal #btnStart { grid-column: 1 / -1; }
-  body.clock-center.center-minimal #btnReset { grid-column: 1 / 2; }
-  body.clock-center.center-minimal #btnPomToggle { grid-column: 2 / -1; }
-}
+/* Primary action spans the full row at every width (the desktop sidebar is
+   only ~236px wide; the tablet/phone card is ~300px). Reset pairs with the
+   pomodoro toggle underneath, which also accommodates longer translations. */
+body.clock-center.center-minimal #btnStart { grid-column: 1 / -1; }
+body.clock-center.center-minimal #btnReset { grid-column: 1 / 2; }
+body.clock-center.center-minimal #btnPomToggle { grid-column: 2 / -1; }
 @media (min-width: 721px) and (max-height: 620px) {
   body.clock-center.center-minimal .session-card {
     top: auto;
