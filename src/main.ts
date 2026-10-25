@@ -1022,6 +1022,7 @@ function applyTheme(theme: Theme, instant = false) {
 // network time synchronisation. Updates are throttled to the once-per-second
 // UI tick, so it never cycles rapidly.
 let countdownText: string | null = null;
+let lunarTooltipSuffix = "";
 function contextPillLabel(): string {
   if (Easter.isSiderealMode()) {
     return Easter.getSiderealTime(window.__scLat ?? 0);
@@ -1041,9 +1042,12 @@ function refreshContextPill() {
   const pill = DOM.contextPill;
   if (!pill) return;
   pill.textContent = contextPillLabel();
-  pill.title = sessionRunning
-    ? "Local session status · device clock"
-    : `${currentTheme.name} · device clock`;
+  const title = Easter.isSiderealMode()
+    ? "Local Sidereal Time — astronomical measure"
+    : sessionRunning
+      ? "Local session status · device clock"
+      : `${currentTheme.name} · device clock`;
+  pill.title = lunarTooltipSuffix ? `${title} · ${lunarTooltipSuffix}` : title;
 }
 
 // ── Render loop ────────────────────────────────────────────────────────
@@ -6715,7 +6719,7 @@ function init() {
   const weatherPillEl = document.getElementById("weatherPill");
   if (weatherPillEl) {
     weatherPillEl.addEventListener("click", () => {
-      openWeatherPage();
+      openWeatherPage(weatherPillEl);
     });
   }
 
@@ -6925,13 +6929,8 @@ function init() {
     // Lunar phase in the contextual tab tooltip
     setTimeout(() => {
       const lunar = Features.getLunarPhase();
-      const contextPill = DOM.contextPill;
-      if (contextPill) {
-        const existing = contextPill.title;
-        if (!existing.includes(lunar.emoji)) {
-          contextPill.title = `${existing ? existing + " · " : ""}${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
-        }
-      }
+      lunarTooltipSuffix = `${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
+      refreshContextPill();
     }, 2000);
   }
 

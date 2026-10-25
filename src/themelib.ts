@@ -63,7 +63,7 @@ export function sanitizeIds(raw: unknown, max = Infinity): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const v of raw) {
-    if (typeof v !== "string" || seen.has(v) || !THEME_BY_ID[v]) continue;
+    if (typeof v !== "string" || seen.has(v) || !Object.prototype.hasOwnProperty.call(THEME_BY_ID, v)) continue;
     seen.add(v);
     out.push(v);
     if (out.length >= max) break;

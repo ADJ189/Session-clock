@@ -62,6 +62,8 @@ export const DATA_CATEGORIES: DataCategory[] = [
       "sc_last_theme",
       "sc_theme_favs_v1",
       "sc_theme_recent_v1",
+      "sc_music_deck",
+      "sc_music_providers",
       "sc_clock_mode",
       "sc_clock_pos",
       "sc_clock_pos_map",

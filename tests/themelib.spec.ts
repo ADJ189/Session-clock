@@ -13,7 +13,8 @@ type PwPage = import("@playwright/test").Page;
 /**
  * Resolves once every *finite* animation/transition on the overlay and its
  * descendants has finished. Infinite ones (e.g. the "live" pulse dot) are
- * ignored — they never finish and don't move anything we click.
+ * ignored — they never finish and don't move anything we click. Paused or
+ * otherwise stuck finite animations are capped at 1.5 seconds.
  */
 const settled = (page: PwPage, selector: string) =>
   page.evaluate(async (sel) => {
@@ -28,7 +29,15 @@ const settled = (page: PwPage, selector: string) =>
         return typeof end === "number" && Number.isFinite(end);
       })
       .map((a) => a.finished.catch(() => undefined));
-    await Promise.all(pending);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all(pending),
+        new Promise<void>((resolve) => { timer = setTimeout(resolve, 1500); }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   }, selector);
 
 const open = async (page: PwPage) => {
@@ -110,7 +119,7 @@ test.describe("theme library", () => {
   test("ignores malformed, unknown and duplicate saved ids", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("sc_theme_favs_v1", "{not json");
-      localStorage.setItem("sc_theme_recent_v1", '["ghost","severance",5,"severance"]');
+      localStorage.setItem("sc_theme_recent_v1", '["ghost","constructor","toString","__proto__","severance",5,"severance"]');
     });
     await open(page);
     await page.locator('.tl-nav-item[data-view="recent"]').click();
@@ -119,7 +128,8 @@ test.describe("theme library", () => {
     const ids = await page.locator(".tl-card").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.id));
     expect(ids).toContain("severance");
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).not.toContain("ghost");
+    for (const invalid of ["ghost", "constructor", "toString", "__proto__"])
+      expect(ids).not.toContain(invalid);
     await page.locator('.tl-nav-item[data-view="favs"]').click();
     await expect(page.locator(".tl-empty-title")).toHaveText("No favourites yet");
   });

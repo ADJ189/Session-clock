@@ -158,6 +158,7 @@ interface SpotifyPlayerLike {
     cb: (s: SpotifyPlaybackStateLike | null) => void,
   ): void;
   connect(): Promise<boolean>;
+  disconnect(): void;
   togglePlay(): Promise<void>;
   nextTrack(): Promise<void>;
   previousTrack(): Promise<void>;

@@ -60,6 +60,13 @@ export function getProviderPref(): MusicProviderPref {
 }
 export function setMusicDeckEnabled(on: boolean): void {
   safeSet(MUSIC_DECK_KEY, on ? "1" : "0");
+  if (!on) {
+    player?.disconnect();
+    player = null;
+    deviceId = null;
+    spotifyInitGeneration++;
+    spotifyInitPromise = null;
+  }
   syncMount();
 }
 export function setProviderPref(pref: MusicProviderPref): void {
@@ -85,6 +92,7 @@ function safeHttpsUrl(url: string | undefined | null): string {
 let sdkReady: Promise<void> | null = null;
 let player: SpotifyPlayerLike | null = null;
 let spotifyInitPromise: Promise<boolean> | null = null;
+let spotifyInitGeneration = 0;
 let deviceId: string | null = null;
 let pipWindow: Window | null = null;
 let dockEl: HTMLElement | null = null;
@@ -137,20 +145,23 @@ async function getSpotifyToken(): Promise<string | null> {
  * initialized or not connected.
  */
 export function initSpotifyPlayback(): Promise<boolean> {
-  if (!Integrations.isSpotifyConnected()) return Promise.resolve(false);
+  if (!isMusicDeckEnabled() || !Integrations.isSpotifyConnected())
+    return Promise.resolve(false);
   if (player) return Promise.resolve(true);
   // Share one in-flight initialization so concurrent callers (provider
   // switch + "Both", startup, OAuth callback) never create two players.
   if (!spotifyInitPromise) {
-    spotifyInitPromise = createSpotifyPlayer().finally(() => {
-      spotifyInitPromise = null;
+    const pending = createSpotifyPlayer(spotifyInitGeneration).finally(() => {
+      if (spotifyInitPromise === pending) spotifyInitPromise = null;
     });
+    spotifyInitPromise = pending;
   }
   return spotifyInitPromise;
 }
 
-async function createSpotifyPlayer(): Promise<boolean> {
+async function createSpotifyPlayer(generation: number): Promise<boolean> {
   await loadSpotifySdk();
+  if (!isMusicDeckEnabled() || generation !== spotifyInitGeneration) return false;
   // Re-check: another path may have finished while the SDK was loading.
   if (player) return true;
 
@@ -169,13 +180,13 @@ async function createSpotifyPlayer(): Promise<boolean> {
   player = sdkPlayer;
 
   sdkPlayer.addListener("ready", ({ device_id }) => {
-    deviceId = device_id;
+    if (player === sdkPlayer) deviceId = device_id;
   });
   sdkPlayer.addListener("not_ready", () => {
-    deviceId = null;
+    if (player === sdkPlayer) deviceId = null;
   });
   sdkPlayer.addListener("player_state_changed", (s) => {
-    if (!s) return;
+    if (player !== sdkPlayer || !s) return;
     const track = s.track_window?.current_track;
     state.title = track?.name ?? "";
     state.artist = (track?.artists ?? []).map((a) => a.name).join(", ");
@@ -187,20 +198,26 @@ async function createSpotifyPlayer(): Promise<boolean> {
   });
 
   const connected = await sdkPlayer.connect();
+  if (player !== sdkPlayer) {
+    sdkPlayer.disconnect();
+    return false;
+  }
   return !!connected;
 }
 
 async function transferPlaybackHere(): Promise<void> {
-  if (!deviceId) return;
+  if (!isMusicDeckEnabled() || !deviceId) return;
+  const targetPlayer = player;
+  const targetDeviceId = deviceId;
   const token = await getSpotifyToken();
-  if (!token) return;
+  if (!token || !isMusicDeckEnabled() || player !== targetPlayer) return;
   await fetch("https://api.spotify.com/v1/me/player", {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ device_ids: [deviceId], play: true }),
+    body: JSON.stringify({ device_ids: [targetDeviceId], play: true }),
   });
 }
 
@@ -250,11 +267,13 @@ export async function notifyFocusPhase(
   phase: "work" | "break" | "idle",
   active: boolean,
 ): Promise<void> {
-  if (!isAutoSyncEnabled() || !player) return;
+  if (!isMusicDeckEnabled() || !isAutoSyncEnabled() || !player) return;
+  const activePlayer = player;
   if (phase === "work" && active) {
     if (!deviceId) return;
     await transferPlaybackHere();
-    await player.resume();
+    if (isMusicDeckEnabled() && player === activePlayer)
+      await activePlayer.resume();
   } else if (!active || phase === "break") {
     await player.pause();
   }

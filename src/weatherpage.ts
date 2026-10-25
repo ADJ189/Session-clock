@@ -20,6 +20,7 @@ import {
   didWeatherFail,
 } from "./weather";
 import { fetchWithTimeout } from "./utils";
+import { t, type Strings } from "./i18n";
 
 let _privacyCheck: () => boolean = () => false;
 let _onWeatherUpdate:
@@ -93,8 +94,33 @@ const SUNSET_SVG =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18M6 18a6 6 0 0 1 12 0M12 6v3M5.6 10.6l1.4-1.4M18.4 10.6 17 9.2"/></svg>';
 
 
+let locationReturnFocus: HTMLElement | null = null;
+let weatherReturnFocus: HTMLElement | null = null;
+
+function openLocationPanel(overlay: HTMLElement, trigger: HTMLElement | null) {
+  const panel = overlay.querySelector<HTMLElement>("#weatherLocationPanel")!;
+  if (!panel.classList.contains("open")) locationReturnFocus = trigger;
+  panel.inert = false;
+  panel.removeAttribute("aria-hidden");
+  panel.classList.add("open");
+  panel.querySelector<HTMLInputElement>("#weatherLocSearch")!.focus({ preventScroll: true });
+}
+
+function closeLocationPanel(overlay: HTMLElement, restoreFocus = true) {
+  const panel = overlay.querySelector<HTMLElement>("#weatherLocationPanel")!;
+  if (!panel.classList.contains("open")) return;
+  panel.classList.remove("open");
+  if (restoreFocus && locationReturnFocus?.isConnected)
+    locationReturnFocus.focus({ preventScroll: true });
+  locationReturnFocus = null;
+  panel.inert = true;
+  panel.setAttribute("aria-hidden", "true");
+}
+
 // ── Open the weather page overlay ─────────────────────────────────────
-export function openWeatherPage() {
+export function openWeatherPage(trigger?: HTMLElement) {
+  weatherReturnFocus = trigger ?? (document.activeElement instanceof HTMLElement
+    ? document.activeElement : null);
   let overlay = document.getElementById("weatherPageOverlay");
   if (!overlay) {
     overlay = buildWeatherPageDOM();
@@ -103,20 +129,24 @@ export function openWeatherPage() {
   overlay.classList.add("open");
   renderWeatherPage(overlay as HTMLElement);
   window.addEventListener("sc-weather-update", handleWeatherUpdate);
+  window.addEventListener("sc:locale", handleWeatherUpdate);
 
   // No location yet — go straight to the picker dialog instead of
   // leaving the user staring at an empty hero section.
   if (!getStoredLocation()) {
-    (
-      overlay.querySelector("#weatherLocationPanel") as HTMLElement
-    )?.classList.add("open");
+    openLocationPanel(overlay, weatherReturnFocus && weatherReturnFocus !== document.body
+      ? weatherReturnFocus : overlay.querySelector<HTMLElement>("#weatherSetLocationBtn"));
   }
 }
 
 export function closeWeatherPage() {
   const overlay = document.getElementById("weatherPageOverlay");
+  if (overlay) closeLocationPanel(overlay, false);
   overlay?.classList.remove("open");
+  if (weatherReturnFocus?.isConnected) weatherReturnFocus.focus({ preventScroll: true });
+  weatherReturnFocus = null;
   window.removeEventListener("sc-weather-update", handleWeatherUpdate);
+  window.removeEventListener("sc:locale", handleWeatherUpdate);
 }
 
 function handleWeatherUpdate() {
@@ -134,17 +164,17 @@ function buildWeatherPageDOM(): HTMLElement {
     <div class="weather-page" id="weatherPageInner">
       <div class="weather-page-bg" id="weatherPageBg"></div>
       <header class="weather-page-header">
-        <button class="weather-close-btn" id="weatherCloseBtn" aria-label="Close weather">
+        <button class="weather-close-btn" id="weatherCloseBtn" data-weather-label="weatherClose" aria-label="${t().weatherClose}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
         <div class="weather-page-location">
-          <span class="weather-page-kicker">Weather Room</span>
+          <span class="weather-page-kicker" data-weather-text="weatherRoom">${t().weatherRoom}</span>
           <span class="weather-location-name" id="weatherLocationName">—</span>
           <span class="weather-location-time" id="weatherLocationTime"></span>
         </div>
-        <button class="weather-set-location-btn" id="weatherSetLocationBtn" title="Set location" aria-label="Set weather location">
+        <button class="weather-set-location-btn" id="weatherSetLocationBtn" data-weather-title="weatherSetLocation" title="${t().weatherSetLocation}" data-weather-label="weatherSetLocationLabel" aria-label="${t().weatherSetLocationLabel}">
           ${PIN_SVG}
-          Set location
+          <span data-weather-text="weatherSetLocation">${t().weatherSetLocation}</span>
         </button>
       </header>
 
@@ -152,16 +182,16 @@ function buildWeatherPageDOM(): HTMLElement {
         <div class="weather-hero" id="weatherHero">
           <div class="weather-hero-particles" id="weatherHeroParticles"></div>
           <div class="weather-hero-copy">
-            <span class="weather-hero-kicker" id="weatherHeroKicker">Current conditions</span>
+            <span class="weather-hero-kicker" id="weatherHeroKicker" data-weather-text="weatherCurrentConditions">${t().weatherCurrentConditions}</span>
             <div class="weather-hero-main">
               <span class="weather-condition-icon" id="weatherConditionIcon">${weatherIconSvg(null, 64)}</span>
               <div class="weather-hero-reading">
                 <div class="weather-hero-temp" id="weatherHeroTemp">--°</div>
-                <div class="weather-hero-desc" id="weatherHeroDesc">Loading…</div>
+                <div class="weather-hero-desc" id="weatherHeroDesc" data-weather-text="weatherLoading">${t().weatherLoading}</div>
               </div>
             </div>
             <div class="weather-hero-meta" id="weatherHeroMeta">
-              <span class="weather-meta-chip" id="weatherFeels">Feels like --°</span>
+              <span class="weather-meta-chip" id="weatherFeels">${t().weatherFeelsLike.replace("{temp}", "--")}</span>
               <span class="weather-meta-chip" id="weatherWind">-- km/h</span>
               <span class="weather-meta-chip" id="weatherHumidity">--%</span>
             </div>
@@ -171,10 +201,10 @@ function buildWeatherPageDOM(): HTMLElement {
         <div class="weather-section weather-section--hourly">
           <div class="weather-section-head">
             <div>
-              <span class="weather-section-eyebrow">Next 24 hours</span>
-              <h3 class="weather-section-label">Hour by hour</h3>
+              <span class="weather-section-eyebrow" data-weather-text="weatherNext24Hours">${t().weatherNext24Hours}</span>
+              <h3 class="weather-section-label" data-weather-text="weatherHourly">${t().weatherHourly}</h3>
             </div>
-            <span class="weather-section-note">Swipe to explore</span>
+            <span class="weather-section-note" data-weather-text="weatherSwipe">${t().weatherSwipe}</span>
           </div>
           <div class="weather-hourly-strip" id="weatherHourlyStrip"></div>
         </div>
@@ -182,8 +212,8 @@ function buildWeatherPageDOM(): HTMLElement {
         <div class="weather-section weather-section--sun">
           <div class="weather-section-head">
             <div>
-              <span class="weather-section-eyebrow">Daylight</span>
-              <h3 class="weather-section-label">Sun path</h3>
+              <span class="weather-section-eyebrow" data-weather-text="weatherDaylight">${t().weatherDaylight}</span>
+              <h3 class="weather-section-label" data-weather-text="weatherSunPath">${t().weatherSunPath}</h3>
             </div>
           </div>
           <div class="weather-sun-arc-wrap">
@@ -195,8 +225,8 @@ function buildWeatherPageDOM(): HTMLElement {
         <div class="weather-section weather-section--daily">
           <div class="weather-section-head">
             <div>
-              <span class="weather-section-eyebrow">The week ahead</span>
-              <h3 class="weather-section-label">7-day forecast</h3>
+              <span class="weather-section-eyebrow" data-weather-text="weatherWeekAhead">${t().weatherWeekAhead}</span>
+              <h3 class="weather-section-label" data-weather-text="weatherDailyForecast">${t().weatherDailyForecast}</h3>
             </div>
           </div>
           <div class="weather-daily-list" id="weatherDailyList"></div>
@@ -205,37 +235,37 @@ function buildWeatherPageDOM(): HTMLElement {
         <div class="weather-section weather-section--theme-control">
           <div class="weather-theme-toggle-row">
             <div class="weather-theme-toggle-info">
-              <span class="weather-theme-toggle-label">Weather-adaptive theme</span>
-              <span class="weather-theme-toggle-desc">Subtly blend the current conditions into your theme — a tint, never a theme switch.</span>
+              <span class="weather-theme-toggle-label" data-weather-text="weatherAdaptiveTheme">${t().weatherAdaptiveTheme}</span>
+              <span class="weather-theme-toggle-desc" data-weather-text="weatherAdaptiveThemeDesc">${t().weatherAdaptiveThemeDesc}</span>
             </div>
-            <button class="settings-toggle" id="weatherThemeToggle" aria-label="Weather-adaptive theme" aria-pressed="true"></button>
+            <button class="settings-toggle" id="weatherThemeToggle" data-weather-label="weatherAdaptiveTheme" aria-label="${t().weatherAdaptiveTheme}" aria-pressed="true"></button>
           </div>
         </div>
       </div>
 
-      <div class="weather-location-panel" id="weatherLocationPanel" role="dialog" aria-modal="true" aria-labelledby="weatherLocTitle">
+      <div class="weather-location-panel" id="weatherLocationPanel" inert aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="weatherLocTitle">
         <div class="weather-location-panel-header">
           <div>
-            <span class="weather-section-eyebrow">Forecast source</span>
-            <span id="weatherLocTitle">Set location</span>
+            <span class="weather-section-eyebrow" data-weather-text="weatherForecastSource">${t().weatherForecastSource}</span>
+            <span id="weatherLocTitle" data-weather-text="weatherSetLocation">${t().weatherSetLocation}</span>
           </div>
-          <button class="weather-loc-cancel" id="weatherLocCancel">Done</button>
+          <button class="weather-loc-cancel" id="weatherLocCancel" data-weather-text="weatherDone">${t().weatherDone}</button>
         </div>
         <div class="weather-loc-options">
           <div class="weather-loc-search-wrap">
             <svg class="weather-loc-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input class="weather-loc-search" id="weatherLocSearch" type="text" placeholder="Search for a city…" aria-label="Search for a city" autocomplete="off" spellcheck="false">
+            <input class="weather-loc-search" id="weatherLocSearch" type="text" data-weather-placeholder="weatherSearchPlaceholder" placeholder="${t().weatherSearchPlaceholder}" data-weather-label="weatherSearchLabel" aria-label="${t().weatherSearchLabel}" autocomplete="off" spellcheck="false">
           </div>
           <div class="weather-loc-results" id="weatherLocResults"></div>
-          <div class="weather-loc-sep"><span>or</span></div>
+          <div class="weather-loc-sep"><span data-weather-text="weatherOr">${t().weatherOr}</span></div>
           <button class="weather-loc-btn" id="weatherLocGPS">
             <span class="weather-loc-icon">${GPS_SVG}</span>
             <span>
-              <span class="weather-loc-btn-label">Use my current location</span>
-              <span class="weather-loc-btn-sub">Only asks for GPS after you choose this</span>
+              <span class="weather-loc-btn-label" data-weather-text="weatherUseLocation">${t().weatherUseLocation}</span>
+              <span class="weather-loc-btn-sub" data-weather-text="weatherGPSHint">${t().weatherGPSHint}</span>
             </span>
           </button>
-          <p class="weather-loc-privacy">Your saved location stays in this browser.</p>
+          <p class="weather-loc-privacy" data-weather-text="weatherLocationPrivacy">${t().weatherLocationPrivacy}</p>
         </div>
       </div>
     </div>
@@ -261,14 +291,39 @@ function buildWeatherPageDOM(): HTMLElement {
   overlay
     .querySelector("#weatherSetLocationBtn")!
     .addEventListener("click", () => {
-      (
-        overlay.querySelector("#weatherLocationPanel") as HTMLElement
-      ).classList.add("open");
+      openLocationPanel(overlay, overlay.querySelector<HTMLElement>("#weatherSetLocationBtn"));
     });
   overlay.querySelector("#weatherLocCancel")!.addEventListener("click", () => {
-    (
-      overlay.querySelector("#weatherLocationPanel") as HTMLElement
-    ).classList.remove("open");
+    closeLocationPanel(overlay);
+  });
+
+  const panel = overlay.querySelector<HTMLElement>("#weatherLocationPanel")!;
+  document.addEventListener("keydown", (e) => {
+    if (!overlay.classList.contains("open")) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (panel.classList.contains("open")) closeLocationPanel(overlay);
+      else closeWeatherPage();
+      return;
+    }
+    if (e.key !== "Tab" || !panel.classList.contains("open")) return;
+    const controls = Array.from(panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )).filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0);
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    const active = document.activeElement;
+    if (!panel.contains(active) || (e.shiftKey ? active === first : active === last)) {
+      e.preventDefault();
+      (e.shiftKey ? last : first)?.focus({ preventScroll: true });
+    }
+  }, true);
+  document.addEventListener("focusin", (e) => {
+    if (overlay.classList.contains("open") && panel.classList.contains("open") &&
+        !panel.contains(e.target as Node)) {
+      panel.querySelector<HTMLInputElement>("#weatherLocSearch")!.focus({ preventScroll: true });
+    }
   });
 
   // GPS
@@ -276,19 +331,17 @@ function buildWeatherPageDOM(): HTMLElement {
     if (!navigator.geolocation) return;
     const btn = overlay.querySelector("#weatherLocGPS") as HTMLButtonElement;
     btn.innerHTML =
-      `<span class="weather-loc-icon">${GPS_SVG}</span><span><span class="weather-loc-btn-label">Locating…</span><span class="weather-loc-btn-sub">Please wait</span></span>`;
+      `<span class="weather-loc-icon">${GPS_SVG}</span><span><span class="weather-loc-btn-label" data-weather-text="weatherLocating">${t().weatherLocating}</span><span class="weather-loc-btn-sub" data-weather-text="weatherPleaseWait">${t().weatherPleaseWait}</span></span>`;
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lon } }) => {
         const name = await getCityName(lat, lon);
         setManualLocation(lat, lon, name);
-        (
-          overlay.querySelector("#weatherLocationPanel") as HTMLElement
-        ).classList.remove("open");
+        closeLocationPanel(overlay);
         refreshWeather(overlay as HTMLElement);
       },
       () => {
         btn.innerHTML =
-          `<span class="weather-loc-icon">${PIN_SVG}</span><span><span class="weather-loc-btn-label">GPS unavailable</span><span class="weather-loc-btn-sub">Search for a city instead</span></span>`;
+          `<span class="weather-loc-icon">${PIN_SVG}</span><span><span class="weather-loc-btn-label" data-weather-text="weatherGPSUnavailable">${t().weatherGPSUnavailable}</span><span class="weather-loc-btn-sub" data-weather-text="weatherSearchInstead">${t().weatherSearchInstead}</span></span>`;
       },
       { timeout: 10000 },
     );
@@ -364,7 +417,7 @@ interface NominatimResult {
 
 async function searchCity(query: string, overlay: HTMLElement) {
   const results = overlay.querySelector("#weatherLocResults") as HTMLElement;
-  results.innerHTML = '<div class="weather-loc-loading">Searching…</div>';
+  results.innerHTML = `<div class="weather-loc-loading">${t().weatherSearching}</div>`;
   const myRequestId = ++searchRequestId;
   try {
     const res = await fetchWithTimeout(
@@ -377,7 +430,7 @@ async function searchCity(query: string, overlay: HTMLElement) {
     results.innerHTML = "";
     if (!data.length) {
       results.innerHTML =
-        '<div class="weather-loc-loading">No results found</div>';
+        `<div class="weather-loc-loading">${t().weatherNoResults}</div>`;
       return;
     }
     data.forEach((item: NominatimResult) => {
@@ -403,16 +456,14 @@ async function searchCity(query: string, overlay: HTMLElement) {
       btn.appendChild(subEl);
       btn.addEventListener("click", () => {
         setManualLocation(parseFloat(item.lat), parseFloat(item.lon), name);
-        (
-          overlay.querySelector("#weatherLocationPanel") as HTMLElement
-        ).classList.remove("open");
+        closeLocationPanel(overlay);
         refreshWeather(overlay);
       });
       results.appendChild(btn);
     });
   } catch {
     if (myRequestId !== searchRequestId) return;
-    results.innerHTML = '<div class="weather-loc-loading">Search failed</div>';
+    results.innerHTML = `<div class="weather-loc-loading">${t().weatherSearchFailed}</div>`;
   }
 }
 
@@ -434,6 +485,18 @@ function refreshWeather(overlay: HTMLElement) {
 
 // ── Main render ────────────────────────────────────────────────────────
 export function renderWeatherPage(overlay: HTMLElement) {
+  const strings = t();
+  for (const [dataAttr, attr] of [
+    ["data-weather-text", ""], ["data-weather-label", "aria-label"],
+    ["data-weather-title", "title"], ["data-weather-placeholder", "placeholder"],
+  ]) {
+    overlay.querySelectorAll<HTMLElement>(`[${dataAttr}]`).forEach((el) => {
+      const value = strings[el.getAttribute(dataAttr) as keyof Strings];
+      if (attr) el.setAttribute(attr, value);
+      else el.textContent = value;
+    });
+  }
+
   const temp = getCurrentTemp();
   const feels = getFeelsLike();
   const wind = getWind();
@@ -445,7 +508,7 @@ export function renderWeatherPage(overlay: HTMLElement) {
 
   // Location / time
   (overlay.querySelector("#weatherLocationName") as HTMLElement).textContent =
-    stored?.name || (temp !== null ? "Current location" : "No location set");
+    stored?.name || (temp !== null ? t().weatherCurrentLocation : t().weatherNoLocation);
   (overlay.querySelector("#weatherLocationTime") as HTMLElement).textContent =
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -468,16 +531,16 @@ export function renderWeatherPage(overlay: HTMLElement) {
     iconEl.innerHTML = weatherIconSvg(code, 64);
     tempEl.textContent = `${temp}°`;
     descEl.textContent = desc;
-    kickerEl.textContent = "Current conditions";
-    feelsEl.textContent = `Feels like ${feels}°`;
-    windEl.textContent = `${wind} km/h wind`;
-    humEl.textContent = `${humidity}% humidity`;
+    kickerEl.textContent = t().weatherCurrentConditions;
+    feelsEl.textContent = t().weatherFeelsLike.replace("{temp}", String(feels));
+    windEl.textContent = t().weatherWindSpeed.replace("{speed}", String(wind));
+    humEl.textContent = t().weatherHumidity.replace("{humidity}", String(humidity));
     heroEl.classList.remove("weather-hero--retry");
   } else if (stored && didWeatherFail()) {
     iconEl.innerHTML = weatherIconSvg(null, 64);
     tempEl.textContent = "--°";
-    descEl.textContent = "Weather unavailable — tap to retry";
-    kickerEl.textContent = "Connection paused";
+    descEl.textContent = t().weatherUnavailable;
+    kickerEl.textContent = t().weatherConnectionPaused;
     feelsEl.textContent = "";
     windEl.textContent = "";
     humEl.textContent = "";
@@ -486,9 +549,9 @@ export function renderWeatherPage(overlay: HTMLElement) {
     iconEl.innerHTML = weatherIconSvg(null, 64);
     tempEl.textContent = "--°";
     descEl.textContent = stored
-      ? "Fetching weather…"
-      : 'Tap "Set location" to begin';
-    kickerEl.textContent = stored ? "Reading the sky" : "Weather Room";
+      ? t().weatherFetching
+      : t().weatherBegin;
+    kickerEl.textContent = stored ? t().weatherReadingSky : t().weatherRoom;
     feelsEl.textContent = "";
     windEl.textContent = "";
     humEl.textContent = "";
@@ -512,13 +575,13 @@ function renderHourly(overlay: HTMLElement) {
   const forecast = getHourlyForecast();
   if (!forecast.length) {
     strip.innerHTML =
-      '<div class="weather-hourly-empty">No forecast data — set a location to load</div>';
+      `<div class="weather-hourly-empty">${t().weatherNoForecast}</div>`;
     return;
   }
   forecast.slice(0, 24).forEach((h, i) => {
     const time = new Date(h.time);
     const label =
-      i === 0 ? "Now" : time.toLocaleTimeString([], { hour: "numeric" });
+      i === 0 ? t().weatherNow : time.toLocaleTimeString([], { hour: "numeric" });
     const condition = getWMOInfo(h.code)[1];
     const item = document.createElement("div");
     item.className = "weather-hourly-item";
@@ -537,7 +600,7 @@ function renderSunArc(overlay: HTMLElement) {
   const sun = getSunTimes();
   if (!sun) {
     sunTimesEl.innerHTML =
-      '<span class="weather-sun-empty">Set a location to see sunrise and sunset</span>';
+      `<span class="weather-sun-empty">${t().weatherSunLocationHint}</span>`;
     return;
   }
   const ctx = canvas.getContext("2d")!;
@@ -605,11 +668,11 @@ function renderSunArc(overlay: HTMLElement) {
   sunTimesEl.innerHTML = `
     <span class="weather-sun-time">
       <span class="weather-sun-ico">${SUNRISE_SVG}</span>
-      <span><span class="weather-sun-label">Sunrise</span><strong>${fmt(Math.round(sun.rise))}</strong></span>
+      <span><span class="weather-sun-label">${t().weatherSunrise}</span><strong>${fmt(Math.round(sun.rise))}</strong></span>
     </span>
     <span class="weather-sun-time">
       <span class="weather-sun-ico">${SUNSET_SVG}</span>
-      <span><span class="weather-sun-label">Sunset</span><strong>${fmt(Math.round(sun.set))}</strong></span>
+      <span><span class="weather-sun-label">${t().weatherSunset}</span><strong>${fmt(Math.round(sun.set))}</strong></span>
     </span>`;
 }
 
@@ -625,14 +688,14 @@ function renderDaily(overlay: HTMLElement) {
     const [, desc] = getWMOInfo(d.code);
     const date = new Date(d.date + "T12:00:00");
     const dayLabel =
-      i === 0 ? "Today" : date.toLocaleDateString([], { weekday: "short" });
+      i === 0 ? t().weatherToday : date.toLocaleDateString([], { weekday: "short" });
     const barLeft = ((d.minTemp - minT) / range) * 100;
     const barWidth = Math.max(((d.maxTemp - d.minTemp) / range) * 100, 8);
     const row = document.createElement("div");
     row.className = "weather-daily-row";
     row.innerHTML = `
       <span class="weather-daily-day">${dayLabel}</span>
-      <span class="weather-daily-icon" title="${desc}" aria-label="${desc}">${weatherIconSvg(d.code, 18)}</span>
+      <span class="weather-daily-icon" role="img" title="${desc}" aria-label="${desc}">${weatherIconSvg(d.code, 18)}</span>
       <div class="weather-daily-bar-wrap">
         <span class="weather-daily-min">${d.minTemp}°</span>
         <div class="weather-daily-bar"><div class="weather-daily-bar-fill" style="left:${barLeft.toFixed(1)}%;width:${barWidth.toFixed(1)}%"></div></div>
