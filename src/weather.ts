@@ -1,7 +1,7 @@
 // Timeout helper for fetch(). Self-managed AbortController + timer, always
 // cleared in `finally` so a timer never lingers after the request settles
 // (the previous polyfill left a dangling setTimeout on every successful
-// weather/geocode fetch — same leak pattern as timesync.ts).
+// weather/geocode fetch).
 async function fetchWithTimeout(
   url: string,
   ms: number,

@@ -11,7 +11,6 @@ import {
   GREETS,
   localStorageBytes,
 } from "./utils";
-import { clockOffset, synced, syncTime, setSyncHandler } from "./timesync";
 import {
   initWeather,
   stopWeather,
@@ -60,7 +59,6 @@ import * as NowPlaying from "./nowplaying";
 import * as MusicDock from "./musicdock";
 import * as SideTasks from "./sidetasks";
 import {
-  t,
   setLocale,
   getLocale,
   LOCALE_NAMES,
@@ -208,7 +206,6 @@ const DOM = {
   dayPct: $("dayPct"),
   pFill: $("progressFill"),
   sTmr: $("sessionTimer"),
-  utcPill: $("utcPill"),
   greeting: $("greeting"),
   quoteText: $("quoteText"),
   litMeta: $("litMeta"),
@@ -226,6 +223,7 @@ const DOM = {
   showBadge: $("showBadge"),
   infoLabel: $("infoLabel"),
   infoSlide: $("infoSlide"),
+  contextPill: $("contextPill"),
 };
 
 // ── Session timer ──────────────────────────────────────────────────────
@@ -253,6 +251,7 @@ function startTimer() {
   bcBroadcast("session", { running: true });
   APIs.requestNotifications();
   APIs.acquireWakeLock();
+  refreshContextPill();
 }
 
 function pauseTimer() {
@@ -271,6 +270,7 @@ function pauseTimer() {
   Features.updateDistractionUI(false);
   Intel.onFlowInterrupt();
   bcBroadcast("session", { running: false });
+  refreshContextPill();
 }
 
 function resetTimer() {
@@ -354,6 +354,7 @@ function resetTimer() {
   DOM.focusInput.value = "";
   if (Pom.isActive()) Pom.reset();
   bcBroadcast("session", { running: false });
+  refreshContextPill();
 }
 
 DOM.btnStart.addEventListener("click", () =>
@@ -479,8 +480,12 @@ function wireGithubCelebration() {
 // body-level class so each renderer's CSS (and the analogue second-hand
 // draw call) can simply check for it instead of threading a flag through
 // every render path.
-let hideSeconds = safeGet("sc_hide_seconds") === "1";
-let hideMs = safeGet("sc_hide_ms") === "1";
+// New visitors get the calm HH:MM default. An explicit saved choice ("0")
+// always wins, so upgrading never overwrites someone's seconds/ms setting.
+const _savedHideSeconds = safeGet("sc_hide_seconds");
+const _savedHideMs = safeGet("sc_hide_ms");
+let hideSeconds = _savedHideSeconds === null ? true : _savedHideSeconds === "1";
+let hideMs = _savedHideMs === null ? true : _savedHideMs === "1";
 // 24-hour time — same body-class approach as hide-seconds/hide-ms so CSS
 // and every render path (digital/minimal/flip/segment) can react without
 // threading a flag through each function signature.
@@ -517,7 +522,6 @@ function togglePrivacy() {
   privacyMode = !privacyMode;
   localStorage.setItem("sc_privacy", privacyMode ? "1" : "0");
   if (privacyMode) {
-    updateSyncDisplay("failed");
     stopWeather();
     const wp = $("weatherPill");
     if (wp) {
@@ -526,9 +530,8 @@ function togglePrivacy() {
     // Apply system fonts — no Google Fonts in privacy mode
     document.body.style.fontFamily =
       '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
-    showToast("🔒 Privacy Mode: fonts, weather & sync disabled");
+    showToast("🔒 Privacy Mode: fonts & weather disabled");
   } else {
-    syncTime();
     initWeather(
       $("weatherIcon"),
       $("weatherText"),
@@ -817,6 +820,76 @@ const cssVar = (name: string, val: string) => root.style.setProperty(name, val);
 // tabs would ping-pong the same theme back and forth forever.
 let applyingRemoteTheme = false;
 
+/** Expand a single hex nibble (`f`) to its two-digit form (`ff`). */
+function expandHexPair(ch: string): number {
+  return parseInt(ch + ch, 16);
+}
+
+/** sRGB 8-bit channel → linear-light value, per WCAG 2.x. */
+function channelToLinear(channel: number): number {
+  const c = Math.min(255, Math.max(0, channel)) / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+/**
+ * WCAG relative luminance for a CSS hex (`#rgb`, `#rrggbb`, `#rrggbbaa`) or
+ * `rgb()`/`rgba()` colour. Used only to pick readable ink for solid accent
+ * fills, so alpha is ignored.
+ */
+function relativeLuminance(color: string): number {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  const value = color.trim();
+  if (value.startsWith("#")) {
+    const hex = value.slice(1);
+    if (hex.length === 3 || hex.length === 4) {
+      r = expandHexPair(hex.charAt(0));
+      g = expandHexPair(hex.charAt(1));
+      b = expandHexPair(hex.charAt(2));
+    } else if (hex.length >= 6) {
+      r = parseInt(hex.slice(0, 2), 16);
+      g = parseInt(hex.slice(2, 4), 16);
+      b = parseInt(hex.slice(4, 6), 16);
+    }
+  } else {
+    const parts = value.match(/[\d.]+/g);
+    if (parts && parts.length >= 3) {
+      r = Number(parts[0]);
+      g = Number(parts[1]);
+      b = Number(parts[2]);
+    }
+  }
+  if ([r, g, b].some((channel) => !Number.isFinite(channel))) return 0;
+  return (
+    0.2126 * channelToLinear(r) +
+    0.7152 * channelToLinear(g) +
+    0.0722 * channelToLinear(b)
+  );
+}
+
+const ON_ACCENT_DARK = "#06110c";
+const ON_ACCENT_LIGHT = "#ffffff";
+
+/**
+ * Dark or white ink for text/icons on a solid accent fill, whichever has the
+ * higher WCAG contrast ratio. Theme `btnFg` is deliberately not used here: it
+ * is tuned for translucent `btnBg` surfaces, and several themes set it equal
+ * to the accent itself — invisible on a solid accent button.
+ */
+function onAccentInk(color: string): string {
+  const background = relativeLuminance(color);
+  const contrast = (ink: string) => {
+    const lum = relativeLuminance(ink);
+    return (
+      (Math.max(background, lum) + 0.05) / (Math.min(background, lum) + 0.05)
+    );
+  };
+  return contrast(ON_ACCENT_DARK) >= contrast(ON_ACCENT_LIGHT)
+    ? ON_ACCENT_DARK
+    : ON_ACCENT_LIGHT;
+}
+
 // Monotonic token bumped on every applyTheme() call. A media-theme switch
 // applies via a canvas transition callback that fires partway through the
 // animation, and runTransition() bypasses straight to the callback when a
@@ -842,6 +915,7 @@ function applyTheme(theme: Theme, instant = false) {
     cssVar("--clr-text", theme.text);
     cssVar("--clr-accent", theme.accent);
     cssVar("--clr-accent2", theme.accent2);
+    cssVar("--clr-on-accent", onAccentInk(theme.accent));
     // Set RGB components for use in rgba() and animations
     const accentRgb = theme.accent.startsWith("#")
       ? theme.accent
@@ -914,7 +988,7 @@ function applyTheme(theme: Theme, instant = false) {
       }, 420);
     }
 
-    updateSyncDisplay(synced ? "ok" : "failed");
+    refreshContextPill();
     ThemeLib.onThemeApplied(theme.id);
     lastQKey = "";
     localStorage.setItem("sc_last_theme", theme.id);
@@ -942,15 +1016,35 @@ function applyTheme(theme: Theme, instant = false) {
   runTransition(theme.transition ?? "defaultFade", doApply);
 }
 
-// ── Sync state (drives the UTC/trust pill; no separate visual pill) ─────
-function updateSyncDisplay(state: "syncing" | "ok" | "failed") {
-  if (state === "ok") {
-    Features.setSyncTrust("ntp");
-  } else if (state === "failed") {
-    Features.setSyncTrust("offline");
+// ── Contextual top-bar tab ─────────────────────────────────────────────
+// Shows useful local app state (active theme, focus phase, deadline
+// countdown, or the optional sidereal easter egg) instead of implying any
+// network time synchronisation. Updates are throttled to the once-per-second
+// UI tick, so it never cycles rapidly.
+let countdownText: string | null = null;
+function contextPillLabel(): string {
+  if (Easter.isSiderealMode()) {
+    return Easter.getSiderealTime(window.__scLat ?? 0);
   }
+  if (countdownText) return `⏳ ${countdownText}`;
+  if (sessionRunning) {
+    if (Pom.isActive()) {
+      const phase = Pom.getPhase();
+      const minutes = Math.ceil(Pom.getRemainingSeconds() / 60);
+      return `● ${phase === "work" ? "Focus" : "Break"} · ${minutes}m left`;
+    }
+    return "● Focus in progress";
+  }
+  return currentTheme.name;
 }
-setSyncHandler(updateSyncDisplay);
+function refreshContextPill() {
+  const pill = DOM.contextPill;
+  if (!pill) return;
+  pill.textContent = contextPillLabel();
+  pill.title = sessionRunning
+    ? "Local session status · device clock"
+    : `${currentTheme.name} · device clock`;
+}
 
 // ── Render loop ────────────────────────────────────────────────────────
 let lastTs = 0,
@@ -1062,7 +1156,7 @@ function renderFrame(ts: number) {
   // already throttles how often this runs to ~20fps naturally.
   Sound.tickSpatial(ts / 1000);
 
-  const now = new Date(Date.now() + clockOffset);
+  const now = new Date();
   const ms = now.getMilliseconds(),
     sec = now.getSeconds(),
     min = now.getMinutes(),
@@ -1121,17 +1215,7 @@ function renderFrame(ts: number) {
     lastSec = sec;
     // Midnight confetti check
     window.__checkMidnight?.();
-    const uh = now.getUTCHours(),
-      um = now.getUTCMinutes(),
-      us = now.getUTCSeconds();
-    // Sidereal time easter egg
-    if (Easter.isSiderealMode()) {
-      const lat = window.__scLat ?? 0;
-      DOM.utcPill.textContent = Easter.getSiderealTime(lat);
-    } else {
-      DOM.utcPill.textContent = Features.getTrustLabel();
-    }
-    DOM.utcPill.title = Features.getTrustTooltip();
+    refreshContextPill();
 
     // Update status line
     if (sessionRunning && Pom.isActive()) {
@@ -1603,18 +1687,20 @@ function buildPanel() {
     closeOverlay: () => closeModal("themeLibOverlay"),
   });
 
-  // ── Feature dock — Sound, Zen, Settings (the three runtime actions) ──
+  // ── Feature dock — Themes, Sound, Zen, Settings ──────────────────────
   // Utility icons share one stroke style (24px grid, 1.8 stroke); emoji stay in
   // theme identity only.
   const ICON = (d: string) =>
     `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICONS = {
+    themes: ICON('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>'),
     sound: ICON('<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>'),
     zen: ICON('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>'),
     settings: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
   };
   const featDefs: [string, string, string, () => void][] = [
     // [id, icon svg, label, action]
+    ["btnDockThemes", ICONS.themes, "Themes", () => focusLockIntercept(toggleThemePanel)],
     [
       "btnSound",
       ICONS.sound,
@@ -1641,6 +1727,28 @@ function buildPanel() {
     b.addEventListener("click", action);
     featBar.appendChild(b);
   });
+
+  // Keep the dock's Themes item in sync with the Theme Library overlay,
+  // whichever control opened/closed it.
+  const themeLibOverlay = $("themeLibOverlay");
+  const dockThemesBtn = $("btnDockThemes");
+  if (themeLibOverlay && dockThemesBtn) {
+    const syncDockState = () => {
+      dockThemesBtn.classList.toggle(
+        "active-tab",
+        themeLibOverlay.classList.contains("open"),
+      );
+      dockThemesBtn.setAttribute(
+        "aria-expanded",
+        String(themeLibOverlay.classList.contains("open")),
+      );
+    };
+    syncDockState();
+    new MutationObserver(syncDockState).observe(themeLibOverlay, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
@@ -3327,6 +3435,7 @@ function previewCustomTheme() {
   cssVar("--clr-text", draft.text);
   cssVar("--clr-accent", draft.accent);
   cssVar("--clr-accent2", draft.accent2);
+  cssVar("--clr-on-accent", onAccentInk(draft.accent));
   cssVar("--clr-btn-fg", draft.btnFg);
   cssVar("--clr-panel", draft.panel);
 }
@@ -3917,6 +4026,66 @@ function buildSettingsUI(activeTab = "general") {
     );
     paneWrap.appendChild(audioSec);
 
+    // ── Music panel — opt-in only ──────────────────────────────────────
+    // Off on a clean profile: no Connect Spotify card, no hidden player
+    // engines, no background polling until someone explicitly enables it.
+    const musicSec = makeSection("Music Panel");
+    musicSec.appendChild(
+      makeRow(
+        "Show Music Panel",
+        "Adds an optional floating player for YouTube (default) or Spotify. Hidden entirely until you turn it on",
+        "toggleMusicDeck",
+        MusicDock.isMusicDeckEnabled(),
+      ),
+    );
+    const providerRow = document.createElement("div");
+    providerRow.className = "settings-row";
+    const providerInfo = document.createElement("div");
+    providerInfo.className = "settings-row-info";
+    const providerLabel = document.createElement("div");
+    providerLabel.className = "settings-row-label";
+    providerLabel.textContent = "Providers";
+    const providerDesc = document.createElement("span");
+    providerDesc.className = "settings-row-desc";
+    providerDesc.textContent =
+      "YouTube is the default. Spotify's connect prompt only appears when Spotify is selected.";
+    providerInfo.append(providerLabel, providerDesc);
+    const providerSelect = document.createElement("select");
+    providerSelect.className = "settings-select";
+    providerSelect.setAttribute("aria-label", "Music providers");
+    (
+      [
+        ["youtube", "YouTube"],
+        ["spotify", "Spotify"],
+        ["both", "Both"],
+      ] as const
+    ).forEach(([value, label]) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      if (MusicDock.getProviderPref() === value) opt.selected = true;
+      providerSelect.appendChild(opt);
+    });
+    providerSelect.addEventListener("change", () => {
+      MusicDock.setProviderPref(
+        providerSelect.value as MusicDock.MusicProviderPref,
+      );
+      showToast(`Music panel: ${providerSelect.selectedOptions[0]?.textContent}`);
+    });
+    providerRow.append(providerInfo, providerSelect);
+    musicSec.appendChild(providerRow);
+    paneWrap.appendChild(musicSec);
+    wireToggle("toggleMusicDeck", (on) => {
+      MusicDock.setMusicDeckEnabled(on);
+      if (
+        on &&
+        MusicDock.getProviderPref() !== "youtube" &&
+        Integrations.isSpotifyConnected()
+      )
+        void MusicDock.initSpotifyPlayback();
+      showToast(on ? "Music panel enabled" : "Music panel hidden");
+    });
+
     const soundBtnSec = makeSection("Mixer");
     soundBtnSec.appendChild(buildMixerLaunchCard());
     paneWrap.appendChild(soundBtnSec);
@@ -4240,7 +4409,7 @@ function buildSettingsUI(activeTab = "general") {
         "Hide Seconds",
         "Drop the seconds digits/hand across every clock style — just hours and minutes",
         "toggleHideSeconds",
-        localStorage.getItem("sc_hide_seconds") === "1",
+        hideSeconds,
       ),
     );
     digitsSec.appendChild(
@@ -4248,7 +4417,7 @@ function buildSettingsUI(activeTab = "general") {
         "Hide Milliseconds",
         "Hide the fractional-second readout under the clock (kept even with seconds shown, unless this is on)",
         "toggleHideMs",
-        localStorage.getItem("sc_hide_ms") === "1",
+        hideMs,
       ),
     );
     digitsSec.appendChild(
@@ -4453,7 +4622,7 @@ function buildSettingsUI(activeTab = "general") {
     privSec.appendChild(
       makeRow(
         "Privacy Mode",
-        "Disables weather, time sync & Google Fonts — local only",
+        "Disables weather and Google Fonts — local only",
         "togglePrivacyS",
         privacyMode,
         privacyMode ? "On" : undefined,
@@ -5898,8 +6067,8 @@ function buildPaletteCommands() {
       "egg_sidereal",
       "🔭",
       "Sidereal Time",
-      "click UTC ×7",
-      () => showToast("🔭 Click the UTC pill 7 times quickly", 4000),
+      "click the context tab ×7",
+      () => showToast("🔭 Click the context tab 7 times quickly", 4000),
     ],
     [
       "egg_matrix",
@@ -6261,22 +6430,9 @@ function init() {
     document.body.classList.remove("drag-over"),
   );
 
-  // PWA install prompt
-  let deferredInstall: BeforeInstallPromptEvent | null = null;
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferredInstall = e;
-    const btn = document.createElement("button");
-    btn.id = "pwaInstallBtn";
-    btn.className = "show";
-    btn.textContent = "⬇ Install App";
-    btn.addEventListener("click", () => {
-      deferredInstall?.prompt();
-      btn.remove();
-      deferredInstall = null;
-    });
-    document.body.appendChild(btn);
-  });
+  // PWA installation intentionally has no in-app prompt. The manifest and
+  // service worker remain, so browsers that support installation still offer
+  // it through their own native UI (address bar / share sheet).
 
   const kbBtn = $("btnKbShortcuts");
   if (kbBtn) kbBtn.addEventListener("click", () => openModal("kbOverlay"));
@@ -6558,7 +6714,6 @@ function init() {
   }
 
   if (!privacyMode) {
-    syncTime();
     initWeather(
       $("weatherIcon"),
       $("weatherText"),
@@ -6575,7 +6730,8 @@ function init() {
       },
     );
   } else {
-    updateSyncDisplay("failed");
+    // Local clock/status stays available; only network-backed weather is off.
+    refreshContextPill();
   }
 
   // ── Command Palette ────────────────────────────────────────────────
@@ -6628,13 +6784,14 @@ function init() {
   if (countdownContent) {
     Features.buildCountdownUI(countdownContent, (label, target) => {
       Features.setCountdownTarget(label, target, (display, done) => {
-        const pill = document.getElementById("utcPill");
         if (done) {
+          countdownText = null;
+          refreshContextPill();
           showToast(`⏳ ${display}`, 5000);
-          if (pill) pill.title = "";
           return;
         }
-        if (pill && !Easter.isSiderealMode()) pill.textContent = display;
+        countdownText = display;
+        refreshContextPill();
       });
       showToast(`⏳ Counting down to ${label}`);
     });
@@ -6659,7 +6816,12 @@ function init() {
   document.body.appendChild(sidebar);
   MusicDock.mountDock(sidebar);
   SideTasks.mountSideStack(sidebar);
-  if (Integrations.isSpotifyConnected()) MusicDock.initSpotifyPlayback();
+  if (
+    MusicDock.isMusicDeckEnabled() &&
+    MusicDock.getProviderPref() !== "youtube" &&
+    Integrations.isSpotifyConnected()
+  )
+    MusicDock.initSpotifyPlayback();
   // Handle OAuth redirect callbacks — one handler for every provider
   // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here
   // with ?code=&state=<provider>:<nonce>).
@@ -6680,7 +6842,11 @@ function init() {
         // isSpotifyConnected() check above (token lands here, after
         // the redirect) — bring it up now instead of waiting for the
         // user to reload the page themselves to see anything play.
-        if (result.provider === "spotify")
+        if (
+          result.provider === "spotify" &&
+          MusicDock.isMusicDeckEnabled() &&
+          MusicDock.getProviderPref() !== "youtube"
+        )
           MusicDock.initSpotifyPlayback().then(() =>
             MusicDock.refreshDockConnectionState(),
           );
@@ -6740,26 +6906,18 @@ function init() {
       }
     }, 3000);
 
-    // Lunar phase in UTC pill tooltip
+    // Lunar phase in the contextual tab tooltip
     setTimeout(() => {
       const lunar = Features.getLunarPhase();
-      const utcPill = $("utcPill");
-      if (utcPill) {
-        const existing = utcPill.title;
+      const contextPill = DOM.contextPill;
+      if (contextPill) {
+        const existing = contextPill.title;
         if (!existing.includes(lunar.emoji)) {
-          utcPill.title = `${existing ? existing + " · " : ""}${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
+          contextPill.title = `${existing ? existing + " · " : ""}${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
         }
       }
     }, 2000);
   }
-
-  // Trust indicator — update when sync completes
-  window.__onSyncComplete = (rtt: number) => {
-    Features.setSyncTrust("ntp");
-  };
-  window.__onSyncFail = () => {
-    Features.setSyncTrust("offline");
-  };
 
   // Voice timer — initialise if browser supports it
   const voiceSupported = Features.initVoiceTimer(
@@ -7080,11 +7238,11 @@ function buildCommandPalette() {
       id: "sidereal-time",
       name: "Local Sidereal Time",
       icon: "🔭",
-      desc: "Click the UTC pill 7× → switches display to astronomical sidereal time",
-      keywords: "sidereal time astronomy telescope UTC pill",
+      desc: "Click the top-bar context tab 7× → switches display to astronomical sidereal time",
+      keywords: "sidereal time astronomy telescope context tab",
       action: () =>
         showToast(
-          "🔭 Click the UTC pill 7 times to activate sidereal time mode",
+          "🔭 Click the context tab 7 times to activate sidereal time mode",
           5000,
         ),
     },

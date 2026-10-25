@@ -24,7 +24,7 @@ export interface LegalDoc {
   sections: LegalSection[];
 }
 
-const UPDATED = '2026-08-28';
+const UPDATED = '2026-10-25';
 
 export const LEGAL_DOCS: Record<'privacy' | 'terms', LegalDoc> = {
   privacy: {
@@ -56,7 +56,7 @@ export const LEGAL_DOCS: Record<'privacy' | 'terms', LegalDoc> = {
         paragraphs: [
           'Some features are entirely opt-in and only activate if you explicitly connect them: Spotify (Now Playing + playback), YouTube/Google (Liked videos, playlists, Calendar), Notion, GitHub, Todoist, and Linear (side-task cards), and OpenStreetMap/Nominatim (city search for the weather pill). If you never connect these, no data is exchanged with them at all.',
           'When you do connect one, authentication uses the provider\'s standard OAuth flow (PKCE where supported). For providers that require a client secret (Notion, GitHub, Todoist, Linear), the token exchange is relayed through a small, stateless Cloudflare Pages Function that we run — it passes the exchange through and does not log, store, or retain your tokens or any response data. Access tokens themselves are then kept only in your browser\'s local storage, the same as everything else.',
-          'Enabling "Privacy Mode" in Settings disables weather lookups, time sync, and Google Fonts loading, so the app runs fully offline-capable with zero outbound requests beyond loading the app itself.',
+          'Enabling "Privacy Mode" in Settings disables weather lookups and Google Fonts loading, so the app runs fully offline-capable with zero outbound requests beyond loading the app itself.',
         ],
       },
       {

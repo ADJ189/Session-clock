@@ -145,9 +145,12 @@ function iosOrientationEvent():
 }
 
 export const CAPS = {
-  // Vibration API — Android Chrome/Firefox support it; iOS Safari (and thus
+  // Vibration API - Android Chrome/Firefox support it; iOS Safari (and thus
   // every browser on iOS, since they all run on WebKit) never has, by policy.
-  vibration: "vibrate" in navigator,
+  // Chromium desktop exposes `navigator.vibrate` as a no-op, so API presence
+  // alone would show a dead Haptics switch on Windows/macOS/Linux. Gate on an
+  // actual Android device family, not just the method being defined.
+  vibration: "vibrate" in navigator && OS === "android",
   // Document Picture-in-Picture — Chromium only. Used for the mini-clock
   // and music-dock pop-out; both already degrade gracefully, this just
   // lets CSS hide the trigger entirely instead of showing a dead button.

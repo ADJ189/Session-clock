@@ -1,18 +1,18 @@
 // ── New Features Module ────────────────────────────────────────────────
 // 1.  Smart status line
-// 2.  Time trust indicator
-// 3.  Context-aware button labels
-// 4.  Session templates
-// 5.  Session completion + quality rating
-// 6.  Distraction counter
-// 7.  Onboarding wizard
-// 8.  Day/night auto-theme suggestion
-// 9.  Deadline countdown mode
-// 10. Better empty states
-// 11. Break activity suggestions
-// 12. World clock widget
+// 2.  Context-aware button labels
+// 3.  Session templates
+// 4.  Session completion + quality rating
+// 5.  Distraction counter
+// 6.  Onboarding wizard
+// 7.  Day/night auto-theme suggestion
+// 8.  Deadline countdown mode
+// 9.  Better empty states
+// 10. Break activity suggestions
+// 11. World clock widget
 
 import * as Motion from "./motion";
+import { t } from "./i18n";
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -101,37 +101,7 @@ function updateStatusLine() {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 2. TIME TRUST INDICATOR
-// ─────────────────────────────────────────────────────────────────────
-type SyncSource = "ntp" | "system" | "offline";
-let _syncSource: SyncSource = "system";
-let _syncAgeMs = 0;
-let _syncTimestamp = 0;
-
-export function setSyncTrust(source: SyncSource, timestampMs = Date.now()) {
-  _syncSource = source;
-  _syncTimestamp = timestampMs;
-}
-
-export function getTrustLabel(): string {
-  if (_syncSource === "ntp") {
-    _syncAgeMs = Date.now() - _syncTimestamp;
-    const secs = Math.round(_syncAgeMs / 1000);
-    const age = secs < 60 ? `${secs}s ago` : `${Math.round(secs / 60)}m ago`;
-    return `🔵 NTP · ${age}`;
-  }
-  if (_syncSource === "offline") return `📴 Offline · System clock`;
-  return `⚪ System clock`;
-}
-
-export function getTrustTooltip(): string {
-  if (_syncSource === "ntp") return "Network-synced — Cloudflare NTP probe";
-  if (_syncSource === "offline") return "No network — showing device clock";
-  return "System clock — not yet synced";
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// 3. CONTEXT-AWARE BUTTON LABELS
+// 2. CONTEXT-AWARE BUTTON LABELS
 // ─────────────────────────────────────────────────────────────────────
 export function updateButtonLabels(
   state: SessionState,
@@ -482,14 +452,22 @@ interface OnboardCallbacks {
 export function showOnboarding(cbs: OnboardCallbacks) {
   const overlay = $("onboardOverlay");
   const container = $("onboardContent");
+  const modal = overlay.querySelector<HTMLElement>(".sc-modal--onboard");
   overlay.classList.add("open");
   const TOTAL_STEPS = 4;
+  const STEP_TITLES = [
+    () => t().welcomeStep,
+    () => t().durationStep,
+    () => t().themeStep,
+    () => t().soundStep,
+  ];
   let step = 0;
 
   const finish = (soundId = "") => {
     if (soundId) cbs.enableSound(soundId);
     markOnboarded();
     overlay.classList.remove("open");
+    modal?.classList.remove("is-welcome");
   };
 
   const goNext = () => {
@@ -499,22 +477,42 @@ export function showOnboarding(cbs: OnboardCallbacks) {
 
   const renderStep = () => {
     container.innerHTML = "";
+    const isWelcome = step === 0;
+    modal?.classList.toggle("is-welcome", isWelcome);
 
-    // ── Progress dots ──
-    const dots = document.createElement("div");
-    dots.className = "ob-dots";
+    // ── Meta row: progress + readable step label + skip ──
+    const meta = document.createElement("div");
+    meta.className = "ob-meta";
+
+    const progress = document.createElement("div");
+    progress.className = "ob-progress";
+    progress.setAttribute("role", "progressbar");
+    progress.setAttribute("aria-valuemin", "1");
+    progress.setAttribute("aria-valuemax", String(TOTAL_STEPS));
+    progress.setAttribute("aria-valuenow", String(step + 1));
+    progress.setAttribute("aria-label", t().progressLabel);
     for (let i = 0; i < TOTAL_STEPS; i++) {
-      const d = document.createElement("div");
+      const d = document.createElement("span");
       d.className =
         "ob-dot" + (i === step ? " active" : i < step ? " done" : "");
-      dots.appendChild(d);
+      progress.appendChild(d);
     }
 
-    // ── Skip all link ── always visible top-right
+    const stepLabel = document.createElement("span");
+    stepLabel.className = "ob-step-label";
+    stepLabel.setAttribute("aria-live", "polite");
+    stepLabel.textContent = `${STEP_TITLES[step]()} · ${t()
+      .stepLabel.replace("{n}", String(step + 1))
+      .replace("{total}", String(TOTAL_STEPS))}`;
+
+    // ── Skip all link ── always available, deliberate secondary action
     const skipAll = document.createElement("button");
+    skipAll.type = "button";
     skipAll.className = "ob-skip-all";
-    skipAll.textContent = "Skip all";
+    skipAll.textContent = t().skipAll;
     skipAll.addEventListener("click", () => finish());
+
+    meta.append(progress, stepLabel, skipAll);
 
     // ── Content area ──
     const body = document.createElement("div");
@@ -524,7 +522,7 @@ export function showOnboarding(cbs: OnboardCallbacks) {
     const nav = document.createElement("div");
     nav.className = "ob-nav";
 
-    if (step === 0) renderWelcome(body, nav, goNext, finish);
+    if (isWelcome) renderWelcome(body, nav, goNext, finish);
     else if (step === 1)
       renderDuration(
         body,
@@ -547,17 +545,16 @@ export function showOnboarding(cbs: OnboardCallbacks) {
       );
     else if (step === 3) renderSoundPick(body, nav, (id) => finish(id), finish);
 
-    // Wrap with relative positioning for skip-all button
     const wrapper = document.createElement("div");
-    wrapper.className = "ob-wrapper";
-    wrapper.append(skipAll, dots, body, nav);
+    wrapper.className = "ob-wrapper" + (isWelcome ? " ob-wrapper--welcome" : "");
+    wrapper.append(meta, body, nav);
     container.appendChild(wrapper);
     // A gentle staggered entrance for whatever this step just put in —
     // the same treatment the Themes tab and Settings panes already use,
     // so onboarding doesn't feel like a different, plainer piece of UI.
     void Motion.staggerIn(
       body,
-      ".ob-card, .ob-icon-badge, .ob-heading, .ob-desc",
+      ".ob-icon-badge, .ob-eyebrow, .ob-heading, .ob-desc, .ob-hint",
     );
   };
   renderStep();
@@ -614,28 +611,90 @@ function obCard(
   return btn;
 }
 
+function obSvg(paths: string, className?: string): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 48 48");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  if (className) svg.setAttribute("class", className);
+  svg.innerHTML = paths;
+  return svg;
+}
+
+function obWelcomeMark(): SVGSVGElement {
+  return obSvg(
+    `<circle cx="24" cy="28" r="13" stroke="currentColor" stroke-width="2.4" opacity=".26"/>
+     <path d="M24 15a13 13 0 0 1 11.26 6.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+     <path d="M24 28V20" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+     <path d="M24 28l5.1 3.3" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+     <circle cx="24" cy="28" r="1.6" fill="currentColor"/>
+     <path d="M19.5 5.5h9M24 5.5V10" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>`,
+    "ob-mark",
+  );
+}
+
+function obHint(iconPaths: string, label: string): HTMLLIElement {
+  const li = document.createElement("li");
+  li.className = "ob-hint";
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("viewBox", "0 0 16 16");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("focusable", "false");
+  icon.classList.add("ob-hint-icon");
+  icon.innerHTML = iconPaths;
+  const span = document.createElement("span");
+  span.textContent = label;
+  li.append(icon, span);
+  return li;
+}
+
 function renderWelcome(
   body: HTMLElement,
   nav: HTMLElement,
   next: () => void,
   finish: (s?: string) => void,
 ) {
+  const welcome = document.createElement("div");
+  welcome.className = "ob-welcome";
+
   const badge = document.createElement("div");
-  badge.className = "ob-icon-badge";
-  const icon = document.createElement("div");
-  icon.className = "ob-icon";
-  icon.textContent = "⏱";
-  badge.appendChild(icon);
-  body.append(
-    badge,
-    obH("Session Clock"),
-    obP(
-      "A precise, beautiful focus timer — themes, binaural beats, session tracking, and more. Set up in 30 seconds or skip and dive in.",
+  badge.className = "ob-icon-badge ob-icon-badge--welcome";
+  badge.appendChild(obWelcomeMark());
+
+  const eyebrow = document.createElement("p");
+  eyebrow.className = "ob-eyebrow";
+  eyebrow.textContent = t().welcomeEyebrow;
+
+  const heading = obH(t().welcomeHeadline);
+  heading.classList.add("ob-heading--welcome");
+
+  const desc = obP(t().welcomeBody);
+  desc.classList.add("ob-desc--welcome");
+
+  const hints = document.createElement("ul");
+  hints.className = "ob-hints";
+  hints.append(
+    obHint(
+      `<path d="M8 1.8l1.5 3.7 3.7 1.5-3.7 1.5L8 12.2 6.5 8.5 2.8 7l3.7-1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>`,
+      t().welcomeHintThemes,
+    ),
+    obHint(
+      `<circle cx="8" cy="8" r="5.4" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/>`,
+      t().welcomeHintFocus,
+    ),
+    obHint(
+      `<path d="M3 10.5V5.5M6 12V4M9 10.5V5.5M12 12.5V3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>`,
+      t().welcomeHintSound,
     ),
   );
+
+  welcome.append(badge, eyebrow, heading, desc, hints);
+  body.appendChild(welcome);
   nav.append(
-    obNavBtn("Get started →", true, next),
-    obNavBtn("Skip, use defaults", false, () => finish()),
+    obNavBtn(t().getStarted, true, next),
+    obNavBtn(t().useDefaults, false, () => finish()),
   );
 }
 
@@ -645,10 +704,7 @@ function renderDuration(
   onPick: (m: number) => void,
   finish: (s?: string) => void,
 ) {
-  body.append(
-    obH("Session length?"),
-    obP("How long is your typical focus block? You can change this any time."),
-  );
+  body.append(obH(t().sessionLengthQ), obP(t().sessionLengthHint));
   const grid = obGrid(3);
   const opts: [number, string, string][] = [
     [15, "15 min", "Quick sprint"],
@@ -667,7 +723,7 @@ function renderDuration(
     btn.querySelector("div")!.textContent = icons[i] ?? "⏱";
   });
   body.appendChild(grid);
-  nav.append(obNavBtn("Skip →", false, () => onPick(25)));
+  nav.append(obNavBtn(t().skipBtn, false, () => onPick(25)));
 }
 
 function renderThemePick(
@@ -676,12 +732,7 @@ function renderThemePick(
   onPick: (id: string) => void,
   finish: (s?: string) => void,
 ) {
-  body.append(
-    obH("Choose your vibe"),
-    obP(
-      "45+ themes available — pick a favourite to start. Change anytime with T or Ctrl+K.",
-    ),
-  );
+  body.append(obH(t().chooseThemeQ), obP(t().chooseThemeHint));
   const grid = obGrid(3);
   const themes: [string, string, string, string][] = [
     ["midnight", "🌃", "Midnight", "Deep purple"],
@@ -701,7 +752,7 @@ function renderThemePick(
     grid.appendChild(obCard(icon, name, sub, () => onPick(id))),
   );
   body.appendChild(grid);
-  nav.append(obNavBtn("Skip →", false, () => onPick("")));
+  nav.append(obNavBtn(t().skipBtn, false, () => onPick("")));
 }
 
 function renderSoundPick(
@@ -710,12 +761,7 @@ function renderSoundPick(
   onPick: (id: string) => void,
   finish: (s?: string) => void,
 ) {
-  body.append(
-    obH("Ambient sound?"),
-    obP(
-      "Background audio helps many people focus deeply. Completely optional — mute any time.",
-    ),
-  );
+  body.append(obH(t().soundQ), obP(t().soundHint));
   const grid = obGrid(3);
   const sounds: [string, string, string, string][] = [
     ["rain", "🌧", "Rain", "Steady drops"],
@@ -730,7 +776,7 @@ function renderSoundPick(
     grid.appendChild(obCard(icon, name, sub, () => onPick(id))),
   );
   body.appendChild(grid);
-  nav.append(obNavBtn("Skip →", false, () => onPick("")));
+  nav.append(obNavBtn(t().skipBtn, false, () => onPick("")));
 }
 
 // ─────────────────────────────────────────────────────────────────────
