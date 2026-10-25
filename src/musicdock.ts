@@ -351,7 +351,7 @@ export function dockMarkup(pref: MusicProviderPref = getProviderPref()): string 
     }
     ${
       showYouTube
-        ? `<div data-role="pane-youtube" class="sc-dock-pane${showSpotify ? " sc-hidden" : ""}">
+        ? `<div data-role="pane-youtube" class="sc-dock-pane">
       <div data-role="yt-connect-row" class="sc-dock-yt-connect">
         <button data-role="yt-connect" class="sc-dock-yt-connect-btn">Connect YouTube</button>
         <span data-role="yt-connect-note" class="sc-dock-yt-note" style="margin:0;">Reads your Liked videos &amp; playlists.</span>
