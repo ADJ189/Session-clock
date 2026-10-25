@@ -45,7 +45,6 @@ const CACHEABLE_EXTERNAL_ORIGINS = new Set([
   "lrclib.net", // public, no-auth lyrics lookup
   "api.open-meteo.com", // public, no-auth weather data
   "nominatim.openstreetmap.org", // public, no-auth geocoding
-  "worldtimeapi.org", // public, no-auth time data
 ]);
 
 // App asset cache lookups ignore `Vary`. Precaching fetches each file with a bare
