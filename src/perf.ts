@@ -132,6 +132,19 @@ let lastTierChangeTs = 0;
 let badStreak = 0;
 let goodStreak = 0;
 
+/** Discards the rolling frame sample and restarts the measurement window.
+ *
+ *  Call when frames were deliberately slowed (a dialog covering the app) and
+ *  full-rate rendering resumes: the old samples would otherwise read as a
+ *  slow device and could downgrade quality for no real reason. */
+export function resetFpsSampling(now: number): void {
+  frameTimes = [];
+  frameCount = 0;
+  lastFpsTs = now;
+  badStreak = 0;
+  goodStreak = 0;
+}
+
 export function tickFps(now: number): number {
   frameCount++;
   frameTimes.push(now);

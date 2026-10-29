@@ -41,6 +41,38 @@ import {
   DEFAULT_SPOTIFY_CLIENT_ID,
 } from "./authconfig";
 import * as Lyrics from "./lyrics";
+import { safeGet, safeSet } from "./storage";
+
+// ── Opt-in visibility + provider preferences ─────────────────────────
+// The player is deliberately absent on a clean profile: no Connect
+// Spotify card, no hidden engines, no polling. Enabling it defaults to
+// YouTube; Spotify UI only exists once the visitor explicitly selects it.
+export const MUSIC_DECK_KEY = "sc_music_deck";
+export const MUSIC_PROVIDERS_KEY = "sc_music_providers";
+export type MusicProviderPref = "youtube" | "spotify" | "both";
+
+export function isMusicDeckEnabled(): boolean {
+  return safeGet(MUSIC_DECK_KEY) === "1";
+}
+export function getProviderPref(): MusicProviderPref {
+  const raw = safeGet(MUSIC_PROVIDERS_KEY);
+  return raw === "spotify" || raw === "both" ? raw : "youtube";
+}
+export function setMusicDeckEnabled(on: boolean): void {
+  safeSet(MUSIC_DECK_KEY, on ? "1" : "0");
+  if (!on) {
+    player?.disconnect();
+    player = null;
+    deviceId = null;
+    spotifyInitGeneration++;
+    spotifyInitPromise = null;
+  }
+  syncMount();
+}
+export function setProviderPref(pref: MusicProviderPref): void {
+  safeSet(MUSIC_PROVIDERS_KEY, pref);
+  syncMount();
+}
 
 // Album art / video thumbnail URLs come straight from Spotify's and
 // YouTube's APIs — first-party services, but still data returned by a
@@ -59,10 +91,13 @@ function safeHttpsUrl(url: string | undefined | null): string {
 
 let sdkReady: Promise<void> | null = null;
 let player: SpotifyPlayerLike | null = null;
+let spotifyInitPromise: Promise<boolean> | null = null;
+let spotifyInitGeneration = 0;
 let deviceId: string | null = null;
 let pipWindow: Window | null = null;
 let dockEl: HTMLElement | null = null;
 let pollTimer: number | null = null;
+let mountContainer: HTMLElement | null = null;
 
 interface DockState {
   title: string;
@@ -109,11 +144,26 @@ async function getSpotifyToken(): Promise<string | null> {
  * already connected). Safe to call multiple times — no-ops if already
  * initialized or not connected.
  */
-export async function initSpotifyPlayback(): Promise<boolean> {
-  if (!Integrations.isSpotifyConnected()) return false;
-  if (player) return true;
+export function initSpotifyPlayback(): Promise<boolean> {
+  if (!isMusicDeckEnabled() || !Integrations.isSpotifyConnected())
+    return Promise.resolve(false);
+  if (player) return Promise.resolve(true);
+  // Share one in-flight initialization so concurrent callers (provider
+  // switch + "Both", startup, OAuth callback) never create two players.
+  if (!spotifyInitPromise) {
+    const pending = createSpotifyPlayer(spotifyInitGeneration).finally(() => {
+      if (spotifyInitPromise === pending) spotifyInitPromise = null;
+    });
+    spotifyInitPromise = pending;
+  }
+  return spotifyInitPromise;
+}
 
+async function createSpotifyPlayer(generation: number): Promise<boolean> {
   await loadSpotifySdk();
+  if (!isMusicDeckEnabled() || generation !== spotifyInitGeneration) return false;
+  // Re-check: another path may have finished while the SDK was loading.
+  if (player) return true;
 
   const SpotifyPlayer = window.Spotify?.Player;
   if (!SpotifyPlayer) return false;
@@ -130,13 +180,13 @@ export async function initSpotifyPlayback(): Promise<boolean> {
   player = sdkPlayer;
 
   sdkPlayer.addListener("ready", ({ device_id }) => {
-    deviceId = device_id;
+    if (player === sdkPlayer) deviceId = device_id;
   });
   sdkPlayer.addListener("not_ready", () => {
-    deviceId = null;
+    if (player === sdkPlayer) deviceId = null;
   });
   sdkPlayer.addListener("player_state_changed", (s) => {
-    if (!s) return;
+    if (player !== sdkPlayer || !s) return;
     const track = s.track_window?.current_track;
     state.title = track?.name ?? "";
     state.artist = (track?.artists ?? []).map((a) => a.name).join(", ");
@@ -148,20 +198,26 @@ export async function initSpotifyPlayback(): Promise<boolean> {
   });
 
   const connected = await sdkPlayer.connect();
+  if (player !== sdkPlayer) {
+    sdkPlayer.disconnect();
+    return false;
+  }
   return !!connected;
 }
 
 async function transferPlaybackHere(): Promise<void> {
-  if (!deviceId) return;
+  if (!isMusicDeckEnabled() || !deviceId) return;
+  const targetPlayer = player;
+  const targetDeviceId = deviceId;
   const token = await getSpotifyToken();
-  if (!token) return;
+  if (!token || !isMusicDeckEnabled() || player !== targetPlayer) return;
   await fetch("https://api.spotify.com/v1/me/player", {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ device_ids: [deviceId], play: true }),
+    body: JSON.stringify({ device_ids: [targetDeviceId], play: true }),
   });
 }
 
@@ -211,11 +267,13 @@ export async function notifyFocusPhase(
   phase: "work" | "break" | "idle",
   active: boolean,
 ): Promise<void> {
-  if (!isAutoSyncEnabled() || !player) return;
+  if (!isMusicDeckEnabled() || !isAutoSyncEnabled() || !player) return;
+  const activePlayer = player;
   if (phase === "work" && active) {
     if (!deviceId) return;
     await transferPlaybackHere();
-    await player.resume();
+    if (isMusicDeckEnabled() && player === activePlayer)
+      await activePlayer.resume();
   } else if (!active || phase === "break") {
     await player.pause();
   }
@@ -228,9 +286,17 @@ export async function notifyFocusPhase(
 // back to staying docked everywhere else).
 // ─────────────────────────────────────────────────────────────────────
 export function mountDock(container: HTMLElement): void {
+  mountContainer = container;
+  if (!isMusicDeckEnabled()) {
+    unmountDock();
+    return;
+  }
+  // Re-mounting after a settings change must not leave a second dock or a
+  // second polling timer behind.
+  unmountDock();
   dockEl = document.createElement("div");
   dockEl.className = "sc-music-dock";
-  dockEl.innerHTML = dockMarkup();
+  dockEl.innerHTML = dockMarkup(getProviderPref());
   container.appendChild(dockEl);
   wireDockEvents(dockEl);
   renderDock();
@@ -257,18 +323,40 @@ export function mountDock(container: HTMLElement): void {
   }, 1000);
 }
 
-function dockMarkup(): string {
+/** Removes the dock and stops its timer/listeners' work. Called when the
+ *  player is disabled, and before a provider-preference remount. */
+export function unmountDock(): void {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+  dockEl?.remove();
+  dockEl = null;
+}
+
+/** Reconciles the mounted UI with the current saved preferences. */
+export function syncMount(): void {
+  if (!mountContainer) return;
+  if (isMusicDeckEnabled()) mountDock(mountContainer);
+  else unmountDock();
+}
+
+export function dockMarkup(pref: MusicProviderPref = getProviderPref()): string {
+  const showSpotify = pref === "spotify" || pref === "both";
+  const showYouTube = pref !== "spotify";
+  // YouTube-first: it is the visible pane whenever it is available, and
+  // Spotify only becomes visible after its tab is explicitly chosen.
   return `
     <div class="sc-dock-tabs-row">
       <div class="sc-dock-tabs">
-        <button data-role="tab-spotify" class="active">Spotify</button>
-        <button data-role="tab-youtube">YouTube</button>
+        ${showSpotify ? `<button data-role="tab-spotify" class="${showYouTube ? "" : "active"}">Spotify</button>` : ""}
+        ${showYouTube ? `<button data-role="tab-youtube" class="active">YouTube</button>` : ""}
       </div>
       <button data-role="collapse" class="sc-dock-collapse-btn" aria-label="Minimize" title="Minimize">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
       </button>
     </div>
-    <div data-role="pane-spotify" class="sc-dock-pane">
+    ${
+      showSpotify
+        ? `<div data-role="pane-spotify" class="sc-dock-pane${showYouTube ? " sc-hidden" : ""}">
       <div data-role="spotify-connect-row" class="sc-dock-yt-connect">
         <button data-role="spotify-connect" class="sc-dock-yt-connect-btn">Connect Spotify</button>
         <span class="sc-dock-yt-note" style="margin:0;">Requires Spotify Premium.</span>
@@ -290,8 +378,12 @@ function dockMarkup(): string {
         </div>
       </div>
       <div data-role="lyrics-panel" class="sc-dock-lyrics sc-hidden"></div>
-    </div>
-    <div data-role="pane-youtube" class="sc-dock-pane sc-hidden">
+    </div>`
+        : ""
+    }
+    ${
+      showYouTube
+        ? `<div data-role="pane-youtube" class="sc-dock-pane">
       <div data-role="yt-connect-row" class="sc-dock-yt-connect">
         <button data-role="yt-connect" class="sc-dock-yt-connect-btn">Connect YouTube</button>
         <span data-role="yt-connect-note" class="sc-dock-yt-note" style="margin:0;">Reads your Liked videos &amp; playlists.</span>
@@ -314,7 +406,9 @@ function dockMarkup(): string {
       <div data-role="yt-lyrics-panel" class="sc-dock-lyrics sc-hidden"></div>
       <div data-role="yt-player" class="sc-dock-yt-player"></div>
       <p class="sc-dock-yt-note">Plays through YouTube's own embedded player.</p>
-    </div>`;
+    </div>`
+        : ""
+    }`;
 }
 
 let ytApiReady: Promise<void> | null = null;

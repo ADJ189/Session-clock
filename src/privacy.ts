@@ -60,6 +60,10 @@ export const DATA_CATEGORIES: DataCategory[] = [
     desc: "Theme, clock, quality, Pomodoro, mode & layout settings",
     keys: [
       "sc_last_theme",
+      "sc_theme_favs_v1",
+      "sc_theme_recent_v1",
+      "sc_music_deck",
+      "sc_music_providers",
       "sc_clock_mode",
       "sc_clock_pos",
       "sc_clock_pos_map",
@@ -202,13 +206,32 @@ const SESSION_KEYS: Record<string, string[]> = {
   integrations: ["sc_oauth_state", "sc_oauth_verifier"],
 };
 
+// Theme Finder caches favourites/recents in module memory. Deleting those
+// keys has to tell it to re-read, or the stale entries survive in the open
+// library and get written straight back on the next star toggle. Same-tab
+// deletions never fire a `storage` event, hence the custom event.
+const THEME_LIST_KEYS = new Set(["sc_theme_favs_v1", "sc_theme_recent_v1"]);
+
+function notifyThemeListsCleared() {
+  window.dispatchEvent(new CustomEvent("sc-theme-lists-reset"));
+}
+
+let clearingAll = false;
+
 export function deleteCategory(cat: DataCategory): void {
   categoryLocalStorageKeys(cat).forEach((key) => localStorage.removeItem(key));
   (SESSION_KEYS[cat.id] ?? []).forEach((key) => sessionStorage.removeItem(key));
+  if (!clearingAll && cat.keys.some((k) => THEME_LIST_KEYS.has(k)))
+    notifyThemeListsCleared();
 }
 
 export function deleteAll(): void {
-  DATA_CATEGORIES.forEach(deleteCategory);
+  clearingAll = true;
+  try {
+    DATA_CATEGORIES.forEach(deleteCategory);
+  } finally {
+    clearingAll = false;
+  }
   // Backstop: remove every remaining `sc_*` key regardless of whether
   // it's declared above. This is what makes "Delete All" a real
   // guarantee rather than a promise that depends on this file staying
@@ -220,6 +243,7 @@ export function deleteAll(): void {
   Object.keys(sessionStorage)
     .filter((k) => k.startsWith("sc_"))
     .forEach((k) => sessionStorage.removeItem(k));
+  notifyThemeListsCleared();
 }
 
 // ── Incognito session mode ─────────────────────────────────────────────

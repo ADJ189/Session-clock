@@ -17,6 +17,7 @@ let _isOpen = false;
 let _activeIdx = 0;
 let _filtered: CmdItem[] = [];
 let _lastQuery = '';
+let _returnFocus: HTMLElement | null = null;
 
 // These IDs are static markup in index.html (always present), so a lookup
 // failure means the DOM structure changed — better to fail loudly than
@@ -38,12 +39,25 @@ export function registerItems(items: CmdItem[]) {
 export function open(prefill = '') {
   if (_isOpen) { input().focus(); return; }
   _isOpen = true;
+  // Remember the control that opened the palette so closing it returns the
+  // user there (notably the weather search, which must regain its caret).
+  const active = document.activeElement;
+  _returnFocus =
+    active instanceof HTMLElement && active !== document.body ? active : null;
   overlay().classList.add('open');
   requestAnimationFrame(() => {
     const inp = input();
     inp.value = prefill;
     inp.focus();
     render(prefill);
+    // WebKit can decline focus in the exact frame the overlay starts to
+    // appear (e.g. while another dialog's focus is still being released).
+    // One short retry; skipped if the palette was closed in the meantime.
+    if (document.activeElement !== inp) {
+      setTimeout(() => {
+        if (_isOpen) inp.focus();
+      }, 60);
+    }
   });
 }
 
@@ -53,6 +67,16 @@ export function close() {
   overlay().classList.remove('open');
   input().value = '';
   _activeIdx = 0;
+  const ret = _returnFocus;
+  _returnFocus = null;
+  const active = document.activeElement;
+  // Restore only when focus is still inside the palette (or lost). If a
+  // command opened another dialog and moved focus there, leave it alone.
+  const focusInPalette =
+    !active || active === document.body || overlay().contains(active);
+  if (ret && ret.isConnected && ret.getClientRects().length > 0 && focusInPalette) {
+    ret.focus({ preventScroll: true });
+  }
 }
 
 export function isOpen() { return _isOpen; }
@@ -237,10 +261,18 @@ export function initPalette() {
       e.preventDefault();
       const item = _filtered[_activeIdx];
       if (item) { item.action(); close(); }
-    } else if (e.key === 'Escape') {
-      close();
     }
   });
+
+  // The palette is the topmost layer whenever it is open. Claim Escape in the
+  // capture phase so a lower dialog (e.g. the weather location picker) cannot
+  // close itself first, even if focus has drifted outside the palette.
+  document.addEventListener('keydown', e => {
+    if (!_isOpen || e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    close();
+  }, true);
 
   // Click outside to close
   overlay().addEventListener('click', e => {

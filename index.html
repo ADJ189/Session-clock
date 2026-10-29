@@ -665,66 +665,32 @@
           </svg>
           Themes
         </button>
-        <div class="weather-support-wrap">
-          <div id="weatherPill" class="topbar-pill">
-            <span id="weatherIcon" class="weather-icon-default">
-              <svg
-                viewBox="0 0 24 16"
-                width="17"
-                height="12"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6.5 13.5a4.2 4.2 0 0 1-.4-8.38A5 5 0 0 1 15.7 4.1 4 4 0 0 1 17.5 12"
-                />
-                <path d="M6.5 13.5h11" />
-              </svg>
-            </span>
-            <span id="weatherText">--°</span>
-          </div>
-          <div class="support-card" role="note">
-            <img
-              class="support-avatar"
-              src="https://github.com/ADJ189.png?size=64"
-              alt=""
-              width="30"
-              height="30"
-              loading="lazy"
-              referrerpolicy="no-referrer"
-            />
-            <div class="support-card-body">
-              <div class="support-card-name">ADJ189</div>
-              <div class="support-card-msg">
-                Enjoying Session Clock? A star helps other people find it.
-              </div>
-              <a
-                class="support-card-star"
-                href="https://github.com/ADJ189/Session-clock"
-                target="_blank"
-                rel="noopener noreferrer"
-                referrerpolicy="no-referrer"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M12 2.5l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L2 9.7l7.1-.6z"
-                  />
-                </svg>
-                Star on GitHub
-              </a>
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          id="weatherPill"
+          class="topbar-pill weather-pill"
+          aria-label="Open weather"
+          title="Weather"
+        >
+          <span id="weatherIcon" class="weather-icon-default" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 16"
+              width="17"
+              height="12"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M6.5 13.5a4.2 4.2 0 0 1-.4-8.38A5 5 0 0 1 15.7 4.1 4 4 0 0 1 17.5 12"
+              />
+              <path d="M6.5 13.5h11" />
+            </svg>
+          </span>
+          <span id="weatherText">Set location</span>
+        </button>
         <div class="info-strip">
           <div class="info-slide" id="infoSlide">
             <span class="info-dot"></span>
@@ -734,7 +700,7 @@
       </div>
       <div id="showBadge" class="showbadge"></div>
       <div class="topbar-right">
-        <div class="utc-pill" id="utcPill">UTC --:--:--</div>
+        <div class="context-pill" id="contextPill" title="Local app status">Session Clock</div>
         <button
           class="clock-pos-pill"
           id="clockPosPill"
@@ -748,7 +714,8 @@
           target="_blank"
           rel="noopener noreferrer"
           referrerpolicy="no-referrer"
-          title="GitHub"
+          title="Session Clock repository on GitHub"
+          aria-label="Open the Session Clock GitHub repository"
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
             <path
@@ -1052,15 +1019,21 @@
 
     <div class="sc-overlay" id="soundOverlay">
       <div class="sc-modal sc-modal--mixer">
-        <div class="modal-header">
-          <h2>Sound Mixer</h2>
+        <div class="modal-header mixer-header">
+          <div class="mixer-title">
+            <span class="tl-eyebrow">Ambience</span>
+            <h2>Sound Mixer</h2>
+          </div>
           <div class="mixer-header-actions">
             <button
               class="mixer-night-toggle"
               id="mixerNightToggle"
-              title="Night mode"
+              type="button"
+              aria-pressed="false"
+              title="Night mode: auto"
             >
-              🌙
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z"/></svg>
+              <span class="mixer-night-label">Night</span>
             </button>
             <button
               class="modal-close"
@@ -1082,57 +1055,183 @@
           </div>
         </div>
         <div class="sound-mixer">
-          <div class="sound-tracks" id="soundGrid"></div>
-          <div class="sound-master">
-            <div class="sound-master-row">
-              <span class="sound-master-lbl">Master</span>
-              <input
-                type="range"
-                class="sc-range master-vol-slider"
-                id="volSlider"
-                aria-label="Master volume"
-                min="0"
-                max="200"
-                value="70"
-              />
-              <span class="sound-vol-pct" id="volLabel">70%</span>
+          <section class="mixer-tracks-section" aria-labelledby="mixerTracksTitle">
+            <div class="mixer-section-head">
+              <div>
+                <span class="tl-eyebrow">Layer a mix</span>
+                <h3 id="mixerTracksTitle">Ambient tracks</h3>
+              </div>
+              <span class="mixer-section-note">Tap to play</span>
             </div>
-            <div class="mixer-vu-row">
-              <span class="sound-master-lbl">Output</span>
-              <div class="mixer-vu-track">
-                <div class="mixer-vu-fill" id="mixerVuFill"></div>
+            <div class="sound-tracks" id="soundGrid"></div>
+          </section>
+
+          <section class="mix-console" aria-labelledby="mixConsoleTitle">
+            <div class="mix-console-head">
+              <div>
+                <span class="tl-eyebrow">Mix Console</span>
+                <h3 id="mixConsoleTitle">Master &amp; playback</h3>
+              </div>
+              <span class="mix-console-hint">Changes apply live</span>
+            </div>
+
+            <div class="mix-console-grid">
+              <div class="mix-card mix-card--master">
+                <div class="mix-card-head">
+                  <span class="mix-card-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
+                    Master volume
+                  </span>
+                  <output class="mix-value" id="volLabel" for="volSlider">70%</output>
+                </div>
+                <input
+                  type="range"
+                  class="sc-range master-vol-slider"
+                  id="volSlider"
+                  aria-label="Master volume"
+                  min="0"
+                  max="200"
+                  value="70"
+                />
+                <div class="mix-scale" aria-hidden="true">
+                  <span>Quiet</span><span>100%</span><span>Boost</span>
+                </div>
+              </div>
+
+              <div class="mix-card mix-card--output">
+                <div class="mix-card-head">
+                  <span class="mix-card-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4"/></svg>
+                    Output
+                  </span>
+                  <span class="mix-live">Live</span>
+                </div>
+                <div class="mixer-vu-track" role="img" aria-label="Output level meter">
+                  <div class="mixer-vu-fill" id="mixerVuFill"></div>
+                </div>
+                <p class="mix-card-desc">Combined level of the tracks currently playing.</p>
+              </div>
+
+              <div class="mix-card mix-card--fade">
+                <div class="mix-card-head">
+                  <span class="mix-card-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h10M10 8l4 4-4 4M18 7v10"/></svg>
+                    Fade out
+                  </span>
+                  <output class="mix-value" id="fadeLabel" for="fadeSlider">Off</output>
+                </div>
+                <input
+                  type="range"
+                  class="sc-range fade-slider"
+                  id="fadeSlider"
+                  aria-label="Fade out duration in minutes"
+                  min="0"
+                  max="60"
+                  value="0"
+                />
+                <div class="fade-chips" id="fadeChips" aria-label="Fade out presets">
+                  <button type="button" class="fade-chip" data-fade="0">Off</button>
+                  <button type="button" class="fade-chip" data-fade="5">5m</button>
+                  <button type="button" class="fade-chip" data-fade="10">10m</button>
+                  <button type="button" class="fade-chip" data-fade="30">30m</button>
+                  <button type="button" class="fade-chip" data-fade="60">60m</button>
+                </div>
+                <p class="mix-card-desc">Ease ambience out when stopping.</p>
               </div>
             </div>
-            <div class="sound-master-row" style="margin-top: 10px">
-              <span class="sound-master-lbl">Fade out</span>
-              <input
-                type="range"
-                class="sc-range"
-                id="fadeSlider"
-                aria-label="Fade out duration"
-                min="0"
-                max="60"
-                value="0"
-              />
-              <span class="sound-vol-pct" id="fadeLabel">Off</span>
+
+            <div class="mixer-scenes">
+              <div class="mixer-scenes-hdr">
+                <div>
+                  <span class="tl-eyebrow">Scenes</span>
+                  <h3>Focus &amp; Break mixes</h3>
+                </div>
+                <label class="mixer-scene-auto">
+                  <span>Auto-switch with Pomodoro</span>
+                  <input type="checkbox" id="mixerAutoCrossfade" />
+                  <span class="mixer-switch" aria-hidden="true"></span>
+                </label>
+              </div>
+              <div class="mixer-scenes-row">
+                <button class="scene-card" id="sceneFocusBtn" type="button">
+                  <span class="scene-art scene-art--focus" aria-hidden="true"></span>
+                  <span class="scene-info">
+                    <span class="scene-title">Focus mix</span>
+                    <span class="scene-desc">Save this blend as your work preset.</span>
+                  </span>
+                  <span class="scene-action">Save current mix</span>
+                </button>
+                <button class="scene-card" id="sceneBreakBtn" type="button">
+                  <span class="scene-art scene-art--break" aria-hidden="true"></span>
+                  <span class="scene-info">
+                    <span class="scene-title">Break mix</span>
+                    <span class="scene-desc">Save this blend as your rest preset.</span>
+                  </span>
+                  <span class="scene-action">Save current mix</span>
+                </button>
+              </div>
             </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme Finder: the visual discovery gallery behind every "Themes" action -->
+    <div class="sc-overlay" id="themeLibOverlay">
+      <div class="sc-modal themelib" aria-labelledby="themeLibTitle">
+        <div class="tl-head">
+          <div class="tl-titles">
+            <span class="tl-eyebrow">Theme Finder</span>
+            <h2 id="themeLibTitle">Find your atmosphere</h2>
+            <span class="tl-count" id="tlCount" aria-live="polite"></span>
           </div>
-          <div class="mixer-scenes">
-            <div class="mixer-scenes-hdr">
-              <span class="sound-master-lbl">🎬 Crossfade Scenes</span>
-              <label class="mixer-scene-auto"
-                ><input type="checkbox" id="mixerAutoCrossfade" /> Auto-switch
-                with Pomodoro</label
-              >
+          <div class="tl-search">
+            <svg class="tl-search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="tlSearch" type="search" placeholder="Search worlds, shows, films, moods" aria-label="Search themes" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" />
+            <button type="button" id="tlClear" class="tl-clear" aria-label="Clear search" hidden>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <select id="tlSort" class="tl-sort" aria-label="Sort themes">
+            <option value="default">Default order</option>
+            <option value="az">A–Z</option>
+          </select>
+          <button class="modal-close tl-close" aria-label="Close theme library" onclick="SC.modals.close('themeLibOverlay')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <nav class="tl-nav" id="tlNav" aria-label="Theme collections"></nav>
+        <div class="tl-body">
+          <div class="tl-main" id="tlMain">
+            <section class="tl-spotlight" id="tlSpotlight" aria-label="Current theme"></section>
+            <section class="tl-shelf" id="tlRecentSection" hidden>
+              <div class="tl-shelf-head">
+                <div>
+                  <span class="tl-eyebrow">Continue where you left off</span>
+                  <h3 class="tl-shelf-title">Recently used</h3>
+                </div>
+                <button class="tl-shelf-link" type="button" id="tlRecentAll">View all</button>
+              </div>
+              <div class="tl-recent-rail" id="tlRecentRail"></div>
+            </section>
+            <section class="tl-shelf" id="tlWorldsSection">
+              <div class="tl-shelf-head">
+                <div>
+                  <span class="tl-eyebrow">Browse worlds</span>
+                  <h3 class="tl-shelf-title">Pick a place to focus</h3>
+                </div>
+              </div>
+              <div class="tl-worlds" id="tlWorldsGrid"></div>
+            </section>
+            <div class="tl-wall-head">
+              <div>
+                <span class="tl-eyebrow" id="tlWallEyebrow">The full catalogue</span>
+                <h3 class="tl-wall-title" id="tlWallTitle">All atmospheres</h3>
+              </div>
+              <span class="tl-wall-count" id="tlWallCount" aria-hidden="true"></span>
             </div>
-            <div class="mixer-scenes-row">
-              <button class="scene-btn" id="sceneFocusBtn">
-                💼 Save Focus mix
-              </button>
-              <button class="scene-btn" id="sceneBreakBtn">
-                ☕ Save Break mix
-              </button>
-            </div>
+            <div class="tl-grid" id="tlGrid" role="list"></div>
+            <div class="tl-empty" id="tlEmpty" hidden></div>
           </div>
         </div>
       </div>
@@ -1291,7 +1390,7 @@
       </div>
     </div>
 
-    <!-- GitHub star/support celebration — shown before following the GitHub link -->
+    <!-- GitHub project card — a compact, direct entry point to the repository -->
     <div class="sc-overlay gh-overlay" id="ghOverlay">
       <div class="sc-modal sc-modal--narrow gh-modal">
         <button class="modal-close" id="ghClose" aria-label="Close">
@@ -1307,35 +1406,22 @@
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
         </button>
-        <div class="gh-avatar-wrap">
-          <div class="gh-avatar-glow" aria-hidden="true"></div>
-          <img
-            class="gh-avatar"
-            src="https://github.com/ADJ189.png?size=128"
-            alt=""
-            width="76"
-            height="76"
-            loading="lazy"
-            referrerpolicy="no-referrer"
-          />
-          <svg class="gh-avatar-ring" viewBox="0 0 100 100" aria-hidden="true">
-            <circle cx="50" cy="50" r="46" />
-          </svg>
-          <span class="gh-badge" aria-hidden="true">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+        <div class="gh-card-top">
+          <span class="gh-mark" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
               <path
                 d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.02 3.29 9.28 7.86 10.79.57.1.79-.25.79-.55 0-.27-.01-1.15-.02-2.09-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.73 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.83 1.18 3.08 0 4.41-2.7 5.38-5.26 5.67.42.36.78 1.07.78 2.16 0 1.56-.01 2.82-.01 3.2 0 .3.21.66.8.55A10.53 10.53 0 0 0 23.5 12c0-6.27-5.23-11.5-11.5-11.5Z"
               />
             </svg>
           </span>
+          <div class="gh-card-titles">
+            <h2 class="gh-title">Session Clock</h2>
+            <span class="gh-eyebrow">ADJ189 / Session-clock · open source</span>
+          </div>
         </div>
-        <p class="gh-eyebrow">
-          Session Clock <span aria-hidden="true">·</span> open source
-        </p>
-        <h2 class="gh-title">If it's been useful,<br />a star helps a lot.</h2>
         <p class="gh-body">
-          Built and maintained independently — no ads, no tracking. Stars help
-          other people find it; sponsorship keeps it in active development.
+          A cinematic focus timer with 103 animated themes, Pomodoro, and an
+          ambient sound mixer. Built independently — no ads, no tracking.
         </p>
         <div class="gh-stats" id="ghStats" hidden>
           <span class="gh-chip">
@@ -1365,7 +1451,7 @@
               aria-hidden="true"
             >
               <path
-                d="M6 3v8a4 4 0 0 0 4 4h4M18 3v6M18 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM6 3a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm12-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"
+                d="M6 3v8a4 4 0 0 0 4 4h4M18 3v6M18 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM6 3a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm12-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm0 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"
               />
             </svg>
             <span id="ghStatForks">0</span> forks
@@ -1374,6 +1460,19 @@
         <div class="gh-actions">
           <a
             class="btn btn-primary gh-btn-star"
+            id="ghBtnView"
+            href="https://github.com/ADJ189/Session-clock"
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerpolicy="no-referrer"
+          >
+            View repository
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M7 17 17 7M9 7h8v8" />
+            </svg>
+          </a>
+          <a
+            class="btn btn-ghost"
             id="ghBtnStar"
             href="https://github.com/ADJ189/Session-clock"
             target="_blank"
@@ -1391,7 +1490,7 @@
                 d="M12 2.5l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7L2 9.7l7.1-.6z"
               />
             </svg>
-            <span>Star on GitHub</span>
+            Star on GitHub
           </a>
           <a
             class="btn btn-ghost gh-btn-donate"
@@ -1404,7 +1503,7 @@
             Sponsor
           </a>
         </div>
-        <button class="gh-skip" id="ghSkip">Just take me to GitHub →</button>
+        <button class="gh-skip" id="ghSkip" type="button">Close</button>
       </div>
     </div>
 

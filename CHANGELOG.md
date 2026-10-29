@@ -9,6 +9,60 @@ All notable changes to Session Clock are documented here.
 > `1.76` below is the first release under this scheme, since this update
 > bundles several larger changes together.
 
+## [Unreleased] — 2026-10-25
+
+Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session panel, a local-only contextual status tab, an opt-in music deck, and a rebuilt first-run welcome.
+
+### Changed
+
+- **Clock defaults**: new visitors get a calm `HH:MM` clock (seconds and milliseconds hidden). An explicit saved `sc_hide_seconds` / `sc_hide_ms` value always wins, so upgrades never overwrite a deliberate choice.
+- **Center mode**: the session panel is now a compact right-side card with a legible timer and three usable controls. The decorative Pomodoro ring is hidden instead of scaling the whole wrapper (which used to shrink the timer). On narrow screens the card moves to the bottom-right above the dock and respects safe-area insets.
+- **Contextual top-bar tab**: the old UTC/offline pill is replaced by a local status tab showing the active theme, focus phase, or deadline countdown. There is no network time sync; the clock reads the device clock.
+- **First-run welcome**: content-led height, a vector stopwatch mark, shorter copy, feature hints, a visible step label, and accessible progress/skip controls. All welcome copy and action labels now come from `src/i18n.ts` in all eight locales.
+- **Themes in the dock**: the floating dock now includes a Themes action alongside the top-bar button.
+- **Docs**: README default-UX copy now notes the opt-in music deck; CONTRIBUTING testing instructions and the privacy policy no longer describe network time sync. `AGENTS.md` documents the project for future agents/contributors.
+
+### Added
+
+- `tests/redesign.spec.ts`: first-run welcome layout and skip/default flows, Center-mode panel geometry at six viewport sizes, Top-mode panel geometry, saved full-stack Center layout, solid-accent button contrast across themes, HH:MM defaults, contextual tab (no time-sync requests), top-bar fit at nine widths from 320px up, install-button absence, Haptics visibility by platform, and the opt-in music deck.
+- Music Panel settings: an explicit on/off toggle plus a YouTube/Spotify/Both provider choice. The deck is absent on a clean profile and YouTube is the default.
+
+### Removed
+
+- In-app **Install App** button. The manifest and service worker remain, so browsers still offer installation through their own UI.
+- `src/timesync.ts`, the `SyncResult` type, sync trust labels/tooltips, and Privacy Mode's time-sync claim.
+- The stale `worldtimeapi.org` entry in the service-worker external-cache allowlist; the app no longer requests network time.
+- Stale `src/**/*.svelte` entry in `tsconfig.json`.
+
+### Fixed
+
+- Center-mode timer legibility and control clipping. On the desktop sidebar the primary Start action now gets a full-width row (with Reset and the Pomodoro toggle beneath it), so "Begin Session" and longer translations are no longer cut off by the 77px cells. Bottom-card mode tightens button padding for the same reason.
+- Center-mode `HH:MM` digits no longer run edge-to-edge on 320px phones: the minimum font size was lowered so the `23vw` term can scale the clock down, keeping the glow inside the viewport.
+- Narrow top bars no longer overlap. Below 520px the weather control becomes a compact icon button; below 380px the GitHub link and keyboard-shortcut trigger are hidden (the command palette stays). The contextual status tab, voice input, and Themes button remain visible.
+- Solid accent buttons (Start, Pomodoro phases, segmented controls, integrations) now derive dark-or-light ink from the accent's luminance, so themes such as Aurora and Air-Gapped no longer render invisible button text.
+- Center mode's boot/status toasts no longer cover the bottom-right session panel on tablets and phones; they sit below the top bar there.
+- The command palette now owns focus and Escape above the weather location picker. Opening it from the picker no longer pulls focus back to the city search, and Escape closes the palette first instead of the picker underneath.
+- First-run welcome card no longer reserves a tall empty lower region, and later option-heavy steps keep their scrollable card.
+- Reduced-motion users no longer get a perpetual pulsing welcome mark.
+
+## [2.0.0] — V2 line begins
+
+Session Clock moves to standard three-part semantic versioning (`MAJOR.MINOR.PATCH`) starting with this release; the two-decimal `x.xx` scheme described below applies to releases up to `1.99`.
+
+### Added
+
+- **Theme Library**: a searchable gallery replaces the bottom theme panel. Collections for all themes, recently used, favourites and the six categories; A–Z sort; favourites and recents stored as IDs only (`sc_theme_favs_v1`, `sc_theme_recent_v1`, included in the Privacy data export/delete). Every card still applies through `applyTheme()`.
+- Neutral V2 interface tokens (`--ui-*`) with a light-surface variant for light themes.
+- `npm run previews` (`scripts/gen-theme-previews.mjs`): experimental scene-thumbnail generator; no thumbnails are shipped yet, cards use a gradient preview.
+- Playwright coverage for the library (`tests/themelib.spec.ts`).
+
+### Changed
+
+- Feature dock is now a floating capsule (Sound, Zen, Settings) with one consistent SVG icon set.
+- The "K" shortcut and the Themes buttons open the Theme Library; the old bottom panel stays in the DOM, collapsed.
+- README header refreshed: the app logo now leads, followed by the badges, the app preview, and the rest of the page.
+- Version bumped to `2.0.0` in `package.json` and `package-lock.json`.
+
 ## [1.99] — First-load reliability: boot guard, safe storage, critical splash CSS
 
 Fixes the intermittent "giant splash logo, nothing else loads until refresh" and "loads halfway then stops" reports. The splash PNG format was not the cause.

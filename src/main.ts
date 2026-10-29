@@ -1,12 +1,6 @@
 import type { Theme } from "./types";
 import { THEMES, THEME_BY_ID, THEMES_BY_CAT, NAT_QUOTES } from "./themes";
-import { THEME_CATEGORIES } from "./types";
 
-// Media categories shown as picker tabs — everything except 'nat', which
-// renders in its own non-tabbed section. Derived once from the single
-// category source of truth so a new category added there needs no
-// matching edit here.
-const MEDIA_CATEGORIES = THEME_CATEGORIES.filter((c) => c !== "nat");
 import type { TimeString, LitEntry } from "./types";
 import {
   p2,
@@ -17,7 +11,6 @@ import {
   GREETS,
   localStorageBytes,
 } from "./utils";
-import { clockOffset, synced, syncTime, setSyncHandler } from "./timesync";
 import {
   initWeather,
   stopWeather,
@@ -51,6 +44,7 @@ import {
   setTier,
   setAutoQuality,
   tickFps,
+  resetFpsSampling,
   getFps,
   isTabVisible,
   type QualityTier,
@@ -65,7 +59,6 @@ import * as NowPlaying from "./nowplaying";
 import * as MusicDock from "./musicdock";
 import * as SideTasks from "./sidetasks";
 import {
-  t,
   setLocale,
   getLocale,
   LOCALE_NAMES,
@@ -83,6 +76,7 @@ import {
 } from "./platform";
 import * as Palette from "./palette";
 import * as Motion from "./motion";
+import * as ThemeLib from "./themelib";
 
 // ── Platform detection ───────────────────────────────────────────────
 // Runs first, synchronously, before anything else touches the DOM — CSS
@@ -212,7 +206,6 @@ const DOM = {
   dayPct: $("dayPct"),
   pFill: $("progressFill"),
   sTmr: $("sessionTimer"),
-  utcPill: $("utcPill"),
   greeting: $("greeting"),
   quoteText: $("quoteText"),
   litMeta: $("litMeta"),
@@ -230,6 +223,7 @@ const DOM = {
   showBadge: $("showBadge"),
   infoLabel: $("infoLabel"),
   infoSlide: $("infoSlide"),
+  contextPill: $("contextPill"),
 };
 
 // ── Session timer ──────────────────────────────────────────────────────
@@ -257,6 +251,7 @@ function startTimer() {
   bcBroadcast("session", { running: true });
   APIs.requestNotifications();
   APIs.acquireWakeLock();
+  refreshContextPill();
 }
 
 function pauseTimer() {
@@ -275,6 +270,7 @@ function pauseTimer() {
   Features.updateDistractionUI(false);
   Intel.onFlowInterrupt();
   bcBroadcast("session", { running: false });
+  refreshContextPill();
 }
 
 function resetTimer() {
@@ -301,7 +297,7 @@ function resetTimer() {
 
     // Smart break recommendation
     const sessionMins = Math.floor(dur / 60000);
-    const distractionCount = parseInt(
+    const distractionCount = Number.parseInt(
       localStorage.getItem("sc_distraction_today") ?? "0",
     );
     const smartBreak = Features.calcSmartBreak(
@@ -358,6 +354,7 @@ function resetTimer() {
   DOM.focusInput.value = "";
   if (Pom.isActive()) Pom.reset();
   bcBroadcast("session", { running: false });
+  refreshContextPill();
 }
 
 DOM.btnStart.addEventListener("click", () =>
@@ -427,9 +424,11 @@ function applyCenterMinimal(on: boolean) {
   document.body.classList.toggle("center-minimal", on);
 }
 
-// GitHub star/support celebration — intercepts the topbar GitHub link so
-// clicking it shows a small animated "star us" moment (with confetti)
-// before following through, instead of navigating away instantly.
+// GitHub project card — the top-bar mark opens a small, useful repository
+// card. The old forced avatar-ring/confetti celebration is gone: visiting
+// the repository is a common navigation action, so it must never wait on an
+// animation or a support sequence. Live counts remain optional and are
+// simply hidden when the request fails, privacy mode is on, or we're offline.
 function wireGithubCelebration() {
   const link = document.querySelector<HTMLAnchorElement>(
     '.topbar-icon-btn[href*="github.com"]',
@@ -438,17 +437,10 @@ function wireGithubCelebration() {
   if (!link || !overlay) return;
 
   const closeIt = () => overlay.classList.remove("open");
-  const proceedTo = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
-    closeIt();
-  };
 
   link.addEventListener("click", (e) => {
     e.preventDefault();
     overlay.classList.add("open");
-    Easter.fireConfetti();
-    setTimeout(() => Easter.fireConfetti(), 350);
-    void Motion.githubCelebration(document.querySelector(".gh-avatar"));
     void Motion.modalSpotlightIn($("ghOverlay")?.querySelector(".gh-modal"));
 
     // Live star/fork counts — purely decorative, so a failed/slow fetch
@@ -469,10 +461,7 @@ function wireGithubCelebration() {
   });
 
   $("ghClose")?.addEventListener("click", closeIt);
-  $("ghSkip")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    proceedTo(link.href);
-  });
+  $("ghSkip")?.addEventListener("click", closeIt);
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) closeIt();
   });
@@ -480,8 +469,9 @@ function wireGithubCelebration() {
     if (e.key === "Escape" && overlay.classList.contains("open")) closeIt();
   });
 
-  // Star/Support links keep their normal target="_blank" navigation —
-  // just close the modal shortly after so it doesn't linger.
+  // Repository / star / sponsor links keep their normal target="_blank"
+  // navigation — just close the card shortly after so it doesn't linger.
+  $("ghBtnView")?.addEventListener("click", () => setTimeout(closeIt, 400));
   $("ghBtnStar")?.addEventListener("click", () => setTimeout(closeIt, 400));
   $("ghBtnDonate")?.addEventListener("click", () => setTimeout(closeIt, 400));
 }
@@ -490,8 +480,12 @@ function wireGithubCelebration() {
 // body-level class so each renderer's CSS (and the analogue second-hand
 // draw call) can simply check for it instead of threading a flag through
 // every render path.
-let hideSeconds = safeGet("sc_hide_seconds") === "1";
-let hideMs = safeGet("sc_hide_ms") === "1";
+// New visitors get the calm HH:MM default. An explicit saved choice ("0")
+// always wins, so upgrading never overwrites someone's seconds/ms setting.
+const _savedHideSeconds = safeGet("sc_hide_seconds");
+const _savedHideMs = safeGet("sc_hide_ms");
+let hideSeconds = _savedHideSeconds === null ? true : _savedHideSeconds === "1";
+let hideMs = _savedHideMs === null ? true : _savedHideMs === "1";
 // 24-hour time — same body-class approach as hide-seconds/hide-ms so CSS
 // and every render path (digital/minimal/flip/segment) can react without
 // threading a flag through each function signature.
@@ -528,7 +522,6 @@ function togglePrivacy() {
   privacyMode = !privacyMode;
   localStorage.setItem("sc_privacy", privacyMode ? "1" : "0");
   if (privacyMode) {
-    updateSyncDisplay("failed");
     stopWeather();
     const wp = $("weatherPill");
     if (wp) {
@@ -537,9 +530,8 @@ function togglePrivacy() {
     // Apply system fonts — no Google Fonts in privacy mode
     document.body.style.fontFamily =
       '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
-    showToast("🔒 Privacy Mode: fonts, weather & sync disabled");
+    showToast("🔒 Privacy Mode: fonts & weather disabled");
   } else {
-    syncTime();
     initWeather(
       $("weatherIcon"),
       $("weatherText"),
@@ -828,6 +820,76 @@ const cssVar = (name: string, val: string) => root.style.setProperty(name, val);
 // tabs would ping-pong the same theme back and forth forever.
 let applyingRemoteTheme = false;
 
+/** Expand a single hex nibble (`f`) to its two-digit form (`ff`). */
+function expandHexPair(ch: string): number {
+  return Number.parseInt(ch + ch, 16);
+}
+
+/** sRGB 8-bit channel → linear-light value, per WCAG 2.x. */
+function channelToLinear(channel: number): number {
+  const c = Math.min(255, Math.max(0, channel)) / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+/**
+ * WCAG relative luminance for a CSS hex (`#rgb`, `#rrggbb`, `#rrggbbaa`) or
+ * `rgb()`/`rgba()` colour. Used only to pick readable ink for solid accent
+ * fills, so alpha is ignored.
+ */
+function relativeLuminance(color: string): number {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  const value = color.trim();
+  if (value.startsWith("#")) {
+    const hex = value.slice(1);
+    if (hex.length === 3 || hex.length === 4) {
+      r = expandHexPair(hex.charAt(0));
+      g = expandHexPair(hex.charAt(1));
+      b = expandHexPair(hex.charAt(2));
+    } else if (hex.length >= 6) {
+      r = Number.parseInt(hex.slice(0, 2), 16);
+      g = Number.parseInt(hex.slice(2, 4), 16);
+      b = Number.parseInt(hex.slice(4, 6), 16);
+    }
+  } else {
+    const parts = value.match(/[\d.]+/g);
+    if (parts && parts.length >= 3) {
+      r = Number(parts[0]);
+      g = Number(parts[1]);
+      b = Number(parts[2]);
+    }
+  }
+  if ([r, g, b].some((channel) => !Number.isFinite(channel))) return 0;
+  return (
+    0.2126 * channelToLinear(r) +
+    0.7152 * channelToLinear(g) +
+    0.0722 * channelToLinear(b)
+  );
+}
+
+const ON_ACCENT_DARK = "#06110c";
+const ON_ACCENT_LIGHT = "#ffffff";
+
+/**
+ * Dark or white ink for text/icons on a solid accent fill, whichever has the
+ * higher WCAG contrast ratio. Theme `btnFg` is deliberately not used here: it
+ * is tuned for translucent `btnBg` surfaces, and several themes set it equal
+ * to the accent itself — invisible on a solid accent button.
+ */
+function onAccentInk(color: string): string {
+  const background = relativeLuminance(color);
+  const contrast = (ink: string) => {
+    const lum = relativeLuminance(ink);
+    return (
+      (Math.max(background, lum) + 0.05) / (Math.min(background, lum) + 0.05)
+    );
+  };
+  return contrast(ON_ACCENT_DARK) >= contrast(ON_ACCENT_LIGHT)
+    ? ON_ACCENT_DARK
+    : ON_ACCENT_LIGHT;
+}
+
 // Monotonic token bumped on every applyTheme() call. A media-theme switch
 // applies via a canvas transition callback that fires partway through the
 // animation, and runTransition() bypasses straight to the callback when a
@@ -853,12 +915,13 @@ function applyTheme(theme: Theme, instant = false) {
     cssVar("--clr-text", theme.text);
     cssVar("--clr-accent", theme.accent);
     cssVar("--clr-accent2", theme.accent2);
+    cssVar("--clr-on-accent", onAccentInk(theme.accent));
     // Set RGB components for use in rgba() and animations
     const accentRgb = theme.accent.startsWith("#")
       ? theme.accent
           .slice(1)
           .match(/.{2}/g)!
-          .map((h) => parseInt(h, 16))
+          .map((h) => Number.parseInt(h, 16))
           .join(",")
       : "110,231,183";
     cssVar("--clr-accent-rgb", accentRgb);
@@ -925,15 +988,8 @@ function applyTheme(theme: Theme, instant = false) {
       }, 420);
     }
 
-    updateSyncDisplay(synced ? "ok" : "failed");
-    document
-      .querySelectorAll<HTMLElement>(".nat-btn,.media-card")
-      .forEach((b) => {
-        const isNowActive = b.dataset.id === theme.id;
-        const wasActive = b.classList.contains("active");
-        b.classList.toggle("active", isNowActive);
-        if (isNowActive && !wasActive && !instant) void Motion.popIn(b);
-      });
+    refreshContextPill();
+    ThemeLib.onThemeApplied(theme.id);
     lastQKey = "";
     localStorage.setItem("sc_last_theme", theme.id);
     if (!applyingRemoteTheme) bcBroadcast("theme", { id: theme.id });
@@ -960,21 +1016,53 @@ function applyTheme(theme: Theme, instant = false) {
   runTransition(theme.transition ?? "defaultFade", doApply);
 }
 
-// ── Sync state (drives the UTC/trust pill; no separate visual pill) ─────
-function updateSyncDisplay(state: "syncing" | "ok" | "failed") {
-  if (state === "ok") {
-    Features.setSyncTrust("ntp");
-  } else if (state === "failed") {
-    Features.setSyncTrust("offline");
+// ── Contextual top-bar tab ─────────────────────────────────────────────
+// Shows useful local app state (active theme, focus phase, deadline
+// countdown, or the optional sidereal easter egg) instead of implying any
+// network time synchronisation. Updates are throttled to the once-per-second
+// UI tick, so it never cycles rapidly.
+let countdownText: string | null = null;
+let lunarTooltipSuffix = "";
+function contextPillLabel(): string {
+  if (Easter.isSiderealMode()) {
+    return Easter.getSiderealTime(window.__scLat ?? 0);
   }
+  if (countdownText) return `⏳ ${countdownText}`;
+  if (sessionRunning) {
+    if (Pom.isActive()) {
+      const phase = Pom.getPhase();
+      const minutes = Math.ceil(Pom.getRemainingSeconds() / 60);
+      return `● ${phase === "work" ? "Focus" : "Break"} · ${minutes}m left`;
+    }
+    return "● Focus in progress";
+  }
+  return currentTheme.name;
 }
-setSyncHandler(updateSyncDisplay);
+function refreshContextPill() {
+  const pill = DOM.contextPill;
+  if (!pill) return;
+  pill.textContent = contextPillLabel();
+  const title = Easter.isSiderealMode()
+    ? "Local Sidereal Time — astronomical measure"
+    : sessionRunning
+      ? "Local session status · device clock"
+      : `${currentTheme.name} · device clock`;
+  pill.title = lunarTooltipSuffix ? `${title} · ${lunarTooltipSuffix}` : title;
+}
 
 // ── Render loop ────────────────────────────────────────────────────────
 let lastTs = 0,
   lastSec = -1,
   lastQKey = "",
-  _rafSkip = 0;
+  _rafSkip = 0,
+  _modalFrameTs = 0,
+  _fpsPaused = false;
+// While a dialog covers the app, the clock behind it only needs to stay
+// roughly current. Running the full per-frame DOM work (digits, day-progress
+// bar, session timer) at display rate under a backdrop-filter makes the
+// browser re-blur the whole screen every frame, which starves the main
+// thread on software-rendered WebKit.
+const MODAL_FRAME_MS = 250;
 
 // Lazy-loaded literary-clock quote database — a ~300-line dataset only
 // used by one specific theme, so it's fetched on demand (kicked off as
@@ -1016,12 +1104,34 @@ function renderFrame(ts: number) {
     }
   }
 
+  const modalThrottled = document.body.classList.contains("modal-open");
+  if (modalThrottled) {
+    if (ts - _modalFrameTs < MODAL_FRAME_MS) {
+      requestAnimationFrame(renderFrame);
+      return;
+    }
+    _modalFrameTs = ts;
+  }
+
   requestAnimationFrame(renderFrame);
-  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  // Normally capped at 50ms so a stalled tab can't produce a huge jump; the
+  // throttled path legitimately has ~250ms between frames, so allow that
+  // through or time-based ticks (flow intensity) would run ~5x slow.
+  const dt = Math.min((ts - lastTs) / 1000, modalThrottled ? 0.3 : 0.05);
   lastTs = ts;
 
-  // FPS tracking + auto quality tier
-  tickFps(ts);
+  // FPS tracking + auto quality tier. Frames slowed on purpose while a dialog
+  // is open say nothing about device performance, so they are not sampled;
+  // the window restarts clean on the first full-rate frame afterwards.
+  if (modalThrottled) {
+    _fpsPaused = true;
+  } else {
+    if (_fpsPaused) {
+      _fpsPaused = false;
+      resetFpsSampling(ts);
+    }
+    tickFps(ts);
+  }
 
   // Parallax — skip on LOW tier, reduce-motion, or user disabled
   const parallaxEnabled =
@@ -1035,7 +1145,10 @@ function renderFrame(ts: number) {
     setParallax(0, 0);
   }
 
-  drawBg(dt, currentTheme, Intel.getFlowIntensity());
+  // Skip background rendering while a full-screen modal is open.
+  if (!document.body.classList.contains("modal-open")) {
+    drawBg(dt, currentTheme, Intel.getFlowIntensity());
+  }
 
   // Tick flow intensity
   Intel.tickFlowIntensity(sessionRunning, dt);
@@ -1047,7 +1160,7 @@ function renderFrame(ts: number) {
   // already throttles how often this runs to ~20fps naturally.
   Sound.tickSpatial(ts / 1000);
 
-  const now = new Date(Date.now() + clockOffset);
+  const now = new Date();
   const ms = now.getMilliseconds(),
     sec = now.getSeconds(),
     min = now.getMinutes(),
@@ -1106,17 +1219,7 @@ function renderFrame(ts: number) {
     lastSec = sec;
     // Midnight confetti check
     window.__checkMidnight?.();
-    const uh = now.getUTCHours(),
-      um = now.getUTCMinutes(),
-      us = now.getUTCSeconds();
-    // Sidereal time easter egg
-    if (Easter.isSiderealMode()) {
-      const lat = window.__scLat ?? 0;
-      DOM.utcPill.textContent = Easter.getSiderealTime(lat);
-    } else {
-      DOM.utcPill.textContent = Features.getTrustLabel();
-    }
-    DOM.utcPill.title = Features.getTrustTooltip();
+    refreshContextPill();
 
     // Update status line
     if (sessionRunning && Pom.isActive()) {
@@ -1576,144 +1679,51 @@ function setLogoContent(
 }
 
 // ── Theme panel ────────────────────────────────────────────────────────
-let activePanelTab = "nat";
-
 function buildPanel() {
-  const panelRows = $("themePanelRows");
-  panelRows.innerHTML = "";
   const featBar = $("featBar");
   featBar.innerHTML = "";
 
-  // ── Tab bar ──────────────────────────────────────────────────────────
-  const tabs = document.createElement("div");
-  tabs.className = "panel-tabs";
-  const tabDefs: [string, string, string][] = [
-    ["nat", "🌿", "Natural"],
-    ["tv", "📺", "TV Shows"],
-    ["movie", "🎬", "Movies"],
-    ["animation", "🎨", "Animation"],
-    ["anime", "⛩", "Anime"],
-    ["f1", "🏎", "F1 Teams"],
-  ];
-  const contents: Record<string, HTMLElement> = {};
-  tabDefs.forEach(([id, icon, label]) => {
-    const btn = document.createElement("button");
-    btn.className = "panel-tab" + (id === activePanelTab ? " active" : "");
-    btn.dataset.tab = id;
-    const iconEl = document.createElement("span");
-    iconEl.className = "tab-icon";
-    iconEl.textContent = icon;
-    const lblEl = document.createElement("span");
-    lblEl.className = "tab-label";
-    lblEl.textContent = label;
-    btn.append(iconEl, lblEl);
-    btn.addEventListener("click", () => switchPanelTab(id));
-    tabs.appendChild(btn);
-  });
-  panelRows.appendChild(tabs);
-
-  // ── Tab contents ──────────────────────────────────────────────────────
-  const makeNatBtn = (t: Theme) => {
-    const btn = document.createElement("button");
-    btn.className = "nat-btn" + (t.id === currentTheme.id ? " active" : "");
-    btn.dataset.id = t.id;
-    btn.title = t.name;
-    btn.style.background = t.swatch ?? t.accent;
-    const tip = document.createElement("span");
-    tip.className = "nat-tip";
-    tip.textContent = t.name;
-    btn.appendChild(tip);
-    btn.addEventListener("click", () => applyTheme(t));
-    return btn;
-  };
-
-  const makeCard = (t: Theme) => {
-    const card = document.createElement("button");
-    card.className = "media-card" + (t.id === currentTheme.id ? " active" : "");
-    card.dataset.id = t.id;
-    card.addEventListener("click", () => applyTheme(t));
-    const logo = document.createElement("div");
-    logo.className = "media-logo";
-    setLogoContent(logo, LOGOS[t.id], () => makeFallbackLogo(t));
-    const nm = document.createElement("div");
-    nm.className = "media-name";
-    nm.textContent = t.name;
-    const sb = document.createElement("div");
-    sb.className = "media-sub";
-    sb.style.color = t.accent;
-    sb.textContent = t.sub ?? "";
-    const txt = document.createElement("div");
-    txt.className = "media-card-text";
-    txt.append(nm, sb);
-
-    card.append(logo, txt);
-    return card;
-  };
-
-  // Natural tab
-  const natContent = document.createElement("div");
-  natContent.className =
-    "tab-content" + (activePanelTab === "nat" ? " active" : "");
-  natContent.dataset.tab = "nat";
-
-  const pureNat = THEMES_BY_CAT.nat.filter((t) => !["literary"].includes(t.id));
-  const specialNat = THEMES_BY_CAT.nat.filter((t) =>
-    ["literary"].includes(t.id),
-  );
-
-  const natGrid = document.createElement("div");
-  natGrid.className = "nat-grid";
-  pureNat.forEach((t) => natGrid.appendChild(makeNatBtn(t)));
-  natContent.appendChild(natGrid);
-
-  if (specialNat.length) {
-    const specLabel = document.createElement("div");
-    specLabel.className = "tab-sub-label";
-    specLabel.textContent = "Special";
-    const specRow = document.createElement("div");
-    specRow.className = "media-grid";
-    specialNat.forEach((t) => specRow.appendChild(makeCard(t)));
-    natContent.append(specLabel, specRow);
-  }
-  contents["nat"] = natContent;
-
-  // TV, Movie, Anime, F1 tabs
-  MEDIA_CATEGORIES.forEach((cat) => {
-    const content = document.createElement("div");
-    content.className =
-      "tab-content" + (activePanelTab === cat ? " active" : "");
-    content.dataset.tab = cat;
-    const grid = document.createElement("div");
-    grid.className = "media-grid";
-    THEMES_BY_CAT[cat].forEach((t) => grid.appendChild(makeCard(t)));
-    content.appendChild(grid);
-    contents[cat] = content;
+  ThemeLib.init({
+    apply: (t) => applyTheme(t),
+    currentId: () => currentTheme.id,
+    fillMark: (el, t) => setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
+    openOverlay: () => openModal("themeLibOverlay"),
+    closeOverlay: () => closeModal("themeLibOverlay"),
   });
 
-  Object.values(contents).forEach((c) => panelRows.appendChild(c));
-
-  // ── Feature bar — 5 essential actions ────────────────────────────────
+  // ── Feature dock — Themes, Sound, Zen, Settings ──────────────────────
+  // Utility icons share one stroke style (24px grid, 1.8 stroke); emoji stay in
+  // theme identity only.
+  const ICON = (d: string) =>
+    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const ICONS = {
+    themes: ICON('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>'),
+    sound: ICON('<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>'),
+    zen: ICON('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>'),
+    settings: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+  };
   const featDefs: [string, string, string, () => void][] = [
-    // [id, emoji, label, action]
+    // [id, icon svg, label, action]
+    ["btnDockThemes", ICONS.themes, "Themes", () => focusLockIntercept(toggleThemePanel)],
     [
       "btnSound",
-      "🎵",
+      ICONS.sound,
       "Sound",
       () => {
         buildSoundUI();
         openModal("soundOverlay");
       },
     ],
-    ["btnZen", "🧘", "Zen", toggleZen],
-    ["btnSettings", "⚙️", "Settings", openSettings],
+    ["btnZen", ICONS.zen, "Zen", toggleZen],
+    ["btnSettings", ICONS.settings, "Settings", openSettings],
   ];
-  featDefs.forEach(([id, emoji, label, action]) => {
+  featDefs.forEach(([id, icon, label, action]) => {
     const b = document.createElement("button");
     b.className = "feat-btn";
     b.id = id;
     const iconEl = document.createElement("span");
     iconEl.className = "feat-icon";
-    iconEl.textContent = emoji;
+    iconEl.innerHTML = icon; // developer-authored constant SVG above
     const lblEl = document.createElement("span");
     lblEl.className = "feat-label";
     lblEl.textContent = label;
@@ -1721,21 +1731,28 @@ function buildPanel() {
     b.addEventListener("click", action);
     featBar.appendChild(b);
   });
-}
 
-function switchPanelTab(id: string) {
-  activePanelTab = id;
-  document
-    .querySelectorAll<HTMLElement>(".panel-tab")
-    .forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
-  document
-    .querySelectorAll<HTMLElement>(".tab-content")
-    .forEach((c) => c.classList.toggle("active", c.dataset.tab === id));
-  // A tasteful staggered pop-in for the grid that just became visible — the
-  // CSS tabFadeIn keyframe still handles the container-level fade, this
-  // adds a per-swatch/per-card cascade on top of it.
-  const active = document.querySelector<HTMLElement>(".tab-content.active");
-  void Motion.staggerIn(active, ".nat-btn, .media-card");
+  // Keep the dock's Themes item in sync with the Theme Library overlay,
+  // whichever control opened/closed it.
+  const themeLibOverlay = $("themeLibOverlay");
+  const dockThemesBtn = $("btnDockThemes");
+  if (themeLibOverlay && dockThemesBtn) {
+    const syncDockState = () => {
+      dockThemesBtn.classList.toggle(
+        "active-tab",
+        themeLibOverlay.classList.contains("open"),
+      );
+      dockThemesBtn.setAttribute(
+        "aria-expanded",
+        String(themeLibOverlay.classList.contains("open")),
+      );
+    };
+    syncDockState();
+    new MutationObserver(syncDockState).observe(themeLibOverlay, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
@@ -1788,6 +1805,16 @@ function onModalOpened(overlay: HTMLElement) {
   }
 }
 
+// Background rendering pauses only while a dialog actually covers the app.
+// Derived from the DOM on every overlay change rather than toggled per-modal,
+// so closing one dialog while another is still open (modal chaining) can't
+// un-pause rendering early, and a minimized overlay (a small docked pill that
+// leaves the app usable) doesn't freeze the background.
+function syncModalOpen() {
+  const covering = document.querySelector(".sc-overlay.open:not(.minimized)");
+  document.body.classList.toggle("modal-open", !!covering);
+}
+
 function onModalClosed(overlay: HTMLElement) {
   if (overlay.id === "soundOverlay") stopMixerMeter();
   const ret = modalReturnFocus.get(overlay);
@@ -1803,6 +1830,10 @@ function onModalClosed(overlay: HTMLElement) {
 
 function trapModalTab(e: KeyboardEvent, overlay: HTMLElement) {
   if (e.key !== "Tab") return;
+  // Listeners live on the overlay for its whole lifetime, but a closed overlay
+  // is only faded out — trapping Tab there would cycle focus through controls
+  // nobody can see. Only an open dialog owns the keyboard.
+  if (!overlay.classList.contains("open")) return;
   const panel = modalPanel(overlay);
   const items = Array.from(
     panel.querySelectorAll<HTMLElement>(FOCUSABLE),
@@ -1829,16 +1860,48 @@ const modalObserver = new MutationObserver((records) => {
     const el = r.target as HTMLElement;
     const wasOpen = (r.oldValue ?? "").split(/\s+/).includes("open");
     const isOpen = el.classList.contains("open");
-    if (isOpen && !wasOpen) onModalOpened(el);
-    else if (!isOpen && wasOpen) onModalClosed(el);
+    if (isOpen && !wasOpen) {
+      el.removeAttribute("aria-hidden");
+      onModalOpened(el);
+    } else if (!isOpen && wasOpen) {
+      onModalClosed(el);
+      // CSS `visibility: hidden` already removes the closed panel from the
+      // Tab order; aria-hidden keeps that explicit for assistive tech.
+      if (!el.contains(document.activeElement))
+        el.setAttribute("aria-hidden", "true");
+    }
   }
+  // Covers open, close, and minimize/restore (class changes with no open flip).
+  syncModalOpen();
 });
+// Overlays created after startup (the weather page is built on first open)
+// are not in the query below, so nothing would ever tell us when they close —
+// and if one is the last dialog closed, `modal-open` would stay set and the
+// background would stay frozen. They only need the pause flag kept in sync,
+// not the full dialog lifecycle, so watch just their class list.
+const lateOverlayObserver = new MutationObserver(() => syncModalOpen());
+new MutationObserver((records) => {
+  for (const r of records) {
+    r.addedNodes.forEach((n) => {
+      if (n instanceof HTMLElement && n.classList.contains("sc-overlay")) {
+        lateOverlayObserver.observe(n, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+      }
+    });
+    // A dialog removed from the DOM while open also stops covering the app.
+    if (r.removedNodes.length) syncModalOpen();
+  }
+  syncModalOpen();
+}).observe(document.body, { childList: true });
 document.querySelectorAll<HTMLElement>(".sc-overlay").forEach((el) => {
   modalObserver.observe(el, {
     attributes: true,
     attributeFilter: ["class"],
     attributeOldValue: true,
   });
+  if (!el.classList.contains("open")) el.setAttribute("aria-hidden", "true");
   el.addEventListener("keydown", (e) => trapModalTab(e, el));
   el.addEventListener("click", (e) => {
     if (e.target === el) closeModal(el.id);
@@ -1879,7 +1942,7 @@ const SHORTCUTS: [string, string, () => void][] = [
   ],
   [
     "K",
-    "Collapse / expand panel",
+    "Open the theme library",
     () => {
       toggleThemePanel();
     },
@@ -1928,7 +1991,14 @@ document.addEventListener("keydown", (e) => {
       (key === "Space" && e.code === "Space") ||
       (key === "?" && (e.key === "?" || (e.code === "Slash" && e.shiftKey))) ||
       (key === "Escape" && e.key === "Escape") ||
-      (key.length === 1 && key.toLowerCase() === ek && key !== "?");
+      // Plain single-key shortcuts must not fire with Ctrl/Cmd/Alt held:
+      // Ctrl+K belongs to the command palette, Ctrl+R to the browser, etc.
+      (key.length === 1 &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        key.toLowerCase() === ek &&
+        key !== "?");
     if (match) {
       e.preventDefault();
       action();
@@ -2014,7 +2084,7 @@ let zenSoundStartedByZen = false;
 
 function getZenDimDelayMs(): number {
   const v = localStorage.getItem("sc_zen_dim_delay");
-  return v ? parseInt(v, 10) : 2500;
+  return v ? Number.parseInt(v, 10) : 2500;
 }
 
 function toggleZen() {
@@ -2132,8 +2202,11 @@ function setThemePanelCollapsed(collapsed: boolean) {
   DOM.themePanel.classList.toggle("collapsed", collapsed);
   document.body.classList.toggle("theme-panel-collapsed", collapsed);
 }
+// The legacy bottom panel is retired: it stays in the DOM (permanently
+// collapsed) so existing hooks keep working, and every "Themes" action opens
+// the Theme Library instead.
 function toggleThemePanel() {
-  setThemePanelCollapsed(!DOM.themePanel.classList.contains("collapsed"));
+  ThemeLib.toggle();
 }
 
 $("panelToggle").onclick = () => {
@@ -2144,7 +2217,7 @@ $("panelToggle").onclick = () => {
 
 document
   .getElementById("themesRevealBtn")
-  ?.addEventListener("click", () => setThemePanelCollapsed(false));
+  ?.addEventListener("click", () => ThemeLib.open());
 
 // ── Pomodoro UI ────────────────────────────────────────────────────────
 Pom.init({
@@ -2477,6 +2550,7 @@ function applyMixerNightMode() {
   const btn = document.getElementById("mixerNightToggle");
   if (btn) {
     btn.classList.toggle("active", mode === "on");
+    btn.setAttribute("aria-pressed", String(mode === "on"));
     btn.title = `Night mode: ${mode}`;
   }
 }
@@ -2883,8 +2957,28 @@ Sound.setTrackChangeHandler(() => {
 ($("fadeSlider") as HTMLInputElement).addEventListener("input", (e) => {
   const v = +(e.target as HTMLInputElement).value;
   Sound.setFade(v);
-  $("fadeLabel").textContent = v === 0 ? "Off" : `${v}m`;
+  syncFadeLabel(v);
 });
+function syncFadeLabel(v: number) {
+  const label = $("fadeLabel");
+  if (label) label.textContent = v === 0 ? "Off" : `${v} min`;
+  document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
+    const active = +chip.dataset.fade! === v;
+    chip.classList.toggle("active", active);
+    chip.setAttribute("aria-pressed", String(active));
+  });
+}
+document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const v = +chip.dataset.fade!;
+    const slider = $("fadeSlider") as HTMLInputElement;
+    slider.value = String(v);
+    Sound.setFade(v);
+    syncFadeLabel(v);
+    slider.focus();
+  });
+});
+syncFadeLabel(+($("fadeSlider") as HTMLInputElement).value);
 
 // ── Custom Theme Builder — full RGB/HSL palette ───────────────────────
 const THEME_FIELDS = [
@@ -2928,12 +3022,12 @@ const rgbaToHex = (s: string): string => {
   return m
     ? "#" +
         [m[0], m[1], m[2]]
-          .map((v) => parseInt(v).toString(16).padStart(2, "0"))
+          .map((v) => Number.parseInt(v).toString(16).padStart(2, "0"))
           .join("")
     : "#ffffff";
 };
 const hexToRgb = (h: string): [number, number, number] => {
-  const v = parseInt(h.slice(1), 16);
+  const v = Number.parseInt(h.slice(1), 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 };
 const hexToHsl = (h: string): [number, number, number] => {
@@ -3255,7 +3349,7 @@ function buildColorRows() {
   );
   inputRow.appendChild(
     makeValueInput("RGB", "picker-rgb", `${ar}, ${ag_}, ${ab}`, (v) => {
-      const parts = v.split(",").map((s) => parseInt(s.trim()));
+      const parts = v.split(",").map((s) => Number.parseInt(s.trim()));
       if (
         parts.length === 3 &&
         parts.every((p) => !isNaN(p) && p >= 0 && p <= 255)
@@ -3345,6 +3439,7 @@ function previewCustomTheme() {
   cssVar("--clr-text", draft.text);
   cssVar("--clr-accent", draft.accent);
   cssVar("--clr-accent2", draft.accent2);
+  cssVar("--clr-on-accent", onAccentInk(draft.accent));
   cssVar("--clr-btn-fg", draft.btnFg);
   cssVar("--clr-panel", draft.panel);
 }
@@ -3935,6 +4030,72 @@ function buildSettingsUI(activeTab = "general") {
     );
     paneWrap.appendChild(audioSec);
 
+    // ── Music panel — opt-in only ──────────────────────────────────────
+    // Off on a clean profile: no Connect Spotify card, no hidden player
+    // engines, no background polling until someone explicitly enables it.
+    const musicSec = makeSection("Music Panel");
+    musicSec.appendChild(
+      makeRow(
+        "Show Music Panel",
+        "Adds an optional floating player for YouTube (default) or Spotify. Hidden entirely until you turn it on",
+        "toggleMusicDeck",
+        MusicDock.isMusicDeckEnabled(),
+      ),
+    );
+    const providerRow = document.createElement("div");
+    providerRow.className = "settings-row";
+    const providerInfo = document.createElement("div");
+    providerInfo.className = "settings-row-info";
+    const providerLabel = document.createElement("div");
+    providerLabel.className = "settings-row-label";
+    providerLabel.textContent = "Providers";
+    const providerDesc = document.createElement("span");
+    providerDesc.className = "settings-row-desc";
+    providerDesc.textContent =
+      "YouTube is the default. Spotify's connect prompt only appears when Spotify is selected.";
+    providerInfo.append(providerLabel, providerDesc);
+    const providerSelect = document.createElement("select");
+    providerSelect.className = "settings-select";
+    providerSelect.setAttribute("aria-label", "Music providers");
+    (
+      [
+        ["youtube", "YouTube"],
+        ["spotify", "Spotify"],
+        ["both", "Both"],
+      ] as const
+    ).forEach(([value, label]) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      if (MusicDock.getProviderPref() === value) opt.selected = true;
+      providerSelect.appendChild(opt);
+    });
+    providerSelect.addEventListener("change", () => {
+      MusicDock.setProviderPref(
+        providerSelect.value as MusicDock.MusicProviderPref,
+      );
+      if (
+        MusicDock.isMusicDeckEnabled() &&
+        MusicDock.getProviderPref() !== "youtube" &&
+        Integrations.isSpotifyConnected()
+      )
+        void MusicDock.initSpotifyPlayback();
+      showToast(`Music panel: ${providerSelect.selectedOptions[0]?.textContent}`);
+    });
+    providerRow.append(providerInfo, providerSelect);
+    musicSec.appendChild(providerRow);
+    paneWrap.appendChild(musicSec);
+    wireToggle("toggleMusicDeck", (on) => {
+      MusicDock.setMusicDeckEnabled(on);
+      if (
+        on &&
+        MusicDock.getProviderPref() !== "youtube" &&
+        Integrations.isSpotifyConnected()
+      )
+        void MusicDock.initSpotifyPlayback();
+      showToast(on ? "Music panel enabled" : "Music panel hidden");
+    });
+
     const soundBtnSec = makeSection("Mixer");
     soundBtnSec.appendChild(buildMixerLaunchCard());
     paneWrap.appendChild(soundBtnSec);
@@ -4060,7 +4221,7 @@ function buildSettingsUI(activeTab = "general") {
       opt.value = String(m);
       opt.textContent = `${m} min`;
       if (
-        parseInt(localStorage.getItem("sc_break_reminder_mins") || "90", 10) ===
+        Number.parseInt(localStorage.getItem("sc_break_reminder_mins") || "90", 10) ===
         m
       )
         opt.selected = true;
@@ -4258,7 +4419,7 @@ function buildSettingsUI(activeTab = "general") {
         "Hide Seconds",
         "Drop the seconds digits/hand across every clock style — just hours and minutes",
         "toggleHideSeconds",
-        localStorage.getItem("sc_hide_seconds") === "1",
+        hideSeconds,
       ),
     );
     digitsSec.appendChild(
@@ -4266,7 +4427,7 @@ function buildSettingsUI(activeTab = "general") {
         "Hide Milliseconds",
         "Hide the fractional-second readout under the clock (kept even with seconds shown, unless this is on)",
         "toggleHideMs",
-        localStorage.getItem("sc_hide_ms") === "1",
+        hideMs,
       ),
     );
     digitsSec.appendChild(
@@ -4471,7 +4632,7 @@ function buildSettingsUI(activeTab = "general") {
     privSec.appendChild(
       makeRow(
         "Privacy Mode",
-        "Disables weather, time sync & Google Fonts — local only",
+        "Disables weather and Google Fonts — local only",
         "togglePrivacyS",
         privacyMode,
         privacyMode ? "On" : undefined,
@@ -4632,7 +4793,7 @@ function applyHandoffState() {
     DOM.focusInput.value = task;
   }
   if (p.get("ses") === "1") {
-    const elapsed = parseInt(p.get("elapsed") ?? "0");
+    const elapsed = Number.parseInt(p.get("elapsed") ?? "0");
     sessionElapsed = elapsed;
     setTimeout(() => DOM.btnStart.click(), 800); // auto-resume
   } else if (p.get("start") === "1") {
@@ -5132,7 +5293,7 @@ function resetMilestones() {
 let breakBadgeShown = false;
 
 function getBreakReminderMins(): number {
-  const v = parseInt(
+  const v = Number.parseInt(
     localStorage.getItem("sc_break_reminder_mins") || "90",
     10,
   );
@@ -5282,7 +5443,7 @@ function initWallpaperDrop() {
 
 function lightenHex(hex: string, amt: number): string {
   if (!hex.startsWith("#")) return hex;
-  const n = parseInt(hex.slice(1), 16);
+  const n = Number.parseInt(hex.slice(1), 16);
   const r = Math.min(255, Math.round(((n >> 16) & 0xff) + 255 * amt));
   const g = Math.min(255, Math.round(((n >> 8) & 0xff) + 255 * amt));
   const b = Math.min(255, Math.round((n & 0xff) + 255 * amt));
@@ -5291,7 +5452,7 @@ function lightenHex(hex: string, amt: number): string {
 
 function darkenHex2(hex: string, amt: number): string {
   if (!hex.startsWith("#")) return hex;
-  const n = parseInt(hex.slice(1), 16);
+  const n = Number.parseInt(hex.slice(1), 16);
   const r = Math.max(0, Math.round(((n >> 16) & 0xff) * (1 - amt)));
   const g = Math.max(0, Math.round(((n >> 8) & 0xff) * (1 - amt)));
   const b = Math.max(0, Math.round((n & 0xff) * (1 - amt)));
@@ -5916,8 +6077,8 @@ function buildPaletteCommands() {
       "egg_sidereal",
       "🔭",
       "Sidereal Time",
-      "click UTC ×7",
-      () => showToast("🔭 Click the UTC pill 7 times quickly", 4000),
+      "click the context tab ×7",
+      () => showToast("🔭 Click the context tab 7 times quickly", 4000),
     ],
     [
       "egg_matrix",
@@ -6240,10 +6401,11 @@ function init() {
   );
 
   // ── Command Palette ───────────────────────────────────────────────────
-  Palette.initPalette();
+  // The real palette is cmdpalette.ts (#cmdOverlay, wired via Cmd.initPalette
+  // below). The legacy palette.ts has no styles, and its own Ctrl+K listener
+  // used to build a second, unstyled overlay + input on every press and race
+  // the real one for focus — so it is deliberately NOT initialised here.
   buildPaletteCommands();
-  // Expose palette open for topbar button
-  window.__scPalette = Palette;
   // Expose helpers for easter.ts cross-module access
   window.__scFps = () => getFps();
   window.__scTier = () => getTier();
@@ -6278,22 +6440,9 @@ function init() {
     document.body.classList.remove("drag-over"),
   );
 
-  // PWA install prompt
-  let deferredInstall: BeforeInstallPromptEvent | null = null;
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferredInstall = e;
-    const btn = document.createElement("button");
-    btn.id = "pwaInstallBtn";
-    btn.className = "show";
-    btn.textContent = "⬇ Install App";
-    btn.addEventListener("click", () => {
-      deferredInstall?.prompt();
-      btn.remove();
-      deferredInstall = null;
-    });
-    document.body.appendChild(btn);
-  });
+  // PWA installation intentionally has no in-app prompt. The manifest and
+  // service worker remain, so browsers that support installation still offer
+  // it through their own native UI (address bar / share sheet).
 
   const kbBtn = $("btnKbShortcuts");
   if (kbBtn) kbBtn.addEventListener("click", () => openModal("kbOverlay"));
@@ -6523,6 +6672,7 @@ function init() {
 
   wireGithubCelebration();
 
+  setThemePanelCollapsed(true);
   const lastId = localStorage.getItem("sc_last_theme");
   applyTheme(
     lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0],
@@ -6569,12 +6719,11 @@ function init() {
   const weatherPillEl = document.getElementById("weatherPill");
   if (weatherPillEl) {
     weatherPillEl.addEventListener("click", () => {
-      openWeatherPage();
+      openWeatherPage(weatherPillEl);
     });
   }
 
   if (!privacyMode) {
-    syncTime();
     initWeather(
       $("weatherIcon"),
       $("weatherText"),
@@ -6591,7 +6740,8 @@ function init() {
       },
     );
   } else {
-    updateSyncDisplay("failed");
+    // Local clock/status stays available; only network-backed weather is off.
+    refreshContextPill();
   }
 
   // ── Command Palette ────────────────────────────────────────────────
@@ -6643,15 +6793,26 @@ function init() {
   const countdownContent = document.getElementById("countdownContent");
   if (countdownContent) {
     Features.buildCountdownUI(countdownContent, (label, target) => {
-      Features.setCountdownTarget(label, target, (display, done) => {
-        const pill = document.getElementById("utcPill");
-        if (done) {
-          showToast(`⏳ ${display}`, 5000);
-          if (pill) pill.title = "";
-          return;
-        }
-        if (pill && !Easter.isSiderealMode()) pill.textContent = display;
-      });
+      Features.setCountdownTarget(
+        label,
+        target,
+        (display, done) => {
+          if (done) {
+            countdownText = null;
+            refreshContextPill();
+            showToast(`⏳ ${display}`, 5000);
+            return;
+          }
+          countdownText = display;
+          refreshContextPill();
+        },
+        () => {
+          // Cancelled by the user — drop the cached text so the top bar
+          // returns to theme / focus status instead of a frozen countdown.
+          countdownText = null;
+          refreshContextPill();
+        },
+      );
       showToast(`⏳ Counting down to ${label}`);
     });
   }
@@ -6675,7 +6836,12 @@ function init() {
   document.body.appendChild(sidebar);
   MusicDock.mountDock(sidebar);
   SideTasks.mountSideStack(sidebar);
-  if (Integrations.isSpotifyConnected()) MusicDock.initSpotifyPlayback();
+  if (
+    MusicDock.isMusicDeckEnabled() &&
+    MusicDock.getProviderPref() !== "youtube" &&
+    Integrations.isSpotifyConnected()
+  )
+    void MusicDock.initSpotifyPlayback();
   // Handle OAuth redirect callbacks — one handler for every provider
   // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here
   // with ?code=&state=<provider>:<nonce>).
@@ -6696,8 +6862,12 @@ function init() {
         // isSpotifyConnected() check above (token lands here, after
         // the redirect) — bring it up now instead of waiting for the
         // user to reload the page themselves to see anything play.
-        if (result.provider === "spotify")
-          MusicDock.initSpotifyPlayback().then(() =>
+        if (
+          result.provider === "spotify" &&
+          MusicDock.isMusicDeckEnabled() &&
+          MusicDock.getProviderPref() !== "youtube"
+        )
+          void MusicDock.initSpotifyPlayback().then(() =>
             MusicDock.refreshDockConnectionState(),
           );
         // Same reasoning for Google: the "Connect YouTube" click that
@@ -6756,26 +6926,13 @@ function init() {
       }
     }, 3000);
 
-    // Lunar phase in UTC pill tooltip
+    // Lunar phase in the contextual tab tooltip
     setTimeout(() => {
       const lunar = Features.getLunarPhase();
-      const utcPill = $("utcPill");
-      if (utcPill) {
-        const existing = utcPill.title;
-        if (!existing.includes(lunar.emoji)) {
-          utcPill.title = `${existing ? existing + " · " : ""}${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
-        }
-      }
+      lunarTooltipSuffix = `${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
+      refreshContextPill();
     }, 2000);
   }
-
-  // Trust indicator — update when sync completes
-  window.__onSyncComplete = (rtt: number) => {
-    Features.setSyncTrust("ntp");
-  };
-  window.__onSyncFail = () => {
-    Features.setSyncTrust("offline");
-  };
 
   // Voice timer — initialise if browser supports it
   const voiceSupported = Features.initVoiceTimer(
@@ -7096,11 +7253,11 @@ function buildCommandPalette() {
       id: "sidereal-time",
       name: "Local Sidereal Time",
       icon: "🔭",
-      desc: "Click the UTC pill 7× → switches display to astronomical sidereal time",
-      keywords: "sidereal time astronomy telescope UTC pill",
+      desc: "Click the top-bar context tab 7× → switches display to astronomical sidereal time",
+      keywords: "sidereal time astronomy telescope context tab",
       action: () =>
         showToast(
-          "🔭 Click the UTC pill 7 times to activate sidereal time mode",
+          "🔭 Click the context tab 7 times to activate sidereal time mode",
           5000,
         ),
     },

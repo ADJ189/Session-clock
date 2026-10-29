@@ -43,7 +43,7 @@ export function initEaster(
   setupMidnightWatch();
   setupDeviceShake();
   setupHyperfocusHold();
-  setupUTCPillSecret();
+  setupContextPillSecret();
   check100Sessions();
 }
 
@@ -732,19 +732,19 @@ function setupHyperfocusHold() {
   });
 }
 
-// ── 7. UTC pill 7× → Sidereal Time ────────────────────────────────────
-let utcClickCount = 0;
-let utcClickTimer = 0;
+// ── 7. Context tab 7× → Sidereal Time ─────────────────────────────────
+let contextClickCount = 0;
+let contextClickTimer = 0;
 let siderealMode = false;
 
-function setupUTCPillSecret() {
-  const pill = document.getElementById("utcPill");
+function setupContextPillSecret() {
+  const pill = document.getElementById("contextPill");
   if (!pill) return;
   pill.addEventListener("click", () => {
-    utcClickCount++;
-    clearTimeout(utcClickTimer);
-    if (utcClickCount >= 7) {
-      utcClickCount = 0;
+    contextClickCount++;
+    clearTimeout(contextClickTimer);
+    if (contextClickCount >= 7) {
+      contextClickCount = 0;
       siderealMode = !siderealMode;
       pill.title = siderealMode
         ? "Local Sidereal Time — astronomical measure"
@@ -752,12 +752,12 @@ function setupUTCPillSecret() {
       _showToast(
         siderealMode
           ? "🔭 Sidereal time mode — for astronomers"
-          : "UTC mode restored",
+          : "Local status restored",
         3500,
       );
     }
-    utcClickTimer = window.setTimeout(() => {
-      utcClickCount = 0;
+    contextClickTimer = window.setTimeout(() => {
+      contextClickCount = 0;
     }, 1500);
   });
 }

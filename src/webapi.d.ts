@@ -53,14 +53,8 @@ interface Navigator {
   readonly deviceMemory?: number;
 }
 
-/** Chromium `beforeinstallprompt` (PWA install). */
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-}
-
-interface WindowEventMap {
-  beforeinstallprompt: BeforeInstallPromptEvent;
-}
+/** Chromium `beforeinstallprompt` is no longer used by the app: PWA
+ *  installation is left to the browser's own native UI. */
 
 /** Web Speech API — `SpeechRecognition` is absent from the DOM lib. Named
  *  *Like so a future lib.dom addition can't collide with these. */
@@ -128,8 +122,6 @@ interface Window {
   __scIncognito?: () => boolean;
   __scPalette?: typeof import("./palette");
   __zenMoveHandler?: EventListener;
-  __onSyncComplete?: (rttMs: number) => void;
-  __onSyncFail?: () => void;
   /** Namespace used by inline handlers in index.html. */
   SC?: Record<string, unknown>;
   SpeechRecognition?: SpeechRecognitionCtor;
@@ -166,6 +158,7 @@ interface SpotifyPlayerLike {
     cb: (s: SpotifyPlaybackStateLike | null) => void,
   ): void;
   connect(): Promise<boolean>;
+  disconnect(): void;
   togglePlay(): Promise<void>;
   nextTrack(): Promise<void>;
   previousTrack(): Promise<void>;
