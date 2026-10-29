@@ -97,6 +97,15 @@ const SUNSET_SVG =
 let locationReturnFocus: HTMLElement | null = null;
 let weatherReturnFocus: HTMLElement | null = null;
 
+/**
+ * The command palette is rendered above the weather page (z-index 10000 vs
+ * 3000). While it is open it owns keyboard focus and Escape; the picker's
+ * focus trap must not pull focus back behind it.
+ */
+function commandPaletteOwnsFocus(): boolean {
+  return document.getElementById("cmdOverlay")?.classList.contains("open") ?? false;
+}
+
 function openLocationPanel(overlay: HTMLElement, trigger: HTMLElement | null) {
   const panel = overlay.querySelector<HTMLElement>("#weatherLocationPanel")!;
   if (!panel.classList.contains("open")) locationReturnFocus = trigger;
@@ -300,6 +309,8 @@ function buildWeatherPageDOM(): HTMLElement {
   const panel = overlay.querySelector<HTMLElement>("#weatherLocationPanel")!;
   document.addEventListener("keydown", (e) => {
     if (!overlay.classList.contains("open")) return;
+    // Let the command palette (a higher layer) own Escape and Tab.
+    if (commandPaletteOwnsFocus()) return;
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -320,6 +331,7 @@ function buildWeatherPageDOM(): HTMLElement {
     }
   }, true);
   document.addEventListener("focusin", (e) => {
+    if (commandPaletteOwnsFocus()) return;
     if (overlay.classList.contains("open") && panel.classList.contains("open") &&
         !panel.contains(e.target as Node)) {
       panel.querySelector<HTMLInputElement>("#weatherLocSearch")!.focus({ preventScroll: true });
