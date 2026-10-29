@@ -41,6 +41,7 @@ Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session p
 - Narrow top bars no longer overlap. Below 520px the weather control becomes a compact icon button; below 380px the GitHub link and keyboard-shortcut trigger are hidden (the command palette stays). The contextual status tab, voice input, and Themes button remain visible.
 - Solid accent buttons (Start, Pomodoro phases, segmented controls, integrations) now derive dark-or-light ink from the accent's luminance, so themes such as Aurora and Air-Gapped no longer render invisible button text.
 - Center mode's boot/status toasts no longer cover the bottom-right session panel on tablets and phones; they sit below the top bar there.
+- The command palette now owns focus and Escape above the weather location picker. Opening it from the picker no longer pulls focus back to the city search, and Escape closes the palette first instead of the picker underneath.
 - First-run welcome card no longer reserves a tall empty lower region, and later option-heavy steps keep their scrollable card.
 - Reduced-motion users no longer get a perpetual pulsing welcome mark.
 
