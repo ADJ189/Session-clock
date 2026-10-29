@@ -6,7 +6,15 @@ import { test, expect, waitForBoot } from "./fixtures";
 // waiting for the entrance to finish. The app already honours
 // prefers-reduced-motion for this dialog, so emulate it here: the tests are
 // about behaviour (filtering, favourites, focus), not about the animation.
-test.use({ reducedMotion: "reduce" });
+//
+// The dialog also renders 103 preview cards, which is the heaviest screen in
+// the app. On a loaded CI runner (two WebKit workers on a shared box) first
+// paint can still take 15–20s even with the entrance disabled, so the default
+// 10s action timeout fires before Playwright ever sees a stable frame. Give
+// these behaviour assertions real headroom rather than turning CPU contention
+// into a false failure.
+test.describe.configure({ timeout: 60_000 });
+test.use({ reducedMotion: "reduce", actionTimeout: 20_000 });
 
 type PwPage = import("@playwright/test").Page;
 

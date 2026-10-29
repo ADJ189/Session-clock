@@ -36,6 +36,44 @@ test("location dialog focuses on automatic and button opens, traps Tab, and rest
   await expect(trigger).toBeFocused();
 });
 
+test("the command palette owns focus and Escape above the location picker", async ({ page }) => {
+  await page.goto("/");
+  await waitForBoot(page);
+  await closeThemePanel(page);
+  await page.locator("#weatherPill").click();
+  const panel = page.locator("#weatherLocationPanel");
+  const search = page.locator("#weatherLocSearch");
+  const palette = page.locator("#cmdOverlay");
+  const paletteInput = page.locator("#cmdInput");
+  // Close the picker auto-opened by the first visit, then open it from the
+  // Set location control so Escape has a visible control to return focus to.
+  await page.locator("#weatherLocCancel").click();
+  await page.locator("#weatherSetLocationBtn").click();
+  await expect(panel).toHaveClass(/open/);
+  await expect(search).toBeFocused();
+
+  await page.keyboard.press("Control+k");
+  await expect(palette).toHaveClass(/open/);
+  await expect(paletteInput).toBeFocused();
+
+  // Typing must reach the palette, not the city search behind it.
+  await page.keyboard.type("theme");
+  await expect(paletteInput).toHaveValue("theme");
+  await expect(search).toHaveValue("");
+
+  // Escape closes the topmost layer only, then focus returns to the picker.
+  await page.keyboard.press("Escape");
+  await expect(palette).not.toHaveClass(/open/);
+  await expect(panel).toHaveClass(/open/);
+  await expect(search).toBeFocused();
+
+  // The picker still owns Escape once the palette is gone.
+  await page.keyboard.press("Escape");
+  await expect(panel).not.toHaveClass(/open/);
+  await expect(page.locator("#weatherPageOverlay")).toHaveClass(/open/);
+  await expect(page.locator("#weatherSetLocationBtn")).toBeFocused();
+});
+
 test("city selection restores focus and names daily condition icons", async ({ page }) => {
   await page.route("https://nominatim.openstreetmap.org/search?*", (route) => route.fulfill({
     json: [{ display_name: "London, UK", lat: "51.5", lon: "-0.12", address: { city: "London", country: "UK" } }],
