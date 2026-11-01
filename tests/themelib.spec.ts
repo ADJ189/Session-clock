@@ -57,7 +57,7 @@ const open = async (page: PwPage) => {
 };
 
 test.describe("theme library", () => {
-  test("opens from the Themes button and lists every theme and category", async ({ page }) => {
+  test("opens from the Themes button and lists every theme and category @smoke", async ({ page }) => {
     await open(page);
     await expect(page.locator(".tl-card")).toHaveCount(103);
     await expect(page.locator("#tlCount")).toHaveText("103 themes");
@@ -66,6 +66,46 @@ test.describe("theme library", () => {
     }
     await expect(page.locator(".tl-card.active")).toHaveCount(1);
     await expect(page.locator(".tl-card.active .tl-using")).toBeVisible();
+  });
+
+  test("keeps one header, one nav, one catalogue and a compact current strip", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("sc_last_theme", "ocean");
+      localStorage.setItem("sc_theme_recent_v1", '["ocean","severance"]');
+    });
+    await open(page);
+
+    // One editorial header and one collection nav. The redesign removed the
+    // duplicate spotlight/featured shelves that used to repeat the catalogue.
+    await expect(page.locator("#themeLibOverlay h2")).toHaveCount(1);
+    await expect(page.locator("#themeLibTitle")).toHaveText("Theme Finder");
+    await expect(page.locator("#themeLibOverlay nav")).toHaveCount(1);
+    await expect(page.locator("#tlGrid")).toHaveCount(1);
+    await expect(page.locator("#themeLibOverlay .tl-card")).toHaveCount(103);
+    await expect(page.locator("#tlGrid .tl-card")).toHaveCount(103);
+
+    // The current-theme strip is compact and names the applied theme.
+    const strip = page.locator("#tlSpotlight");
+    await expect(strip).toBeVisible();
+    await expect(strip.locator(".tl-current-name")).toHaveText("Ocean");
+    const stripBox = (await strip.boundingBox())!;
+    expect(stripBox.height).toBeLessThan(stripBox.width / 2);
+
+    // Recents form a rail, and it disappears as soon as a query filters the
+    // catalogue so the grid stays a single, uninterrupted result set.
+    await expect(page.locator("#tlRecentSection")).toBeVisible();
+    await expect(page.locator(".tl-recent-card")).toHaveCount(2);
+    expect(
+      await page.locator("#tlRecentRail").evaluate((el) => getComputedStyle(el).display),
+    ).not.toBe("grid");
+    await page.locator("#tlSearch").fill("ocean");
+    await expect(page.locator("#tlRecentSection")).toBeHidden();
+    await page.locator("#tlClear").click();
+    await expect(page.locator("#tlRecentSection")).toBeVisible();
+
+    // Every card carries a designed CSS scene, with a generated thumbnail
+    // layered on top when one exists — never an empty tile.
+    await expect(page.locator(".tl-card .tl-scene")).toHaveCount(103);
   });
 
   test("search filters by name and metadata, and shows a clearable empty state", async ({ page }) => {
@@ -157,7 +197,7 @@ test.describe("theme library", () => {
     await expect(page.locator("#themeLibOverlay")).not.toHaveClass(/open/);
   });
 
-  test("the library is usable and does not overflow on a phone", async ({ page }) => {
+  test("the library is usable and does not overflow on a phone @mobile", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await open(page);
     expect(

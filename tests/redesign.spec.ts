@@ -41,7 +41,7 @@ test.describe("PWA install affordance", () => {
 });
 
 test.describe("clock defaults and saved preferences", () => {
-  test("a fresh profile gets a calm HH:MM clock", async ({ page }) => {
+  test("a fresh profile gets a calm HH:MM clock @smoke @mobile", async ({ page }) => {
     await page.goto("/");
     await waitForBoot(page);
 
@@ -122,7 +122,7 @@ test.describe("contextual top-bar tab", () => {
     expect((await pill.getAttribute("title"))!.split("% illuminated")).toHaveLength(2);
   });
 
-  test("top-bar controls fit without overlapping on narrow screens", async ({
+  test("top-bar controls fit without overlapping on narrow screens @mobile", async ({
     page,
     isMobile,
   }) => {
