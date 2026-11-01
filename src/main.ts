@@ -68,7 +68,10 @@ import {
 import {
   applyPlatformClasses,
   bindGlobalHaptics,
+  BROWSER,
   CAPS,
+  ENGINE,
+  OS,
   haptic,
   requestMotionPermission,
   subscribeOrientation,
@@ -77,6 +80,8 @@ import {
 import * as Palette from "./palette";
 import * as Motion from "./motion";
 import * as ThemeLib from "./themelib";
+import { installDiagnostics } from "./diagnostics";
+import { rendererHealth } from "./rendererHealth";
 
 // ── Platform detection ───────────────────────────────────────────────
 // Runs first, synchronously, before anything else touches the DOM — CSS
@@ -85,6 +90,108 @@ import * as ThemeLib from "./themelib";
 // of the wrong layout.
 applyPlatformClasses();
 bindGlobalHaptics();
+
+// ── Readiness + diagnostics ───────────────────────────────────────────
+// Separate states so "the clock is usable" is never inferred from a canvas
+// or audio subsystem having initialised. index.html's boot guard only turns
+// fatal when coreReady is false; renderer and audio may degrade independently.
+const APP_VERSION = "2.0.0";
+interface ScReadinessState {
+  coreReady: boolean;
+  rendererReady: boolean;
+  audioReady: boolean;
+  optionalFeaturesReady: boolean;
+  bootStage: string;
+}
+const readiness: ScReadinessState = {
+  coreReady: false,
+  rendererReady: false,
+  audioReady: false,
+  optionalFeaturesReady: false,
+  bootStage: "module-evaluated",
+};
+window.__scReady = readiness;
+
+function featureProbe(): Record<string, boolean> {
+  let canvas2d = false;
+  try {
+    canvas2d = !!document.createElement("canvas").getContext("2d");
+  } catch {
+    canvas2d = false;
+  }
+  const w = window as Window & { webkitAudioContext?: unknown };
+  return {
+    canvas2d,
+    audioContext: "AudioContext" in window || "webkitAudioContext" in w,
+    serviceWorker: "serviceWorker" in navigator,
+    offscreenCanvas: "OffscreenCanvas" in window,
+    opus: CAPS.oggOpus,
+    broadcastChannel: "BroadcastChannel" in window,
+    storage: (() => {
+      try {
+        localStorage.setItem("__sc_diag_probe__", "1");
+        localStorage.removeItem("__sc_diag_probe__");
+        return true;
+      } catch {
+        return false;
+      }
+    })(),
+  };
+}
+
+const diagnostics = installDiagnostics({
+  stage: "boot",
+  environment: () => ({
+    appVersion: APP_VERSION,
+    buildId: (globalThis as { __SC_BUILD_ID__?: string }).__SC_BUILD_ID__,
+    browser: BROWSER,
+    engine: ENGINE,
+    os: OS,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    screen: `${screen.width}x${screen.height}`,
+    dpr: window.devicePixelRatio,
+    visibility: document.visibilityState,
+    qualityTier: getTier(),
+    hardwareConcurrency: navigator.hardwareConcurrency,
+    deviceMemoryGb: navigator.deviceMemory,
+    features: featureProbe(),
+    serviceWorkerControlled: !!navigator.serviceWorker?.controller,
+    online: navigator.onLine,
+  }),
+});
+
+function setBootStage(stage: string) {
+  readiness.bootStage = stage;
+  window.__bootStage = stage;
+  diagnostics.record({
+    subsystem: "boot",
+    kind: "readiness",
+    message: `stage: ${stage}`,
+  });
+}
+
+function markCoreReady() {
+  if (readiness.coreReady) return;
+  readiness.coreReady = true;
+  window.__coreReady = true;
+  setBootStage("core-ready");
+}
+
+function markRendererReady() {
+  if (readiness.rendererReady) return;
+  readiness.rendererReady = true;
+  window.__rendererReady = true;
+  setBootStage(`renderer-${rendererHealth.status}`);
+}
+
+function markAudioReady() {
+  if (readiness.audioReady) return;
+  readiness.audioReady = true;
+  window.__audioReady = true;
+  setBootStage("audio-ready");
+}
+
+window.__scMarkAudioReady = markAudioReady;
 // Persisted "Force Simplified Surfaces" override — applied here, before
 // first paint, same as the platform-detected classes above, so a user who
 // turned this on doesn't see one frame of frosted glass before it flips off.
@@ -100,7 +207,11 @@ document.documentElement.classList.toggle(
 // the browser and produces no sound at all.
 (() => {
   const unlock = () => {
-    Sound.unlockAudio();
+    try {
+      Sound.unlockAudio();
+    } finally {
+      markAudioReady();
+    }
     window.removeEventListener("pointerdown", unlock);
     window.removeEventListener("keydown", unlock);
     window.removeEventListener("touchstart", unlock);
@@ -1149,6 +1260,9 @@ function renderFrame(ts: number) {
   if (!document.body.classList.contains("modal-open")) {
     drawBg(dt, currentTheme, Intel.getFlowIntensity());
   }
+  // The renderer may deliberately be disabled/static; that still counts as a
+  // usable first frame. This is separate from core readiness.
+  markRendererReady();
 
   // Tick flow intensity
   Intel.tickFlowIntensity(sessionRunning, dt);
@@ -1727,7 +1841,21 @@ function buildPanel() {
     const lblEl = document.createElement("span");
     lblEl.className = "feat-label";
     lblEl.textContent = label;
-    b.append(iconEl, lblEl);
+    if (id === "btnSettings") {
+      // The Settings surface is still Beta. Keep the tag inside the label so
+      // the dock button keeps one click target and one accessible name
+      // ("Settings Beta") instead of adding a second focusable element.
+      b.classList.add("feat-btn--beta");
+      const row = document.createElement("span");
+      row.className = "feat-label-row";
+      const beta = document.createElement("span");
+      beta.className = "beta-tag";
+      beta.textContent = "Beta";
+      row.append(lblEl, beta);
+      b.append(iconEl, row);
+    } else {
+      b.append(iconEl, lblEl);
+    }
     b.addEventListener("click", action);
     featBar.appendChild(b);
   });
@@ -3648,12 +3776,18 @@ function buildSettingsUI(activeTab = "general") {
   // Pane container — scrollable body
   const paneWrap = el; // write directly to settingsContent
 
-  const makeSection = (title: string) => {
+  const makeSection = (title: string, beta = false) => {
     const s = document.createElement("div");
     s.className = "settings-section";
     const h = document.createElement("div");
     h.className = "settings-section-title";
     h.textContent = title;
+    if (beta) {
+      const tag = document.createElement("span");
+      tag.className = "beta-tag";
+      tag.textContent = "Beta";
+      h.appendChild(tag);
+    }
     s.appendChild(h);
     return s;
   };
@@ -3967,7 +4101,7 @@ function buildSettingsUI(activeTab = "general") {
     paneWrap.appendChild(langSec);
 
     // Integrations shortcut
-    const intSec = makeSection("Integrations");
+    const intSec = makeSection("Integrations", true);
     const intBtn = document.createElement("button");
     intBtn.className = "settings-action-btn settings-action-btn--full";
     const connectedCount = Object.values(
@@ -6695,9 +6829,19 @@ function init() {
     renderFrame(ts);
   });
 
-  // Reveal the app now that the theme, clock, and first frame are ready —
-  // double rAF so we wait for an actual paint, not just this callback.
-  requestAnimationFrame(() => requestAnimationFrame(hideSplash));
+  // Core wiring is complete here; the first paint still has to succeed.
+  markCoreReady();
+
+  // Reveal the app only after an actual paint (double rAF). Boot success is
+  // reported at the same point: init() returning is not proof that the first
+  // frame ran, and a renderer that degraded to static mode is still ready.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      markRendererReady();
+      window.__scBootOk?.();
+      hideSplash();
+    }),
+  );
 
   // ── Weather overlay preference ─────────────────────────────────────
   if (localStorage.getItem("sc_weather_theme") !== "0") {
@@ -7803,10 +7947,21 @@ function buildCommandPalette() {
 // through used to leave a half-wired app (the splash watchdog then revealed
 // it anyway). Now a throw is reported to the boot guard in index.html, which
 // shows a Reload / Reset screen, and hideSplash() refuses to reveal the app.
+// `__scBootOk()` is deliberately NOT called here: it runs after the first
+// paint in init(), so boot success cannot precede the first rendered frame.
 try {
   init();
-  window.__scBootOk?.();
 } catch (err) {
+  readiness.bootStage = "boot-failed";
+  window.__bootStage = "boot-failed";
+  diagnostics.record({
+    subsystem: "boot",
+    kind: "error",
+    message: "init() threw",
+    error: err,
+    stage: "boot",
+    details: { coreReady: readiness.coreReady },
+  });
   console.error("Session Clock failed to start:", err);
   const reason = err instanceof Error ? err.message : String(err);
   if (window.__scBootFail) window.__scBootFail(reason, true);

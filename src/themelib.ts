@@ -116,11 +116,8 @@ let mainEl: HTMLElement;
 let spotlight: HTMLElement;
 let recentSection: HTMLElement;
 let recentRail: HTMLElement;
-let worldsSection: HTMLElement;
-let worldsGrid: HTMLElement;
 let wallTitle: HTMLElement;
 let wallCount: HTMLElement;
-let wallEyebrow: HTMLElement;
 
 const $id = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -140,8 +137,6 @@ const SVG_STAR =
   '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z" stroke-width="2" stroke-linejoin="round"/></svg>';
 const SVG_CHECK =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-const SVG_ARROW =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
 // ── Shared art helpers ────────────────────────────────────────────────
 
@@ -194,11 +189,6 @@ function buildCard(t: Theme): HTMLElement {
   const mark = el("span", "tl-mark");
   deps.fillMark(mark, t);
   prev.appendChild(mark);
-  const tagline = stripEmoji(t.tagline ?? "");
-  if (tagline) {
-    const line = el("span", "tl-tagline", tagline);
-    prev.appendChild(line);
-  }
 
   const meta = el("span", "tl-meta");
   const name = el("span", "tl-name", t.name);
@@ -300,9 +290,10 @@ function pushRecent(id: string) {
 
 // ── Editorial sections ────────────────────────────────────────────────
 
-/** The wide "using now" spotlight. Compact enough that the catalogue is
- *  still visible on a laptop screen without scrolling past a giant hero. */
-function renderSpotlight(show = view === "all" && !query) {
+/** Compact current-theme strip. Orients the user without dominating the
+ *  catalogue, and stays visible while searching or browsing another
+ *  collection so the active atmosphere is never ambiguous. */
+function renderSpotlight(show = true) {
   if (!spotlight) return;
   const t = THEME_BY_ID[deps.currentId()];
   spotlight.hidden = !show || !t;
@@ -312,39 +303,21 @@ function renderSpotlight(show = view === "all" && !query) {
   spotlight.dataset.id = t.id;
   spotlight.replaceChildren();
 
-  const bg = el("div", "tl-spotlight-bg");
-  bg.setAttribute("aria-hidden", "true");
-  addPreviewArt(bg, t);
-  const scrim = el("div", "tl-spotlight-scrim");
-  scrim.setAttribute("aria-hidden", "true");
-  spotlight.append(bg, scrim);
+  const art = el("div", "tl-current-art");
+  art.setAttribute("aria-hidden", "true");
+  addPreviewArt(art, t);
+  const mark = el("span", "tl-current-mark");
+  deps.fillMark(mark, t);
+  art.appendChild(mark);
 
-  const content = el("div", "tl-spotlight-content");
-  const top = el("div", "tl-spotlight-top");
-  const markWrap = el("div", "tl-spotlight-mark");
-  deps.fillMark(markWrap, t);
-  const titles = el("div", "tl-spotlight-titles");
-  const eyebrow = el("span", "tl-eyebrow");
-  eyebrow.append(el("span", "tl-live-dot"), document.createTextNode("Using now"));
-  const name = el("h3", "tl-spotlight-name", t.name);
-  const sub = el(
-    "p",
-    "tl-spotlight-sub",
-    t.sub ?? CATEGORY_LABELS[t.cat],
-  );
-  titles.append(eyebrow, name, sub);
-  top.append(markWrap, titles);
-  content.appendChild(top);
+  const copy = el("div", "tl-current-copy");
+  const label = el("span", "tl-current-label");
+  label.append(el("span", "tl-current-dot"), document.createTextNode("Using now"));
+  const name = el("span", "tl-current-name", t.name);
+  const sub = el("span", "tl-current-sub", t.sub ?? CATEGORY_LABELS[t.cat]);
+  copy.append(label, name, sub);
 
-  const tagline = stripEmoji(t.tagline ?? "");
-  if (tagline) content.appendChild(el("p", "tl-spotlight-tagline", tagline));
-
-  const actions = el("div", "tl-spotlight-actions");
-  const cont = el("button", "tl-continue");
-  cont.type = "button";
-  cont.innerHTML = `<span>Keep this atmosphere</span>${SVG_ARROW}`;
-  cont.addEventListener("click", close);
-  const fav = el("button", "tl-spotlight-fav");
+  const fav = el("button", "tl-current-fav");
   fav.type = "button";
   const isFav = favs.includes(t.id);
   fav.classList.toggle("is-fav", isFav);
@@ -355,17 +328,8 @@ function renderSpotlight(show = view === "all" && !query) {
   );
   fav.innerHTML = SVG_STAR;
   fav.addEventListener("click", () => toggleFav(t.id));
-  actions.append(cont, fav);
-  content.appendChild(actions);
 
-  const meta = el("div", "tl-spotlight-meta");
-  meta.append(
-    el("span", "tl-chip", CATEGORY_LABELS[t.cat]),
-    el("span", "tl-chip", `${THEMES.length} worlds to explore`),
-  );
-  content.appendChild(meta);
-
-  spotlight.appendChild(content);
+  spotlight.append(art, copy, fav);
 }
 
 function renderRecents(show = view === "all" && !query) {
@@ -394,38 +358,6 @@ function renderRecents(show = view === "all" && !query) {
       return b;
     }),
   );
-}
-
-function renderWorlds(show = view === "all" && !query) {
-  if (!worldsSection || !worldsGrid) return;
-  worldsSection.hidden = !show;
-  if (!show) return;
-  worldsGrid.replaceChildren();
-  CATEGORY_ORDER.filter((c) => THEME_CATEGORIES.includes(c)).forEach((cat) => {
-    const themed = THEMES.filter((t) => t.cat === cat);
-    if (!themed.length) return;
-    // A representative scene from the existing catalogue; counts always
-    // come from the data so a new theme needs no bespoke markup here.
-    const rep = themed[Math.min(1, themed.length - 1)]!;
-    const b = el("button", "tl-world");
-    b.type = "button";
-    b.dataset.cat = cat;
-    applyThemeVars(b, rep);
-    const art = el("span", "tl-world-art");
-    art.setAttribute("aria-hidden", "true");
-    addPreviewArt(art, rep);
-    const body = el("span", "tl-world-body");
-    const label = el("span", "tl-world-name", CATEGORY_LABELS[cat]);
-    const count = el(
-      "span",
-      "tl-world-count",
-      `${themed.length} theme${themed.length === 1 ? "" : "s"}`,
-    );
-    body.append(label, count);
-    b.append(art, body);
-    b.addEventListener("click", () => setView(cat));
-    worldsGrid.appendChild(b);
-  });
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────
@@ -505,14 +437,10 @@ function setEmpty(title: string, body: string, action?: [string, () => void]) {
 function render() {
   const list = themesForView();
   const editorial = view === "all" && !query;
-  renderSpotlight(editorial);
+  renderSpotlight();
   renderRecents(editorial);
-  renderWorlds(editorial);
 
-  const nodes: HTMLElement[] = list.map((t) => cardFor(t));
-  cards.forEach((c) => c.classList.remove("tl-card--featured"));
-  if (editorial && nodes.length > 1) nodes[0]!.classList.add("tl-card--featured");
-  grid.replaceChildren(...nodes);
+  grid.replaceChildren(...list.map((t) => cardFor(t)));
 
   const none = list.length === 0;
   empty.hidden = !none;
@@ -550,19 +478,12 @@ function render() {
     wallTitle.textContent = query
       ? "Search results"
       : view === "all"
-        ? "All atmospheres"
+        ? "All themes"
         : view === "recent"
           ? "Recently used"
           : view === "favs"
             ? "Favourites"
             : CATEGORY_LABELS[view];
-  }
-  if (wallEyebrow) {
-    wallEyebrow.textContent = query
-      ? "Filtered catalogue"
-      : view === "all"
-        ? "The full catalogue"
-        : "Your collection";
   }
   if (wallCount) {
     wallCount.textContent = `${list.length} theme${list.length === 1 ? "" : "s"}`;
@@ -600,11 +521,8 @@ export function init(d: ThemeLibDeps) {
   spotlight = $id("tlSpotlight");
   recentSection = $id("tlRecentSection");
   recentRail = $id("tlRecentRail");
-  worldsSection = $id("tlWorldsSection");
-  worldsGrid = $id("tlWorldsGrid");
   wallTitle = $id("tlWallTitle");
   wallCount = $id("tlWallCount");
-  wallEyebrow = $id("tlWallEyebrow");
 
   favs = readFavs();
   recents = readRecents();
@@ -689,7 +607,7 @@ export function onThemeApplied(id: string) {
   renderNav();
   if (view === "recent") render();
   else {
-    renderSpotlight(view === "all" && !query);
+    renderSpotlight();
     renderRecents(view === "all" && !query);
   }
 }

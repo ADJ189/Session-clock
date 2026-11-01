@@ -5,6 +5,8 @@
 // as classes on <html> so CSS can react with zero JS in the render path;
 // JS call sites use the exported CAPS/helpers instead of re-detecting.
 
+import "./globals";
+
 export type OSFamily =
   | "ios"
   | "ipados"

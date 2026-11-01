@@ -14,15 +14,13 @@
 // Two design choices were checked against real implementations rather than
 // guessed:
 //
-// - Why streamed <audio> instead of decodeAudioData: ambiently's engine
-//   decodes its ambience recordings into an AudioBuffer and loops them
-//   natively — genuinely gapless, and the right call for its own audio,
-//   which is deliberately cut to 30-second clips. This catalog isn't —
-//   most of these recordings run 1-5 minutes, and a fully-decoded stereo
-//   48kHz buffer for a 5-minute track is well over 100MB of memory per
-//   track. Streaming keeps memory bounded regardless of length, at the
-//   cost of driving the crossfade from playback position instead of a
-//   sample-accurate buffer offset — worth it here.
+// - Why streamed <audio> instead of decodeAudioData: decoding a whole
+//   ambience recording into an AudioBuffer and looping it natively is
+//   genuinely gapless, but most of these recordings run 1-5 minutes, and a
+//   fully-decoded stereo 48kHz buffer for a 5-minute track is well over
+//   100MB of memory per track. Streaming keeps memory bounded regardless of
+//   length, at the cost of driving the crossfade from playback position
+//   instead of a sample-accurate buffer offset — worth it here.
 // - Why an explicit crossfade at all: Moodist's own player (Howler.js,
 //   src/hooks/use-sound.ts) just sets `loop: true` and fades on play/pause
 //   — no seam-masking. That works because their source clips are curated
@@ -97,7 +95,7 @@ export interface FileTrackConfig {
 // Either way the track still plays: if this is set but a file can't
 // actually be fetched (wrong tag, the second repo renamed, jsDelivr
 // having a bad day), the onUnavailable hook in makeFileTrack() below
-// swaps to the ambiently fallback rather than going silent — so a
+// swaps to the custom procedural fallback rather than going silent — so a
 // misconfigured or temporarily-unreachable CDN degrades the *quality* of
 // the sound, never breaks the track outright.
 //
@@ -155,14 +153,12 @@ export const FILE_TRACKS: Record<string, FileTrackConfig> = {
     gainTrim: 0.9,
     proceduralFallback: true,
   },
-  // ── Recording-only tracks — atomic layers meant to be mixed with the
+  // ── Recording-first layers — atomic material meant to be mixed with the
   // ones above (river under rain, thunder under rain, etc.) rather than
-  // pre-combined, matching how both reference apps structure theirs. Most
-  // of these now have an ambiently preset as their fallback too (see
-  // MAKERS in sound.ts) — `proceduralFallback: true` here just means "some
-  // fallback exists, don't grey this out," not which kind. waterfall is
-  // the one genuine exception: no ambiently preset is a good match for it,
-  // so it really is disabled on a browser without Ogg/Opus support. ─────
+  // pre-combined, matching how both reference apps structure theirs. Every
+  // one has a custom procedural preset as its fallback too (see MAKERS in
+  // sound.ts), including Waterfall, so `proceduralFallback: true` means no
+  // browser has to grey any of these toggles out. ────────────────────────
   river: {
     url: "/opus/nature/river.opus",
     crossfadeSec: 2,
@@ -173,6 +169,7 @@ export const FILE_TRACKS: Record<string, FileTrackConfig> = {
     url: "/opus/nature/waterfall.opus",
     crossfadeSec: 2,
     gainTrim: 0.85,
+    proceduralFallback: true,
   },
   thunder: {
     url: "/opus/rain/thunder.opus",
@@ -199,12 +196,10 @@ export function isFileBackedTrack(id: string): boolean {
 }
 
 /** False only when a track has no working audio path at all: Opus
- *  unsupported and no procedural fallback to drop back to. In practice
- *  that's the five recording-only tracks (river/waterfall/thunder/night/
- *  birds) on a browser that can't decode Ogg/Opus — old Safari/iOS below
- *  17. The seven hybrid tracks are never disabled here: MAKERS in sound.ts
- *  falls back to their original synthesized version regardless, so their
- *  mixer toggle always does something. */
+ *  unsupported and no procedural fallback to drop back to. Every recording
+ *  now has a custom-engine fallback, including Waterfall, so this is true
+ *  for all known tracks; the check stays defensive for future recordings
+ *  that ship before their preset exists. */
 export function isFileTrackSupported(id: string): boolean {
   const cfg = FILE_TRACKS[id];
   if (!cfg) return true;
@@ -784,8 +779,8 @@ class GaplessLoopPlayer {
  *  `fallback`, when given, is invoked if the recording never becomes
  *  playable at all — wrong URL, CORS misconfigured, the CDN it's hosted on
  *  being unreachable — rather than the track just going silent with no
- *  toggle to explain why. sound.ts passes its ambiently-backed
- *  makeSynthTrack() here for the tracks that have one. The swap happens
+ *  toggle to explain why. sound.ts passes its custom-engine
+ *  makeSynthTrack() here for every recorded track. The swap happens
  *  underneath a stable output GainNode the caller connects to once, so
  *  playTrack() never needs to know playback quietly changed source.
  *
@@ -794,8 +789,7 @@ class GaplessLoopPlayer {
  *  i.e. the track has no working audio path left at all. Without this,
  *  the caller's trackNodes/isPlaying bookkeeping has no way to learn that
  *  a track it thinks is playing has gone permanently silent underneath
- *  it. sound.ts passes stopTrack(id) here for waterfall, the one track
- *  with no fallback maker. */
+ *  it. No current caller needs it; every shipped sound has a fallback. */
 export function makeFileTrack(
   ctx: AudioContext,
   id: string,
