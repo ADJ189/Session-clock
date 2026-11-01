@@ -271,7 +271,59 @@
       (function () {
         window.__bootCompleted = false;
         window.__bootFailed = false;
+        window.__bootStage = "inline-boot-guard";
+        window.__scPreBootEvents = [];
         var fatal = false;
+
+        // Bounded pre-module failure buffer. The diagnostics module drains
+        // this when it loads; if the bundle never loads, the boot screen's
+        // "Copy diagnostics" button still has something useful to export.
+        function remember(subsystem, kind, message, stack, details) {
+          try {
+            if (!Array.isArray(window.__scPreBootEvents)) return;
+            window.__scPreBootEvents.push({
+              subsystem: subsystem || "boot",
+              kind: kind || "error",
+              message: String(message == null ? "Unknown error" : message).slice(0, 400),
+              stack: stack ? String(stack).slice(0, 2000) : undefined,
+              details: details,
+              at: Date.now(),
+            });
+            if (window.__scPreBootEvents.length > 40) window.__scPreBootEvents.shift();
+          } catch (e) {
+            /* diagnostics is optional */
+          }
+        }
+        window.__scRememberPreBoot = remember;
+
+        function diagnosticsText() {
+          try {
+            if (typeof window.__scDiagnosticsText === "function") {
+              return window.__scDiagnosticsText();
+            }
+          } catch (e) {
+            /* fall through to the minimal buffer */
+          }
+          var lines = [
+            "Session Clock diagnostics (pre-boot)",
+            "-----------------------------------",
+            "UA: " + navigator.userAgent,
+            "URL: " + location.origin + location.pathname,
+            "Stage: " + (window.__bootStage || "unknown"),
+            "Events:",
+          ];
+          var events = Array.isArray(window.__scPreBootEvents)
+            ? window.__scPreBootEvents
+            : [];
+          if (!events.length) lines.push("  (none)");
+          events.forEach(function (ev) {
+            lines.push(
+              "- " + new Date(ev.at || Date.now()).toISOString() + " [" +
+                (ev.subsystem || "boot") + "] " + ev.message,
+            );
+          });
+          return lines.join("\n");
+        }
 
         function removeNode(id) {
           var n = document.getElementById(id);
@@ -402,6 +454,39 @@
           });
           actions.appendChild(reload);
           actions.appendChild(reset);
+          var diag = button("Copy diagnostics", "", function () {
+            var text = diagnosticsText();
+            function fallbackCopy() {
+              try {
+                var area = document.createElement("textarea");
+                area.value = text;
+                area.setAttribute("readonly", "");
+                area.style.position = "fixed";
+                area.style.opacity = "0";
+                (document.body || document.documentElement).appendChild(area);
+                area.select();
+                var ok = document.execCommand && document.execCommand("copy");
+                area.remove();
+                diag.textContent = ok ? "Copied" : "Copy failed";
+              } catch (e) {
+                diag.textContent = "Copy failed";
+              }
+              setTimeout(function () {
+                diag.textContent = "Copy diagnostics";
+              }, 2500);
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(function () {
+                diag.textContent = "Copied";
+                setTimeout(function () {
+                  diag.textContent = "Copy diagnostics";
+                }, 2500);
+              }, fallbackCopy);
+            } else {
+              fallbackCopy();
+            }
+          });
+          actions.appendChild(diag);
           card.appendChild(actions);
           wrap.appendChild(card);
           (document.body || document.documentElement).appendChild(wrap);
@@ -443,18 +528,31 @@
               // splash CSS above is inline for exactly that reason.
               if (t.tagName === "SCRIPT") {
                 console.error("Session Clock: failed to load", t.src);
+                remember("network", "resource", "Failed to load script", null, {
+                  url: t.src || "",
+                });
                 window.__scBootFail(
                   "Failed to load " + (t.src || "a script"),
                   true,
                 );
+              } else {
+                remember("network", "resource", "Failed to load " + t.tagName, null, {
+                  url: t.src || t.href || "",
+                });
               }
               return;
             }
             console.error("Session Clock error:", e.error || e.message);
-            if (window.__bootCompleted) return;
-            // Errors from extensions / cross-origin scripts aren't ours.
             if (e.message === "Script error." && !e.filename) return;
             if (e.filename && e.filename.indexOf(location.origin) !== 0) return;
+            remember(
+              "boot",
+              "error",
+              (e.error && e.error.message) || e.message || "Unexpected error",
+              e.error && e.error.stack,
+              { file: e.filename || "", line: e.lineno || 0 },
+            );
+            if (window.__bootCompleted) return;
             window.__scBootFail(
               (e.error && e.error.message) || e.message || "Unexpected error",
               true,
@@ -464,6 +562,12 @@
         );
         window.addEventListener("unhandledrejection", function (e) {
           console.error("Session Clock unhandled rejection:", e.reason);
+          remember(
+            "boot",
+            "rejection",
+            (e.reason && e.reason.message) || String(e.reason || "Unhandled rejection"),
+            e.reason && e.reason.stack,
+          );
         });
       })();
     </script>
@@ -1181,8 +1285,7 @@
       <div class="sc-modal themelib" aria-labelledby="themeLibTitle">
         <div class="tl-head">
           <div class="tl-titles">
-            <span class="tl-eyebrow">Theme Finder</span>
-            <h2 id="themeLibTitle">Find your atmosphere</h2>
+            <h2 id="themeLibTitle">Theme Finder</h2>
             <span class="tl-count" id="tlCount" aria-live="polite"></span>
           </div>
           <div class="tl-search">
@@ -1207,26 +1310,15 @@
             <section class="tl-shelf" id="tlRecentSection" hidden>
               <div class="tl-shelf-head">
                 <div>
-                  <span class="tl-eyebrow">Continue where you left off</span>
                   <h3 class="tl-shelf-title">Recently used</h3>
                 </div>
                 <button class="tl-shelf-link" type="button" id="tlRecentAll">View all</button>
               </div>
               <div class="tl-recent-rail" id="tlRecentRail"></div>
             </section>
-            <section class="tl-shelf" id="tlWorldsSection">
-              <div class="tl-shelf-head">
-                <div>
-                  <span class="tl-eyebrow">Browse worlds</span>
-                  <h3 class="tl-shelf-title">Pick a place to focus</h3>
-                </div>
-              </div>
-              <div class="tl-worlds" id="tlWorldsGrid"></div>
-            </section>
             <div class="tl-wall-head">
               <div>
-                <span class="tl-eyebrow" id="tlWallEyebrow">The full catalogue</span>
-                <h3 class="tl-wall-title" id="tlWallTitle">All atmospheres</h3>
+                <h3 class="tl-wall-title" id="tlWallTitle">All themes</h3>
               </div>
               <span class="tl-wall-count" id="tlWallCount" aria-hidden="true"></span>
             </div>
@@ -1366,7 +1458,7 @@
     <div class="sc-overlay" id="settingsOverlay">
       <div class="sc-modal sc-modal--settings">
         <div class="modal-header">
-          <h2>Settings</h2>
+          <h2 class="modal-title-row">Settings <span class="beta-tag">Beta</span></h2>
           <button
             class="modal-close"
             aria-label="Close"
@@ -1698,7 +1790,7 @@
     <div class="sc-overlay" id="integrationsOverlay">
       <div class="sc-modal sc-modal--integrations">
         <div class="modal-header" id="integrationsHeader">
-          <h2>🔗 Integrations</h2>
+          <h2 class="modal-title-row">🔗 Integrations <span class="beta-tag">Beta</span></h2>
           <div class="modal-header-actions">
             <button
               class="modal-minimize"

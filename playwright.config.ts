@@ -1,24 +1,25 @@
 import { defineConfig, devices } from "@playwright/test";
+import { isCI, sharedUse, webServer } from "./playwright.shared";
 
 /**
  * Cross-engine E2E for Session Clock.
  *
- *   chromium / mobile-chrome  → Blink
- *   firefox                   → Gecko
- *   webkit / mobile-safari    → WebKit  (Playwright's WebKit build — close to
- *                               Safari, but NOT a real iPhone/Mac Safari)
+ *   desktop-chromium           → Blink, full primary regression suite
+ *   desktop-firefox            → Gecko, @smoke compatibility subset
+ *   desktop-webkit             → WebKit build (@smoke subset; not real Safari)
+ *   mobile-chromium-emulation  → Pixel 7 profile, @mobile subset
+ *   mobile-webkit-emulation    → iPhone 13 profile, @mobile subset
  *
  * Target selection:
  *   - default: build + serve the PRODUCTION bundle locally (`vite preview`), so
  *     a PR is tested before it ever reaches Cloudflare Pages.
  *   - PLAYWRIGHT_TEST_BASE_URL=https://… : test an already-deployed site
  *     instead (no local build/server is started).
+ *
+ * Tag policy follows the combined plan: `@smoke` for the small cross-browser
+ * subset, `@mobile` for focused mobile-layout/flow coverage, and
+ * `@mobile-only` for tests that must never run in the desktop Chromium gate.
  */
-const PORT = 4173;
-const externalBaseURL = process.env.PLAYWRIGHT_TEST_BASE_URL;
-const baseURL = externalBaseURL || `http://127.0.0.1:${PORT}`;
-const isCI = !!process.env.CI;
-
 export default defineConfig({
   testDir: "./tests",
   outputDir: "./test-results",
@@ -31,7 +32,9 @@ export default defineConfig({
   // One retry in CI: enough to absorb a browser-start hiccup, low enough that
   // real intermittent bugs still show up as "flaky" in the report.
   retries: isCI ? 1 : 0,
-  workers: isCI ? 2 : undefined,
+  // Two workers keeps a shared runner responsive; browser processes can
+  // exhaust memory long before all CPU cores are busy.
+  workers: 2,
 
   // CI: each matrix job writes a blob; the `report` job merges them into ONE
   // HTML report. Locally: a normal HTML report.
@@ -39,38 +42,36 @@ export default defineConfig({
     ? [["list"], ["github"], ["blob"]]
     : [["list"], ["html", { open: "never" }]],
 
-  use: {
-    baseURL,
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
-    video: "retain-on-failure",
-    actionTimeout: 10_000,
-    navigationTimeout: 30_000,
-    // A clean, fixed environment makes failures reproducible across engines.
-    locale: "en-US",
-    timezoneId: "UTC",
-  },
+  use: sharedUse,
 
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit", use: { ...devices["Desktop Safari"] } },
-    // Touch + small-viewport coverage on the same three engines' families.
-    { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
-    { name: "mobile-safari", use: { ...devices["iPhone 13"] } },
+    {
+      name: "desktop-chromium",
+      use: { ...devices["Desktop Chrome"] },
+      // Primary gate: everything that is not explicitly mobile-only.
+      grepInvert: /@mobile-only/,
+    },
+    {
+      name: "desktop-firefox",
+      use: { ...devices["Desktop Firefox"] },
+      grep: /@smoke/,
+    },
+    {
+      name: "desktop-webkit",
+      use: { ...devices["Desktop Safari"] },
+      grep: /@smoke/,
+    },
+    {
+      name: "mobile-chromium-emulation",
+      use: { ...devices["Pixel 7"] },
+      grep: /@mobile/,
+    },
+    {
+      name: "mobile-webkit-emulation",
+      use: { ...devices["iPhone 13"] },
+      grep: /@mobile/,
+    },
   ],
 
-  webServer: externalBaseURL
-    ? undefined
-    : {
-        // Build once, then serve dist/. `--strictPort` fails loudly instead of
-        // silently moving to another port and testing the wrong thing.
-        command: `npm run build && npm run preview -- --host 127.0.0.1 --port ${PORT} --strictPort`,
-        url: baseURL,
-        // Always run the build; an existing preview may serve stale output.
-        reuseExistingServer: false,
-        timeout: 180_000,
-        stdout: "ignore",
-        stderr: "pipe",
-      },
+  webServer,
 });

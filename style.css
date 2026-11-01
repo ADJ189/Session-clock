@@ -133,6 +133,12 @@ button, .btn, [role="button"], input[type="range"], input[type="checkbox"],
 /* ── Canvas layers ── */
 #bgCanvas    { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; will-change: contents; }
 #transCanvas { position: fixed; inset: 0; z-index: 300; pointer-events: none; width: 100%; height: 100%; display: none; }
+/* Canvas/context failure: keep the app fully usable on a static backdrop.
+   JS adds .renderer-fallback when the 2D context is missing/lost or a draw
+   throws once; the theme's overlay/vignette layers still render. */
+body.renderer-fallback { background: radial-gradient(120% 100% at 50% 0%, #10233a 0%, #06030f 58%, #030208 100%) fixed; }
+body.renderer-fallback #bgCanvas { display: none; }
+body.renderer-fallback #transCanvas { display: none !important; }
 #overlay, #vignette { position: fixed; inset: 0; pointer-events: none; transition: background .7s; }
 #overlay  { z-index: 1; }
 #vignette { z-index: 3; }
@@ -6082,6 +6088,42 @@ body.light-theme {
    Replaces the old bottom #themePanel. The panel node stays in the DOM,
    permanently collapsed, so older hooks keep working.
 ════════════════════════════════════════════════════════════ */
+/* Beta status tag for the Settings and Integrations surfaces. Quiet neutral
+   pill built from the existing chrome tokens: no colour-only signal, emoji,
+   pulse or oversized badge. */
+.beta-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 1.15rem;
+  padding: 0 .36rem;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 999px;
+  background: var(--ui-fill);
+  color: var(--ui-muted);
+  font-family: var(--ui-font);
+  font-size: .58rem;
+  font-weight: 650;
+  font-variant: normal;
+  line-height: 1;
+  letter-spacing: .02em;
+  text-transform: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.settings-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 #themePanel { display: none; }
 
 /* The old floating "Themes" reveal pill is only needed where the top bar is
@@ -6170,8 +6212,6 @@ html.force-no-backdrop-filter #themeLibOverlay { background: rgba(5,7,12,.72); }
   border-right: 1px solid var(--ui-border);
   display: flex; flex-direction: column; gap: 2px;
 }
-.tl-nav-title { font-size: .78rem; font-weight: 600; color: var(--ui-muted); padding: 12px 12px 6px; }
-.tl-nav-title:first-child { padding-top: 0; }
 .tl-nav-item {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   min-height: 40px; padding: 0 12px; border: 0; border-radius: var(--ui-radius-control);
@@ -6185,10 +6225,6 @@ html.force-no-backdrop-filter #themeLibOverlay { background: rgba(5,7,12,.72); }
 .tl-main { overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 28px !important; scrollbar-width: thin; }
 .tl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .tl-grid[hidden], .tl-empty[hidden] { display: none; }
-.tl-sec { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; margin-top: 10px; }
-.tl-sec:first-child { margin-top: 0; }
-.tl-sec-name { font-size: 1rem; font-weight: 650; color: var(--ui-text); }
-.tl-sec-count { font-size: .82rem; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
 
 .tl-card {
   position: relative; border-radius: var(--ui-radius-card); overflow: hidden;
@@ -6206,17 +6242,6 @@ html.force-no-backdrop-filter #themeLibOverlay { background: rgba(5,7,12,.72); }
 .tl-prev {
   position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden;
   background: linear-gradient(155deg, var(--tl-bg0), var(--tl-bg1) 55%, var(--tl-bg2));
-}
-.tl-prev::before {
-  content: ""; position: absolute; inset: 0; opacity: .55;
-  background:
-    radial-gradient(70% 95% at 14% 8%, var(--tl-accent), transparent 62%),
-    radial-gradient(60% 85% at 96% 100%, var(--tl-accent2), transparent 64%);
-}
-.tl-time {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1;
-  font-family: var(--tl-font); font-size: 1.7rem; font-variant-numeric: tabular-nums; letter-spacing: .02em;
-  color: var(--tl-text); text-shadow: 0 1px 8px rgba(0,0,0,.28);
 }
 .tl-mark { position: absolute; top: 8px; left: 8px; width: 30px; height: 22px; z-index: 2; display: block; opacity: .92; }
 .tl-mark > svg, .tl-mark > img, .tl-mark > div { width: 100%; height: 100%; display: block; object-fit: contain; }
@@ -6254,7 +6279,6 @@ html.force-no-backdrop-filter #themeLibOverlay { background: rgba(5,7,12,.72); }
   .tl-body { grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
   .tl-nav { flex-direction: row; align-items: center; gap: 8px; overflow-x: auto; overflow-y: hidden; padding: 10px 16px !important; border-right: 0; border-bottom: 1px solid var(--ui-border); scrollbar-width: none; }
   .tl-nav::-webkit-scrollbar { display: none; }
-  .tl-nav-title { display: none; }
   .tl-nav-item { flex: 0 0 auto; min-height: var(--ui-hit); border-radius: 22px; padding: 0 16px; border: 1px solid var(--ui-border); }
   .tl-nav-item.active { box-shadow: none; border-color: var(--ui-accent); }
   .tl-nav-item.active::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ui-accent); margin-right: 8px; }
@@ -6279,7 +6303,6 @@ html.force-no-backdrop-filter #themeLibOverlay { background: rgba(5,7,12,.72); }
   .tl-sort { display: none; }
   .tl-main { padding: 16px 16px calc(24px + env(safe-area-inset-bottom)) !important; }
   .tl-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
-  .tl-time { font-size: 1.35rem; }
   .tl-meta { padding: 10px 46px 12px 12px; }
 }
 @media (min-width: 560px) and (max-width: 720px) {
@@ -6316,14 +6339,30 @@ body .feat-btn:focus-visible { outline: 2px solid var(--ui-focus); outline-offse
 body .feat-btn.on, body .feat-btn.active-tab { color: var(--ui-text); background: var(--ui-fill-hover); box-shadow: inset 0 -2px 0 var(--ui-accent); }
 body .feat-icon { display: flex; font-size: 0; line-height: 0; }
 body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 600; letter-spacing: 0; text-transform: none; }
+body .feat-label-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+}
+body .feat-btn--beta { width: 84px; }
+body .feat-btn--beta .feat-label { font-size: .72rem; }
+body .feat-btn--beta .beta-tag { height: 1rem; padding: 0 .26rem; font-size: .52rem; }
+@media (max-width: 480px) {
+  body .feat-btn--beta { width: 76px; }
+  body .feat-btn--beta .feat-label { font-size: .68rem; }
+}
 @media (max-width: 480px) {
   body .feat-btn { width: 72px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
    V3 · SHARED EDITORIAL TYPE
-   Small uppercase eyebrows used by the Theme Finder, Mix Console, and
-   Weather Room. One shared rhythm keeps the panels feeling like one system.
+   Small uppercase eyebrows used by the Mix Console, Weather Room and any
+   remaining shelf labels. One shared rhythm keeps panels feeling like one
+   system.
    ═══════════════════════════════════════════════════════════════════════ */
 .tl-eyebrow,
 .weather-section-eyebrow,
@@ -6342,44 +6381,38 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
 
 /* ═══════════════════════════════════════════════════════════════════════
    V3 · THEME FINDER
-   Editorial discovery: active-theme spotlight, recent rail, category
-   worlds, then the visual wall. All scene art is data-driven from each
-   theme's own baseBg/accent/bgType values, so it survives missing preview
-   captures and additions to the catalogue without bespoke markup.
+   A restrained, product-led browser: one header, one collection rail, a
+   compact current-theme strip, then the catalogue. The themes carry the
+   screen; the chrome stays quiet and uses a single accent at a time.
    ═══════════════════════════════════════════════════════════════════════ */
 .sc-modal.themelib {
-  width: min(1180px, calc(100vw - 40px));
-  height: min(840px, calc(100vh - 40px));
-  height: min(840px, calc(100dvh - 40px));
+  width: min(1120px, calc(100vw - 40px));
+  height: min(820px, calc(100vh - 40px));
+  height: min(820px, calc(100dvh - 40px));
 }
 .sc-modal.themelib .tl-head {
-  align-items: flex-end;
-  gap: 14px;
-  padding: 18px 24px 14px !important;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px 14px !important;
 }
 .sc-modal.themelib .tl-titles {
-  min-width: 210px;
-  gap: 3px;
+  min-width: 190px;
+  gap: 1px;
 }
-.sc-modal.themelib .tl-titles .tl-eyebrow { color: var(--ui-muted); }
 .sc-modal.themelib h2 {
-  font-size: clamp(1.28rem, 2.2vw, 1.55rem);
+  font-size: clamp(1.18rem, 2vw, 1.4rem);
   font-weight: 680;
-  letter-spacing: -.025em;
+  letter-spacing: -.02em;
 }
 .sc-modal.themelib .tl-count {
-  font-size: .78rem;
+  font-size: .76rem;
   color: var(--ui-muted);
 }
 
-/* Navigation becomes a horizontal collection chip rail directly under the
-   header, keeping search + collections visually adjacent. The rail is a
-   sibling of `.tl-body` (not a column inside it), so the body is a single
-   full-width pane — but it must stay a *bounded* flex container: the modal is
-   a fixed-height flex column, and `.tl-main` has to take the leftover height
-   and scroll internally. As a plain block, `.tl-main` would grow to the height
-   of all 103 cards and the modal's `overflow: hidden` would clip the tail with
-   no way to scroll to it. */
+/* One collection rail for every breakpoint. The header and rail are
+   siblings of `.tl-main`, so they stay put while only the catalogue
+   scrolls. `.tl-main` must stay a bounded flex child or the modal's
+   overflow:hidden would clip the tail of the 103-card wall. */
 .tl-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -6410,13 +6443,13 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
 }
 .tl-nav-item:hover { border-color: var(--ui-border-strong); }
 .tl-nav-item.active {
-  background: var(--ui-text);
-  color: var(--ui-surface-raised);
-  border-color: var(--ui-text);
+  background: var(--ui-fill-hover);
+  color: var(--ui-text);
+  border-color: var(--ui-border-strong);
   box-shadow: none;
   font-weight: 650;
 }
-.tl-nav-item.active .tl-nav-count { opacity: .65; }
+.tl-nav-item.active .tl-nav-count { opacity: .8; }
 .tl-nav-divider {
   flex: 0 0 1px;
   width: 1px;
@@ -6427,256 +6460,189 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
 
 .tl-main {
   flex: 1 1 auto;
-  min-height: 0; /* lets the flex item shrink so overflow-y actually scrolls */
-  padding: 20px 24px 32px !important;
+  min-height: 0;
+  padding: 18px 24px 32px !important;
   scroll-behavior: smooth;
 }
 
-/* ── Scene art fallback ──────────────────────────────────────────────
-   Layered from the theme's real palette. The class hooks let especially
-   distinctive scene families (rain, snow, night, neon city) add a little
-   texture instead of every fallback reading as the same gradient. */
+/* ── Scene fallback ──────────────────────────────────────────────────
+   A purposeful placeholder built from each theme's own palette rather
+   than a generic rainbow gradient. Real captures sit above it when the
+   preview registry has one. */
 .tl-scene {
   position: absolute;
   inset: 0;
   display: block;
   overflow: hidden;
   background:
-    radial-gradient(115% 90% at 18% 0%, color-mix(in srgb, var(--tl-accent) 52%, transparent) 0%, transparent 62%),
-    radial-gradient(105% 105% at 100% 100%, color-mix(in srgb, var(--tl-accent2) 42%, transparent) 0%, transparent 66%),
-    linear-gradient(155deg, var(--tl-bg0) 0%, var(--tl-bg1) 56%, var(--tl-bg2) 100%);
-  transition: transform .65s var(--ease-smooth);
-}
-.tl-scene::before {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  background:
-    repeating-linear-gradient(112deg, rgba(255,255,255,.055) 0 1px, transparent 1px 17px),
-    radial-gradient(50% 40% at 70% 18%, rgba(255,255,255,.14), transparent 70%);
-  opacity: .45;
-  transform: rotate(-2deg);
+    radial-gradient(90% 85% at 18% 6%, color-mix(in srgb, var(--tl-accent) 30%, transparent) 0%, transparent 66%),
+    linear-gradient(160deg, var(--tl-bg0) 0%, var(--tl-bg1) 62%, var(--tl-bg2) 100%);
+  transition: transform .45s var(--ease-smooth);
 }
 .tl-scene::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 38%, rgba(0,0,0,.34) 100%);
+  background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.28) 100%);
 }
 [data-bg*="rain"] .tl-scene::before,
 [data-bg*="storm"] .tl-scene::before {
-  background:
-    repeating-linear-gradient(104deg, rgba(210,232,255,.16) 0 1px, transparent 1px 9px);
-  opacity: .65;
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(104deg, rgba(210,232,255,.16) 0 1px, transparent 1px 9px);
+  opacity: .45;
 }
 [data-bg*="snow"] .tl-scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background:
     radial-gradient(circle at 22% 30%, rgba(255,255,255,.7) 0 1px, transparent 1.6px),
     radial-gradient(circle at 68% 62%, rgba(255,255,255,.5) 0 1px, transparent 1.6px),
     radial-gradient(circle at 44% 82%, rgba(255,255,255,.55) 0 1px, transparent 1.6px),
     radial-gradient(circle at 82% 20%, rgba(255,255,255,.45) 0 1px, transparent 1.6px);
   background-size: 46px 46px, 61px 61px, 54px 54px, 72px 72px;
-  opacity: .8;
+  opacity: .6;
 }
 [data-bg*="night"] .tl-scene::before,
 [data-bg*="neon"] .tl-scene::before,
 [data-bg*="city"] .tl-scene::before {
-  background:
-    radial-gradient(circle at 24% 20%, rgba(255,255,255,.65) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 76% 32%, rgba(255,255,255,.5) 0 1px, transparent 1.5px),
-    linear-gradient(180deg, transparent 62%, color-mix(in srgb, var(--tl-accent) 22%, transparent) 100%);
-  background-size: 38px 38px, 54px 54px, auto;
-  opacity: .7;
-}
-.tl-scene--strong { opacity: .84; }
-.tl-spotlight-bg .tl-scene { filter: saturate(1.08) contrast(1.02); }
-
-/* ── Active-theme spotlight ────────────────────────────────────────── */
-.tl-spotlight {
-  /* The scrim is always dark, so text on top of it is always light — even
-     for light themes whose own `text` token is near-black. */
-  --tl-on-scrim: #f8fafc;
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  min-height: 196px;
-  margin-bottom: 6px;
-  border: 1px solid var(--ui-border);
-  border-radius: calc(var(--ui-radius-card) + 4px);
-  background: var(--tl-bg0);
-  color: var(--tl-on-scrim);
-  box-shadow: 0 12px 36px rgba(0,0,0,.22);
-}
-.tl-spotlight[hidden] { display: none; }
-.tl-spotlight-bg,
-.tl-spotlight-scrim {
+  content: "";
   position: absolute;
   inset: 0;
-  display: block;
-}
-.tl-spotlight-bg { z-index: 0; }
-.tl-spotlight-scrim {
-  z-index: 1;
   background:
-    linear-gradient(100deg, rgba(4,6,12,.82) 0%, rgba(4,6,12,.52) 46%, rgba(4,6,12,.16) 100%),
-    linear-gradient(0deg, rgba(4,6,12,.58), transparent 60%);
+    radial-gradient(circle at 24% 20%, rgba(255,255,255,.6) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 76% 32%, rgba(255,255,255,.45) 0 1px, transparent 1.5px);
+  background-size: 38px 38px, 54px 54px;
+  opacity: .55;
 }
-.tl-spotlight-content {
+
+/* ── Current theme strip ─────────────────────────────────────────────
+   Orient, don't dominate. Small real preview, name, subtitle and a clear
+   "Using now" state, materially smaller than the old hero spotlight. */
+.tl-spotlight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  background: var(--ui-fill);
+  color: var(--ui-text);
+  box-shadow: none;
+}
+.tl-spotlight[hidden] { display: none; }
+.tl-current-art {
   position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 22px 24px;
-  max-width: 660px;
+  flex: 0 0 96px;
+  width: 96px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--tl-bg0);
 }
-.tl-spotlight-top {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.tl-spotlight-mark {
-  width: 58px;
-  height: 44px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,.4));
-}
-.tl-spotlight-mark > svg,
-.tl-spotlight-mark > img,
-.tl-spotlight-mark > div {
+.tl-current-art .tl-scene { transition: none; }
+.tl-current-art .tl-img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
-.tl-spotlight-titles { min-width: 0; }
-/* Double class + the h3 element beats `body.light-theme .sc-modal h3`,
-   which otherwise forces the light theme's near-black text onto the
-   always-dark spotlight scrim. */
-.sc-modal .tl-spotlight .tl-spotlight-name {
-  margin: 1px 0 0;
-  opacity: 1;
-  font-family: var(--tl-font);
-  font-size: clamp(1.7rem, 3.4vw, 2.25rem);
-  font-weight: 650;
-  line-height: 1.06;
-  letter-spacing: -.02em;
-  color: var(--tl-on-scrim);
-  text-shadow: 0 2px 22px rgba(0,0,0,.32);
-  text-transform: none;
+.tl-current-mark {
+  position: absolute;
+  z-index: 2;
+  left: 6px;
+  bottom: 5px;
+  width: 26px;
+  height: 18px;
 }
-.tl-spotlight-sub {
-  margin: 3px 0 0;
+.tl-current-mark > svg,
+.tl-current-mark > img,
+.tl-current-mark > div { width: 100%; height: 100%; object-fit: contain; }
+.tl-current-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tl-current-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--ui-font);
-  font-size: .8rem;
-  color: color-mix(in srgb, var(--tl-on-scrim) 74%, transparent);
+  font-size: .62rem;
+  font-weight: 650;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ui-muted);
 }
-.tl-spotlight .tl-eyebrow {
-  color: color-mix(in srgb, var(--tl-on-scrim) 74%, transparent);
-  font-size: .6rem;
-}
-.tl-live-dot {
+.tl-current-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--tl-accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tl-accent) 18%, transparent);
-  animation: tlLivePulse 2.8s ease-in-out infinite;
+  background: var(--ui-accent);
 }
-@keyframes tlLivePulse {
-  0%, 100% { opacity: .55; transform: scale(.92); }
-  50% { opacity: 1; transform: scale(1); }
-}
-.tl-spotlight-tagline {
-  max-width: 54ch;
-  margin: 0;
-  font-family: var(--ui-font);
-  font-size: .84rem;
-  line-height: 1.55;
-  color: color-mix(in srgb, var(--tl-on-scrim) 82%, transparent);
-}
-.tl-spotlight-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 2px;
-}
-.tl-continue,
-.tl-spotlight-fav {
-  min-height: var(--ui-hit);
-  border-radius: 999px;
-  cursor: pointer;
-  font-family: var(--ui-font);
-  transition: background var(--ui-motion-fast), border-color var(--ui-motion-fast), transform var(--ui-motion-fast);
-}
-.tl-continue {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px;
-  border: 1px solid color-mix(in srgb, var(--tl-on-scrim) 30%, transparent);
-  background: color-mix(in srgb, var(--tl-on-scrim) 14%, transparent);
-  color: var(--tl-on-scrim);
-  font-size: .8rem;
+.tl-current-name {
+  overflow: hidden;
+  font-size: .98rem;
   font-weight: 650;
+  line-height: 1.2;
+  color: var(--ui-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.tl-continue:hover { background: color-mix(in srgb, var(--tl-on-scrim) 22%, transparent); }
-.tl-spotlight-fav {
+.tl-current-sub {
+  overflow: hidden;
+  font-size: .78rem;
+  color: var(--ui-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tl-current-fav {
+  flex: none;
   width: var(--ui-hit);
-  display: inline-flex;
+  height: var(--ui-hit);
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--tl-on-scrim) 26%, transparent);
-  background: color-mix(in srgb, var(--tl-on-scrim) 10%, transparent);
-  color: var(--tl-on-scrim);
+  border: 0;
+  border-radius: var(--ui-radius-control);
+  background: none;
+  color: var(--ui-muted);
+  cursor: pointer;
+  transition: background var(--ui-motion-fast), color var(--ui-motion-fast);
 }
-.tl-spotlight-fav svg { fill: none; stroke: currentColor; }
-.tl-spotlight-fav.is-fav { color: var(--tl-accent); border-color: color-mix(in srgb, var(--tl-accent) 60%, transparent); }
-.tl-spotlight-fav.is-fav svg { fill: currentColor; }
-.tl-spotlight-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 2px;
-}
-.tl-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--tl-on-scrim) 20%, transparent);
-  background: color-mix(in srgb, var(--tl-on-scrim) 9%, transparent);
-  font-family: var(--ui-font);
-  font-size: .66rem;
-  font-weight: 600;
-  color: color-mix(in srgb, var(--tl-on-scrim) 84%, transparent);
-}
+.tl-current-fav svg { fill: none; stroke: currentColor; }
+.tl-current-fav:hover { background: var(--ui-fill-hover); color: var(--ui-text); }
+.tl-current-fav[aria-pressed="true"] { color: var(--ui-accent); }
+.tl-current-fav[aria-pressed="true"] svg { fill: currentColor; }
 
-/* ── Editorial shelves ─────────────────────────────────────────────── */
-.tl-shelf { margin-top: 26px; }
+/* ── Shelves ───────────────────────────────────────────────────────── */
+.tl-shelf { margin-top: 20px; }
 .tl-shelf[hidden] { display: none; }
 .tl-shelf-head,
 .tl-wall-head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .tl-shelf-head .tl-shelf-title,
 .tl-wall-head .tl-wall-title {
-  margin: 1px 0 0;
+  margin: 0;
   opacity: 1;
   font-family: var(--ui-font);
-  font-size: 1.02rem;
-  font-weight: 680;
+  font-size: .98rem;
+  font-weight: 650;
   line-height: 1.25;
-  letter-spacing: -.015em;
+  letter-spacing: -.01em;
   text-transform: none;
   color: var(--ui-text);
 }
@@ -6694,7 +6660,6 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
 }
 .tl-shelf-link:hover { color: var(--ui-text); }
 
-/* Recent rail — low-height, scene-led, horizontally scrollable. */
 .tl-recent-rail {
   display: flex;
   gap: 10px;
@@ -6717,9 +6682,9 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
   cursor: pointer;
   text-align: left;
   scroll-snap-align: start;
-  transition: border-color var(--ui-motion-fast), transform var(--ui-motion-fast);
+  transition: border-color var(--ui-motion-fast);
 }
-.tl-recent-card:hover { border-color: var(--ui-border-strong); transform: translateY(-2px); }
+.tl-recent-card:hover { border-color: var(--ui-border-strong); }
 .tl-recent-art {
   position: relative;
   display: block;
@@ -6733,7 +6698,6 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
   bottom: 7px;
   width: 30px;
   height: 22px;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,.45));
 }
 .tl-recent-mark > svg,
 .tl-recent-mark > img,
@@ -6749,71 +6713,8 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
   white-space: nowrap;
 }
 
-/* Category worlds — large, image-led navigation tiles. */
-.tl-worlds {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-.tl-world {
-  --tl-on-scrim: #f8fafc;
-  position: relative;
-  isolation: isolate;
-  display: block;
-  overflow: hidden;
-  aspect-ratio: 16 / 7.4;
-  padding: 0;
-  border: 1px solid var(--ui-border);
-  border-radius: 15px;
-  background: var(--tl-bg0);
-  color: var(--tl-on-scrim);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color var(--ui-motion-fast), transform var(--ui-motion-fast);
-}
-.tl-world:hover { border-color: var(--ui-border-strong); transform: translateY(-2px); }
-.tl-world-art {
-  position: absolute;
-  inset: 0;
-  display: block;
-  z-index: 0;
-}
-.tl-world::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(180deg, rgba(0,0,0,.04) 12%, rgba(0,0,0,.64) 100%);
-}
-.tl-world-body {
-  position: absolute;
-  z-index: 2;
-  left: 14px;
-  right: 14px;
-  bottom: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.tl-world-name {
-  font-family: var(--tl-font);
-  font-size: 1.04rem;
-  font-weight: 650;
-  line-height: 1.16;
-  letter-spacing: -.01em;
-  color: var(--tl-on-scrim);
-  text-shadow: 0 2px 16px rgba(0,0,0,.4);
-}
-.tl-world-count {
-  font-family: var(--ui-font);
-  font-size: .66rem;
-  font-weight: 600;
-  letter-spacing: .02em;
-  color: color-mix(in srgb, var(--tl-on-scrim) 72%, transparent);
-}
-
-/* Wall heading + rhythm card. */
-.tl-wall-head { margin: 26px 0 12px; }
+/* ── Catalogue wall ────────────────────────────────────────────────── */
+.tl-wall-head { margin: 22px 0 10px; }
 .tl-wall-count {
   flex: none;
   font-family: var(--ui-font);
@@ -6822,21 +6723,17 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
   font-variant-numeric: tabular-nums;
 }
 .tl-grid {
-  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 14px;
 }
 .tl-card {
-  border-radius: 15px;
+  border-radius: 14px;
   background: var(--ui-fill);
   transform: none;
+  transition: border-color var(--ui-motion-fast);
 }
 .tl-card:hover { transform: none; border-color: var(--ui-border-strong); }
-.tl-card--featured { grid-column: span 2; }
-.tl-card--featured .tl-prev { aspect-ratio: 2.28 / 1; }
-.tl-card--featured .tl-mark { width: 46px; height: 34px; }
-.tl-card--featured .tl-name { font-size: 1.05rem; }
-.tl-card--featured .tl-tagline { font-size: .78rem; }
-
+.tl-card.active { border-color: var(--ui-accent); box-shadow: 0 0 0 1px var(--ui-accent); }
 .tl-prev {
   background: var(--tl-bg0);
   isolation: isolate;
@@ -6852,47 +6749,14 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
 }
 .tl-pick:hover .tl-prev .tl-scene,
 .tl-pick:focus-visible .tl-prev .tl-scene { transform: scale(1.03); }
-.tl-prev::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background: linear-gradient(115deg, transparent 34%, rgba(255,255,255,.13) 49%, transparent 62%);
-  opacity: 0;
-  transform: translateX(-30%);
-  transition: opacity .45s var(--ease-smooth), transform .7s var(--ease-smooth);
-}
-.tl-pick:hover .tl-prev::after,
-.tl-pick:focus-visible .tl-prev::after { opacity: 1; transform: translateX(30%); }
 .tl-mark {
   z-index: 3;
   width: 32px;
   height: 24px;
   padding: 3px;
   border-radius: 6px;
-  background: rgba(4,6,12,.24);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  background: rgba(4,6,12,.28);
 }
-.tl-tagline {
-  position: absolute;
-  z-index: 3;
-  left: 10px;
-  right: 10px;
-  bottom: 9px;
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  font-family: var(--ui-font);
-  font-size: .68rem;
-  line-height: 1.35;
-  color: var(--tl-text);
-  text-shadow: 0 1px 12px rgba(0,0,0,.6);
-  opacity: .9;
-}
-.tl-card.active { border-color: var(--ui-accent); box-shadow: 0 0 0 1px var(--ui-accent); }
 .tl-card.active .tl-prev::before {
   content: "";
   position: absolute;
@@ -6933,6 +6797,50 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
     clip-path: circle(130vmax at var(--tl-reveal-x, 50%) var(--tl-reveal-y, 50%));
   }
 }
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  #themeLibOverlay { align-items: flex-end; }
+  .sc-modal.themelib {
+    width: 100vw;
+    height: calc(100vh - max(12px, env(safe-area-inset-top)));
+    height: calc(100dvh - max(12px, env(safe-area-inset-top)));
+    border-radius: var(--ui-radius-panel) var(--ui-radius-panel) 0 0;
+    border-bottom: 0;
+    transform: translateY(32px);
+  }
+  #themeLibOverlay.open .sc-modal.themelib { transform: none; }
+  .sc-modal.themelib .tl-head { flex-wrap: wrap; gap: 10px; padding: 14px 16px 12px !important; }
+  .sc-modal.themelib .tl-titles { flex: 1 1 0; min-width: 0; }
+  .tl-close { order: 2; }
+  .tl-search { order: 3; flex: 1 0 100%; }
+  .tl-search input { font-size: 1rem; }
+  .tl-sort { display: none; }
+  .tl-nav { padding: 9px 16px !important; }
+  .tl-main { padding: 16px 16px calc(24px + env(safe-area-inset-bottom)) !important; }
+  .tl-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+  .tl-current-art { flex-basis: 84px; width: 84px; }
+  .tl-meta { padding: 10px 46px 12px 12px; }
+}
+@media (min-width: 560px) and (max-width: 720px) {
+  .tl-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+@media (max-width: 380px) {
+  .tl-grid { grid-template-columns: minmax(0,1fr); }
+  .tl-current-art { flex-basis: 72px; width: 72px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-card,
+  .tl-recent-card,
+  .tl-pick:hover .tl-prev .tl-scene,
+  .tl-pick:focus-visible .tl-prev .tl-scene { transition: none; transform: none; }
+  .sc-modal.themelib { transition: opacity var(--ui-motion-fast) linear; transform: none; }
+  .tl-reveal.is-active { animation: none; opacity: 0; }
+}
+body.reduced-motion .tl-card,
+body.reduced-motion .tl-recent-card,
+body.reduced-motion .tl-pick:hover .tl-prev .tl-scene,
+body.reduced-motion .tl-pick:focus-visible .tl-prev .tl-scene { transition: none; transform: none; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    V3 · MIX CONSOLE
@@ -7925,7 +7833,6 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
    ═══════════════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
   .sc-modal.themelib { width: calc(100vw - 28px); }
-  .tl-worlds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .tl-nav { padding-left: 18px !important; padding-right: 18px !important; }
   .tl-main { padding-left: 18px !important; padding-right: 18px !important; }
   .mix-console-grid { grid-template-columns: minmax(0, 1fr); }
@@ -7942,17 +7849,7 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
   .tl-nav { padding: 8px 14px !important; }
   .tl-nav-item { min-height: 34px; font-size: .8rem; }
   .tl-main { padding: 16px 14px calc(26px + env(safe-area-inset-bottom)) !important; }
-  .tl-spotlight { min-height: 178px; }
-  .tl-spotlight-content { padding: 18px; max-width: none; }
-  .sc-modal .tl-spotlight .tl-spotlight-name { font-size: clamp(1.55rem, 7vw, 1.95rem); }
-  .tl-spotlight-tagline { font-size: .79rem; }
-  .tl-spotlight-mark { width: 46px; height: 36px; }
-  .tl-worlds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tl-world { aspect-ratio: 16 / 8.6; }
   .tl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .tl-card--featured { grid-column: span 2; }
-  .tl-card--featured .tl-prev { aspect-ratio: 16 / 8.2; }
-  .tl-card--featured .tl-name { font-size: .92rem; }
   .tl-meta { padding: 10px 46px 11px 11px; }
   .tl-shelf-head, .tl-wall-head { margin-bottom: 9px; }
   .tl-shelf-head .tl-shelf-title, .tl-wall-head .tl-wall-title { font-size: .95rem; }
@@ -7989,11 +7886,6 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
   .mixer-scene-auto { align-self: stretch; justify-content: space-between; }
   .scene-card { grid-template-columns: 46px minmax(0, 1fr); padding: 12px; }
   .scene-art { width: 46px; height: 46px; }
-  .tl-worlds { grid-template-columns: minmax(0, 1fr); }
-  .tl-world { aspect-ratio: 16 / 6.4; }
-  .tl-card--featured { grid-column: span 2; }
-  .tl-spotlight-actions { gap: 7px; }
-  .tl-continue { flex: 1 1 auto; justify-content: center; }
   .tl-wall-count { display: none; }
   .weather-hero { margin: 12px 14px 0; padding: 20px 18px; }
   .weather-hero-main { gap: 14px; }
@@ -8009,18 +7901,11 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
 }
 @media (max-width: 400px) {
   .tl-grid { grid-template-columns: minmax(0, 1fr); }
-  .tl-card--featured { grid-column: auto; }
-  .tl-card--featured .tl-prev { aspect-ratio: 16 / 9; }
   .sc-modal.themelib .tl-head { padding: 12px 12px 10px !important; }
   .sc-modal.themelib h2 { font-size: 1.18rem; }
   .tl-nav { padding: 7px 12px !important; }
   .tl-nav-item { min-height: 32px; padding: 0 12px; font-size: .76rem; }
   .tl-main { padding: 12px 12px calc(22px + env(safe-area-inset-bottom)) !important; }
-  .tl-spotlight-content { padding: 15px; }
-  .tl-spotlight-top { gap: 10px; }
-  .tl-spotlight-mark { width: 40px; height: 32px; }
-  .sc-modal .tl-spotlight .tl-spotlight-name { font-size: 1.42rem; }
-  .tl-spotlight-tagline { display: none; }
   .tl-recent-card { flex-basis: 138px; }
   .mix-console-grid { gap: 8px; }
   .mix-card { padding: 12px; }
@@ -8044,21 +7929,17 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
   .weather-condition-icon { width: 60px; height: 60px; }
   .weather-condition-icon svg { width: 36px; height: 36px; }
   .weather-hero-temp { font-size: 3.3rem; }
-  .tl-spotlight { min-height: 0; }
-  .tl-spotlight-tagline { display: none; }
 }
 
 /* Reduce-motion support for the V3 surfaces. The app's own "Reduce motion"
    preference toggles body.reduced-motion, so both are covered. */
 @media (prefers-reduced-motion: reduce) {
   .tl-reveal, .tl-reveal.is-active { animation: none; display: none; }
-  .tl-live-dot { animation: none; }
   .tl-scene,
   .tl-pick:hover .tl-prev .tl-scene,
   .tl-pick:focus-visible .tl-prev .tl-scene,
   .tl-card,
   .tl-recent-card,
-  .tl-world,
   .scene-card,
   .tl-nav-item,
   .fade-chip { transition: none; transform: none; }
@@ -8071,11 +7952,9 @@ body .feat-label { font-family: var(--ui-font); font-size: .78rem; font-weight: 
 }
 body.reduced-motion .tl-reveal,
 body.reduced-motion .tl-reveal.is-active { animation: none; display: none; }
-body.reduced-motion .tl-live-dot { animation: none; }
 body.reduced-motion .tl-scene,
 body.reduced-motion .tl-card,
 body.reduced-motion .tl-recent-card,
-body.reduced-motion .tl-world,
 body.reduced-motion .scene-card { transition: none; transform: none; }
 body.reduced-motion .weather-hero-particles,
 body.reduced-motion .weather-hero-particles::before,
