@@ -14,20 +14,22 @@ Deployment target is Cloudflare Pages, with optional Pages Functions under
 
 ## Commands
 
-Node.js and npm are required (the repo is developed against Node 20+).
+Tooling runs through Deno; Node.js and npm are not required.
 
 ```bash
-npm install
-npm run dev           # Vite dev server, http://localhost:5173
-npm run typecheck     # tsc --noEmit
-npm run lint          # oxlint
-npm run typecheck:e2e # tests/tsconfig.json
-npm run build         # typecheck + production bundle
-npm run test:e2e      # Playwright, five browser projects
-npm run preview       # serve dist/
+deno task dev         # Vite dev server, http://localhost:5173
+deno task typecheck   # tsc --noEmit
+deno task lint        # oxlint
+deno task test        # Deno unit suite (tests-deno/)
+deno task test:e2e    # Playwright, five browser projects
+deno task build       # typecheck + production bundle
+deno task preview     # serve dist/
 ```
 
-`npm run build` runs `tsc --noEmit` first, so a type error fails the build.
+`deno task build` runs `tsc --noEmit` first, so a type error fails the build.
+Playwright suites are run with `deno task test:e2e:desktop-chromium`,
+`deno task test:e2e:desktop-firefox`, `deno task test:e2e:desktop-webkit`, or
+`deno task test:e2e:mobile`.
 
 ## Layout
 
@@ -100,9 +102,10 @@ Prefer a new module for a self-contained feature instead of growing
 
 ## Testing
 
-Playwright projects: `chromium`, `firefox`, `webkit`, `mobile-chrome`
-(Pixel 7), `mobile-safari` (iPhone 13). WebKit is Playwright's build, not real
-Safari — report results per project, never as "all browsers pass".
+Playwright projects: `desktop-chromium`, `desktop-firefox`,
+`desktop-webkit`, `mobile-chromium-emulation`, `mobile-webkit-emulation`.
+WebKit is Playwright's build, not real Safari — report results per project,
+never as "all browsers pass".
 
 `tests/fixtures.ts`:
 - aborts third-party requests so tests do not depend on network uptime

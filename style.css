@@ -6214,7 +6214,7 @@ html.force-no-backdrop-filter #themeLibOverlay { background: rgba(5,7,12,.72); }
 }
 .tl-nav-item {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  min-height: 40px; padding: 0 12px; border: 0; border-radius: var(--ui-radius-control);
+  min-height: var(--ui-hit); padding: 0 12px; border: 0; border-radius: var(--ui-radius-control);
   background: none; color: var(--ui-muted); font: inherit; font-size: .9rem; text-align: left; cursor: pointer;
   transition: background var(--ui-motion-fast), color var(--ui-motion-fast);
 }
@@ -6433,7 +6433,7 @@ body .feat-btn--beta .beta-tag { height: 1rem; padding: 0 .26rem; font-size: .52
 .tl-nav::-webkit-scrollbar { display: none; }
 .tl-nav-item {
   flex: 0 0 auto;
-  min-height: 36px;
+  min-height: var(--ui-hit);
   padding: 0 14px;
   border: 1px solid var(--ui-border);
   border-radius: 999px;
@@ -7847,7 +7847,7 @@ body.reduced-motion .tl-pick:focus-visible .tl-prev .tl-scene { transition: none
   .sc-modal.themelib .tl-head { align-items: center; }
   .sc-modal.themelib .tl-titles { min-width: 0; }
   .tl-nav { padding: 8px 14px !important; }
-  .tl-nav-item { min-height: 34px; font-size: .8rem; }
+  .tl-nav-item { min-height: var(--ui-hit); font-size: .8rem; }
   .tl-main { padding: 16px 14px calc(26px + env(safe-area-inset-bottom)) !important; }
   .tl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .tl-meta { padding: 10px 46px 11px 11px; }
@@ -7904,7 +7904,7 @@ body.reduced-motion .tl-pick:focus-visible .tl-prev .tl-scene { transition: none
   .sc-modal.themelib .tl-head { padding: 12px 12px 10px !important; }
   .sc-modal.themelib h2 { font-size: 1.18rem; }
   .tl-nav { padding: 7px 12px !important; }
-  .tl-nav-item { min-height: 32px; padding: 0 12px; font-size: .76rem; }
+  .tl-nav-item { min-height: var(--ui-hit); padding: 0 12px; font-size: .76rem; }
   .tl-main { padding: 12px 12px calc(22px + env(safe-area-inset-bottom)) !important; }
   .tl-recent-card { flex-basis: 138px; }
   .mix-console-grid { gap: 8px; }
