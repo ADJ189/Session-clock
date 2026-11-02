@@ -208,4 +208,109 @@ test.describe("theme library", () => {
     expect(box!.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator("#tlSearch")).toBeVisible();
   });
+
+  for (const { label, width, height } of [
+    { label: "phone", width: 390, height: 844 },
+    { label: "320px", width: 320, height: 568 },
+  ]) {
+    test(`close, favourite and collection targets stay 44px at ${label} @mobile`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await open(page);
+
+      for (const selector of [
+        "#themeLibOverlay .tl-close",
+        ".tl-card .tl-fav",
+        ".tl-nav-item",
+      ]) {
+        const target = await page.locator(selector).first().boundingBox();
+        expect(target, selector).not.toBeNull();
+        expect(target!.width, `${selector} width`).toBeGreaterThanOrEqual(44);
+        expect(target!.height, `${selector} height`).toBeGreaterThanOrEqual(44);
+      }
+
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - window.innerWidth,
+        ),
+        "no horizontal overflow",
+      ).toBeLessThanOrEqual(0);
+    });
+  }
+
+  test("clearing the search keeps focus in the search field", async ({ page }) => {
+    await open(page);
+    await page.locator("#tlSearch").fill("robot");
+    await expect(page.locator("#tlClear")).toBeVisible();
+    await page.locator("#tlClear").click();
+    await expect(page.locator("#tlSearch")).toHaveValue("");
+    await expect(page.locator("#tlSearch")).toBeFocused();
+    await expect(page.locator(".tl-card")).toHaveCount(103);
+  });
+
+  test("search and clear reuse the cached card nodes", async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => {
+      document
+        .querySelectorAll<HTMLElement>(".tl-card")
+        .forEach((card) => (card.dataset.scTestMark = "1"));
+    });
+
+    await page.locator("#tlSearch").fill("robot");
+    await expect(page.locator(".tl-card")).toHaveCount(1);
+    await page.locator("#tlClear").click();
+    await expect(page.locator(".tl-card")).toHaveCount(103);
+
+    // A rebuilt gallery would have fresh nodes with no marker.
+    await expect(page.locator('.tl-card[data-sc-test-mark="1"]')).toHaveCount(
+      103,
+    );
+  });
+
+  for (const { label, width, height } of [
+    { label: "desktop", width: 1280, height: 800 },
+    { label: "390px mobile", width: 390, height: 844 },
+  ]) {
+    test(`first open paints the catalogue within budget on ${label}`, async ({
+      page,
+      browserName,
+    }, testInfo) => {
+      test.skip(
+        browserName !== "chromium",
+        "CDP CPU throttling is Chromium-only",
+      );
+      await page.setViewportSize({ width, height });
+      const cdp = await page.context().newCDPSession(page);
+      // 4x slowdown approximates a mid-range phone / loaded CI box. This is a
+      // measurement guard, not a micro-benchmark: it fails only if first open
+      // regresses into multi-second territory.
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+      await page.goto("/");
+      await waitForBoot(page);
+
+      const elapsed = await page.evaluate(async () => {
+        const start = performance.now();
+        document.getElementById("topbarThemesBtn")!.click();
+        await new Promise<void>((resolve) => {
+          const tick = () => {
+            if (document.querySelectorAll("#tlGrid .tl-card").length === 103) {
+              requestAnimationFrame(() => resolve());
+              return;
+            }
+            setTimeout(tick, 16);
+          };
+          tick();
+        });
+        return performance.now() - start;
+      });
+
+      testInfo.annotations.push({
+        type: "theme-finder-first-open",
+        description: `${label}: ${elapsed.toFixed(0)}ms (4x CPU throttle)`,
+      });
+      expect(elapsed).toBeLessThan(8000);
+      await expect(page.locator(".tl-card")).toHaveCount(103);
+    });
+  }
 });

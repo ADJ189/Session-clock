@@ -103,8 +103,37 @@ test.describe("Beta status tag", () => {
       expect(tag.text).not.toMatch(/\p{Extended_Pictographic}/u);
     }
 
-    // The label stays a single accessible name; no extra focus target.
-    await expect(page.locator("#btnSettings")).toHaveAccessibleName(/Settings\s*Beta/);
+    // The visible Beta tag must not rename the controls: each keeps its
+    // original accessible name, with Beta exposed as the description.
+    await expect(page.locator("#btnSettings")).toHaveAccessibleName("Settings");
+    await expect(page.locator("#btnSettings")).toHaveAccessibleDescription(
+      "Beta",
+    );
+    await expect(
+      page.locator("#settingsOverlay .modal-title-row"),
+    ).toHaveAccessibleName("Settings");
+    await expect(
+      page.locator("#settingsOverlay .modal-title-row"),
+    ).toHaveAccessibleDescription("Beta");
+
+    // The Integrations heading lives in a hidden overlay until the panel opens;
+    // hidden nodes are excluded from the accessibility tree, so open it before
+    // asserting its computed name/description.
+    await page.evaluate(() => {
+      const sc = (
+        window as unknown as {
+          SC?: { modals?: { open?: (id: string) => void } };
+        }
+      ).SC;
+      sc?.modals?.open?.("integrationsOverlay");
+    });
+    await expect(page.locator("#integrationsOverlay")).toHaveClass(/open/);
+    await expect(
+      page.locator("#integrationsOverlay .modal-title-row"),
+    ).toHaveAccessibleName("Integrations");
+    await expect(
+      page.locator("#integrationsOverlay .modal-title-row"),
+    ).toHaveAccessibleDescription("Beta");
   });
 
   test("pill shape and type scale stay consistent across surfaces", async ({ page }) => {

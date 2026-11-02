@@ -41,6 +41,15 @@ test.describe("PWA install affordance", () => {
 });
 
 test.describe("clock defaults and saved preferences", () => {
+  async function openDisplayDigits(
+    page: import("@playwright/test").Page,
+  ): Promise<void> {
+    await page.locator("#btnSettings").click();
+    await expect(page.locator("#settingsOverlay")).toHaveClass(/open/);
+    await page.locator('.settings-tab-btn[data-tab="display"]').click();
+    await expect(page.locator("#toggleHideSeconds")).toBeVisible();
+  }
+
   test("a fresh profile gets a calm HH:MM clock @smoke @mobile", async ({ page }) => {
     await page.goto("/");
     await waitForBoot(page);
@@ -61,6 +70,110 @@ test.describe("clock defaults and saved preferences", () => {
 
     await expect(page.locator("#digitSec")).toBeVisible();
     await expect(page.locator("#secMs")).toBeVisible();
+  });
+
+  test("toggles apply immediately and persist across reload", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForBoot(page);
+    await openDisplayDigits(page);
+
+    await expect(page.locator("#toggleHideSeconds")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(page.locator("#toggleHideMs")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    // Show seconds. Milliseconds stay hidden because their own preference is
+    // still on, which is the independent-toggle contract.
+    await page.locator("#toggleHideSeconds").click();
+    await expect(page.locator("body")).not.toHaveClass(/hide-seconds/);
+    await expect(page.locator("#digitSec")).toBeVisible();
+    await expect(page.locator("#secMs")).toBeHidden();
+
+    await page.locator("#toggleHideMs").click();
+    await expect(page.locator("#secMs")).toBeVisible();
+
+    await page.reload();
+    await waitForBoot(page);
+    await expect(page.locator("body")).not.toHaveClass(/hide-seconds/);
+    await expect(page.locator("body")).not.toHaveClass(/hide-ms/);
+    await expect(page.locator("#digitSec")).toBeVisible();
+    await expect(page.locator("#secMs")).toBeVisible();
+  });
+
+  test("hiding seconds retains the saved milliseconds preference", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("sc_hide_seconds", "0");
+      localStorage.setItem("sc_hide_ms", "0");
+    });
+    await page.goto("/");
+    await waitForBoot(page);
+    await openDisplayDigits(page);
+
+    await expect(page.locator("#secMs")).toBeVisible();
+    await page.locator("#toggleHideSeconds").click();
+
+    // Both readouts disappear, but the ms preference is not overwritten.
+    await expect(page.locator("#digitSec")).toBeHidden();
+    await expect(page.locator("#secMs")).toBeHidden();
+    expect(
+      await page.evaluate(() => localStorage.getItem("sc_hide_ms")),
+    ).toBe("0");
+
+    // Showing seconds restores ms because the saved preference allows it.
+    await page.locator("#toggleHideSeconds").click();
+    await expect(page.locator("#digitSec")).toBeVisible();
+    await expect(page.locator("#secMs")).toBeVisible();
+  });
+
+  test("the analogue second hand follows the hide-seconds preference", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("sc_clock_mode", "analogue");
+    });
+    await page.goto("/");
+    await waitForBoot(page);
+
+    const hand = page.locator("#analogueClock");
+    await expect(hand).toBeVisible();
+    await expect(hand).toHaveAttribute("data-seconds-hidden", "1");
+
+    await openDisplayDigits(page);
+    await page.locator("#toggleHideSeconds").click();
+    await expect(hand).toHaveAttribute("data-seconds-hidden", "0");
+  });
+
+  test("the clock recentres without leaving the hidden-digit gap", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/");
+    await waitForBoot(page);
+
+    const row = page.locator(".clock-row");
+    const hidden = (await row.boundingBox())!;
+
+    await openDisplayDigits(page);
+    await page.locator("#toggleHideSeconds").click();
+    await page.locator("#toggleHideMs").click();
+    await expect(page.locator("#digitSec")).toBeVisible();
+    const shown = (await row.boundingBox())!;
+
+    // The visible row must actually widen for the restored digits rather than
+    // reserving an empty slot while they were hidden.
+    expect(shown.width).toBeGreaterThan(hidden.width);
+    for (const box of [hidden, shown]) {
+      const centre = box.x + box.width / 2;
+      expect(Math.abs(centre - 640)).toBeLessThanOrEqual(12);
+    }
   });
 
   test("every clock style renders with the calm HH:MM default", async ({
