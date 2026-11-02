@@ -357,6 +357,24 @@ function ensureCtx() {
   if (ctx.state === "suspended") ctx.resume().catch(() => {});
 }
 
+// A missing/blocked AudioContext is an optional-subsystem failure: remember it
+// once so every later play attempt returns false instead of throwing into a
+// click handler. The clock and timer must keep working without audio.
+let audioUnavailable = false;
+function ensureCtxSafe(): boolean {
+  if (audioUnavailable) return false;
+  try {
+    ensureCtx();
+    return true;
+  } catch {
+    audioUnavailable = true;
+    return false;
+  }
+}
+export function isAudioAvailable(): boolean {
+  return !audioUnavailable;
+}
+
 // ── Autoplay-policy unlock ─────────────────────────────────────────────
 // Browsers (Safari especially) only allow AudioContext creation/resume
 // synchronously inside a genuine user-gesture handler. Anything started
@@ -373,11 +391,7 @@ export function unlockAudio() {
   // Web Audio can be missing or blocked (some WebKit builds, Lockdown Mode,
   // privacy settings). This runs inside the page's very first gesture, so a
   // throw here would surface as an uncaught page error on the first click.
-  try {
-    ensureCtx();
-  } catch {
-    /* audio is optional — the rest of the app must keep working */
-  }
+  ensureCtxSafe();
 }
 
 export function getAudioLevel(): number {
@@ -461,11 +475,11 @@ const MAKERS: Record<
 export { isFileTrackSupported };
 
 // ── Public API ────────────────────────────────────────────────────────
-export function playTrack(id: string) {
-  if (trackNodes[id]) return;
-  ensureCtx();
+export function playTrack(id: string): boolean {
+  if (trackNodes[id]) return true;
+  if (!ensureCtxSafe()) return false;
   const made = MAKERS[id]?.();
-  if (!made) return;
+  if (!made) return false;
   const g = ctx!.createGain();
   g.gain.value = trackVols[id] ?? 0.8;
   made.out.connect(g);
@@ -490,6 +504,7 @@ export function playTrack(id: string) {
     clearTimeout(fadeTimer);
     fadeTimer = window.setTimeout(fadeAll, fadeMinutes * 60_000);
   }
+  return true;
 }
 
 export function stopTrack(id: string) {
@@ -516,8 +531,12 @@ export function stopTrack(id: string) {
   onTrackChange?.();
 }
 
-export function toggleTrack(id: string) {
-  trackNodes[id] ? stopTrack(id) : playTrack(id);
+export function toggleTrack(id: string): boolean {
+  if (trackNodes[id]) {
+    stopTrack(id);
+    return true;
+  }
+  return playTrack(id);
 }
 export function isPlaying(id: string) {
   return !!trackNodes[id];
@@ -896,11 +915,11 @@ export function setHeadTracking(v: boolean): void {
 }
 
 // ── Binaural Beats ────────────────────────────────────────────────────
-export function playBinaural(presetId: string) {
+export function playBinaural(presetId: string): boolean {
   stopBinaural();
-  ensureCtx();
+  if (!ensureCtxSafe()) return false;
   const preset = BINAURAL_PRESETS.find((p) => p.id === presetId);
-  if (!preset) return;
+  if (!preset) return false;
 
   const merger = ctx!.createChannelMerger(2);
   const gain = ctx!.createGain();
@@ -927,6 +946,7 @@ export function playBinaural(presetId: string) {
   binauralNodes = { left, right, merger, gain };
   binauralPresetId = presetId;
   onTrackChange?.();
+  return true;
 }
 
 export function stopBinaural() {
@@ -946,8 +966,12 @@ export function stopBinaural() {
   onTrackChange?.();
 }
 
-export function toggleBinaural(presetId: string) {
-  binauralPresetId === presetId ? stopBinaural() : playBinaural(presetId);
+export function toggleBinaural(presetId: string): boolean {
+  if (binauralPresetId === presetId) {
+    stopBinaural();
+    return true;
+  }
+  return playBinaural(presetId);
 }
 
 // ── Adaptive audio ────────────────────────────────────────────────────
@@ -1000,7 +1024,7 @@ function equalPowerCurve(from: "out" | "in", peak: number): Float32Array {
 }
 
 export function crossfadeTo(toIds: string[], durationMs = 2500) {
-  ensureCtx();
+  if (!ensureCtxSafe()) return;
   const seconds = Math.max(0.05, durationMs / 1000);
   const now = ctx!.currentTime;
 
@@ -1105,7 +1129,7 @@ function fadeAll() {
 }
 
 export function playChime() {
-  ensureCtx();
+  if (!ensureCtxSafe()) return;
   const ac = ctx!;
   (
     [

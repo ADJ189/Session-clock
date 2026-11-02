@@ -80,7 +80,7 @@ import {
 import * as Palette from "./palette";
 import * as Motion from "./motion";
 import * as ThemeLib from "./themelib";
-import { installDiagnostics } from "./diagnostics";
+import { copyDiagnosticsText, installDiagnostics } from "./diagnostics";
 import { rendererHealth } from "./rendererHealth";
 
 // ── Platform detection ───────────────────────────────────────────────
@@ -1842,15 +1842,19 @@ function buildPanel() {
     lblEl.className = "feat-label";
     lblEl.textContent = label;
     if (id === "btnSettings") {
-      // The Settings surface is still Beta. Keep the tag inside the label so
-      // the dock button keeps one click target and one accessible name
-      // ("Settings Beta") instead of adding a second focusable element.
+      // The Settings surface is still Beta. The tag stays a non-interactive
+      // child: the button keeps its original accessible name ("Settings") and
+      // exposes "Beta" as its description, so the status is announced without
+      // renaming the control or adding a second focus target.
       b.classList.add("feat-btn--beta");
+      b.setAttribute("aria-label", label);
       const row = document.createElement("span");
       row.className = "feat-label-row";
       const beta = document.createElement("span");
       beta.className = "beta-tag";
+      beta.id = "betaTagDock";
       beta.textContent = "Beta";
+      b.setAttribute("aria-describedby", "betaTagDock");
       row.append(lblEl, beta);
       b.append(iconEl, row);
     } else {
@@ -2634,10 +2638,18 @@ function makeSoundTrack(
     });
     volWrap.append(slider, pct);
     track.append(top, volWrap);
-    toggle.addEventListener("click", () => Sound.toggleTrack(id));
+    toggle.addEventListener("click", () => {
+      if (!Sound.toggleTrack(id)) {
+        showToast("Audio isn't available in this browser");
+      }
+    });
   } else {
     track.append(top);
-    toggle.addEventListener("click", () => Sound.toggleBinaural(id));
+    toggle.addEventListener("click", () => {
+      if (!Sound.toggleBinaural(id)) {
+        showToast("Audio isn't available in this browser");
+      }
+    });
   }
 
   return track;
@@ -2956,6 +2968,7 @@ function stopNowPlayingPoll() {
 function buildSoundUI() {
   const container = $("soundGrid");
   container.innerHTML = "";
+  const audioOk = Sound.isAudioAvailable();
 
   Sound.SOUNDS.forEach((s) => {
     const vol = Math.round(Sound.getTrackVolume(s.id) * 100);
@@ -2967,7 +2980,13 @@ function buildSoundUI() {
       Sound.isPlaying(s.id),
       vol,
     );
-    if (!Sound.isFileTrackSupported(s.id)) {
+    if (!audioOk) {
+      track.classList.add("track-unavailable");
+      track
+        .querySelector<HTMLButtonElement>(".track-toggle")
+        ?.setAttribute("disabled", "true");
+      track.title = "Audio isn't available in this browser";
+    } else if (!Sound.isFileTrackSupported(s.id)) {
       track.classList.add("track-unavailable");
       track
         .querySelector<HTMLButtonElement>(".track-toggle")
@@ -2991,17 +3010,23 @@ function buildSoundUI() {
   container.appendChild(binHeader);
 
   Sound.BINAURAL_PRESETS.forEach((p) => {
-    container.appendChild(
-      makeSoundTrack(
-        p.id,
-        p.icon,
-        p.name,
-        p.desc,
-        Sound.binauralPresetId === p.id,
-        100,
-        true,
-      ),
+    const track = makeSoundTrack(
+      p.id,
+      p.icon,
+      p.name,
+      p.desc,
+      Sound.binauralPresetId === p.id,
+      100,
+      true,
     );
+    if (!audioOk) {
+      track.classList.add("track-unavailable");
+      track
+        .querySelector<HTMLButtonElement>(".track-toggle")
+        ?.setAttribute("disabled", "true");
+      track.title = "Audio isn't available in this browser";
+    }
+    container.appendChild(track);
   });
 
   // ── Sound Presets ─────────────────────────────────────────────────────
@@ -3785,6 +3810,7 @@ function buildSettingsUI(activeTab = "general") {
     if (beta) {
       const tag = document.createElement("span");
       tag.className = "beta-tag";
+      tag.id = "betaTagSection";
       tag.textContent = "Beta";
       h.appendChild(tag);
     }
@@ -4709,6 +4735,18 @@ function buildSettingsUI(activeTab = "general") {
       compatInfo.appendChild(row);
     });
     compatSec.appendChild(compatInfo);
+    // User-triggered diagnostics export (same sanitized text as the boot-error
+    // screen). The runtime keeps a bounded, redacted buffer, so this is safe to
+    // share in a bug report.
+    const diagBtn = document.createElement("button");
+    diagBtn.type = "button";
+    diagBtn.className = "settings-action-btn settings-action-btn--full";
+    diagBtn.textContent = "Copy diagnostics";
+    diagBtn.addEventListener("click", async () => {
+      const copied = await copyDiagnosticsText(diagnostics.text());
+      showToast(copied ? "Diagnostics copied" : "Couldn't copy diagnostics");
+    });
+    compatSec.appendChild(diagBtn);
     compatSec.appendChild(
       makeRow(
         "Force Simplified Surfaces",
@@ -5093,6 +5131,9 @@ function updateClockCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = canvas.height = sz * dpr;
     canvas.style.width = canvas.style.height = sz + "px";
+    // Expose which hands the renderer is allowed to draw so the clock-default
+    // regression can verify the analogue second hand, not just CSS classes.
+    canvas.dataset.secondsHidden = hideSeconds ? "1" : "0";
     block.appendChild(canvas);
   } else if (clockMode === "flip") {
     const wrap = document.createElement("div");

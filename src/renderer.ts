@@ -13,6 +13,7 @@ import {
 } from "./perf";
 import { reducedMotion } from "./motion";
 import { readFocusLog } from "./focuslog";
+import { rendererHealth, type RendererFailure } from "./rendererHealth";
 
 // Parallax offset — set by main.ts via mouse/gyro
 let _parallaxX = 0,
@@ -120,10 +121,133 @@ export let W = 0,
   H = 0;
 export let tick = 0;
 
-const bgCanvas = document.getElementById("bgCanvas") as HTMLCanvasElement;
-const tCanvas = document.getElementById("transCanvas") as HTMLCanvasElement;
-const c = bgCanvas.getContext("2d", { alpha: false })!;
-const tc = tCanvas.getContext("2d")!;
+const bgCanvas = document.getElementById("bgCanvas") as HTMLCanvasElement | null;
+const tCanvas = document.getElementById("transCanvas") as HTMLCanvasElement | null;
+
+// `getContext()` is allowed to return null (unsupported options, exhausted
+// context quota, privacy modes, a lost GPU process). A TypeScript non-null
+// assertion does not change that at runtime, so every context is stored as
+// nullable and a no-op stand-in is used for the type-bound draw helpers.
+function get2d(
+  canvas: HTMLCanvasElement | null,
+  options?: CanvasRenderingContext2DSettings,
+): CanvasRenderingContext2D | null {
+  if (!canvas) return null;
+  try {
+    return canvas.getContext("2d", options);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Minimal no-op context. It exists only so legacy draw helpers keep their
+ * CanvasRenderingContext2D types; drawBg/runTransition refuse to enter them
+ * once `rendererHealth` has disabled the path. Any accidental call is inert
+ * instead of throwing every animation frame.
+ */
+function createNull2D(
+  canvas: HTMLCanvasElement | null,
+): CanvasRenderingContext2D {
+  const gradient = { addColorStop() {} };
+  const handler: ProxyHandler<Record<string, unknown>> = {
+    get(_target, prop) {
+      if (prop === "canvas") return canvas;
+      if (prop === "createLinearGradient" || prop === "createRadialGradient") {
+        return () => gradient;
+      }
+      if (prop === "createPattern") return () => null;
+      if (prop === "measureText") return () => ({ width: 0 });
+      if (prop === "getImageData") {
+        return () => ({ data: new Uint8ClampedArray(4), width: 1, height: 1 });
+      }
+      if (prop === "isPointInPath") return () => false;
+      return () => undefined;
+    },
+    set() {
+      return true;
+    },
+  };
+  return new Proxy(
+    {} as Record<string, unknown>,
+    handler,
+  ) as unknown as CanvasRenderingContext2D;
+}
+
+let bgCtx = get2d(bgCanvas, { alpha: false });
+let transCtx = get2d(tCanvas);
+let c: CanvasRenderingContext2D = bgCtx ?? createNull2D(bgCanvas);
+let tc: CanvasRenderingContext2D = transCtx ?? createNull2D(tCanvas);
+
+function applyStaticFallback() {
+  try {
+    document.body?.classList.add("renderer-fallback");
+  } catch {
+    // The visual fallback itself is optional.
+  }
+}
+
+function reportRendererFailure(failure: RendererFailure) {
+  // Imported lazily so renderer.ts has no eager diagnostics dependency.
+  // Renderer failures are rare (once per path), so the import cost is paid
+  // only when something has already gone wrong.
+  void import("./diagnostics")
+    .then((m) => {
+      m.getDiagnosticsRuntime()?.record({
+        subsystem: "renderer",
+        kind: "error",
+        message: `Renderer ${failure.path} disabled: ${failure.reason}`,
+        details: { detail: failure.message, status: rendererHealth.status },
+      });
+    })
+    .catch(() => {
+      // Diagnostics is optional; never let it affect rendering.
+    });
+}
+
+rendererHealth.setFailureHandler(reportRendererFailure);
+
+if (!bgCtx) {
+  rendererHealth.disableBackground("context-missing");
+  applyStaticFallback();
+}
+if (!transCtx) {
+  rendererHealth.disableTransitions("context-missing");
+}
+
+// 2D contexts can be lost and restored independently. Losing the background
+// is a visual-only failure; losing transitions merely swaps themes instantly.
+try {
+  bgCanvas?.addEventListener("contextlost", (event) => {
+    event.preventDefault();
+    rendererHealth.disableBackground("context-lost");
+    applyStaticFallback();
+  });
+  bgCanvas?.addEventListener("contextrestored", () => {
+    const restored = get2d(bgCanvas, { alpha: false });
+    if (restored) {
+      bgCtx = restored;
+      c = restored;
+      rendererHealth.restoreBackground();
+      document.body?.classList.remove("renderer-fallback");
+    }
+  });
+  tCanvas?.addEventListener("contextlost", (event) => {
+    event.preventDefault();
+    rendererHealth.disableTransitions("context-lost");
+  });
+  tCanvas?.addEventListener("contextrestored", () => {
+    const restored = get2d(tCanvas);
+    if (restored) {
+      transCtx = restored;
+      tc = restored;
+      rendererHealth.restoreTransitions();
+    }
+  });
+} catch {
+  // Older engines may not implement context-loss events; the null checks
+  // above still cover the failure mode.
+}
 
 // Offscreen canvas — static bg gradient painted once, composited each frame
 let offBg: OffscreenCanvas | null = null;
@@ -170,8 +294,16 @@ export function setBreathing(active: boolean) {
 }
 
 export function resize() {
-  W = bgCanvas.width = tCanvas.width = window.innerWidth;
-  H = bgCanvas.height = tCanvas.height = window.innerHeight;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  if (bgCanvas) {
+    bgCanvas.width = W;
+    bgCanvas.height = H;
+  }
+  if (tCanvas) {
+    tCanvas.width = W;
+    tCanvas.height = H;
+  }
   invalidateCache();
 }
 
@@ -209,6 +341,24 @@ export function getRendererFlowIntensity() {
 }
 
 export function drawBg(dt: number, theme: Theme, flowIntensity = 0) {
+  if (!rendererHealth.canDrawBackground) return;
+  try {
+    drawBgInner(dt, theme, flowIntensity);
+  } catch (error) {
+    // One boundary around optional visual work. The failing path is disabled
+    // permanently so this exception cannot recur every animation frame; the
+    // clock, timer and controls are outside this function and keep running.
+    rendererHealth.failBackground(error);
+    applyStaticFallback();
+    try {
+      transCtx?.clearRect(0, 0, W, H);
+    } catch {
+      // Static fallback is already applied.
+    }
+  }
+}
+
+function drawBgInner(dt: number, theme: Theme, flowIntensity = 0) {
   _flowIntensity = flowIntensity;
   // Tab hidden — skip all rendering
   if (!isTabVisible()) return;
@@ -4827,31 +4977,106 @@ function frameScale(): number {
   return Math.min(4, Math.max(0.25, dt / FRAME_MS));
 }
 
+let _transGuard: ((event: Event) => void) | null = null;
+let _transWatchdog = 0;
+let _transCbDone = false;
+
+function clearTransitionGuard() {
+  if (_transGuard) {
+    window.removeEventListener("error", _transGuard, true);
+    _transGuard = null;
+  }
+  if (_transWatchdog) {
+    clearTimeout(_transWatchdog);
+    _transWatchdog = 0;
+  }
+}
+
 export function runTransition(type: string, cb: () => void) {
   if (transitioning) {
     cb();
     return;
   }
+  // No transition context: swap instantly. The theme change and every timer
+  // continue; only the decorative wipe is skipped.
+  if (!rendererHealth.canRunTransitions || !transCtx) {
+    rendererHealth.disableTransitions("context-missing");
+    cb();
+    return;
+  }
+
   transitioning = true;
   _transLastTs = 0;
-  tCanvas.style.display = "block";
-  const fn = TRANS[type] ?? TRANS.defaultFade;
-  fn(cb);
+  _transCbDone = false;
+  const once = () => {
+    if (_transCbDone) return;
+    _transCbDone = true;
+    cb();
+  };
+  const fail = (error: unknown) => {
+    if (!transitioning) return;
+    rendererHealth.failTransitions(error);
+    clearTransitionGuard();
+    try {
+      transCtx?.clearRect(0, 0, W, H);
+      if (tCanvas) tCanvas.style.display = "none";
+    } catch {
+      // Static fallback is already applied.
+    }
+    transitioning = false;
+    // Still perform the pending theme swap; a failed wipe must not strand
+    // the UI on the previous theme.
+    once();
+  };
+  const guard = (event: Event) => {
+    const e = event as ErrorEvent;
+    fail(e.error ?? new Error(e.message || "Transition failed"));
+  };
+  _transGuard = guard;
+  window.addEventListener("error", guard, true);
+  // A thrown rAF callback stops that transition's own loop. The watchdog
+  // recovers the overlay even if the engine does not deliver a window error
+  // event (for example, a silent abort after a tab switch).
+  _transWatchdog = setTimeout(
+    () => fail(new Error("Transition watchdog expired")),
+    4000,
+  );
+
+  try {
+    if (tCanvas) tCanvas.style.display = "block";
+    const fn = TRANS[type] ?? TRANS.defaultFade;
+    fn(once);
+  } catch (error) {
+    fail(error);
+  }
 }
 
 function finishTrans() {
   let f = 1;
   _transLastTs = 0;
+  clearTransitionGuard();
   const step = () => {
-    f -= 0.02 * frameScale();
-    tc.clearRect(0, 0, W, H);
-    if (f > 0) {
-      tc.fillStyle = `rgba(0,0,0,${f})`;
-      tc.fillRect(0, 0, W, H);
-      requestAnimationFrame(step);
-    } else {
-      tCanvas.style.display = "none";
+    try {
+      f -= 0.02 * frameScale();
+      tc.clearRect(0, 0, W, H);
+      if (f > 0) {
+        tc.fillStyle = `rgba(0,0,0,${f})`;
+        tc.fillRect(0, 0, W, H);
+        requestAnimationFrame(step);
+      } else {
+        if (tCanvas) tCanvas.style.display = "none";
+        transitioning = false;
+        clearTransitionGuard();
+      }
+    } catch (error) {
+      rendererHealth.failTransitions(error);
       transitioning = false;
+      clearTransitionGuard();
+      try {
+        if (tCanvas) tCanvas.style.display = "none";
+      } catch {
+        // Static fallback is already applied.
+      }
     }
   };
   requestAnimationFrame(step);

@@ -157,7 +157,12 @@ export const CAPS = {
   // and music-dock pop-out; both already degrade gracefully, this just
   // lets CSS hide the trigger entirely instead of showing a dead button.
   documentPiP: "documentPictureInPicture" in window,
-  deviceOrientation: "DeviceOrientationEvent" in window,
+  // Keep this dynamic: capability probes and tests may define the constructor
+  // after the module is evaluated, and support is still read at the point of
+  // use.
+  get deviceOrientation() {
+    return "DeviceOrientationEvent" in window;
+  },
   deviceOrientationNeedsPermission:
     typeof iosOrientationEvent()?.requestPermission === "function",
   webShare: typeof navigator.share === "function",
@@ -341,4 +346,9 @@ export function subscribeOrientation(cb: OrientationCB): () => void {
   attachOrientationListener();
   orientationSubs.add(cb);
   return () => orientationSubs.delete(cb);
+}
+
+/** Introspection for diagnostics/tests: how many orientation consumers are live. */
+export function getOrientationSubscriberCount(): number {
+  return orientationSubs.size;
 }
