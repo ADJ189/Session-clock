@@ -141,9 +141,17 @@ export function unloadAnalytics(): void {
     try {
       const origSendBeacon = navigator.sendBeacon.bind(navigator);
       navigator.sendBeacon = (url: string | URL, data?: BodyInit | null): boolean => {
-        const urlStr = typeof url === "string" ? url : url.href;
-        if (urlStr.includes("cloudflareinsights.com")) {
-          return true; // silently drop
+        try {
+          const parsed = typeof url === "string" ? new URL(url, window.location.href) : url;
+          const host = parsed.hostname.toLowerCase();
+          if (
+            host === "cloudflareinsights.com" ||
+            host.endsWith(".cloudflareinsights.com")
+          ) {
+            return true; // silently drop
+          }
+        } catch {
+          // If URL parsing fails, do not block by substring; pass through.
         }
         return origSendBeacon(url, data);
       };
