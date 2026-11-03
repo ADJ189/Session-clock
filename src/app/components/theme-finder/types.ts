@@ -25,7 +25,6 @@ export interface ThemeLibEmptyState {
 export interface ThemeLibSnapshot {
   query: string;
   sort: ThemeLibSort;
-  view: ThemeLibView;
   navItems: ThemeLibNavItem[];
   countLabel: string;
   clearVisible: boolean;

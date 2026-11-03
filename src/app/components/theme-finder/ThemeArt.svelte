@@ -1,18 +1,16 @@
 <script lang="ts">
   import type { Theme } from "../../../types";
-  import { PREVIEW_IDS } from "../../../themepreviews";
+  import { PREVIEW_IDS, themePreviewUrl } from "../../../themepreviews";
   import { mark } from "./mark";
 
   let {
     theme,
     markClass,
     fillMark,
-    sceneClass = "tl-scene",
   }: {
     theme: Theme;
     markClass: string;
     fillMark: (el: HTMLElement, theme: Theme) => void;
-    sceneClass?: string;
   } = $props();
 
   // Generated thumbnails are optional. A missing/failed image leaves the
@@ -23,12 +21,10 @@
   const showPreview = $derived(
     PREVIEW_IDS.has(theme.id) && failedId !== theme.id,
   );
-  const previewUrl = $derived(
-    `${import.meta.env.BASE_URL}theme-previews/${theme.id}.webp`,
-  );
+  const previewUrl = $derived(themePreviewUrl(theme.id));
 </script>
 
-<span class={sceneClass} aria-hidden="true"></span>
+<span class="tl-scene" aria-hidden="true"></span>
 {#if showPreview}
   <img
     class="tl-img"

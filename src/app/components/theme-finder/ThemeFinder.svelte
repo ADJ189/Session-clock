@@ -7,6 +7,7 @@
     ThemeLibSnapshot,
   } from "./types";
   import ThemeArt from "./ThemeArt.svelte";
+  import { STAR_PATH, themeStyle } from "./theme-style";
 
   let { controller }: { controller: ThemeFinderController } = $props();
 
@@ -22,23 +23,6 @@
       snapshot = next;
     }),
   );
-
-  // Same developer-authored star as the imperative card fallback; kept inline
-  // so the component has no HTML-string interpolation.
-  const STAR =
-    "M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z";
-
-  function themeStyle(t: Theme): string {
-    return [
-      `--tl-bg0:${t.baseBg[0] ?? "#000"}`,
-      `--tl-bg1:${t.baseBg[1] ?? t.baseBg[0] ?? "#000"}`,
-      `--tl-bg2:${t.baseBg[2] ?? t.baseBg[0] ?? "#000"}`,
-      `--tl-accent:${t.accent}`,
-      `--tl-accent2:${t.accent2}`,
-      `--tl-text:${t.text}`,
-      `--tl-font:${t.font}`,
-    ].join(";");
-  }
 
   function onSearchInput(event: Event) {
     controller.setQuery((event.currentTarget as HTMLInputElement).value);
@@ -199,7 +183,7 @@
             <span class="tl-current-dot"></span>Using now
           </span>
           <span class="tl-current-name">{theme.name}</span>
-          <span class="tl-current-sub">{theme.sub ?? snapshot.spotlightSub}</span>
+          <span class="tl-current-sub">{snapshot.spotlightSub}</span>
         </div>
         <button
           type="button"
@@ -212,7 +196,7 @@
           onclick={() => controller.toggleFav(theme.id)}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d={STAR} stroke-width="2" stroke-linejoin="round"></path>
+            <path d={STAR_PATH} stroke-width="2" stroke-linejoin="round"></path>
           </svg>
         </button>
       {/if}
