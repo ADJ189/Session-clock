@@ -18,7 +18,9 @@ import {
 installDomStubs();
 // Platform capability + constructor are read at point of use, not module load.
 const globals = globalThis as unknown as Record<string, unknown>;
-globals.DeviceOrientationEvent = class DeviceOrientationEvent {};
+globals.DeviceOrientationEvent = class DeviceOrientationEvent {
+  alpha = 0;
+};
 globals.AudioContext = MockAudioContext;
 
 const Sound = await import("../src/sound.ts");

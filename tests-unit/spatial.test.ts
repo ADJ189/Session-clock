@@ -53,6 +53,7 @@ test("getSpatialProfile returns null for unknown ids", () => {
 });
 
 test("degreesToRadians converts a half turn", () => {
+  assert(Number.isFinite(degreesToRadians(180)));
   close(degreesToRadians(180), Math.PI);
   close(degreesToRadians(90), Math.PI / 2);
 });
@@ -65,15 +66,18 @@ test("clampFinite treats non-finite input as the lower bound", () => {
 
 test("spherical coordinates use +X right, +Y up, -Z forward", () => {
   const front = sphericalToCartesian(0, 0, 1);
+  assert(front);
   close(front.x, 0);
   close(front.y, 0);
   close(front.z, -1);
 
   const right = sphericalToCartesian(90, 0, 1);
+  assert(right);
   close(right.x, 1);
   close(right.z, 0);
 
   const up = sphericalToCartesian(0, 90, 1);
+  assert(up);
   close(up.y, 1);
   close(up.z, 0);
 });
@@ -81,6 +85,7 @@ test("spherical coordinates use +X right, +Y up, -Z forward", () => {
 test("spherical clamps out-of-range input", () => {
   const clamped = sphericalToCartesian(400, 200, 0);
   const expected = sphericalToCartesian(180, 90, 0.05);
+  assert(clamped && expected);
   close(clamped.x, expected.x);
   close(clamped.y, expected.y);
   close(clamped.z, expected.z);
@@ -135,6 +140,7 @@ test("moving profiles swing around their base azimuth", () => {
 test("distance influences attenuation geometry", () => {
   const near = sphericalToCartesian(0, 0, 1);
   const far = sphericalToCartesian(0, 0, 10);
+  assert(near && far);
   close(Math.hypot(near.x, near.y, near.z), 1);
   close(Math.hypot(far.x, far.y, far.z), 10);
 });

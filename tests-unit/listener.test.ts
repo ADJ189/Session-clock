@@ -89,6 +89,7 @@ test("smoothing keeps the previous vectors when factor is zero", () => {
   };
   const next: ListenerVectors = { forward: [1, 0, 0], up: [1, 0, 0] };
   const result = smoothListenerVectors(previous, next, 0);
+  assert(result);
   closeVector(result.forward, previous.forward);
   closeVector(result.up, previous.up);
 });
@@ -100,6 +101,7 @@ test("smoothing returns the next vectors when factor is one", () => {
   };
   const next: ListenerVectors = { forward: [1, 0, 0], up: [0, 0, 1] };
   const result = smoothListenerVectors(previous, next, 1);
+  assert(result);
   closeVector(result.forward, next.forward);
   closeVector(result.up, next.up);
 });
@@ -111,6 +113,7 @@ test("smoothing interpolates halfway and re-normalises", () => {
   };
   const next: ListenerVectors = { forward: [1, 0, 0], up: [1, 0, 0] };
   const result = smoothListenerVectors(previous, next, 0.5);
+  assert(result);
   closeVector(result.forward, [Math.SQRT1_2, 0, -Math.SQRT1_2]);
   closeVector(result.up, [Math.SQRT1_2, Math.SQRT1_2, 0]);
 });
@@ -126,6 +129,7 @@ test("smoothing clamps factors outside 0..1", () => {
     up: [0, 1, 0],
   };
   const next: ListenerVectors = { forward: [1, 0, 0], up: [1, 0, 0] };
+  assert(previous && next);
   closeVector(smoothListenerVectors(previous, next, 9).forward, [1, 0, 0]);
   closeVector(smoothListenerVectors(previous, next, -9).forward, [0, 0, -1]);
 });

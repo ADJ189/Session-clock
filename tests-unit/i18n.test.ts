@@ -8,7 +8,6 @@ import {
   LOCALE_NAMES,
   LOCALE_FLAGS,
   LOCALES_LIST,
-  type Locale,
 } from "../src/i18n.ts";
 
 test("all supported locales are defined with names and flags", () => {

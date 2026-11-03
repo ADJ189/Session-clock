@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import { assert, assertEquals } from "./assert.ts";
+import { installDomStubs } from "./dom-stubs.ts";
 import {
   getAnalyticsPreference,
   setAnalyticsPreference,
@@ -17,6 +18,9 @@ import {
   CLOUDFLARE_BEACON_URL,
 } from "../src/analytics.ts";
 import { DATA_CATEGORIES } from "../src/privacy.ts";
+
+installDomStubs();
+const Pom = await import("../src/pomodoro.ts");
 
 // Setup in-memory localStorage stub if needed
 const memStore = new Map<string, string>();
@@ -130,26 +134,98 @@ test("syncAnalytics sets status to unavailable when auto-blocked marker is set",
 
 test("unloadAnalytics removes beacon globals and guards sendBeacon", () => {
   _resetAnalyticsForTesting();
-  const globalWin = (globalThis as any).window || {};
+  const prevWin = (globalThis as any).window;
+  const globalWin = prevWin || {};
   (globalThis as any).window = globalWin;
+  globalWin.location = {
+    href: "https://sessionclock.com/",
+    origin: "https://sessionclock.com",
+    pathname: "/",
+    reload: () => {},
+  };
   globalWin.__cfBeacon = { token: "test" };
 
   const beaconCalls: string[] = [];
+  const prevSendBeacon = (navigator as any).sendBeacon;
   (navigator as any).sendBeacon = (url: string) => {
     beaconCalls.push(url);
     return true;
   };
 
-  unloadAnalytics();
+  try {
+    unloadAnalytics();
 
-  assertEquals(globalWin.__cfBeacon, undefined);
-  // sendBeacon to cloudflareinsights should be swallowed
-  navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
-  assertEquals(beaconCalls.length, 0);
+    assertEquals(globalWin.__cfBeacon, undefined);
+    // sendBeacon to cloudflareinsights should be swallowed
+    navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
+    assertEquals(beaconCalls.length, 0);
 
-  // sendBeacon to other URLs should pass through
-  navigator.sendBeacon("https://example.com/other");
-  assertEquals(beaconCalls.length, 1);
+    // sendBeacon to other URLs should pass through
+    navigator.sendBeacon("https://example.com/other");
+    assertEquals(beaconCalls.length, 1);
+  } finally {
+    if (prevSendBeacon) {
+      (navigator as any).sendBeacon = prevSendBeacon;
+    } else {
+      delete (navigator as any).sendBeacon;
+    }
+    (globalThis as any).window = prevWin;
+  }
+});
+
+test("enabling analytics restores sendBeacon or allows beacon measurements", () => {
+  _resetAnalyticsForTesting();
+  const prevWin = (globalThis as any).window;
+  const globalWin = prevWin || {};
+  (globalThis as any).window = globalWin;
+  globalWin.location = {
+    href: "https://sessionclock.com/",
+    origin: "https://sessionclock.com",
+    pathname: "/",
+    reload: () => {},
+  };
+
+  const beaconCalls: string[] = [];
+  const prevSendBeacon = (navigator as any).sendBeacon;
+  (navigator as any).sendBeacon = (url: string) => {
+    beaconCalls.push(url);
+    return true;
+  };
+
+  try {
+    // 1. Unload analytics -> guard is installed, CF beacon dropped
+    unloadAnalytics();
+    navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
+    assertEquals(beaconCalls.length, 0);
+
+    // 2. Enable analytics -> preference is 'on'
+    setAnalyticsPreference("on");
+    navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
+    assertEquals(beaconCalls.length, 1);
+  } finally {
+    if (prevSendBeacon) {
+      (navigator as any).sendBeacon = prevSendBeacon;
+    } else {
+      delete (navigator as any).sendBeacon;
+    }
+    (globalThis as any).window = prevWin;
+  }
+});
+
+test("pomodoro session snapshot preserves progress across reload", () => {
+  Pom.setActive(true);
+  Pom.restoreSessionSnapshot({
+    active: true,
+    phase: "work",
+    phaseElapsed: 45000,
+    pomCount: 3,
+  });
+  const snap = Pom.getSessionSnapshot();
+  assertEquals(snap.active, true);
+  assertEquals(snap.phase, "work");
+  assertEquals(snap.pomCount, 3);
+  assert(snap.phaseElapsed >= 45000);
+  Pom.setActive(false);
 });
 
 test("DATA_CATEGORIES includes sc_analytics_mode and sc_analytics_auto_blocked", () => {

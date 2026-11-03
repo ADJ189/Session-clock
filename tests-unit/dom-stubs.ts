@@ -41,6 +41,7 @@ export function installDomStubs(): void {
         classList: { add() {}, remove() {}, toggle() {} },
       },
       createElement: () => ({ canPlayType: () => "" }),
+      getElementById: () => null,
       addEventListener() {},
       removeEventListener() {},
     };
