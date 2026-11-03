@@ -35,7 +35,10 @@ Playwright suites are run with `npm run test:e2e:chromium`,
 
 Deno is an optional local runner only. `deno.json` mirrors the same tasks
 (`deno task test:unit`, `deno task build`, …); the app, build, and CI stay on
-the installed Node/npm toolchain, and no npm script may require Deno.
+the installed Node/npm toolchain, and no npm script may require Deno. The Deno
+tasks run the installed `node_modules/` entry points with
+`"nodeModulesDir": "manual"`, so a Deno run never rewrites `node_modules/.bin`
+or installs a second copy of a package.
 
 ## Layout
 

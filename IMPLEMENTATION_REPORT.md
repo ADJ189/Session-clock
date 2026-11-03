@@ -170,7 +170,9 @@ checks that automated graph tests cannot prove.
 | File | Change |
 | --- | --- |
 | `src/main.ts` | Beta dock label/description, Settings Beta section, Integrations Beta section, clock-default wiring, copy-diagnostics action, sound-unavailable UI, Theme Finder integration. |
-| `src/themelib.ts` | Content-first Theme Finder: compact current strip, conditional recents rail, one catalogue grid, preview/fallback art, cached cards. |
+| `src/themelib.ts` | Theme Finder controller: persistence, filtering, theme application, cached card wall, Svelte mount. |
+| `src/app/components/theme-finder/*` | Svelte 5 gallery chrome (`ThemeFinder.svelte`, `ThemeArt.svelte`), mark action, types, category labels, shared theme style helpers. |
+| `src/themekeys.ts` | Theme Finder storage keys shared by the controller and the Privacy panel. |
 | `src/sound.ts` | Safe `AudioContext` handling, HRTF rig lifecycle, equal-power fallback, listener/head tracking, binaural path, public API. |
 | `src/soundfiles.ts` | Recording-first loader, CDN base, crossfades/gain trims, procedural fallback. |
 | `src/soundsynth.ts` | Engine-backed synth adapter and preset aliases. |
@@ -184,7 +186,7 @@ checks that automated graph tests cannot prove.
 | `src/diagnostics.ts` | Per-pattern secret redaction (token-only patterns no longer echo the secret). |
 | `src/platform.ts` | Dynamic orientation capability getter, orientation subscriber introspection. |
 | `src/globals.ts`, `src/webapi.d.ts` | Type surface for non-standard APIs. |
-| `index.html` | Beta tags/accessible names on Settings and Integrations headings; Theme Finder markup. |
+| `index.html` | Beta tags/accessible names on Settings and Integrations headings; Theme Finder modal shell (Svelte mounts into it). |
 | `style.css` | Beta pill, Theme Finder layout, 44 px touch targets, responsive/reduced-motion rules. |
 | `public/sw.js`, `public/sw-core.js` | Build-stamped cache names and shared testable helpers. |
 | `vite.config.ts` | Service-worker build stamp. |
@@ -193,7 +195,7 @@ checks that automated graph tests cannot prove.
 
 | Path | Change |
 | --- | --- |
-| `tests-unit/tsconfig.json` | Typechecks the suite with Node types and the app's DOM lib. |
+| `tsconfig.json` | Single program for `src/` and `tests-unit/` (Node types + DOM lib); `typecheck:unit` uses it too. |
 | `tests-unit/register.mjs`, `resolve-ts.mjs` | Node test-runner setup and extensionless `.ts` resolver. |
 | `tests-unit/assert.ts` | Local assertion helpers (no external assertion dependency). |
 | `tests-unit/dom-stubs.ts` | Deterministic DOM/localStorage stubs; fresh store per test process. |
@@ -227,32 +229,32 @@ checks that automated graph tests cannot prove.
 All commands were run in
 `C:\Users\deepa\Downloads\Session-clock-2.0.0\Session-clock-2.0.0`.
 
-> **Local runtime note.** This checkout machine has no `node`/`npm` on `PATH`.
-> The committed scripts are npm-only, and CI runs them on Node 24. For local
-> verification the same pinned tools were invoked through the installed Deno
-> npm runner (`deno run -A npm:…`), and the Node test files were executed with
-> a temporary `node:test` shim. `npm run test:unit` itself was therefore not
-> executed on this machine; that command is covered structurally by
-> `tsc -p tests-unit/tsconfig.json` and by the same files passing below.
+> **Local runtime note.** This machine has no `node`/`npm` on `PATH` by
+> default, so a portable Node 24.22.2 directory was prepended for every npm
+> command. The canonical commands below are the npm scripts; the matching
+> `deno task` mirrors were run too, against the same installed `node_modules/`.
+> Both entry points pass.
 
 ### Unit suite
 
-Local command used:
-
 ```powershell
-deno test -A --no-check --sloppy-imports --import-map=<temporary-node-test-shim> tests-unit
+npm run test:unit          # 107 passed, 0 failed
+deno task test:unit        # 107 passed, 0 failed
 ```
 
-Result: **107 passed, 0 failed** (105 previous cases + 2 new noise-hit
-regressions). The committed command is `npm run test:unit`, which uses Node's
-built-in test runner and the resolver in `tests-unit/register.mjs`.
+Result: **107 passed, 0 failed** on Node 24.22.2, on Node 26.13.0, and under
+Deno. The suite uses Node's built-in test runner and the resolver in
+`tests-unit/register.mjs`.
 
 ### TypeScript
 
 ```powershell
-deno run -A npm:typescript@7.0.2/tsc --noEmit
-deno run -A npm:typescript@7.0.2/tsc -p tests/tsconfig.json
-deno run -A npm:typescript@7.0.2/tsc -p tests-unit/tsconfig.json
+npm run typecheck          # app + unit suite
+npm run typecheck:unit     # same program, explicit CI step
+npm run typecheck:e2e      # Playwright specs
+deno task typecheck
+deno task typecheck:unit
+deno task typecheck:e2e
 ```
 
 Result: **no type errors** in the app, the Playwright specs, or the unit suite.
@@ -260,7 +262,8 @@ Result: **no type errors** in the app, the Playwright specs, or the unit suite.
 ### Lint
 
 ```powershell
-deno run -A npm:oxlint@1.89.0 .
+npm run lint
+deno task lint
 ```
 
 Result: **warnings only, no errors** (exit code 0). Warnings are existing
@@ -270,8 +273,8 @@ and similar findings; none block the build.
 ### Production build
 
 ```powershell
-deno run -A npm:typescript@7.0.2/tsc --noEmit
-deno run -A npm:vite@6.4.4 build
+npm run build
+deno task build
 ```
 
 Result: **build succeeded.**
@@ -289,15 +292,24 @@ Each run builds the production bundle and serves `dist/` with `vite preview` on
 `127.0.0.1:4173`. The fixture aborts third-party requests, so tests do not
 depend on live CDN uptime.
 
-These results are from the audit pass immediately before the six issue fixes
-below; the browser suites were not re-run after those edits.
+Final run on the finished tree, both entry points:
 
 | Command | Result |
 | --- | --- |
-| `npm run test:e2e:chromium` | **95 passed** (4.5 min) — full `desktop-chromium` suite |
-| `npm run test:e2e -- --project=desktop-firefox --project=desktop-webkit` | **24 passed** (2.3 min) — `@smoke`, 12 per engine |
-| `npm run test:e2e:mobile` | **28 passed** (2.5 min) — `@mobile`, 14 per mobile profile |
-| Theme Finder first-open (Chromium, 4× CPU throttle) | desktop **2427 ms**, 390 px **2684 ms**; budget < 8000 ms |
+| `npm run test:e2e -- --workers=2 --timeout=90000` | **147 passed, 0 failed** (7.9 min) |
+| `deno task test:e2e -- --workers=2 --timeout=90000` | **147 passed, 0 failed** (14.1 min) |
+
+Per project: `desktop-chromium` **95**, `desktop-firefox` **12** (`@smoke`),
+`desktop-webkit` **12** (`@smoke`), `mobile-chromium-emulation` **14**
+(`@mobile`), `mobile-webkit-emulation` **14** (`@mobile`).
+
+Worker count matters on this machine (4 GB free RAM). The committed config uses
+`workers: 2`. Runs at 3 workers produced five 90-second timeouts in
+screenshot/geometry tests, and a 4-worker run failed 29 tests with
+boot/screenshot timeouts. Those are resource contention, not assertion failures:
+every one of those tests passes at 2 workers. The committed 30-second default
+timeout is CI-appropriate; the local full-suite runs above raise it to 90
+seconds because this machine is slower than the CI runner.
 
 Per-project results are reported separately. WebKit is Playwright’s build, not
 real Safari, and mobile projects are emulation, not physical devices.

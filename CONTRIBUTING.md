@@ -17,8 +17,8 @@ npm run dev        # http://localhost:5173
 Before opening a PR:
 
 ```bash
-npm run typecheck       # tsc --noEmit
-npm run typecheck:unit  # tsc -p tests-unit/tsconfig.json
+npm run typecheck       # tsc --noEmit (app + unit tests)
+npm run typecheck:unit  # same program, kept as an explicit CI step
 npm run test:unit       # Node unit suite
 npm run build           # full production build
 ```
@@ -153,6 +153,11 @@ Deno is optional and never required by the app, the build, or CI. If you
 prefer it locally, `deno.json` mirrors the same commands (`deno task
 test:unit`, `deno task test:e2e`, `deno task build`, …) and runs the same
 npm-installed tooling. The npm scripts remain the canonical entry points.
+
+The Deno tasks invoke the entry points under `node_modules/` directly, with
+`"nodeModulesDir": "manual"`, so a Deno run never rewrites `node_modules/.bin`
+or adds a second copy of a package. Mixing the two runners therefore cannot
+break the npm scripts.
 
 ## Reporting bugs / requesting features
 

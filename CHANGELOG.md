@@ -21,13 +21,14 @@ Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session p
 - **First-run welcome**: content-led height, a vector stopwatch mark, shorter copy, feature hints, a visible step label, and accessible progress/skip controls. All welcome copy and action labels now come from `src/i18n.ts` in all eight locales.
 - **Themes in the dock**: the floating dock now includes a Themes action alongside the top-bar button.
 - **Theme Finder UI**: the gallery chrome (header, search, sort, collection nav, current-theme spotlight, recent rail, wall heading, empty state) is now a Svelte 5 component under `src/app/components/theme-finder/`. `themelib.ts` remains the framework-free controller, and the card wall stays imperative so filtering still re-attaches cached nodes instead of rebuilding ~100 previews per keystroke. Selectors, classes, ARIA and storage keys are unchanged.
+- **Theme Finder internals**: the theme→CSS-variable mapping, star glyph path and preview URL are shared helpers instead of being duplicated between the Svelte component and the imperative card wall. Unused snapshot/prop fields and dead exports were removed.
 - **Docs**: README default-UX copy now notes the opt-in music deck; CONTRIBUTING testing instructions and the privacy policy no longer describe network time sync. `AGENTS.md` documents the project for future agents/contributors.
 
 ### Added
 
 - `tests/redesign.spec.ts`: first-run welcome layout and skip/default flows, Center-mode panel geometry at six viewport sizes, Top-mode panel geometry, saved full-stack Center layout, solid-accent button contrast across themes, HH:MM defaults, contextual tab (no time-sync requests), top-bar fit at nine widths from 320px up, install-button absence, Haptics visibility by platform, and the opt-in music deck.
 - Music Panel settings: an explicit on/off toggle plus a YouTube/Spotify/Both provider choice. The deck is absent on a clean profile and YouTube is the default.
-- Optional `deno.json` task mirrors (`deno task test:unit`, `deno task test:e2e`, `deno task build`, …) for contributors who prefer Deno locally. The app, build and CI remain Node/npm-only; no npm script requires Deno.
+- Optional `deno.json` task mirrors (`deno task test:unit`, `deno task test:e2e`, `deno task build`, …) for contributors who prefer Deno locally. The app, build and CI remain Node/npm-only; no npm script requires Deno. The tasks run the installed `node_modules/` entry points with `"nodeModulesDir": "manual"`, so a Deno run cannot rewrite `node_modules/.bin` or introduce a second copy of a package that would break `npm run test:e2e`.
 
 ### Removed
 
@@ -47,6 +48,8 @@ Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session p
 - First-run welcome card no longer reserves a tall empty lower region, and later option-heavy steps keep their scrollable card.
 - Reduced-motion users no longer get a perpetual pulsing welcome mark.
 - `npm run test:unit` runs cleanly on Node 24 and 26. The unit glob now passes a test-file pattern (Node no longer accepts a bare directory with an ESM loader), `src/soundfiles.ts` declares its constructor fields instead of using parameter properties (strip-only TypeScript rejects those), and the DOM stub supplies the EventTarget methods `src/platform.ts` expects outside Deno.
+- `npm run typecheck:unit` no longer depends on a separate `tests-unit/tsconfig.json`. The root `tsconfig.json` now covers both `src/` and `tests-unit/`, so the CI step works from any checkout and the duplicate config file is gone.
+- The Beta pill geometry spec now runs with reduced motion. The Settings dialog scales in and its sections stagger, so measuring mid-animation left a sub-pixel height difference on slower CI runners.
 
 ## [2.0.0] — V2 line begins
 

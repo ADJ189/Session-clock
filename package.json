@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "typecheck:unit": "tsc -p tests-unit/tsconfig.json",
+    "typecheck:unit": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "typecheck:e2e": "tsc -p tests/tsconfig.json",
