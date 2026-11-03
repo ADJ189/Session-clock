@@ -108,6 +108,11 @@ writeFileSync(
 export const PREVIEW_IDS: ReadonlySet<string> = new Set<string>([
 ${onDisk.map((i) => `  ${JSON.stringify(i)},`).join("\n")}
 ]);
+
+/** Public URL for a generated theme thumbnail. Both the Svelte art component
+ *  and the imperative card wall resolve previews through this helper. */
+export const themePreviewUrl = (id: string): string =>
+  \`\${import.meta.env.BASE_URL}theme-previews/\${id}.webp\`;
 `,
 );
 console.log(`\n${done.length} captured, ${onDisk.length} previews on disk.`);
