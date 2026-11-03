@@ -5,6 +5,7 @@
 // width in degrees. They are starting sound-design values, not measurements.
 
 import type { AmbientPresetId } from "./engine";
+import { clamp } from "./dsp";
 
 export type SpatialMovement =
   | { kind: "fixed" }
@@ -129,10 +130,7 @@ export function degreesToRadians(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
-export function clampFinite(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.max(min, Math.min(max, value));
-}
+export const clampFinite = clamp;
 
 export interface CartesianPosition {
   x: number;
