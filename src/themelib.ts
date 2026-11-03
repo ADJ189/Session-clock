@@ -1,35 +1,36 @@
 // Theme Finder — the visual discovery gallery behind every "Themes" action.
 //
-// This module owns browsing only: search, collections (all / recent /
-// favourites / the six categories), favourite + recent persistence, and the
-// editorial DOM (active-theme spotlight, recent rail, category worlds and the
-// all-theme wall). It never applies a theme itself — selection goes through
-// the `apply` callback (main.ts `applyTheme`), so there is exactly one code
-// path that drives the renderer, transitions, CSS variables and
-// `sc_last_theme`.
+// The Svelte 5 component under app/components/theme-finder owns the gallery
+// chrome: header, search, sort, collections, current-theme spotlight, recent
+// rail, wall heading and empty state. This module remains the
+// framework-independent controller: persistence, filtering, theme application
+// and the cached card wall. Cards stay outside Svelte so filtering re-attaches
+// the same DOM nodes instead of rebuilding ~100 previews on every keystroke.
 //
-// Cards are built once per theme and cached; filtering only re-orders and
-// re-attaches existing nodes, so typing in the search box never rebuilds
-// ~100 cards (or their marks).
+// Selection still goes through the `apply` callback (main.ts `applyTheme`), so
+// there is exactly one code path that drives the renderer, transitions, CSS
+// variables and `sc_last_theme`.
 
+import { mount, unmount } from "svelte";
 import { THEMES, THEME_BY_ID } from "./themes";
 import { THEME_CATEGORIES, type Theme, type ThemeCategory } from "./types";
 import { safeJsonGet, safeJsonSet } from "./storage";
 import { PREVIEW_IDS } from "./themepreviews";
 import { themeFinderReveal } from "./motion";
+import ThemeFinder from "./app/components/theme-finder/ThemeFinder.svelte";
+import { CATEGORY_LABELS } from "./app/components/theme-finder/categories";
+import type {
+  ThemeFinderController,
+  ThemeLibSnapshot,
+  ThemeLibSort,
+  ThemeLibView,
+} from "./app/components/theme-finder/types";
+
+export { CATEGORY_LABELS };
 
 export const FAV_KEY = "sc_theme_favs_v1";
 export const RECENT_KEY = "sc_theme_recent_v1";
 export const RECENT_MAX = 12;
-
-export const CATEGORY_LABELS: Record<ThemeCategory, string> = {
-  nat: "Natural",
-  tv: "TV Shows",
-  movie: "Movies",
-  animation: "Animation",
-  anime: "Anime",
-  f1: "F1 Teams",
-};
 
 // Nav order follows the original picker tabs, not THEME_CATEGORIES order.
 const CATEGORY_ORDER: ThemeCategory[] = [
@@ -40,9 +41,6 @@ const CATEGORY_ORDER: ThemeCategory[] = [
   "anime",
   "f1",
 ];
-
-type View = "all" | "recent" | "favs" | ThemeCategory;
-type Sort = "default" | "az";
 
 export interface ThemeLibDeps {
   /** Applies a theme through the app's single theme path. */
@@ -98,26 +96,18 @@ export function matchesQuery(t: Theme, query: string): boolean {
 let deps: ThemeLibDeps;
 let favs: string[] = [];
 let recents: string[] = [];
-let view: View = "all";
-let sort: Sort = "default";
+let view: ThemeLibView = "all";
+let sort: ThemeLibSort = "default";
 let query = "";
 
 const cards = new Map<string, HTMLElement>();
+const listeners = new Set<(snapshot: ThemeLibSnapshot) => void>();
 
-let overlay: HTMLElement;
-let grid: HTMLElement;
-let empty: HTMLElement;
-let nav: HTMLElement;
-let search: HTMLInputElement;
-let clearBtn: HTMLButtonElement;
-let sortSel: HTMLSelectElement;
-let countEl: HTMLElement;
-let mainEl: HTMLElement;
-let spotlight: HTMLElement;
-let recentSection: HTMLElement;
-let recentRail: HTMLElement;
-let wallTitle: HTMLElement;
-let wallCount: HTMLElement;
+let overlay: HTMLElement | null = null;
+let grid: HTMLElement | null = null;
+let mainEl: HTMLElement | null = null;
+let app: ReturnType<typeof mount> | null = null;
+let wired = false;
 
 const $id = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -272,10 +262,9 @@ function toggleFav(id: string) {
   const t = THEME_BY_ID[id];
   const c = cards.get(id);
   if (t && c) syncCard(c, t);
-  renderNav();
   // Removing a favourite while viewing Favourites drops the card.
-  if (view === "favs") render();
-  else renderSpotlight();
+  if (view === "favs") paint();
+  else notify();
 }
 
 function pushRecent(id: string) {
@@ -288,79 +277,7 @@ function pushRecent(id: string) {
   safeJsonSet(RECENT_KEY, recents);
 }
 
-// ── Editorial sections ────────────────────────────────────────────────
-
-/** Compact current-theme strip. Orients the user without dominating the
- *  catalogue, and stays visible while searching or browsing another
- *  collection so the active atmosphere is never ambiguous. */
-function renderSpotlight(show = true) {
-  if (!spotlight) return;
-  const t = THEME_BY_ID[deps.currentId()];
-  spotlight.hidden = !show || !t;
-  if (!show || !t) return;
-
-  applyThemeVars(spotlight, t);
-  spotlight.dataset.id = t.id;
-  spotlight.replaceChildren();
-
-  const art = el("div", "tl-current-art");
-  art.setAttribute("aria-hidden", "true");
-  addPreviewArt(art, t);
-  const mark = el("span", "tl-current-mark");
-  deps.fillMark(mark, t);
-  art.appendChild(mark);
-
-  const copy = el("div", "tl-current-copy");
-  const label = el("span", "tl-current-label");
-  label.append(el("span", "tl-current-dot"), document.createTextNode("Using now"));
-  const name = el("span", "tl-current-name", t.name);
-  const sub = el("span", "tl-current-sub", t.sub ?? CATEGORY_LABELS[t.cat]);
-  copy.append(label, name, sub);
-
-  const fav = el("button", "tl-current-fav");
-  fav.type = "button";
-  const isFav = favs.includes(t.id);
-  fav.classList.toggle("is-fav", isFav);
-  fav.setAttribute("aria-pressed", String(isFav));
-  fav.setAttribute(
-    "aria-label",
-    isFav ? `Remove ${t.name} from favourites` : `Add ${t.name} to favourites`,
-  );
-  fav.innerHTML = SVG_STAR;
-  fav.addEventListener("click", () => toggleFav(t.id));
-
-  spotlight.append(art, copy, fav);
-}
-
-function renderRecents(show = view === "all" && !query) {
-  if (!recentSection || !recentRail) return;
-  const list = recents
-    .map((id) => THEME_BY_ID[id])
-    .filter((t): t is Theme => Boolean(t));
-  recentSection.hidden = !show || list.length === 0;
-  if (!show || !list.length) return;
-  recentRail.replaceChildren(
-    ...list.map((t) => {
-      const b = el("button", "tl-recent-card");
-      b.type = "button";
-      b.dataset.id = t.id;
-      applyThemeVars(b, t);
-      const art = el("span", "tl-recent-art");
-      art.setAttribute("aria-hidden", "true");
-      addPreviewArt(art, t);
-      const mark = el("span", "tl-recent-mark");
-      deps.fillMark(mark, t);
-      art.appendChild(mark);
-      const label = el("span", "tl-recent-name", t.name);
-      b.append(art, label);
-      b.setAttribute("aria-label", `Use ${t.name}`);
-      b.addEventListener("click", () => chooseTheme(t, art));
-      return b;
-    }),
-  );
-}
-
-// ── Rendering ─────────────────────────────────────────────────────────
+// ── View model ────────────────────────────────────────────────────────
 
 function themesForView(): Theme[] {
   let list: Theme[];
@@ -375,188 +292,206 @@ function themesForView(): Theme[] {
   return list;
 }
 
-// Nav buttons are built once and then updated in place. Rebuilding them on
-// every theme change replaced the node under the user's (or a test's) pointer
-// mid-click, which made the rail feel unstable and could drop focus.
-const navItems = new Map<View, HTMLButtonElement>();
-let navBuilt = false;
-
-function buildNav() {
-  nav.replaceChildren();
-  navItems.clear();
-  const item = (v: View, label: string) => {
-    const b = el("button", "tl-nav-item");
-    b.type = "button";
-    b.dataset.view = v;
-    b.append(el("span", "tl-nav-label", label), el("span", "tl-nav-count"));
-    b.addEventListener("click", () => setView(v));
-    navItems.set(v, b);
-    return b;
-  };
-  nav.append(
-    item("all", "All themes"),
-    item("recent", "Recently used"),
-    item("favs", "Favourites"),
-  );
-  nav.appendChild(el("span", "tl-nav-divider"));
-  CATEGORY_ORDER.filter((c) => THEME_CATEGORIES.includes(c)).forEach((c) =>
-    nav.appendChild(item(c, CATEGORY_LABELS[c])),
-  );
-  navBuilt = true;
-}
-
-function countFor(v: View): number {
+function countFor(v: ThemeLibView): number {
   if (v === "all") return THEMES.length;
   if (v === "recent") return recents.length;
   if (v === "favs") return favs.length;
   return THEMES.filter((t) => t.cat === v).length;
 }
 
-function renderNav() {
-  if (!navBuilt) buildNav();
-  navItems.forEach((b, v) => {
-    const active = v === view;
-    b.classList.toggle("active", active);
-    if (active) b.setAttribute("aria-current", "true");
-    else b.removeAttribute("aria-current");
-    const count = b.querySelector<HTMLElement>(".tl-nav-count");
-    if (count) count.textContent = String(countFor(v));
-  });
+function navItems(): ThemeLibSnapshot["navItems"] {
+  const base: {
+    view: ThemeLibView;
+    label: string;
+    dividerBefore?: boolean;
+  }[] = [
+    { view: "all", label: "All themes" },
+    { view: "recent", label: "Recently used" },
+    { view: "favs", label: "Favourites" },
+  ];
+  CATEGORY_ORDER.filter((c) => THEME_CATEGORIES.includes(c)).forEach(
+    (c, index) => {
+      base.push({
+        view: c,
+        label: CATEGORY_LABELS[c],
+        dividerBefore: index === 0,
+      });
+    },
+  );
+  return base.map((item) => ({
+    ...item,
+    count: countFor(item.view),
+    active: item.view === view,
+  }));
 }
 
-function setEmpty(title: string, body: string, action?: [string, () => void]) {
-  empty.replaceChildren(el("p", "tl-empty-title", title), el("p", "tl-empty-body", body));
-  if (action) {
-    const b = el("button", "tl-empty-btn", action[0]);
-    b.type = "button";
-    b.addEventListener("click", action[1]);
-    empty.appendChild(b);
+function emptyState(list: Theme[]): ThemeLibSnapshot["empty"] {
+  if (list.length > 0) return null;
+  if (query) {
+    return {
+      title: "No themes found",
+      body: `Nothing matches “${query}”. Try a show, film, colour or mood.`,
+      action: "clear",
+      actionLabel: "Clear search",
+    };
   }
+  if (view === "favs") {
+    return {
+      title: "No favourites yet",
+      body: "Tap the star on any theme to keep it here.",
+      action: "all",
+      actionLabel: "Browse all themes",
+    };
+  }
+  if (view === "recent") {
+    return {
+      title: "Your selected themes will appear here",
+      body: "Pick a theme and it shows up in this list.",
+      action: "all",
+      actionLabel: "Browse all themes",
+    };
+  }
+  return null;
 }
 
-function render() {
+function wallTitle(): string {
+  if (query) return "Search results";
+  if (view === "all") return "All themes";
+  if (view === "recent") return "Recently used";
+  if (view === "favs") return "Favourites";
+  return CATEGORY_LABELS[view];
+}
+
+function buildSnapshot(list = themesForView()): ThemeLibSnapshot {
+  const current = THEME_BY_ID[deps.currentId()];
+  const recentThemes = recents
+    .map((id) => THEME_BY_ID[id])
+    .filter((t): t is Theme => Boolean(t));
+  const filtered = Boolean(query) || view !== "all";
+  return {
+    query,
+    sort,
+    view,
+    navItems: navItems(),
+    countLabel: filtered
+      ? `${list.length} of ${THEMES.length} themes`
+      : `${THEMES.length} themes`,
+    clearVisible: Boolean(query),
+    sortDisabled: view === "recent",
+    spotlight: current ?? null,
+    spotlightSub: current ? (current.sub ?? CATEGORY_LABELS[current.cat]) : "",
+    spotlightFav: current ? favs.includes(current.id) : false,
+    recents: recentThemes,
+    recentsVisible: view === "all" && !query && recentThemes.length > 0,
+    wallTitle: wallTitle(),
+    wallCount: `${list.length} theme${list.length === 1 ? "" : "s"}`,
+    empty: emptyState(list),
+  };
+}
+
+function getSnapshot(): ThemeLibSnapshot {
+  return buildSnapshot();
+}
+
+function notify(list = themesForView()) {
+  const snapshot = buildSnapshot(list);
+  for (const listener of listeners) listener(snapshot);
+}
+
+function subscribe(listener: (snapshot: ThemeLibSnapshot) => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────
+
+/** Repaints the cached card wall and pushes a fresh view model to Svelte.
+ *  The grid element itself is Svelte-owned; its card children stay here. */
+function paint() {
   const list = themesForView();
-  const editorial = view === "all" && !query;
-  renderSpotlight();
-  renderRecents(editorial);
-
-  grid.replaceChildren(...list.map((t) => cardFor(t)));
-
-  const none = list.length === 0;
-  empty.hidden = !none;
-  grid.hidden = none;
-  if (none) {
-    if (query) {
-      setEmpty(
-        "No themes found",
-        `Nothing matches “${query}”. Try a show, film, colour or mood.`,
-        ["Clear search", clearSearch],
-      );
-    } else if (view === "favs") {
-      setEmpty("No favourites yet", "Tap the star on any theme to keep it here.", [
-        "Browse all themes",
-        () => setView("all"),
-      ]);
-    } else if (view === "recent") {
-      setEmpty("Your selected themes will appear here", "Pick a theme and it shows up in this list.", [
-        "Browse all themes",
-        () => setView("all"),
-      ]);
-    }
+  if (grid) {
+    grid.replaceChildren(...list.map((t) => cardFor(t)));
+    grid.hidden = list.length === 0;
   }
-
-  const filtered = query || view !== "all";
-  countEl.textContent = filtered
-    ? `${list.length} of ${THEMES.length} themes`
-    : `${THEMES.length} themes`;
-  clearBtn.hidden = !query;
-  sortSel.disabled = view === "recent";
-
-  // Wall heading tracks the active collection so the full catalogue still
-  // reads as one coherent surface under the editorial shelves.
-  if (wallTitle) {
-    wallTitle.textContent = query
-      ? "Search results"
-      : view === "all"
-        ? "All themes"
-        : view === "recent"
-          ? "Recently used"
-          : view === "favs"
-            ? "Favourites"
-            : CATEGORY_LABELS[view];
-  }
-  if (wallCount) {
-    wallCount.textContent = `${list.length} theme${list.length === 1 ? "" : "s"}`;
-  }
+  notify(list);
 }
 
-function setView(v: View) {
+function setView(v: ThemeLibView) {
   view = v;
-  renderNav();
-  render();
-  mainEl.scrollTop = 0;
+  paint();
+  if (mainEl) mainEl.scrollTop = 0;
+}
+
+function setQuery(value: string) {
+  query = value.trim();
+  paint();
+}
+
+function setSort(value: string) {
+  sort = value === "az" ? "az" : "default";
+  paint();
+}
+
+function focusSearch() {
+  const search = document.getElementById("tlSearch") as HTMLInputElement | null;
+  search?.focus();
 }
 
 function clearSearch() {
   query = "";
-  search.value = "";
-  render();
-  search.focus();
+  paint();
+  focusSearch();
 }
 
 // ── Public API ────────────────────────────────────────────────────────
 
 export function init(d: ThemeLibDeps) {
   deps = d;
-  overlay = $id("themeLibOverlay");
+  overlay = document.getElementById("themeLibOverlay");
   if (!overlay) return;
-  grid = $id("tlGrid");
-  empty = $id("tlEmpty");
-  nav = $id("tlNav");
-  search = $id<HTMLInputElement>("tlSearch");
-  clearBtn = $id<HTMLButtonElement>("tlClear");
-  sortSel = $id<HTMLSelectElement>("tlSort");
-  countEl = $id("tlCount");
-  mainEl = $id("tlMain");
-  spotlight = $id("tlSpotlight");
-  recentSection = $id("tlRecentSection");
-  recentRail = $id("tlRecentRail");
-  wallTitle = $id("tlWallTitle");
-  wallCount = $id("tlWallCount");
+  const root = overlay.querySelector<HTMLElement>(".sc-modal.themelib");
+  if (!root) return;
 
   favs = readFavs();
   recents = readRecents();
 
+  const controller: ThemeFinderController = {
+    getSnapshot,
+    subscribe,
+    setQuery,
+    setSort,
+    setView,
+    toggleFav,
+    chooseTheme,
+    clearSearch,
+    close,
+    fillMark: (el, t) => deps.fillMark(el, t),
+  };
+
+  if (app) {
+    unmount(app);
+    app = null;
+  }
+  root.replaceChildren();
+  app = mount(ThemeFinder, { target: root, props: { controller } });
+  grid = $id("tlGrid");
+  mainEl = $id("tlMain");
+
   // Keep the module's lists in sync when they change outside this tab, or
   // when Privacy deletes them in this tab (that path dispatches the custom
   // event, because same-tab writes never fire `storage`).
-  window.addEventListener("storage", (e) => {
-    if (e.key === null || e.key === FAV_KEY || e.key === RECENT_KEY)
-      resetSavedLists();
-  });
-  window.addEventListener("sc-theme-lists-reset", resetSavedLists);
+  if (!wired) {
+    wired = true;
+    window.addEventListener("storage", (e) => {
+      if (e.key === null || e.key === FAV_KEY || e.key === RECENT_KEY)
+        resetSavedLists();
+    });
+    window.addEventListener("sc-theme-lists-reset", resetSavedLists);
+  }
 
-  search.addEventListener("input", () => {
-    query = search.value.trim();
-    render();
-  });
-  search.addEventListener("keydown", (e) => {
-    // Escape clears a non-empty query first; with an empty box it closes the library
-    // (the global handler only blurs focused inputs).
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      if (search.value) clearSearch();
-      else close();
-    }
-  });
-  clearBtn.addEventListener("click", clearSearch);
-  $id("tlRecentAll")?.addEventListener("click", () => setView("recent"));
-  sortSel.addEventListener("change", () => {
-    sort = sortSel.value === "az" ? "az" : "default";
-    render();
-  });
-
-  renderNav();
+  paint();
 }
 
 export function isOpen(): boolean {
@@ -565,8 +500,7 @@ export function isOpen(): boolean {
 
 export function open() {
   if (!overlay) return;
-  renderNav();
-  render();
+  paint();
   deps.openOverlay();
   // The modal lifecycle focuses the dialog on open; move to search afterwards,
   // but only with a fine pointer so phones don't pop the keyboard unasked.
@@ -574,11 +508,11 @@ export function open() {
   // this deferred callback is still pending (themelib closes, palette opens).
   setTimeout(() => {
     if (!isOpen()) return;
-    if (window.matchMedia("(pointer: fine)").matches) search.focus();
+    if (window.matchMedia("(pointer: fine)").matches) focusSearch();
     if (query || view !== "all") {
-      const active = grid.querySelector<HTMLElement>(".tl-card.active");
+      const active = grid?.querySelector<HTMLElement>(".tl-card.active");
       if (active) active.scrollIntoView({ block: "center" });
-    } else {
+    } else if (mainEl) {
       mainEl.scrollTop = 0;
     }
   }, 0);
@@ -601,15 +535,11 @@ export function onThemeApplied(id: string) {
     const t = THEME_BY_ID[cid];
     if (t) syncCard(c, t);
   });
-  // Counts and ordering both depend on `recents`, so refresh the rail before
-  // choosing a view — "recent" needs render() for order, every other view
-  // needs the shelves patched in place.
-  renderNav();
-  if (view === "recent") render();
-  else {
-    renderSpotlight();
-    renderRecents(view === "all" && !query);
-  }
+  // Counts and ordering both depend on `recents`, so refresh the wall before
+  // choosing a view — "recent" needs a full paint for order, every other view
+  // only needs the spotlight/recents rail patched.
+  if (view === "recent") paint();
+  else notify();
 }
 
 /** Re-read favourites/recents from storage and repaint.
@@ -626,6 +556,6 @@ export function resetSavedLists() {
     const t = THEME_BY_ID[id];
     if (t) syncCard(c, t);
   });
-  renderNav();
-  if (isOpen()) render();
+  if (isOpen()) paint();
+  else notify();
 }

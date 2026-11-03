@@ -315,12 +315,21 @@ class GaplessLoopPlayer {
   // "this file was never reachable in the first place" (wrong URL, CORS
   // misconfigured, CDN down) — only the latter calls onUnavailable.
   private everPlayed = false;
+  // Declared as plain fields rather than constructor parameter properties so
+  // the module also runs under Node's strip-only TypeScript support, which the
+  // unit suite relies on (see tests-unit/register.mjs).
+  private ctx: AudioContext;
+  private cfg: FileTrackConfig;
+  private onUnavailable?: () => void;
 
   constructor(
-    private ctx: AudioContext,
-    private cfg: FileTrackConfig,
-    private onUnavailable?: () => void,
+    ctx: AudioContext,
+    cfg: FileTrackConfig,
+    onUnavailable?: () => void,
   ) {
+    this.ctx = ctx;
+    this.cfg = cfg;
+    this.onUnavailable = onUnavailable;
     const make = () => {
       const el = new Audio();
       // Data-saver / known-slow connections: don't buffer ahead at all
