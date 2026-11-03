@@ -28,6 +28,7 @@ import {
   makeLfo,
   makePanner,
   type FilterSpec,
+  type LfoOptions,
 } from "./dsp";
 import { EventScheduler } from "./scheduler";
 import { getDiagnosticsRuntime } from "../diagnostics";
@@ -275,6 +276,29 @@ class Rig {
     this.scope.cleanup(() => this.scheduler.clearTasks());
   }
 
+  private routeOutput(node: AudioNode, pan?: number): void {
+    let outNode: AudioNode = node;
+    if (pan != null) {
+      const panner = this.scope.track(makePanner(this.ctx, pan));
+      outNode.connect(panner);
+      outNode = panner;
+    }
+    outNode.connect(this.out);
+  }
+
+  private attachLfo(target: AudioParam, spec?: LfoOptions): void {
+    if (!spec) return;
+    const lfo = makeLfo(this.ctx, spec);
+    this.scope.track(lfo.oscillator);
+    this.scope.track(lfo.gain);
+    lfo.oscillator.connect(lfo.gain);
+    lfo.gain.connect(target);
+    this.starts.push({
+      node: lfo.oscillator,
+      when: this.ctx.currentTime + 0.01,
+    });
+  }
+
   noiseBed(color: NoiseColor, options: NoiseBedOptions = {}): GainNode {
     const seconds = options.seconds ?? 4;
     const { source, phase } = createNoiseSource(this.ctx, color, {
@@ -284,28 +308,11 @@ class Rig {
     this.scope.trackSource(source);
     this.starts.push({ node: source, when: this.ctx.currentTime + 0.01, offset: phase });
 
-    let node = chainFilters(this.ctx, source, options.filters ?? []);
+    const node = chainFilters(this.ctx, source, options.filters ?? []);
     const gain = this.scope.track(makeGain(this.ctx, options.gain ?? 0.2));
     node.connect(gain);
-    node = gain;
-    if (options.pan != null) {
-      const pan = this.scope.track(makePanner(this.ctx, options.pan));
-      node.connect(pan);
-      node = pan;
-    }
-    node.connect(this.out);
-
-    if (options.lfo) {
-      const lfo = makeLfo(this.ctx, options.lfo);
-      this.scope.track(lfo.oscillator);
-      this.scope.track(lfo.gain);
-      lfo.oscillator.connect(lfo.gain);
-      lfo.gain.connect(gain.gain);
-      this.starts.push({
-        node: lfo.oscillator,
-        when: this.ctx.currentTime + 0.01,
-      });
-    }
+    this.routeOutput(gain, options.pan);
+    this.attachLfo(gain.gain, options.lfo);
     return gain;
   }
 
@@ -318,25 +325,8 @@ class Rig {
 
     const gain = this.scope.track(makeGain(this.ctx, options.gain ?? 0.02));
     oscillator.connect(gain);
-    let node: AudioNode = gain;
-    if (options.pan != null) {
-      const pan = this.scope.track(makePanner(this.ctx, options.pan));
-      node.connect(pan);
-      node = pan;
-    }
-    node.connect(this.out);
-
-    if (options.lfo) {
-      const lfo = makeLfo(this.ctx, options.lfo);
-      this.scope.track(lfo.oscillator);
-      this.scope.track(lfo.gain);
-      lfo.oscillator.connect(lfo.gain);
-      lfo.gain.connect(oscillator.detune);
-      this.starts.push({
-        node: lfo.oscillator,
-        when: this.ctx.currentTime + 0.01,
-      });
-    }
+    this.routeOutput(gain, options.pan);
+    this.attachLfo(oscillator.detune, options.lfo);
 
     this.starts.push({
       node: oscillator,
