@@ -1043,6 +1043,25 @@ export function crossfadeTo(toIds: string[], durationMs = 2500) {
     }
   };
 
+  const fallbackFade = (
+    id: string,
+    calcValue: (p: number) => number,
+  ) => {
+    const startedAt = performance.now();
+    const step = () => {
+      const tn = trackNodes[id];
+      if (!tn) return;
+      const p = Math.min(1, (performance.now() - startedAt) / (seconds * 1000));
+      try {
+        tn.gain.gain.value = calcValue(p);
+      } catch {
+        return;
+      }
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
   // Ramp out anything playing that isn't in the target set
   Object.keys(trackNodes).forEach((id) => {
     if (toIds.includes(id)) return;
@@ -1055,22 +1074,7 @@ export function crossfadeTo(toIds: string[], durationMs = 2500) {
       startVal,
     );
     if (!scheduled) {
-      const startedAt = performance.now();
-      const manualFade = () => {
-        const tn = trackNodes[id];
-        if (!tn) return;
-        const p = Math.min(
-          1,
-          (performance.now() - startedAt) / (seconds * 1000),
-        );
-        try {
-          tn.gain.gain.value = startVal * Math.cos(p * (Math.PI / 2));
-        } catch {
-          return;
-        }
-        if (p < 1) requestAnimationFrame(manualFade);
-      };
-      requestAnimationFrame(manualFade);
+      fallbackFade(id, (p) => startVal * Math.cos(p * (Math.PI / 2)));
     }
     // Only actually stop it if nothing re-raised it in the meantime
     // (guards against a second crossfadeTo() call racing this one).
@@ -1093,22 +1097,7 @@ export function crossfadeTo(toIds: string[], durationMs = 2500) {
       startVal,
     );
     if (!scheduled) {
-      const startedAt = performance.now();
-      const manualFade = () => {
-        const tn = trackNodes[id];
-        if (!tn) return;
-        const p = Math.min(
-          1,
-          (performance.now() - startedAt) / (seconds * 1000),
-        );
-        try {
-          tn.gain.gain.value = target * Math.sin(p * (Math.PI / 2));
-        } catch {
-          return;
-        }
-        if (p < 1) requestAnimationFrame(manualFade);
-      };
-      requestAnimationFrame(manualFade);
+      fallbackFade(id, (p) => target * Math.sin(p * (Math.PI / 2)));
     }
   });
   onTrackChange?.();
