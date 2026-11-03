@@ -76,6 +76,13 @@ async function readTagsFor(page: import("@playwright/test").Page, selector: stri
 }
 
 test.describe("Beta status tag", () => {
+  // Geometry is read from getBoundingClientRect(). The Settings dialog scales
+  // in over 0.5s and its sections stagger with their own scale/translate, so a
+  // measurement taken mid-animation differs between surfaces by a fraction of a
+  // pixel. Freezing motion makes the sub-pixel height comparison deterministic
+  // on slow CI runners without changing the pill's layout.
+  test.use({ reducedMotion: "reduce" });
+
   test("appears in exactly four places and always says Beta", async ({ page }) => {
     await page.goto("/");
     await waitForBoot(page);
