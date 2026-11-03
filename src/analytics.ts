@@ -106,7 +106,7 @@ function recordAnalyticsDiagnostic(
         details: {
           source: "cloudflare-web-analytics",
           status,
-          ...(details || {}),
+          ...details,
         },
       });
     }
@@ -115,14 +115,62 @@ function recordAnalyticsDiagnostic(
   }
 }
 
-/** Remove any injected beacon script tag. */
+/** Remove any injected beacon script tag and guard against further measurements. */
 export function unloadAnalytics(): void {
+  const wasRunning = currentStatus === "active";
+
   if (typeof document !== "undefined") {
     const el = document.getElementById(SCRIPT_ID);
     if (el) {
       el.remove();
     }
   }
+
+  // Teardown / guard against running beacon sending any further outbound requests
+  if (typeof window !== "undefined") {
+    try {
+      delete (window as any).__cfBeacon;
+    } catch {
+      (window as any).__cfBeacon = undefined;
+    }
+  }
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.sendBeacon === "function"
+  ) {
+    try {
+      const origSendBeacon = navigator.sendBeacon.bind(navigator);
+      navigator.sendBeacon = (url: string | URL, data?: BodyInit | null): boolean => {
+        const urlStr = typeof url === "string" ? url : url.href;
+        if (urlStr.includes("cloudflareinsights.com")) {
+          return true; // silently drop
+        }
+        return origSendBeacon(url, data);
+      };
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  // If the beacon has already run, it cannot be safely stopped in the running
+  // JavaScript runtime (its PerformanceObserver and event listeners cannot be
+  // unregistered externally). Persist the opt-out choice and reload into a page
+  // that never loads it, before reporting it disabled.
+  if (
+    wasRunning &&
+    typeof window !== "undefined" &&
+    typeof window.location?.reload === "function"
+  ) {
+    if (
+      safeGet(ANALYTICS_STORAGE_KEY) !== "off" &&
+      safeGet("sc_privacy") !== "1"
+    ) {
+      safeSet(ANALYTICS_STORAGE_KEY, "off");
+    }
+    window.location.reload();
+    return;
+  }
+
   setStatus("disabled-by-user");
   recordAnalyticsDiagnostic("disabled-by-user");
 }
@@ -226,8 +274,8 @@ export async function loadAnalytics(privacyModeActive = false): Promise<boolean>
         );
       }
 
-      script.onload = () => handleSuccess();
-      script.onerror = () => handleFailure("script-load-failed");
+      script.addEventListener("load", () => handleSuccess());
+      script.addEventListener("error", () => handleFailure("script-load-failed"));
 
       timer = window.setTimeout(() => {
         handleFailure("load-timeout");
@@ -265,11 +313,23 @@ export function resetAnalyticsToAuto(privacyModeActive = false): void {
 
 /** Synchronize runtime state with current preference and privacy mode. */
 export function syncAnalytics(privacyModeActive = false): void {
-  if (privacyModeActive || !isAnalyticsAllowed(privacyModeActive)) {
+  if (privacyModeActive) {
     unloadAnalytics();
-  } else {
-    void loadAnalytics(privacyModeActive);
+    return;
   }
+  const pref = getAnalyticsPreference();
+  if (pref === "off") {
+    unloadAnalytics();
+    return;
+  }
+  if (pref === "auto" && isAutoBlocked()) {
+    setStatus("unavailable");
+    recordAnalyticsDiagnostic("unavailable", {
+      reason: "auto-blocked-persisted",
+    });
+    return;
+  }
+  void loadAnalytics(privacyModeActive);
 }
 
 /** Initial startup hook: runs after first paint / core boot completion. */

@@ -4,7 +4,7 @@
 // this file only repeats the members needed by test-imported modules
 // (platform, perf, sound and the synthesis adapter).
 
-export {};
+export type GlobalsModule = true;
 
 declare global {
   interface AudioNode {
