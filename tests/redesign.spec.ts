@@ -1,21 +1,10 @@
-import { test, expect, waitForBoot, closeThemePanel } from "./fixtures";
-
-/** WCAG relative luminance of an `rgb()`/`rgba()` string. */
-function relativeLuminance(value: string): number {
-  const channels = (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-  const [r = 0, g = 0, b = 0] = channels.map((channel) => {
-    const c = channel / 255;
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** WCAG contrast ratio between two `rgb()`/`rgba()` strings. */
-function contrastRatio(foreground: string, background: string): number {
-  const fg = relativeLuminance(foreground);
-  const bg = relativeLuminance(background);
-  return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
-}
+import {
+  test,
+  expect,
+  waitForBoot,
+  closeThemePanel,
+  contrastRatio,
+} from "./fixtures";
 
 /**
  * Coverage for the Session Clock 2.0 redesign pass:

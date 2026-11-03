@@ -1,27 +1,4 @@
-import { test, expect, waitForBoot } from "./fixtures";
-
-/**
- * The Beta tag is a status marker, not a marketing badge: one quiet neutral
- * pill, four placements, and no emoji/pulse/colour-only signal. These tests
- * pin the surface count and geometry so a later redesign cannot quietly add a
- * fifth badge or make the tag shout.
- */
-
-/** WCAG relative luminance of an `rgb()`/`rgba()` string. */
-function relativeLuminance(value: string): number {
-  const channels = (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-  const [r = 0, g = 0, b = 0] = channels.map((channel) => {
-    const c = channel / 255;
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function contrastRatio(foreground: string, background: string): number {
-  const fg = relativeLuminance(foreground);
-  const bg = relativeLuminance(background);
-  return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
-}
+import { test, expect, waitForBoot, contrastRatio } from "./fixtures";
 
 /** Reads each tag's text, geometry and composed foreground/background. */
 async function readTags(page: import("@playwright/test").Page, selector = ".beta-tag") {
