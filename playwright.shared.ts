@@ -1,8 +1,8 @@
 // Shared Playwright settings for the main and mobile configs.
 //
-// Node/npm are not required in this workspace: every command in `deno.json`
-// and in `webServer.command` runs the npm tools through `deno run -A npm:…`.
-// Keeping the server/use block here stops the mobile config from drifting.
+// Every command in `package.json` and in `webServer.command` runs on the
+// installed Node/npm toolchain. Keeping the server/use block here stops the
+// mobile config from drifting.
 
 export const PORT = 4173;
 export const externalBaseURL = process.env.PLAYWRIGHT_TEST_BASE_URL;
@@ -26,7 +26,7 @@ export const webServer = externalBaseURL
   : {
       // Build once, then serve dist/. `--strictPort` fails loudly instead of
       // silently moving to another port and testing the wrong thing.
-      command: `deno run -A npm:vite@6.4.4 build && deno run -A npm:vite@6.4.4 preview --host 127.0.0.1 --port ${PORT} --strictPort`,
+      command: `npm run build && npm run preview -- --host 127.0.0.1 --port ${PORT} --strictPort`,
       url: baseURL,
       // Always run the build; an existing preview may serve stale output.
       reuseExistingServer: false,
