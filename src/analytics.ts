@@ -142,16 +142,26 @@ function installSendBeaconGuard(): void {
     }
 
     let isCf = false;
+    const base =
+      typeof window !== "undefined" && window.location?.href
+        ? window.location.href
+        : "https://sessionclock.com/";
     try {
       const urlStr = typeof url === "string" ? url : (url?.href || String(url));
-      const base =
-        typeof window !== "undefined" && window.location?.href
-          ? window.location.href
-          : "https://sessionclock.com/";
       const parsed = new URL(urlStr, base);
-      isCf = parsed.hostname.endsWith("cloudflareinsights.com");
+      isCf =
+        parsed.hostname === "cloudflareinsights.com" ||
+        parsed.hostname.endsWith(".cloudflareinsights.com");
     } catch {
-      isCf = String(url).includes("cloudflareinsights.com");
+      try {
+        const fallbackRaw = typeof url === "string" ? url : String(url);
+        const fallbackParsed = new URL(fallbackRaw, base);
+        isCf =
+          fallbackParsed.hostname === "cloudflareinsights.com" ||
+          fallbackParsed.hostname.endsWith(".cloudflareinsights.com");
+      } catch {
+        isCf = false;
+      }
     }
 
     if (isCf) {
