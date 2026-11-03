@@ -108,6 +108,24 @@ interface Window {
   __bootCompleted?: boolean;
   __scRealStorage?: { localStorage?: Storage; sessionStorage?: Storage };
   __bootFailed?: boolean;
+  __bootStage?: string;
+  /** Truthful readiness split; each may become true independently. */
+  __scReady?: {
+    coreReady: boolean;
+    rendererReady: boolean;
+    audioReady: boolean;
+    optionalFeaturesReady: boolean;
+    bootStage: string;
+  };
+  __coreReady?: boolean;
+  __rendererReady?: boolean;
+  __audioReady?: boolean;
+  __scMarkAudioReady?: () => void;
+  /** Failures captured by the inline boot guard before diagnostics loaded. */
+  __scPreBootEvents?: Array<Record<string, unknown>>;
+  __scDiagnosticsText?: () => string;
+  __scDiagnosticsSnapshot?: () => unknown;
+  __scDiagnostics?: unknown;
   __scBootFail?: (reason: string, isFatal?: boolean) => void;
   __scBootOk?: () => void;
   __scLat?: number;

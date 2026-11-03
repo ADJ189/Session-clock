@@ -1,6 +1,6 @@
 // ── Privacy-safe diagnostics ───────────────────────────────────────────
 // A bounded, in-memory ring buffer for boot and post-boot failures. It is
-// deliberately dependency-free so it can be unit-tested under Deno without a
+// deliberately dependency-free so it can be unit-tested under Node without a
 // browser. Nothing here reads localStorage, request bodies or user content:
 // callers pass short, already-known strings plus a coarse environment
 // snapshot. `toText()` is what the user-triggered "Copy diagnostics" action

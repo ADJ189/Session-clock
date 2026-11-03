@@ -4977,19 +4977,35 @@ function frameScale(): number {
   return Math.min(4, Math.max(0.25, dt / FRAME_MS));
 }
 
-let _transGuard: ((event: Event) => void) | null = null;
-let _transWatchdog = 0;
+let _transOnError: ((error: unknown) => void) | null = null;
+let _transWatchdog: ReturnType<typeof setTimeout> | null = null;
 let _transCbDone = false;
 
-function clearTransitionGuard() {
-  if (_transGuard) {
-    window.removeEventListener("error", _transGuard, true);
-    _transGuard = null;
-  }
-  if (_transWatchdog) {
+function clearTransitionWatchdog() {
+  if (_transWatchdog !== null) {
     clearTimeout(_transWatchdog);
-    _transWatchdog = 0;
+    _transWatchdog = null;
   }
+}
+
+function clearTransitionGuard() {
+  _transOnError = null;
+  clearTransitionWatchdog();
+}
+
+/**
+ * Queue one transition frame. Errors are contained here and reported only to
+ * the active transition, so an unrelated failed image or third-party script
+ * error cannot disable the canvas wipe.
+ */
+function transitionFrame(fn: FrameRequestCallback) {
+  requestAnimationFrame((now) => {
+    try {
+      fn(now);
+    } catch (error) {
+      _transOnError?.(error);
+    }
+  });
 }
 
 export function runTransition(type: string, cb: () => void) {
@@ -5028,15 +5044,10 @@ export function runTransition(type: string, cb: () => void) {
     // the UI on the previous theme.
     once();
   };
-  const guard = (event: Event) => {
-    const e = event as ErrorEvent;
-    fail(e.error ?? new Error(e.message || "Transition failed"));
-  };
-  _transGuard = guard;
-  window.addEventListener("error", guard, true);
-  // A thrown rAF callback stops that transition's own loop. The watchdog
-  // recovers the overlay even if the engine does not deliver a window error
-  // event (for example, a silent abort after a tab switch).
+  _transOnError = fail;
+  // transitionFrame() contains exceptions from the transition's own rAF
+  // callbacks. The watchdog still recovers the overlay if the loop stalls
+  // without throwing (for example, a silent abort after a tab switch).
   _transWatchdog = setTimeout(
     () => fail(new Error("Transition watchdog expired")),
     4000,
@@ -5054,7 +5065,9 @@ export function runTransition(type: string, cb: () => void) {
 function finishTrans() {
   let f = 1;
   _transLastTs = 0;
-  clearTransitionGuard();
+  // Keep the error handler installed through the fade-out; only the watchdog
+  // is no longer needed once the transition reached its finish callback.
+  clearTransitionWatchdog();
   const step = () => {
     try {
       f -= 0.02 * frameScale();
@@ -5062,7 +5075,7 @@ function finishTrans() {
       if (f > 0) {
         tc.fillStyle = `rgba(0,0,0,${f})`;
         tc.fillRect(0, 0, W, H);
-        requestAnimationFrame(step);
+        transitionFrame(step);
       } else {
         if (tCanvas) tCanvas.style.display = "none";
         transitioning = false;
@@ -5079,7 +5092,7 @@ function finishTrans() {
       }
     }
   };
-  requestAnimationFrame(step);
+  transitionFrame(step);
 }
 
 const TRANS: Record<string, (cb: () => void) => void> = {
@@ -5094,9 +5107,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   fire(cb) {
     let p = 0,
@@ -5124,9 +5137,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   redblood(cb) {
     let p = 0,
@@ -5153,9 +5166,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   smoke(cb) {
     let p = 0,
@@ -5186,9 +5199,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.15 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.15 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   timeloop(cb) {
     let p = 0,
@@ -5219,9 +5232,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.15 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.15 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   chemical(cb) {
     let p = 0,
@@ -5264,9 +5277,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   updown(cb) {
     let p = 0,
@@ -5282,9 +5295,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   warp(cb) {
     let p = 0,
@@ -5315,9 +5328,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   sandstorm(cb) {
     let p = 0,
@@ -5351,9 +5364,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   matrixrain(cb) {
     let p = 0,
@@ -5387,9 +5400,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   neon_rain(cb) {
     let p = 0,
@@ -5428,9 +5441,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   dream(cb) {
     let p = 0,
@@ -5459,9 +5472,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   rose(cb) {
     let p = 0,
@@ -5496,9 +5509,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   f1_launch(cb) {
     const LP = [0.2, 0.35, 0.5, 0.65, 0.8];
@@ -5552,9 +5565,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.0 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.0 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   f1_burnout(cb) {
     const sm = [...Array(48)].map(() => ({
@@ -5606,9 +5619,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.0 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.0 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   flash(cb) {
     // Oppenheimer white flash
@@ -5623,9 +5636,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   glitch(cb) {
     // Mr Robot glitch transition
@@ -5647,9 +5660,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   slowzoom(cb) {
     // 2001 — slow creeping black zoom
@@ -5670,9 +5683,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   tenet_invert(cb) {
     // Blue forward wave meets orange reverse wave
@@ -5702,9 +5715,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   dragonfire(cb) {
     // Fire particles rain down from top
@@ -5740,9 +5753,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   moonrise(cb) {
     // Silver moon rises from bottom
@@ -5769,9 +5782,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   onepiece_sail(cb) {
     // Sun rises over ocean horizon
@@ -5805,9 +5818,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   aot_charge(cb) {
     // Horizontal dust charge wipe
@@ -5837,9 +5850,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   deathnote_write(cb) {
     let p = 0,
@@ -5860,9 +5873,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   hailmary_warp(cb) {
     // Bioluminescent warp — teal streaks converge
@@ -5894,9 +5907,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   eva_alert(cb) {
     // NERV alert — red flicker then black
@@ -5915,9 +5928,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   akira_blast(cb) {
     let p = 0,
@@ -5940,9 +5953,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   dust(cb) {
     // BCS: sandy dust sweep left to right
@@ -5969,9 +5982,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   oceanic(cb) {
     // Lost: ocean wave wipe
@@ -5994,9 +6007,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   sakura(cb) {
     // Shōgun: sakura petals fall across
@@ -6024,9 +6037,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   vault(cb) {
     // Fallout: vault door iris-close
@@ -6056,9 +6069,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   // Rick and Morty: portal spin
   portal(cb) {
@@ -6088,9 +6101,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   // Family Guy: quick iris out (Quahog style)
   quahog(cb) {
@@ -6113,9 +6126,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   // South Park: blizzard white-out
   blizzard(cb) {
@@ -6131,9 +6144,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   // Simpsons: couch zoom
   couch(cb) {
@@ -6157,9 +6170,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   fargoSnow(cb) {
     let p = 0,
@@ -6194,9 +6207,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   madmenStatic(cb) {
     let p = 0,
@@ -6215,9 +6228,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   flatcircle(cb) {
     let p = 0,
@@ -6248,9 +6261,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.15 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.15 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   radglow(cb) {
     let p = 0,
@@ -6278,9 +6291,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   curtain(cb) {
     let p = 0,
@@ -6296,9 +6309,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   budapestZoom(cb) {
     let p = 0,
@@ -6325,9 +6338,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   cymbal(cb) {
     let p = 0,
@@ -6343,9 +6356,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.0 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.0 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   batsignal(cb) {
     let p = 0,
@@ -6373,9 +6386,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   goldflash(cb) {
     let p = 0,
@@ -6400,9 +6413,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   bebopSmoke(cb) {
     let p = 0,
@@ -6432,9 +6445,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.1 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.1 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   ghostrain(cb) {
     let p = 0,
@@ -6466,9 +6479,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   comet(cb) {
     let p = 0,
@@ -6501,9 +6514,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   vikingmist(cb) {
     let p = 0,
@@ -6530,9 +6543,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   cursedburst(cb) {
     let p = 0,
@@ -6557,9 +6570,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   mysteryfog(cb) {
     let p = 0,
@@ -6598,9 +6611,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   candyswirl(cb) {
     let p = 0,
@@ -6628,9 +6641,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   halftone(cb) {
     let p = 0,
@@ -6657,9 +6670,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.0 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.0 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   sandrake(cb) {
     let p = 0,
@@ -6681,9 +6694,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   windowrain(cb) {
     let p = 0,
@@ -6714,9 +6727,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   vinylspin(cb) {
     let p = 0,
@@ -6743,9 +6756,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   pageturn(cb) {
     let p = 0,
@@ -6765,9 +6778,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   leafgrow(cb) {
     let p = 0,
@@ -6786,9 +6799,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   lavablob(cb) {
     let p = 0,
@@ -6823,9 +6836,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   // Lanterns — a power ring charging up: a bright green ring contracts
   // inward while a faint construct-lattice sweeps past behind it.
@@ -6861,9 +6874,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
   // YOU — a slow, quiet iris-close, like being watched through a narrowing
   // gap; deliberately understated rather than flashy, to match the show's tone.
@@ -6884,8 +6897,8 @@ const TRANS: Record<string, (cb: () => void) => void> = {
         called = true;
         cb();
       }
-      p < 1.05 ? requestAnimationFrame(go) : finishTrans();
+      p < 1.05 ? transitionFrame(go) : finishTrans();
     };
-    requestAnimationFrame(go);
+    transitionFrame(go);
   },
 };

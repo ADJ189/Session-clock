@@ -1,8 +1,8 @@
-// Ambient augmentations kept in a real module so both `tsc` and `deno check`
-// see them without relying on triple-slash references (which the linter
-// rejects). `webapi.d.ts` carries the wider experimental-API surface; this
-// file only repeats the members needed by modules that Deno type-checks in
-// isolation (platform, perf, sound and the synthesis adapter).
+// Ambient augmentations kept in a real module so both `tsc` and the test
+// typechecker see them without relying on triple-slash references (which the
+// linter rejects). `webapi.d.ts` carries the wider experimental-API surface;
+// this file only repeats the members needed by test-imported modules
+// (platform, perf, sound and the synthesis adapter).
 
 export {};
 

@@ -1,6 +1,6 @@
 // ── Renderer health ────────────────────────────────────────────────────
 // The clock and timer must survive any visual failure. This tiny state
-// machine is deliberately DOM-free so it can be unit-tested under Deno and
+// machine is deliberately DOM-free so it can be unit-tested under Node and
 // used from both renderer.ts and main.ts without creating an import cycle.
 //
 // States:
