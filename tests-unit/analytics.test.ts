@@ -9,12 +9,14 @@ import {
   getAnalyticsStatus,
   unloadAnalytics,
   loadAnalytics,
+  syncAnalytics,
   onAnalyticsStatusChange,
   _resetAnalyticsForTesting,
   ANALYTICS_STORAGE_KEY,
   ANALYTICS_AUTO_BLOCKED_KEY,
   CLOUDFLARE_BEACON_URL,
 } from "../src/analytics.ts";
+import { DATA_CATEGORIES } from "../src/privacy.ts";
 
 // Setup in-memory localStorage stub if needed
 const memStore = new Map<string, string>();
@@ -116,4 +118,46 @@ test("CLOUDFLARE_BEACON_URL is the official beacon endpoint", () => {
     CLOUDFLARE_BEACON_URL,
     "https://static.cloudflareinsights.com/beacon.min.js",
   );
+});
+
+test("syncAnalytics sets status to unavailable when auto-blocked marker is set", () => {
+  _resetAnalyticsForTesting();
+  resetAnalyticsToAuto();
+  localStorage.setItem(ANALYTICS_AUTO_BLOCKED_KEY, "1");
+  syncAnalytics(false);
+  assertEquals(getAnalyticsStatus(), "unavailable");
+});
+
+test("unloadAnalytics removes beacon globals and guards sendBeacon", () => {
+  _resetAnalyticsForTesting();
+  const globalWin = (globalThis as any).window || {};
+  (globalThis as any).window = globalWin;
+  globalWin.__cfBeacon = { token: "test" };
+
+  const beaconCalls: string[] = [];
+  (navigator as any).sendBeacon = (url: string) => {
+    beaconCalls.push(url);
+    return true;
+  };
+
+  unloadAnalytics();
+
+  assertEquals(globalWin.__cfBeacon, undefined);
+  // sendBeacon to cloudflareinsights should be swallowed
+  navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
+  assertEquals(beaconCalls.length, 0);
+
+  // sendBeacon to other URLs should pass through
+  navigator.sendBeacon("https://example.com/other");
+  assertEquals(beaconCalls.length, 1);
+});
+
+test("DATA_CATEGORIES includes sc_analytics_mode and sc_analytics_auto_blocked", () => {
+  const prefsCat = DATA_CATEGORIES.find((c) => c.id === "preferences");
+  assert(prefsCat);
+  assert(prefsCat.keys.includes(ANALYTICS_STORAGE_KEY));
+
+  const sysCat = DATA_CATEGORIES.find((c) => c.id === "system");
+  assert(sysCat);
+  assert(sysCat.keys.includes(ANALYTICS_AUTO_BLOCKED_KEY));
 });

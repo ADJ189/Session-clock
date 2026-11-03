@@ -44,7 +44,7 @@ test("sanitizeText strips query strings from embedded URLs", () => {
     "GET https://example.com/api?access_token=leak failed",
   );
   assertEquals(text.includes("leak"), false);
-  assert(text.includes("https://example.com/api"));
+  assertEquals(text, "GET https://example.com/api [redacted] failed");
 });
 
 test("sanitizeText normalises whitespace and caps length", () => {
