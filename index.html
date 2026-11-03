@@ -1280,53 +1280,12 @@
       </div>
     </div>
 
-    <!-- Theme Finder: the visual discovery gallery behind every "Themes" action -->
+    <!-- Theme Finder: the visual discovery gallery behind every "Themes"
+         action. The modal shell stays in the static page; its contents are
+         rendered by the Svelte ThemeFinder component (src/themelib.ts mounts
+         it here and keeps ownership of the cached card wall). -->
     <div class="sc-overlay" id="themeLibOverlay">
-      <div class="sc-modal themelib" aria-labelledby="themeLibTitle">
-        <div class="tl-head">
-          <div class="tl-titles">
-            <h2 id="themeLibTitle">Theme Finder</h2>
-            <span class="tl-count" id="tlCount" aria-live="polite"></span>
-          </div>
-          <div class="tl-search">
-            <svg class="tl-search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input id="tlSearch" type="search" placeholder="Search worlds, shows, films, moods" aria-label="Search themes" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" />
-            <button type="button" id="tlClear" class="tl-clear" aria-label="Clear search" hidden>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
-          <select id="tlSort" class="tl-sort" aria-label="Sort themes">
-            <option value="default">Default order</option>
-            <option value="az">A–Z</option>
-          </select>
-          <button class="modal-close tl-close" aria-label="Close theme library" onclick="SC.modals.close('themeLibOverlay')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
-        </div>
-        <nav class="tl-nav" id="tlNav" aria-label="Theme collections"></nav>
-        <div class="tl-body">
-          <div class="tl-main" id="tlMain">
-            <section class="tl-spotlight" id="tlSpotlight" aria-label="Current theme"></section>
-            <section class="tl-shelf" id="tlRecentSection" hidden>
-              <div class="tl-shelf-head">
-                <div>
-                  <h3 class="tl-shelf-title">Recently used</h3>
-                </div>
-                <button class="tl-shelf-link" type="button" id="tlRecentAll">View all</button>
-              </div>
-              <div class="tl-recent-rail" id="tlRecentRail"></div>
-            </section>
-            <div class="tl-wall-head">
-              <div>
-                <h3 class="tl-wall-title" id="tlWallTitle">All themes</h3>
-              </div>
-              <span class="tl-wall-count" id="tlWallCount" aria-hidden="true"></span>
-            </div>
-            <div class="tl-grid" id="tlGrid" role="list"></div>
-            <div class="tl-empty" id="tlEmpty" hidden></div>
-          </div>
-        </div>
-      </div>
+      <div class="sc-modal themelib" aria-labelledby="themeLibTitle"></div>
     </div>
 
     <div class="sc-overlay" id="kbOverlay">

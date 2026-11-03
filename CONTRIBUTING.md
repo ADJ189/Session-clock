@@ -1,8 +1,9 @@
 # Contributing to Session Clock
 
-Thanks for taking a look. Session Clock is a small, dependency-free
-TypeScript/Vite app — there's no framework and no build magic, so most
-changes are a straightforward edit-and-refresh loop.
+Thanks for taking a look. Session Clock is a TypeScript/Vite app. Most of
+the UI is hand-wired DOM, with Svelte 5 components for self-contained
+surfaces such as the Theme Finder; there's no build magic, so most changes
+are a straightforward edit-and-refresh loop.
 
 ## Setup
 
@@ -16,18 +17,21 @@ npm run dev        # http://localhost:5173
 Before opening a PR:
 
 ```bash
-npm run typecheck  # tsc --noEmit
-npm run build      # full production build
+npm run typecheck       # tsc --noEmit
+npm run typecheck:unit  # tsc -p tests-unit/tsconfig.json
+npm run test:unit       # Node unit suite
+npm run build           # full production build
 ```
 
-Both must pass clean. There's no test suite yet — see [Testing](#testing)
-below if you'd like to help with that.
+All four must pass clean. See [Testing](#testing) below for the browser
+suites.
 
 ## Project layout
 
 ```
 src/
   main.ts           entry point + most UI wiring (large, being split up — see below)
+  app/components/   Svelte 5 islands (currently theme-finder/); themelib.ts is their controller
   platform.ts         OS/browser-engine detection, capability flags (vibration, Document PiP, device orientation), haptics helper
   renderer.ts        the 96 canvas theme renderers
   themes.ts           theme metadata (colours, names, categories)
@@ -126,11 +130,29 @@ or just use the manual token-paste fallback on each integration card.
 
 ## Testing
 
-There's currently no automated test suite. If you're interested in
-adding one, a good first slice would be unit tests around
-`src/integrations.ts` (the storage/obfuscation helpers and the PKCE
-challenge/verifier functions are pure and easy to test in isolation)
-before tackling anything DOM- or canvas-heavy.
+The unit suite uses Node's built-in test runner against the TypeScript
+sources, with hand-written Web Audio and DOM mocks under `tests-unit/`:
+
+```bash
+npm run test:unit
+```
+
+Browser coverage uses Playwright. The first run needs a browser download:
+
+```bash
+npm run e2e:install
+npm run test:e2e:chromium   # full desktop Blink gate
+npm run test:e2e            # all five projects
+```
+
+Projects are `desktop-chromium`, `desktop-firefox`, `desktop-webkit`,
+`mobile-chromium-emulation`, and `mobile-webkit-emulation`. WebKit here is
+Playwright's build, not real Safari, so report results per project.
+
+Deno is optional and never required by the app, the build, or CI. If you
+prefer it locally, `deno.json` mirrors the same commands (`deno task
+test:unit`, `deno task test:e2e`, `deno task build`, …) and runs the same
+npm-installed tooling. The npm scripts remain the canonical entry points.
 
 ## Reporting bugs / requesting features
 

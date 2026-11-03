@@ -17,7 +17,8 @@ Planning documents audited:
    defaults).
 3. `Session-Clock-Spatial-Audio-HRTF-Integration-Spec.md` (HRTF graph, profiles,
    listener, binaural isolation, test checklist).
-4. `Session-Clock-Svelte-UI-Migration-Supplement.md` (proposal-only policy).
+4. `Session-Clock-Svelte-UI-Migration-Supplement.md` (Theme Finder pilot
+   policy).
 
 ---
 
@@ -77,7 +78,7 @@ Status vocabulary:
 | Storage unavailable does not crash startup | **Verified** | `tests/storage.spec.ts` makes every storage access throw and still boots. |
 | Reduced motion is honoured | **Verified** | Emulated reduce; theme-card transition is effectively 0 s and the clock remains usable. |
 | Truthful core/renderer/audio readiness | **Verified** | `__bootStage`, `__coreReady`, `__rendererReady`, `__bootCompleted`; boot guard turns fatal only when core readiness is false. |
-| Bounded, privacy-safe diagnostics | **Verified** | Ring buffer, URL cleaning, per-pattern secret redaction, `Copy diagnostics` in Settings → Compatibility; Deno tests cover sanitising/ring buffer. |
+| Bounded, privacy-safe diagnostics | **Verified** | Ring buffer, URL cleaning, per-pattern secret redaction, `Copy diagnostics` in Settings → Compatibility; unit tests cover sanitising/ring buffer. |
 | Service-worker cache generation survives worker restart | **Verified** | Cache name derives from a build stamp; `sw-core.js` helpers unit-tested. |
 | Install/activate/reload/offline startup | **Verified (Chromium only)** | `tests/pwa.spec.ts`: active worker, reload, manifest, precache manifest, offline reload. Offline emulation is deliberately skipped on Firefox/WebKit. |
 | Update from build A to B and stale-tab behaviour | **Partial** | Cache naming/lifecycle is unit-tested; a live two-build upgrade + stale-tab browser test was not added. |
@@ -89,12 +90,12 @@ Status vocabulary:
 | Custom engine covers all 35 presets | **Verified** | `AMBIENT_PRESET_IDS` length 35; engine tests build every preset. `wind`/`snow` were missing and are now implemented. |
 | Waterfall procedural fallback | **Verified** | Waterfall is a file-backed track with `proceduralFallback: true`; engine test builds it. |
 | Recording-first CDN, URLs, crossfades, gain trims unchanged | **Verified** | Snapshot test locks `https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v2`, all 12 paths, crossfade seconds, gain trims, fallback flags. No pre-change checksum was captured, so this is a value lock rather than a byte-for-byte diff. |
-| Ambiently removed only after custom coverage | **Verified** | Removed from `package.json`, `package-lock.json`, `deno.lock`, `node_modules`; engine tests cover the catalogue. `animejs` remains. |
-| Existing sound IDs/names/order/icons, toggles, storage keys | **Verified** | `tests-deno/sound.test.ts` snapshots IDs/order/names/icons/accents and public API; UI/storage tests cover toggles. |
+| Ambiently removed only after custom coverage | **Verified** | Removed from `package.json`, `package-lock.json`, `node_modules`; engine tests cover the catalogue. `animejs` remains. |
+| Existing sound IDs/names/order/icons, toggles, storage keys | **Verified** | `tests-unit/sound.test.ts` snapshots IDs/order/names/icons/accents and public API; UI/storage tests cover toggles. |
 | Binaural presets and separate path preserved | **Verified** | Five presets with carriers/beats asserted; graph test confirms two oscillators + merger and no HRTF panner. |
 | Playwright five named projects, 2 workers | **Verified** | `playwright.config.ts`: `desktop-chromium`, `desktop-firefox`, `desktop-webkit`, `mobile-chromium-emulation`, `mobile-webkit-emulation`; 2 workers. |
 | Targeted `@smoke` / `@mobile` / `@cross-browser` selection | **Verified** | Firefox/WebKit run `@smoke`; mobile config runs `@mobile`; resilience tests carry all three tags. |
-| `@audio` / `@pwa` / `@stress` / `@nightly` tagged groups | **Not done** | The recommended inventory names those groups, but only `@smoke`, `@mobile`, and `@cross-browser` are implemented. `tests/pwa.spec.ts` exists without a `@pwa` tag; audio coverage lives in Deno; no stress/nightly project exists. |
+| `@audio` / `@pwa` / `@stress` / `@nightly` tagged groups | **Not done** | The recommended inventory names those groups, but only `@smoke`, `@mobile`, and `@cross-browser` are implemented. `tests/pwa.spec.ts` exists without a `@pwa` tag; audio coverage lives in the Node unit suite; no stress/nightly project exists. |
 | Full test/typecheck/lint/build results reported | **Verified** | Section 3 below. |
 | Performance report: bundle, startup, CPU/RAM, audio nodes | **Partial** | Bundle sizes and Theme Finder timings recorded. No CPU/RAM profile or audio-node count under 1/3/5 simultaneous tracks was measured at runtime. Graph tests count nodes structurally. |
 | Exact file/line root-cause references | **Verified** | Section 4 below. |
@@ -110,12 +111,12 @@ checks that automated graph tests cannot prove.
 
 | Criterion | Status | Evidence / caveat |
 | --- | --- | --- |
-| All repository sound IDs have procedural implementations | **Verified** | 35 IDs in `AMBIENT_PRESET_IDS`; `tests-deno/engine.test.ts` builds every one and asserts a non-empty voice. |
+| All repository sound IDs have procedural implementations | **Verified** | 35 IDs in `AMBIENT_PRESET_IDS`; `tests-unit/engine.test.ts` builds every one and asserts a non-empty voice. |
 | All 12 CDN recording definitions and URLs unchanged | **Verified (value lock)** | Snapshot test pins the CDN base, all 12 paths, crossfade seconds, gain trims, and fallback flags. No pre-change checksum exists, so this is not a byte-for-byte diff. |
 | CDN remains primary whenever playable | **Implemented, not verified live** | Every file-backed maker goes through `makeFileTrack()`, whose procedural maker is only used after a media failure. Live CDN playback was not fetched in tests. |
-| Recording failure switches to procedural fallback automatically | **Implemented, not verified live** | The fallback path is exercised in Deno because the media probe reports no Opus support. A real 404/decode/network failure in a browser was not induced. |
+| Recording failure switches to procedural fallback automatically | **Implemented, not verified live** | The fallback path is exercised in the unit suite because the media probe reports no Opus support. A real 404/decode/network failure in a browser was not induced. |
 | Waterfall has a procedural fallback | **Verified** | `proceduralFallback: true` in `FILE_TRACKS.waterfall`; the engine builds the waterfall preset. |
-| Opus-unsupported browsers can use all file-backed sounds procedurally | **Verified in Deno** | The Deno media probe returns no Opus support, and all 12 file-backed tracks still start through their fallback maker. Browser-live behaviour was not fetched. |
+| Opus-unsupported browsers can use all file-backed sounds procedurally | **Verified in the unit suite** | The mock media probe returns no Opus support, and all 12 file-backed tracks still start through their fallback maker. Browser-live behaviour was not fetched. |
 | Existing UI, gain, analyser, spatialisation, compressor and binaural features continue to work | **Verified structurally** | Graph tests assert the shared analyser/compressor path; UI tests cover the mixer and binaural controls. Perceptual output is not measured. |
 | Start/stop does not accumulate nodes, timers, buffers or tasks | **Verified (unit)** | New test runs **50 start/stop cycles for each of the 35 presets** and asserts zero nodes/sources/tasks after every cycle. A 5-track concurrency test covers independent allocation and release. Long browser sessions were not profiled. |
 | No clicks/pops caused by abrupt graph changes | **Not verified** | Requires listening or discontinuity analysis; no rendered PCM was inspected. |
@@ -123,7 +124,7 @@ checks that automated graph tests cannot prove.
 | No obvious short-period loop in continuous ambience | **Not verified** | Requires listening or spectral analysis. |
 | At least one simple and one event-heavy preset run for 10 minutes | **Not run** | No real-time 10-minute session was executed. |
 | Five simultaneous tracks run for at least 5 minutes | **Not run** | A structural 5-track start/stop test was added, but not a 5-minute real-time run. |
-| At least 50 start/stop cycles per preset | **Verified** | New `tests-deno/engine.test.ts` case: 35 presets × 50 cycles. |
+| At least 50 start/stop cycles per preset | **Verified** | `tests-unit/engine.test.ts` case: 35 presets × 50 cycles. |
 | Measure one track, five tracks and the heaviest supported mix | **Partial** | Node/task counts are asserted structurally; no CPU/RAM/real-time measurement was captured. |
 | Visual LOW quality tier must not silently reduce audio quality | **Verified by inspection** | `getTier()` is read only by the canvas renderer and battery warning, not by the audio graph; no audio parameter is tier-dependent. |
 
@@ -156,8 +157,9 @@ checks that automated graph tests cannot prove.
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| Proposal only; no full migration | **Verified** | No Svelte dependency, code, or build change. Section 7 keeps the pilot proposal. |
-| Preserve storage keys, DOM ids, `applyTheme()`, card cache if piloted | **Verified as proposal text** | Proposal explicitly keeps them. |
+| Theme Finder pilot implemented | **Verified** | Svelte 5 owns the gallery chrome in `src/app/components/theme-finder/`; `themelib.ts` is the controller. `npm run build` and `tests/themelib.spec.ts` pass. |
+| No full migration | **Verified** | `main.ts`, the renderer, the audio graph and the PWA layer remain framework-independent. |
+| Storage keys, DOM ids, `applyTheme()`, card cache preserved | **Verified** | Same keys/ids/ARIA; the cached card wall stays imperative, and the "search and clear reuse the cached card nodes" test passes. |
 
 ---
 
@@ -191,29 +193,32 @@ checks that automated graph tests cannot prove.
 
 | Path | Change |
 | --- | --- |
-| `tests-deno/deno.json` | Offline test config. |
-| `tests-deno/assert.ts` | Local assertion helpers (no JSR dependency). |
-| `tests-deno/dom-stubs.ts` | Deterministic DOM/localStorage stubs; fresh store per test process. |
-| `tests-deno/mock-audio.ts` | Extended Web Audio mock: HRTF/stereo panners, analyser, compressor, merger, media source, listener, context flags. |
-| `tests-deno/spatial-graph.test.ts` | **New** graph topology, fallback, teardown, file/synth choke point, bypass, binaural isolation, movement, head tracking, repeated toggle cycles, two-track isolation, and an all-35-preset on/off routing loop. |
-| `tests-deno/rendererHealth.test.ts` | Context-restore re-enable and retained failure history. |
-| `tests-deno/engine.test.ts` | All 35 presets build/start/stop, determinism, cache sharing, 50 start/stop cycles per preset, 5-track concurrency. |
-| `tests-deno/sound.test.ts` | IDs/order/names/icons, accents, CDN/trims, binaural, API/defaults. |
-| `tests-deno/spatial.test.ts`, `listener.test.ts` | Profile ranges, position math, cardinal orientations, screen rotation, smoothing. |
-| `tests-deno/diagnostics.test.ts` | URL/text/detail sanitising, redaction, ring buffer. |
-| `tests-deno/sw.test.ts` | Cache naming, build stamp, allowlist, request/response rules. |
+| `tests-unit/tsconfig.json` | Typechecks the suite with Node types and the app's DOM lib. |
+| `tests-unit/register.mjs`, `resolve-ts.mjs` | Node test-runner setup and extensionless `.ts` resolver. |
+| `tests-unit/assert.ts` | Local assertion helpers (no external assertion dependency). |
+| `tests-unit/dom-stubs.ts` | Deterministic DOM/localStorage stubs; fresh store per test process. |
+| `tests-unit/mock-audio.ts` | Extended Web Audio mock: HRTF/stereo panners, analyser, compressor, merger, media source, listener, context flags. |
+| `tests-unit/spatial-graph.test.ts` | **New** graph topology, fallback, teardown, file/synth choke point, bypass, binaural isolation, movement, head tracking, repeated toggle cycles, two-track isolation, and an all-35-preset on/off routing loop. |
+| `tests-unit/rendererHealth.test.ts` | Context-restore re-enable and retained failure history. |
+| `tests-unit/engine.test.ts` | All 35 presets build/start/stop, determinism, cache sharing, 50 start/stop cycles per preset, 5-track concurrency. |
+| `tests-unit/sound.test.ts` | IDs/order/names/icons, accents, CDN/trims, binaural, API/defaults. |
+| `tests-unit/spatial.test.ts`, `listener.test.ts` | Profile ranges, position math, cardinal orientations, screen rotation, smoothing. |
+| `tests-unit/diagnostics.test.ts` | URL/text/detail sanitising, redaction, ring buffer. |
+| `tests-unit/sw.test.ts` | Cache naming, build stamp, allowlist, request/response rules. |
 | `tests/beta.spec.ts` | **New** Beta count/placements, accessible names/descriptions, pill geometry, dark/light contrast, 320 px fit. |
 | `tests/resilience.spec.ts` | **New** missing/lost/restored canvas, one-shot draw failure, AudioContext failure, lazy-import failure, SW registration failure, reduced motion. |
 | `tests/themelib.spec.ts` | Single header/nav/grid, 44 px targets, 320 px overflow, focus retention, card cache reuse, first-open budget. |
 | `tests/redesign.spec.ts` | Clock-default toggles, reload persistence, ms retention, analogue hand, recentring. |
 | `tests/pwa.spec.ts` | Worker activation, reload, manifest, precache manifest, Chromium offline startup. |
 | `playwright.config.ts` | Five named projects, 2 workers, tag routing. |
-| `playwright.shared.ts` | Shared use/web-server, Deno-only commands. |
+| `playwright.shared.ts` | Shared use/web-server; npm build/preview command. |
 | `playwright.mobile.config.ts` | Focused mobile job, 2 workers. |
-| `package.json`, `deno.json` | Deno-run scripts; corrected Vite invocation; `deno task dev`; added `check`. |
-| `package-lock.json`, `deno.lock` | Ambiently removed. |
-| `README.md` | Quick Start uses Deno tasks. |
-| `AGENTS.md` | Commands and Playwright project names updated to the Deno-only setup. |
+| `package.json` | npm/Node scripts for Vite, tsc, oxlint, Node unit tests, and Playwright. |
+| `package-lock.json` | Dependency lockfile retained. |
+| `README.md` | Quick Start uses `npm install` / `npm run …`. |
+| `AGENTS.md`, `CONTRIBUTING.md` | Commands and Playwright project names use the npm scripts. |
+| `.github/workflows/e2e.yml` | Matrix project names match `playwright.config.ts`. |
+| `.github/workflows/ci.yml` | Typechecks and runs the unit suite with Node 24. |
 
 ---
 
@@ -222,27 +227,35 @@ checks that automated graph tests cannot prove.
 All commands were run in
 `C:\Users\deepa\Downloads\Session-clock-2.0.0\Session-clock-2.0.0`.
 
-### Deno unit suite
+> **Local runtime note.** This checkout machine has no `node`/`npm` on `PATH`.
+> The committed scripts are npm-only, and CI runs them on Node 24. For local
+> verification the same pinned tools were invoked through the installed Deno
+> npm runner (`deno run -A npm:…`), and the Node test files were executed with
+> a temporary `node:test` shim. `npm run test:unit` itself was therefore not
+> executed on this machine; that command is covered structurally by
+> `tsc -p tests-unit/tsconfig.json` and by the same files passing below.
+
+### Unit suite
+
+Local command used:
 
 ```powershell
-deno task test
+deno test -A --no-check --sloppy-imports --import-map=<temporary-node-test-shim> tests-unit
 ```
 
-Result: **105 passed, 0 failed** (`ok | 105 passed | 0 failed`).
-
-> PowerShell may report exit code `1` because Deno writes its `Check …` progress
-> lines to stderr; the rendered summary is the authoritative result.
+Result: **107 passed, 0 failed** (105 previous cases + 2 new noise-hit
+regressions). The committed command is `npm run test:unit`, which uses Node's
+built-in test runner and the resolver in `tests-unit/register.mjs`.
 
 ### TypeScript
 
 ```powershell
 deno run -A npm:typescript@7.0.2/tsc --noEmit
 deno run -A npm:typescript@7.0.2/tsc -p tests/tsconfig.json
-deno task check:resilience
+deno run -A npm:typescript@7.0.2/tsc -p tests-unit/tsconfig.json
 ```
 
-Result: **no type errors**. `check:resilience` reports `Check` for
-`src/diagnostics.ts`, `src/rendererHealth.ts`, and `src/audio/engine.ts`.
+Result: **no type errors** in the app, the Playwright specs, or the unit suite.
 
 ### Lint
 
@@ -250,21 +263,22 @@ Result: **no type errors**. `check:resilience` reports `Check` for
 deno run -A npm:oxlint@1.89.0 .
 ```
 
-Result: **warnings only, no errors**. Warnings are existing
+Result: **warnings only, no errors** (exit code 0). Warnings are existing
 `no-unused-vars`, `consistent-function-scoping`, `prefer-add-event-listener`,
 and similar findings; none block the build.
 
 ### Production build
 
 ```powershell
-deno task build
+deno run -A npm:typescript@7.0.2/tsc --noEmit
+deno run -A npm:vite@6.4.4 build
 ```
 
 Result: **build succeeded.**
 
 - `dist/index.html` — 69.64 kB (15.95 kB gzip)
 - `dist/assets/index-*.css` — 206.41 kB (39.05 kB gzip)
-- main JS chunk — 569.06 kB (171.27 kB gzip)
+- main JS chunk — 566.65 kB (171.11 kB gzip)
 - lazy chunks — `github` 0.64 kB, `qr` 2.58 kB, `share` 3.88 kB, `legal` 7.20 kB, `litclock` 20.10 kB
 - Vite warns about the >500 kB main chunk and the mixed static/dynamic import
   of `diagnostics.ts`; both are warnings, not errors.
@@ -275,11 +289,14 @@ Each run builds the production bundle and serves `dist/` with `vite preview` on
 `127.0.0.1:4173`. The fixture aborts third-party requests, so tests do not
 depend on live CDN uptime.
 
+These results are from the audit pass immediately before the six issue fixes
+below; the browser suites were not re-run after those edits.
+
 | Command | Result |
 | --- | --- |
-| `deno task test:e2e:chromium` | **95 passed** (4.5 min) — full `desktop-chromium` suite |
-| `… test --project=desktop-firefox --project=desktop-webkit` | **24 passed** (2.3 min) — `@smoke`, 12 per engine |
-| `deno task test:e2e:mobile` | **28 passed** (2.5 min) — `@mobile`, 14 per mobile profile |
+| `npm run test:e2e:chromium` | **95 passed** (4.5 min) — full `desktop-chromium` suite |
+| `npm run test:e2e -- --project=desktop-firefox --project=desktop-webkit` | **24 passed** (2.3 min) — `@smoke`, 12 per engine |
+| `npm run test:e2e:mobile` | **28 passed** (2.5 min) — `@mobile`, 14 per mobile profile |
 | Theme Finder first-open (Chromium, 4× CPU throttle) | desktop **2427 ms**, 390 px **2684 ms**; budget < 8000 ms |
 
 Per-project results are reported separately. WebKit is Playwright’s build, not
@@ -293,7 +310,7 @@ real Safari, and mobile projects are emulation, not physical devices.
    the Beta test opens the Integrations overlay before asserting.
 2. **`deno test` localStorage leakage.** Deno’s persistent `localStorage`
    supplied `sc_spatial=1` from an earlier run, so a “defaults off” test failed
-   on a second run. `tests-deno/dom-stubs.ts` now installs a fresh in-memory
+   on a second run. `tests-unit/dom-stubs.ts` now installs a fresh in-memory
    store per test process.
 3. **Reducer/route test assumptions.** The legal chunk was served by the service
    worker, bypassing `page.route`; resilience tests now block service workers
@@ -361,7 +378,7 @@ These are deliberate omissions, not silent passes:
 - **Full repository ZIP.** The workspace is the full repository, but no ZIP
   artifact was created in this pass.
 - **Lighthouse / Cloudflare Pages deployment.** Not part of this pass.
-- **Svelte migration.** Not attempted; see Section 7.
+- **Full Svelte migration.** Only the Theme Finder pilot is migrated; see Section 7.
 
 ---
 
@@ -383,18 +400,19 @@ These are deliberate omissions, not silent passes:
 
 ---
 
-## 7. Svelte supplement — proposal only (not executed)
+## 7. Svelte supplement — Theme Finder pilot executed
 
-No Svelte code, dependency, or build change was introduced. If the team later
-wants to evaluate it, the lowest-risk pilot is:
+The lowest-risk pilot from the supplement is implemented:
 
-1. Mount **only the Theme Finder overlay** as a Svelte island behind the
-   existing `SC.modals` / `applyTheme()` adapter.
-2. Keep `sc_last_theme`, `sc_theme_favs_v1`, `sc_theme_recent_v1`, the card
-   cache, and all DOM ids unchanged so Playwright and user data continue to work.
-3. Measure bundle size, first interaction, and reduced-motion behaviour against
-   the current vanilla implementation before considering a second surface.
-4. Do not migrate `main.ts`, the renderer, or the audio graph in the pilot.
+1. **Only the Theme Finder overlay** is a Svelte 5 island, mounted by
+   `themelib.ts` into the existing `.sc-modal.themelib` shell.
+2. `sc_last_theme`, `sc_theme_favs_v1`, `sc_theme_recent_v1`, the card cache,
+   and all DOM ids/classes/ARIA are unchanged, so Playwright and user data
+   continue to work.
+3. The card wall stays imperative and cached: Svelte owns the grid element and
+   every sibling surface, while `themelib.ts` re-attaches the same card nodes
+   on filter/search so ~100 previews are never rebuilt per keystroke.
+4. `main.ts`, the renderer, the audio graph and the PWA layer are not migrated.
 
-Decision for 2.0.0: **defer**. The vanilla TypeScript implementation remains the
-source of truth.
+Decision for 2.0.0: **pilot only**. The vanilla TypeScript controller remains
+the source of truth for state, persistence and theme application.

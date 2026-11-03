@@ -49,15 +49,18 @@ Check [CHANGELOG.md](CHANGELOG.md) for the version details.
 ```bash
 git clone https://github.com/ADJ189/Session-clock
 cd Session-clock
-deno install                     # one-time dependency fetch
-deno task dev                    # localhost:5173
-deno task typecheck              # strict TypeScript check
-deno task test                   # Deno unit suite
-deno task test:e2e               # Playwright, five browser projects
-deno task build                  # production → dist/
+npm install                      # one-time dependency fetch
+npm run dev                      # localhost:5173
+npm run typecheck                # strict TypeScript check
+npm run test:unit                # Node unit suite
+npm run test:e2e                 # Playwright, five browser projects
+npm run build                    # production → dist/
 ```
 
-Node.js and npm are not required; every script runs through Deno.
+Requires Node.js 24+ and npm. The main development, test, and CI workflow
+runs on the installed Node toolchain. Deno is optional: `deno.json` mirrors
+the same tasks (`deno task test:unit`, `deno task test:e2e`) for local use,
+without changing any npm script or the production build.
 
 Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The included workflow handles `typecheck → build → deploy` automatically.
 

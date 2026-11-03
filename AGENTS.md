@@ -4,8 +4,9 @@ Guidance for AI agents and contributors working in this repository.
 
 ## What this is
 
-Session Clock is a local-first focus timer and clock. It is a vanilla
-TypeScript app built with Vite — no React, Vue, or other UI framework — with
+Session Clock is a local-first focus timer and clock. It is a TypeScript
+app built with Vite — hand-wired DOM for most of the UI, plus Svelte 5
+components for self-contained surfaces (currently the Theme Finder) — with
 canvas/Web Audio for the animated themes and ambient sound. All user data stays
 in `localStorage`; there is no required account or backend data store.
 
@@ -14,22 +15,27 @@ Deployment target is Cloudflare Pages, with optional Pages Functions under
 
 ## Commands
 
-Tooling runs through Deno; Node.js and npm are not required.
+Tooling runs on the installed Node.js/npm toolchain (Node 24+).
 
 ```bash
-deno task dev         # Vite dev server, http://localhost:5173
-deno task typecheck   # tsc --noEmit
-deno task lint        # oxlint
-deno task test        # Deno unit suite (tests-deno/)
-deno task test:e2e    # Playwright, five browser projects
-deno task build       # typecheck + production bundle
-deno task preview     # serve dist/
+npm run dev            # Vite dev server, http://localhost:5173
+npm run typecheck      # tsc --noEmit
+npm run typecheck:unit # typecheck the unit suite
+npm run lint           # oxlint
+npm run test:unit      # Node unit suite (tests-unit/)
+npm run test:e2e       # Playwright, five browser projects
+npm run build          # typecheck + production bundle
+npm run preview        # serve dist/
 ```
 
-`deno task build` runs `tsc --noEmit` first, so a type error fails the build.
-Playwright suites are run with `deno task test:e2e:desktop-chromium`,
-`deno task test:e2e:desktop-firefox`, `deno task test:e2e:desktop-webkit`, or
-`deno task test:e2e:mobile`.
+`npm run build` runs `tsc --noEmit` first, so a type error fails the build.
+Playwright suites are run with `npm run test:e2e:chromium`,
+`npm run test:e2e:firefox`, `npm run test:e2e:webkit`, or
+`npm run test:e2e:mobile`.
+
+Deno is an optional local runner only. `deno.json` mirrors the same tasks
+(`deno task test:unit`, `deno task build`, …); the app, build, and CI stay on
+the installed Node/npm toolchain, and no npm script may require Deno.
 
 ## Layout
 
@@ -39,7 +45,8 @@ src/
   features.ts      onboarding, status line, templates, countdown, world clock
   i18n.ts          8 locales (en, es, fr, de, ja, ko, pt, hi)
   themes.ts        theme metadata; renderer.ts holds the canvas renderers
-  themelib.ts      Theme Library (search, favourites, recents)
+  themelib.ts      Theme Finder controller (storage, filtering, cached card wall)
+  app/components/  Svelte 5 islands (theme-finder/); no scoped styles — style.css owns visuals
   musicdock.ts     opt-in YouTube/Spotify dock
   sound.ts         synthesized ambient audio engine
   pomodoro.ts      Pomodoro state machine
@@ -63,6 +70,9 @@ Prefer a new module for a self-contained feature instead of growing
 - Keep strict TypeScript. Do not add `any` when a real type is practical.
 - Runtime dependencies are deliberately minimal. Discuss a new dependency
   before adding one.
+- Svelte islands live under `src/app/components/` and use runes. Keep their
+  controller logic in a plain module (see `themelib.ts`), preserve existing
+  ids/classes/ARIA, and leave styling to `style.css` — no scoped styles.
 - Match the existing dense, comment-when-non-obvious style.
 - DOM is built with `document.createElement` / `textContent`. Avoid
   `innerHTML` with untrusted data (titles, lyrics, API responses); the existing

@@ -1,0 +1,18 @@
+{
+  "nodeModulesDir": "auto",
+  "tasks": {
+    "dev": "deno run -A npm:vite",
+    "build": "deno run -A npm:typescript/tsc --noEmit && deno run -A npm:vite build",
+    "preview": "deno run -A npm:vite preview",
+    "typecheck": "deno run -A npm:typescript/tsc --noEmit",
+    "typecheck:unit": "deno run -A npm:typescript/tsc -p tests-unit/tsconfig.json",
+    "typecheck:e2e": "deno run -A npm:typescript/tsc -p tests/tsconfig.json",
+    "lint": "deno run -A npm:oxlint .",
+    "test:unit": "deno test -A --no-check tests-unit",
+    "test:e2e": "deno run -A npm:@playwright/test/playwright test",
+    "test:e2e:chromium": "deno run -A npm:@playwright/test/playwright test --project=desktop-chromium",
+    "test:e2e:firefox": "deno run -A npm:@playwright/test/playwright test --project=desktop-firefox",
+    "test:e2e:webkit": "deno run -A npm:@playwright/test/playwright test --project=desktop-webkit",
+    "test:e2e:mobile": "deno run -A npm:@playwright/test/playwright test --config=playwright.mobile.config.ts"
+  }
+}

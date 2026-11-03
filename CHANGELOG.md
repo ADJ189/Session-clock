@@ -20,12 +20,14 @@ Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session p
 - **Contextual top-bar tab**: the old UTC/offline pill is replaced by a local status tab showing the active theme, focus phase, or deadline countdown. There is no network time sync; the clock reads the device clock.
 - **First-run welcome**: content-led height, a vector stopwatch mark, shorter copy, feature hints, a visible step label, and accessible progress/skip controls. All welcome copy and action labels now come from `src/i18n.ts` in all eight locales.
 - **Themes in the dock**: the floating dock now includes a Themes action alongside the top-bar button.
+- **Theme Finder UI**: the gallery chrome (header, search, sort, collection nav, current-theme spotlight, recent rail, wall heading, empty state) is now a Svelte 5 component under `src/app/components/theme-finder/`. `themelib.ts` remains the framework-free controller, and the card wall stays imperative so filtering still re-attaches cached nodes instead of rebuilding ~100 previews per keystroke. Selectors, classes, ARIA and storage keys are unchanged.
 - **Docs**: README default-UX copy now notes the opt-in music deck; CONTRIBUTING testing instructions and the privacy policy no longer describe network time sync. `AGENTS.md` documents the project for future agents/contributors.
 
 ### Added
 
 - `tests/redesign.spec.ts`: first-run welcome layout and skip/default flows, Center-mode panel geometry at six viewport sizes, Top-mode panel geometry, saved full-stack Center layout, solid-accent button contrast across themes, HH:MM defaults, contextual tab (no time-sync requests), top-bar fit at nine widths from 320px up, install-button absence, Haptics visibility by platform, and the opt-in music deck.
 - Music Panel settings: an explicit on/off toggle plus a YouTube/Spotify/Both provider choice. The deck is absent on a clean profile and YouTube is the default.
+- Optional `deno.json` task mirrors (`deno task test:unit`, `deno task test:e2e`, `deno task build`, …) for contributors who prefer Deno locally. The app, build and CI remain Node/npm-only; no npm script requires Deno.
 
 ### Removed
 
@@ -44,6 +46,7 @@ Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session p
 - The command palette now owns focus and Escape above the weather location picker. Opening it from the picker no longer pulls focus back to the city search, and Escape closes the palette first instead of the picker underneath.
 - First-run welcome card no longer reserves a tall empty lower region, and later option-heavy steps keep their scrollable card.
 - Reduced-motion users no longer get a perpetual pulsing welcome mark.
+- `npm run test:unit` runs cleanly on Node 24 and 26. The unit glob now passes a test-file pattern (Node no longer accepts a bare directory with an ESM loader), `src/soundfiles.ts` declares its constructor fields instead of using parameter properties (strip-only TypeScript rejects those), and the DOM stub supplies the EventTarget methods `src/platform.ts` expects outside Deno.
 
 ## [2.0.0] — V2 line begins
 
