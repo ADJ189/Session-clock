@@ -74,10 +74,8 @@ async function cacheShell(cache, files) {
   const results = await Promise.allSettled(
     unique.map((file) => cache.add(file)),
   );
-  const shellOk = SHELL_FILES.every((file) => {
-    const i = unique.indexOf(file);
-    return i !== -1 && results[i] && results[i].status === "fulfilled";
-  });
+  const shellOk =
+    results.length > 0 && results.every((r) => r.status === "fulfilled");
   await cache.put(
     META_URL,
     new Response(
