@@ -15,10 +15,12 @@ import { mount, unmount } from "svelte";
 import { THEMES, THEME_BY_ID } from "./themes";
 import { THEME_CATEGORIES, type Theme, type ThemeCategory } from "./types";
 import { safeJsonGet, safeJsonSet } from "./storage";
-import { PREVIEW_IDS } from "./themepreviews";
+import { THEME_FAVS_KEY, THEME_RECENTS_KEY } from "./themekeys";
+import { PREVIEW_IDS, themePreviewUrl } from "./themepreviews";
 import { themeFinderReveal } from "./motion";
 import ThemeFinder from "./app/components/theme-finder/ThemeFinder.svelte";
 import { CATEGORY_LABELS } from "./app/components/theme-finder/categories";
+import { STAR_PATH, themeVars } from "./app/components/theme-finder/theme-style";
 import type {
   ThemeFinderController,
   ThemeLibSnapshot,
@@ -26,11 +28,7 @@ import type {
   ThemeLibView,
 } from "./app/components/theme-finder/types";
 
-export { CATEGORY_LABELS };
-
-export const FAV_KEY = "sc_theme_favs_v1";
-export const RECENT_KEY = "sc_theme_recent_v1";
-export const RECENT_MAX = 12;
+const RECENT_MAX = 12;
 
 // Nav order follows the original picker tabs, not THEME_CATEGORIES order.
 const CATEGORY_ORDER: ThemeCategory[] = [
@@ -42,7 +40,7 @@ const CATEGORY_ORDER: ThemeCategory[] = [
   "f1",
 ];
 
-export interface ThemeLibDeps {
+interface ThemeLibDeps {
   /** Applies a theme through the app's single theme path. */
   apply: (theme: Theme) => void;
   /** Id of the theme that is currently applied. */
@@ -53,10 +51,10 @@ export interface ThemeLibDeps {
   closeOverlay: () => void;
 }
 
-// ── Pure helpers (exported for tests) ─────────────────────────────────
+// ── Pure helpers ──────────────────────────────────────────────────────
 
 /** Keeps only known, unique theme ids. Anything else is silently dropped. */
-export function sanitizeIds(raw: unknown, max = Infinity): string[] {
+function sanitizeIds(raw: unknown, max = Infinity): string[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
   const out: string[] = [];
@@ -76,7 +74,7 @@ const stripEmoji = (s: string) =>
     .trim();
 
 /** Every whitespace-separated token must appear in name, id, category, sub or tagline. */
-export function matchesQuery(t: Theme, query: string): boolean {
+function matchesQuery(t: Theme, query: string): boolean {
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!tokens.length) return true;
   const hay = [
@@ -123,8 +121,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(
   return n;
 };
 
-const SVG_STAR =
-  '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z" stroke-width="2" stroke-linejoin="round"/></svg>';
+const SVG_STAR = `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}" stroke-width="2" stroke-linejoin="round"/></svg>`;
 const SVG_CHECK =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
@@ -133,13 +130,9 @@ const SVG_CHECK =
 /** Theme data drives every preview surface. Values are compile-time
  *  constants from themes.ts, never user input. */
 function applyThemeVars(node: HTMLElement, t: Theme) {
-  node.style.setProperty("--tl-bg0", t.baseBg[0] ?? "#000");
-  node.style.setProperty("--tl-bg1", t.baseBg[1] ?? t.baseBg[0] ?? "#000");
-  node.style.setProperty("--tl-bg2", t.baseBg[2] ?? t.baseBg[0] ?? "#000");
-  node.style.setProperty("--tl-accent", t.accent);
-  node.style.setProperty("--tl-accent2", t.accent2);
-  node.style.setProperty("--tl-text", t.text);
-  node.style.setProperty("--tl-font", t.font);
+  for (const [prop, value] of Object.entries(themeVars(t))) {
+    node.style.setProperty(prop, value);
+  }
   node.dataset.bg = t.bgType;
 }
 
@@ -156,7 +149,7 @@ function addPreviewArt(parent: HTMLElement, t: Theme) {
     img.alt = "";
     img.loading = "lazy";
     img.decoding = "async";
-    img.src = `${import.meta.env.BASE_URL}theme-previews/${t.id}.webp`;
+    img.src = themePreviewUrl(t.id);
     img.addEventListener("error", () => img.remove());
     parent.appendChild(img);
   }
@@ -245,11 +238,11 @@ const cardFor = (t: Theme) => {
 // ── Persistence ───────────────────────────────────────────────────────
 
 function readFavs(): string[] {
-  return sanitizeIds(safeJsonGet<unknown>(FAV_KEY, []));
+  return sanitizeIds(safeJsonGet<unknown>(THEME_FAVS_KEY, []));
 }
 
 function readRecents(): string[] {
-  return sanitizeIds(safeJsonGet<unknown>(RECENT_KEY, []), RECENT_MAX);
+  return sanitizeIds(safeJsonGet<unknown>(THEME_RECENTS_KEY, []), RECENT_MAX);
 }
 
 function toggleFav(id: string) {
@@ -258,7 +251,7 @@ function toggleFav(id: string) {
   // stale copy back would silently drop that change.
   favs = readFavs();
   favs = favs.includes(id) ? favs.filter((f) => f !== id) : [...favs, id];
-  safeJsonSet(FAV_KEY, favs);
+  safeJsonSet(THEME_FAVS_KEY, favs);
   const t = THEME_BY_ID[id];
   const c = cards.get(id);
   if (t && c) syncCard(c, t);
@@ -274,7 +267,7 @@ function pushRecent(id: string) {
   recents = readRecents();
   if (recents[0] === id) return;
   recents = [id, ...recents.filter((r) => r !== id)].slice(0, RECENT_MAX);
-  safeJsonSet(RECENT_KEY, recents);
+  safeJsonSet(THEME_RECENTS_KEY, recents);
 }
 
 // ── View model ────────────────────────────────────────────────────────
@@ -319,9 +312,11 @@ function navItems(): ThemeLibSnapshot["navItems"] {
     },
   );
   return base.map((item) => ({
-    ...item,
+    view: item.view,
+    label: item.label,
     count: countFor(item.view),
     active: item.view === view,
+    dividerBefore: item.dividerBefore,
   }));
 }
 
@@ -371,7 +366,6 @@ function buildSnapshot(list = themesForView()): ThemeLibSnapshot {
   return {
     query,
     sort,
-    view,
     navItems: navItems(),
     countLabel: filtered
       ? `${list.length} of ${THEMES.length} themes`
@@ -467,7 +461,7 @@ export function init(d: ThemeLibDeps) {
     chooseTheme,
     clearSearch,
     close,
-    fillMark: (el, t) => deps.fillMark(el, t),
+    fillMark: (node, t) => deps.fillMark(node, t),
   };
 
   if (app) {
@@ -485,7 +479,11 @@ export function init(d: ThemeLibDeps) {
   if (!wired) {
     wired = true;
     window.addEventListener("storage", (e) => {
-      if (e.key === null || e.key === FAV_KEY || e.key === RECENT_KEY)
+      if (
+        e.key === null ||
+        e.key === THEME_FAVS_KEY ||
+        e.key === THEME_RECENTS_KEY
+      )
         resetSavedLists();
     });
     window.addEventListener("sc-theme-lists-reset", resetSavedLists);

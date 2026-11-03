@@ -2,6 +2,7 @@
 // All data is local. This module provides transparency + control.
 
 import { safeGet } from "./storage";
+import { THEME_FAVS_KEY, THEME_RECENTS_KEY } from "./themekeys";
 
 // Complete map of every localStorage key and what it holds
 export interface DataCategory {
@@ -60,8 +61,8 @@ export const DATA_CATEGORIES: DataCategory[] = [
     desc: "Theme, clock, quality, Pomodoro, mode & layout settings",
     keys: [
       "sc_last_theme",
-      "sc_theme_favs_v1",
-      "sc_theme_recent_v1",
+      THEME_FAVS_KEY,
+      THEME_RECENTS_KEY,
       "sc_music_deck",
       "sc_music_providers",
       "sc_clock_mode",
@@ -210,7 +211,7 @@ const SESSION_KEYS: Record<string, string[]> = {
 // keys has to tell it to re-read, or the stale entries survive in the open
 // library and get written straight back on the next star toggle. Same-tab
 // deletions never fire a `storage` event, hence the custom event.
-const THEME_LIST_KEYS = new Set(["sc_theme_favs_v1", "sc_theme_recent_v1"]);
+const THEME_LIST_KEYS = new Set([THEME_FAVS_KEY, THEME_RECENTS_KEY]);
 
 function notifyThemeListsCleared() {
   window.dispatchEvent(new CustomEvent("sc-theme-lists-reset"));
