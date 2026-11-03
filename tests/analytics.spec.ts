@@ -57,7 +57,7 @@ test.describe("optional analytics resilience and privacy settings", () => {
   }) => {
     // Intercept cloudflare beacon to simulate successful load
     await context.route(
-      (url) => url.hostname.includes("cloudflareinsights.com"),
+      (url) => url.hostname === "cloudflareinsights.com",
       (route) =>
         route.fulfill({
           status: 200,
@@ -90,7 +90,7 @@ test.describe("optional analytics resilience and privacy settings", () => {
   }) => {
     let beaconRequested = false;
     await context.route(
-      (url) => url.hostname.includes("cloudflareinsights.com"),
+      (url) => url.hostname === "cloudflareinsights.com",
       (route) => {
         beaconRequested = true;
         route.fulfill({
