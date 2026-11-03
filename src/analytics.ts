@@ -115,11 +115,64 @@ function recordAnalyticsDiagnostic(
   }
 }
 
+let beforeReloadHook: (() => void) | null = null;
+let originalSendBeacon: typeof navigator.sendBeacon | null = null;
+
+export function setBeforeAnalyticsReload(fn: (() => void) | null): void {
+  beforeReloadHook = fn;
+}
+
+function installSendBeaconGuard(): void {
+  if (
+    typeof navigator === "undefined" ||
+    typeof navigator.sendBeacon !== "function"
+  ) {
+    return;
+  }
+  if (!originalSendBeacon) {
+    originalSendBeacon = navigator.sendBeacon.bind(navigator);
+  }
+  navigator.sendBeacon = (
+    url: string | URL,
+    data?: BodyInit | null,
+  ): boolean => {
+    const isPriv = safeGet("sc_privacy") === "1";
+    if (currentStatus === "active" || isAnalyticsAllowed(isPriv)) {
+      return originalSendBeacon ? originalSendBeacon(url, data) : true;
+    }
+
+    let isCf = false;
+    try {
+      const urlStr = typeof url === "string" ? url : (url?.href || String(url));
+      const base =
+        typeof window !== "undefined" && window.location?.href
+          ? window.location.href
+          : "https://sessionclock.com/";
+      const parsed = new URL(urlStr, base);
+      isCf = parsed.hostname.endsWith("cloudflareinsights.com");
+    } catch {
+      isCf = String(url).includes("cloudflareinsights.com");
+    }
+
+    if (isCf) {
+      return true; // silently drop while disabled
+    }
+    return originalSendBeacon ? originalSendBeacon(url, data) : true;
+  };
+}
+
+export function restoreSendBeacon(): void {
+  if (originalSendBeacon && typeof navigator !== "undefined") {
+    navigator.sendBeacon = originalSendBeacon;
+    originalSendBeacon = null;
+  }
+}
+
 /** Remove any injected beacon script tag and guard against further measurements. */
 export function unloadAnalytics(): void {
   const wasRunning = currentStatus === "active";
 
-  if (typeof document !== "undefined") {
+  if (typeof document !== "undefined" && typeof document.getElementById === "function") {
     const el = document.getElementById(SCRIPT_ID);
     if (el) {
       el.remove();
@@ -134,31 +187,8 @@ export function unloadAnalytics(): void {
       (window as any).__cfBeacon = undefined;
     }
   }
-  if (
-    typeof navigator !== "undefined" &&
-    typeof navigator.sendBeacon === "function"
-  ) {
-    try {
-      const origSendBeacon = navigator.sendBeacon.bind(navigator);
-      navigator.sendBeacon = (url: string | URL, data?: BodyInit | null): boolean => {
-        try {
-          const parsed = typeof url === "string" ? new URL(url, window.location.href) : url;
-          const host = parsed.hostname.toLowerCase();
-          if (
-            host === "cloudflareinsights.com" ||
-            host.endsWith(".cloudflareinsights.com")
-          ) {
-            return true; // silently drop
-          }
-        } catch {
-          // If URL parsing fails, do not block by substring; pass through.
-        }
-        return origSendBeacon(url, data);
-      };
-    } catch {
-      // Non-fatal
-    }
-  }
+
+  installSendBeaconGuard();
 
   // If the beacon has already run, it cannot be safely stopped in the running
   // JavaScript runtime (its PerformanceObserver and event listeners cannot be
@@ -174,6 +204,18 @@ export function unloadAnalytics(): void {
       safeGet("sc_privacy") !== "1"
     ) {
       safeSet(ANALYTICS_STORAGE_KEY, "off");
+    }
+    try {
+      beforeReloadHook?.();
+    } catch {
+      // Non-fatal
+    }
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent("sc-before-analytics-reload"));
+      } catch {
+        // Non-fatal
+      }
     }
     window.location.reload();
     return;
@@ -213,6 +255,8 @@ export async function loadAnalytics(privacyModeActive = false): Promise<boolean>
     setStatus("unavailable");
     return false;
   }
+
+  restoreSendBeacon();
 
   // 3. Prevent duplicate in-flight loads or duplicate script tags
   if (document.getElementById(SCRIPT_ID)) {
@@ -310,6 +354,7 @@ export function setAnalyticsPreference(
   } else {
     // When explicitly setting to "auto" or "on", clear the previous failure marker
     safeRemove(ANALYTICS_AUTO_BLOCKED_KEY);
+    restoreSendBeacon();
     void loadAnalytics(privacyModeActive);
   }
 }
@@ -350,4 +395,6 @@ export function _resetAnalyticsForTesting(): void {
   currentStatus = "not-attempted";
   statusListeners.clear();
   activeLoadPromise = null;
+  beforeReloadHook = null;
+  restoreSendBeacon();
 }

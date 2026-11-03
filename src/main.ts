@@ -76,6 +76,7 @@ import {
   getAnalyticsStatus,
   onAnalyticsStatusChange,
   isAutoBlocked,
+  setBeforeAnalyticsReload,
 } from "./analytics";
 import {
   applyPlatformClasses,
@@ -485,6 +486,74 @@ DOM.btnStart.addEventListener("click", () =>
 );
 DOM.btnReset.addEventListener("click", resetTimer);
 
+// ── Session persistence across analytics reload ───────────────────────
+function saveSessionState(): void {
+  try {
+    const dur = sessionRunning
+      ? performance.now() - sessionStart
+      : sessionElapsed;
+    const task = DOM.focusInput ? DOM.focusInput.value : "";
+    const pomState = Pom.isActive() ? Pom.getSessionSnapshot() : null;
+
+    if (sessionRunning || dur > 0 || task.length > 0 || Pom.isActive()) {
+      const state = {
+        running: sessionRunning,
+        elapsed: dur,
+        task,
+        pomodoro: pomState,
+      };
+      sessionStorage.setItem("sc_saved_session", JSON.stringify(state));
+    }
+  } catch {
+    // sessionStorage quota or security error
+  }
+}
+
+function restoreSavedSession(): void {
+  try {
+    const raw = sessionStorage.getItem("sc_saved_session");
+    if (!raw) return;
+    sessionStorage.removeItem("sc_saved_session");
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== "object") return;
+
+    if (typeof data.task === "string" && data.task) {
+      DOM.focusInput.value = data.task;
+      DOM.focusInputWrap.classList.add("visible");
+    }
+
+    if (data.pomodoro) {
+      Pom.restoreSessionSnapshot(data.pomodoro);
+    }
+
+    const elapsed = typeof data.elapsed === "number" ? data.elapsed : 0;
+    if (data.running) {
+      sessionElapsed = elapsed;
+      startTimer();
+    } else if (elapsed > 0) {
+      sessionElapsed = elapsed;
+      DOM.sTmr.textContent = fmtSession(elapsed);
+      DOM.focusInputWrap.classList.add("visible");
+      Features.updateButtonLabels(
+        "paused",
+        Pom.getPhase(),
+        Pom.isActive(),
+        DOM.btnStart as HTMLButtonElement,
+      );
+      Features.setStatusState("paused");
+      refreshContextPill();
+    }
+  } catch {
+    // Corrupt saved state
+  }
+}
+
+setBeforeAnalyticsReload(saveSessionState);
+if (typeof window !== "undefined") {
+  window.addEventListener("sc-before-analytics-reload", saveSessionState);
+  window.addEventListener("beforeunload", saveSessionState);
+}
+
 // ── Privacy toggle ────────────────────────────────────────────────────
 let privacyMode = safeGet("sc_privacy") === "1";
 let breathingBreakEnabled = safeGet("sc_breathing_break") !== "0";
@@ -661,6 +730,7 @@ function togglePrivacy() {
         // ignore
       }
     }
+    saveSessionState();
     unloadAnalytics();
     showToast("🔒 Privacy Mode: fonts, weather & analytics disabled");
   } else {
@@ -4992,6 +5062,7 @@ function buildSettingsUI(activeTab = "general") {
         } catch {
           // ignore
         }
+        saveSessionState();
       }
       setAnalyticsPreference(on ? "on" : "off", isPrivacyMode());
       updateAnalyticsSettingsUI();
@@ -5042,6 +5113,8 @@ function updateAnalyticsSettingsUI(): void {
   ) {
     return;
   }
+
+  const focusedId = document.activeElement ? document.activeElement.id : null;
 
   const sec = $("analyticsSettingsSec");
   if (!sec) {
@@ -5155,6 +5228,17 @@ function updateAnalyticsSettingsUI(): void {
     }
   } else if (actionsDiv) {
     actionsDiv.remove();
+  }
+
+  if (focusedId) {
+    const elToFocus = $(focusedId);
+    if (elToFocus) {
+      try {
+        elToFocus.focus();
+      } catch {
+        // ignore
+      }
+    }
   }
 }
 
@@ -7125,6 +7209,7 @@ function init() {
     true,
   );
   applyHandoffState();
+  restoreSavedSession();
 
   // Tab visibility for flow intensity
   document.addEventListener("visibilitychange", () => {

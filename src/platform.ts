@@ -73,10 +73,11 @@ export const ENGINE: Engine = detectEngine();
 export const BROWSER: Browser = detectBrowser();
 export const IS_APPLE = OS === "ios" || OS === "ipados" || OS === "macos";
 export const IS_TOUCH =
-  matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+  (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) ||
+  (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0);
 export const IS_STANDALONE =
-  matchMedia("(display-mode: standalone)").matches ||
-  navigator.standalone === true;
+  (typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches) ||
+  (typeof navigator !== "undefined" && (navigator as any).standalone === true);
 
 /** Real feature probes (not UA sniffing) for the handful of CSS/JS features
  * that still vary enough across engines/versions to need a JS-level check
@@ -100,8 +101,12 @@ function detectFeatureFlags() {
   return {
     backdropFilter,
     dvh,
-    requestIdleCallback: "requestIdleCallback" in window,
-    hasSafeArea: CSS.supports?.("padding: env(safe-area-inset-top)") ?? false,
+    requestIdleCallback:
+      typeof window !== "undefined" && "requestIdleCallback" in window,
+    hasSafeArea:
+      (typeof CSS !== "undefined" &&
+        CSS.supports?.("padding: env(safe-area-inset-top)")) ??
+      false,
   };
 }
 export const FEATURES = detectFeatureFlags();
