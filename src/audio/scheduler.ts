@@ -91,7 +91,7 @@ export class EventScheduler {
     if (this.timer !== null) return;
     this.tick();
     this.timer = setInterval(() => this.tick(), this.wakeMs);
-    // Never keep a Node/Deno process alive only for ambience scheduling.
+    // Never keep a Node process alive only for ambience scheduling.
     const maybe = this.timer as unknown as { unref?: () => void };
     maybe?.unref?.();
   }

@@ -6,7 +6,7 @@
 // device's screen coordinates into the Web Audio scene (forward = -Z,
 // up = +Y), then the current screen rotation is applied as a final roll.
 //
-// Pure functions only, so Deno tests can cover cardinal orientations without
+// Pure functions only, so unit tests can cover cardinal orientations without
 // a DOM or sensor.
 
 export type Vector3Tuple = [number, number, number];

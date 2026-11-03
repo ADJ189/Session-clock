@@ -213,6 +213,15 @@ export function createNoiseHit(
     source.playbackRate.value = clamp(options.playbackRate, 0.1, 4);
   }
   const offset = Math.random() * Math.max(0.001, buffer.duration * 0.25);
+  const playDuration = options.duration + 0.05;
+  // Thunder and similar bursts can outlast the shared noise buffer. Looping
+  // keeps the source alive for the whole envelope instead of cutting the tail
+  // off when `offset + duration` passes the end of the buffer.
+  if (offset + playDuration > buffer.duration) {
+    source.loop = true;
+    source.loopEnd = buffer.duration;
+    source.loopStart = offset;
+  }
   const filter = options.filter
     ? makeFilter(ctx, options.filter)
     : makeGain(ctx, 1);
@@ -224,7 +233,7 @@ export function createNoiseHit(
   gain.connect(pan);
   const stopAt = safeTime(when) + options.duration + 0.05;
   try {
-    source.start(safeTime(when), offset, options.duration + 0.05);
+    source.start(safeTime(when), offset, playDuration);
     source.stop(stopAt);
   } catch {
     // A source that cannot be scheduled must not break the whole voice.
