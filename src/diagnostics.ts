@@ -21,6 +21,7 @@ export type DiagnosticSubsystem =
   | "integration"
   | "service-worker"
   | "network"
+  | "analytics"
   | "unknown";
 
 export type DiagnosticKind =

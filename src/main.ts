@@ -61,10 +61,22 @@ import * as SideTasks from "./sidetasks";
 import {
   setLocale,
   getLocale,
+  t,
   LOCALE_NAMES,
   LOCALE_FLAGS,
   type Locale,
 } from "./i18n";
+import {
+  initAnalytics,
+  syncAnalytics,
+  unloadAnalytics,
+  getAnalyticsPreference,
+  setAnalyticsPreference,
+  resetAnalyticsToAuto,
+  getAnalyticsStatus,
+  onAnalyticsStatusChange,
+  isAutoBlocked,
+} from "./analytics";
 import {
   applyPlatformClasses,
   bindGlobalHaptics,
@@ -641,8 +653,10 @@ function togglePrivacy() {
     // Apply system fonts — no Google Fonts in privacy mode
     document.body.style.fontFamily =
       '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
-    showToast("🔒 Privacy Mode: fonts & weather disabled");
+    unloadAnalytics();
+    showToast("🔒 Privacy Mode: fonts, weather & analytics disabled");
   } else {
+    syncAnalytics(false);
     initWeather(
       $("weatherIcon"),
       $("weatherText"),
@@ -4804,13 +4818,101 @@ function buildSettingsUI(activeTab = "general") {
     privSec.appendChild(
       makeRow(
         "Privacy Mode",
-        "Disables weather and Google Fonts — local only",
+        "Disables weather, Google Fonts and analytics — local only",
         "togglePrivacyS",
         privacyMode,
         privacyMode ? "On" : undefined,
       ),
     );
     paneWrap.appendChild(privSec);
+
+    // Optional Usage Analytics section
+    const analyticsSec = makeSection(t().analyticsTitle);
+    const isPriv = isPrivacyMode();
+    const pref = getAnalyticsPreference();
+    const status = getAnalyticsStatus();
+    const autoBlocked = isAutoBlocked();
+
+    let badgeText: string | undefined;
+    let descText = t().analyticsDescNormal;
+    const isEffectivelyOn =
+      !isPriv &&
+      pref !== "off" &&
+      (status === "active" || (status === "not-attempted" && !autoBlocked));
+
+    if (isPriv) {
+      badgeText = "Off (Privacy Mode)";
+      descText = t().analyticsDescPrivacyMode;
+    } else if (pref === "off") {
+      badgeText = t().analyticsStatusDisabled;
+      descText = t().analyticsDescNormal;
+    } else if (status === "unavailable" || (pref === "auto" && autoBlocked)) {
+      badgeText = t().analyticsStatusUnavailable;
+      descText = t().analyticsDescBlocked;
+    } else if (status === "loading") {
+      badgeText = t().analyticsStatusChecking;
+      descText = t().analyticsDescNormal;
+    } else if (status === "active") {
+      badgeText =
+        pref === "auto"
+          ? t().analyticsStatusAutoOn
+          : t().analyticsStatusActive;
+      descText = t().analyticsDescNormal;
+    } else {
+      badgeText =
+        pref === "auto"
+          ? t().analyticsStatusAutoOn
+          : t().analyticsStatusActive;
+    }
+
+    analyticsSec.appendChild(
+      makeRow(
+        t().analyticsTitle,
+        descText,
+        "toggleAnalyticsS",
+        isEffectivelyOn,
+        badgeText,
+      ),
+    );
+
+    if (!isPriv && (status === "unavailable" || pref !== "auto")) {
+      const actionsDiv = document.createElement("div");
+      actionsDiv.className = "settings-action-grid";
+      actionsDiv.style.paddingTop = "4px";
+
+      if (status === "unavailable" || pref === "off") {
+        const btnRetry = document.createElement("button");
+        btnRetry.className = "settings-action-btn";
+        btnRetry.id = "btnRetryAnalytics";
+        btnRetry.textContent = "🔄 " + t().analyticsActionEnable;
+        btnRetry.addEventListener("click", () => {
+          setAnalyticsPreference("on", isPrivacyMode());
+          buildSettingsUI("privacy");
+        });
+        actionsDiv.appendChild(btnRetry);
+      }
+
+      if (pref !== "auto") {
+        const btnAuto = document.createElement("button");
+        btnAuto.className = "settings-action-btn";
+        btnAuto.id = "btnAutoAnalytics";
+        btnAuto.textContent = "⚡ " + t().analyticsActionAuto;
+        btnAuto.addEventListener("click", () => {
+          resetAnalyticsToAuto(isPrivacyMode());
+          buildSettingsUI("privacy");
+        });
+        actionsDiv.appendChild(btnAuto);
+      }
+
+      analyticsSec.appendChild(actionsDiv);
+    }
+
+    const noteEl = document.createElement("div");
+    noteEl.className = "settings-privacy-note";
+    noteEl.textContent = t().analyticsReassurance;
+    analyticsSec.appendChild(noteEl);
+
+    paneWrap.appendChild(analyticsSec);
 
     const sessionSec = makeSection("Sessions");
     sessionSec.appendChild(
@@ -4866,6 +4968,11 @@ function buildSettingsUI(activeTab = "general") {
           800,
         );
       }
+      buildSettingsUI("privacy");
+    });
+    wireToggle("toggleAnalyticsS", (on) => {
+      setAnalyticsPreference(on ? "on" : "off", isPrivacyMode());
+      buildSettingsUI("privacy");
     });
     wireToggle("toggleIncognito", (on) => {
       Privacy.setIncognito(on);
@@ -4891,6 +4998,18 @@ function buildSettingsUI(activeTab = "general") {
     ".settings-section-title, .settings-row, .settings-action-btn",
   );
 }
+
+// Reactively update the settings modal if status changes while privacy tab is visible
+onAnalyticsStatusChange(() => {
+  const settingsModal = $("settingsOverlay");
+  if (
+    settingsModal &&
+    settingsModal.classList.contains("open") &&
+    _lastSettingsTab === "privacy"
+  ) {
+    buildSettingsUI("privacy");
+  }
+});
 
 // ── QR Handoff ────────────────────────────────────────────────────────
 // drawQR is dynamically imported on first use — it's a self-contained
@@ -6881,6 +7000,7 @@ function init() {
       markRendererReady();
       window.__scBootOk?.();
       hideSplash();
+      initAnalytics(isPrivacyMode());
     }),
   );
 

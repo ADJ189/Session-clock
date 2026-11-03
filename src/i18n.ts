@@ -190,6 +190,21 @@ export interface Strings {
 
   // Language
   language: string;
+
+  // Analytics
+  analyticsTitle: string;
+  analyticsReassurance: string;
+  analyticsStatusAutoOn: string;
+  analyticsStatusActive: string;
+  analyticsStatusDisabled: string;
+  analyticsStatusUnavailable: string;
+  analyticsStatusChecking: string;
+  analyticsDescBlocked: string;
+  analyticsDescNormal: string;
+  analyticsDescPrivacyMode: string;
+  analyticsActionEnable: string;
+  analyticsActionDisable: string;
+  analyticsActionAuto: string;
 }
 
 export type TranslationKey = keyof Strings;
@@ -334,6 +349,55 @@ const CATALOG: Record<TranslationKey, TranslationRow> = {
   startCountdown: { en: "Start countdown", es: "Iniciar cuenta regresiva", fr: "Démarrer", de: "Countdown starten", ja: "カウントダウン開始", ko: "카운트다운 시작", pt: "Iniciar contagem", hi: "काउंटडाउन शुरू" },
   clearCountdown: { en: "Clear countdown", es: "Eliminar cuenta regresiva", fr: "Effacer", de: "Löschen", ja: "クリア", ko: "지우기", pt: "Limpar", hi: "साफ़ करें" },
   language: { en: "Language", es: "Idioma", fr: "Langue", de: "Sprache", ja: "言語", ko: "언어", pt: "Idioma", hi: "भाषा" },
+  analyticsTitle: { en: "Optional Usage Analytics", es: "Analítica de uso opcional", fr: "Analytique d'utilisation facultative", de: "Optionale Nutzungsanalyse", ja: "オプションの利用状況分析", ko: "선택적 사용 통계", pt: "Análise de uso opcional", hi: "वैकल्पिक उपयोग एनालिटिक्स" },
+  analyticsReassurance: {
+    en: "We value your privacy. Optional analytics share basic page-usage and performance measurements with Cloudflare to help improve Session Clock. Your clock, timer, themes, sounds, and saved settings work the same whether analytics is on or off. You can change this any time in Settings.",
+    es: "Valoramos su privacidad. Las estadísticas opcionales comparten mediciones básicas de uso y rendimiento con Cloudflare para mejorar Session Clock. Su reloj, temporizador, temas, sonidos y ajustes guardados funcionan igual con la analítica activada o desactivada.",
+    fr: "Nous respectons votre vie privée. Les statistiques facultatives partagent des mesures élémentaires de consultation et de performance avec Cloudflare pour améliorer Session Clock. Votre horloge, minuteur, thèmes, sons et préférences fonctionnent à l'identique.",
+    de: "Wir schätzen Ihre Privatsphäre. Optionale Analysen teilen grundlegende Nutzungs- und Leistungsmessungen mit Cloudflare zur Verbesserung von Session Clock. Ihre Uhr, Timer, Themes, Töne und gespeicherten Einstellungen funktionieren stets gleich.",
+    ja: "プライバシーを尊重します。任意の利用状況分析により、Session Clock向上のための基本的なページ利用状況とパフォーマンス測定値がCloudflareと共有されます。時計、タイマー、テーマ、サウンド、保存した設定は、分析のオン/オフに関わらず全く同じように動作します。",
+    ko: "저희는 개인정보를 소중히 여깁니다. 선택적 분석은 Session Clock 개선을 위해 기본적인 페이지 사용량 및 성능 측정값을 Cloudflare와 공유합니다. 시계, 타이머, 테마, 사운드 및 저장된 설정은 분석 활성화 여부와 관계없이 동일하게 작동합니다.",
+    pt: "Valorizamos a sua privacidade. As métricas opcionais partilham medições básicas de utilização e desempenho com a Cloudflare para melhorar o Session Clock. O seu relógio, temporizador, temas, sons e definições guardadas funcionam da mesma forma.",
+    hi: "हम आपकी गोपनीयता का सम्मान करते हैं। वैकल्पिक एनालिटिक्स Session Clock को बेहतर बनाने के लिए Cloudflare के साथ बुनियादी पृष्ठ-उपयोग और प्रदर्शन माप साझा करता है। आपकी घड़ी, टाइमर, थीम, ध्वनियां और सहेजी गई सेटिंग्स समान रूप से काम करती हैं।",
+  },
+  analyticsStatusAutoOn: { en: "On (automatic)", es: "Activado (automático)", fr: "Activé (automatique)", de: "Ein (automatisch)", ja: "オン（自動）", ko: "켜짐 (자동)", pt: "Ativado (automático)", hi: "चालू (स्वचालित)" },
+  analyticsStatusActive: { en: "On", es: "Activado", fr: "Activé", de: "Ein", ja: "オン", ko: "켜짐", pt: "Ativado", hi: "चालू" },
+  analyticsStatusDisabled: { en: "Off (disabled)", es: "Desactivado", fr: "Désactivé", de: "Aus (deaktiviert)", ja: "オフ（無効）", ko: "꺼짐 (비활성화됨)", pt: "Desativado", hi: "बंद (अक्षम)" },
+  analyticsStatusUnavailable: { en: "Off (unavailable)", es: "Desactivado (no disponible)", fr: "Désactivé (indisponible)", de: "Aus (nicht verfügbar)", ja: "オフ（利用不可）", ko: "꺼짐 (사용 불가)", pt: "Desativado (indisponível)", hi: "बंद (अनुपलब्ध)" },
+  analyticsStatusChecking: { en: "Checking…", es: "Comprobando…", fr: "Vérification…", de: "Wird geprüft…", ja: "確認中…", ko: "확인 중…", pt: "A verificar…", hi: "जांच जारी है…" },
+  analyticsDescBlocked: {
+    en: "Analytics could not load. Your browser, network, or privacy settings may be blocking it. Session Clock is unaffected.",
+    es: "No se pudo cargar la analítica. Es posible que su navegador, red o configuración de privacidad la estén bloqueando. Session Clock no se ve afectado.",
+    fr: "Impossible de charger l'analytique. Votre navigateur, réseau ou paramètres de confidentialité la bloquent peut-être. Session Clock n'en est pas affecté.",
+    de: "Die Analyse konnte nicht geladen werden. Ihr Browser, Netzwerk oder Datenschutzeinstellungen blockieren sie möglicherweise. Session Clock bleibt unbeeinträchtigt.",
+    ja: "分析スクリプトを読み込めませんでした。ブラウザ、ネットワーク、またはプライバシー設定によってブロックされている可能性があります。Session Clockの動作には影響しません。",
+    ko: "분석 스크립트를 로드할 수 없습니다. 브라우저, 네트워크 또는 개인정보 보호 설정에서 차단되었을 수 있습니다. Session Clock의 동작에는 영향을 주지 않습니다.",
+    pt: "Não foi possível carregar a análise. O seu navegador, rede ou definições de privacidade podem estar a bloqueá-la. O Session Clock não é afetado.",
+    hi: "एनालिटिक्स लोड नहीं हो सका। आपका ब्राउज़र, नेटवर्क या गोपनीयता सेटिंग्स इसे रोक सकती हैं। Session Clock अप्रभावित रहता है।",
+  },
+  analyticsDescNormal: {
+    en: "Shares anonymous page-usage and performance measurements to help improve Session Clock.",
+    es: "Comparte mediciones anónimas de uso de página y rendimiento para ayudar a mejorar Session Clock.",
+    fr: "Partage des mesures anonymes de consultation et de performance pour améliorer Session Clock.",
+    de: "Teilt anonyme Nutzungs- und Leistungsmessungen zur Verbesserung von Session Clock.",
+    ja: "Session Clockの改善に役立つ匿名のページ利用状況およびパフォーマンス測定値を共有します。",
+    ko: "Session Clock 개선에 도움이 되는 익명의 페이지 사용량 및 성능 측정값을 공유합니다.",
+    pt: "Partilha medições anónimas de utilização de página e desempenho para ajudar a melhorar o Session Clock.",
+    hi: "Session Clock को बेहतर बनाने में मदद के लिए अनाम पृष्ठ-उपयोग और प्रदर्शन माप साझा करता है।",
+  },
+  analyticsDescPrivacyMode: {
+    en: "Disabled by Privacy Mode — no outbound analytics requests.",
+    es: "Desactivado por el Modo Privacidad: sin solicitudes salientes de analítica.",
+    fr: "Désactivé par le Mode Confidentialité — aucune requête analytique sortante.",
+    de: "Durch Datenschutzmodus deaktiviert — keine ausgehenden Analyseanfragen.",
+    ja: "プライバシーモードにより無効 — 外部への分析リクエストは行われません。",
+    ko: "개인정보 보호 모드에 의해 비활성화됨 — 외부 분석 요청 없음.",
+    pt: "Desativado pelo Modo de Privacidade — sem pedidos de análise enviados.",
+    hi: "गोपनीयता मोड द्वारा अक्षम — कोई बाहरी एनालिटिक्स अनुरोध नहीं।",
+  },
+  analyticsActionEnable: { en: "Enable / Retry", es: "Activar / Reintentar", fr: "Activer / Réessayer", de: "Aktivieren / Wiederholen", ja: "有効化 / 再試行", ko: "활성화 / 다시 시도", pt: "Ativar / Tentar novamente", hi: "सक्रिय करें / पुनः प्रयास करें" },
+  analyticsActionDisable: { en: "Turn off", es: "Desactivar", fr: "Désactiver", de: "Ausschalten", ja: "オフにする", ko: "끄기", pt: "Desativar", hi: "बंद करें" },
+  analyticsActionAuto: { en: "Use automatic", es: "Usar automático", fr: "Utiliser automatique", de: "Automatisch verwenden", ja: "自動設定を使用", ko: "자동 사용", pt: "Usar automático", hi: "स्वचालित का उपयोग करें" },
 };
 
 function createLocaleDictionary(locale: Locale): Strings {
