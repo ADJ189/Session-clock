@@ -1,151 +1,170 @@
 // Session Clock Service Worker — offline cache strategy
 //
-// v7 rewrites the fetch strategy after an audit found two real problems
-// with v6:
-//  - HTML/navigation requests were served cache-first (Finding SW1) —
-//    `_headers` sets `/index.html` to no-store, but that only governs the
-//    browser's own HTTP cache; this Cache Storage layer sat in front of
-//    it and could keep serving a stale cached shell indefinitely after a
-//    new deploy, the classic "why am I still on the old version" PWA bug.
-//  - The cross-origin branch cached *any* successful response, including
-//    authenticated API calls to Spotify/Notion/GitHub/Todoist/Google
-//    (Finding SW2 — could persist per-user/session data into a cache any
-//    origin-scoped code can read) and non-GET requests, which the Cache
-//    API isn't meant to hold at all (Finding SW3).
+// v8 closes the worker-lifetime cache-name assumption (Finding E). A service
+// worker can be terminated and restarted between any two events, so the cache
+// name is no longer held only in a module global: it is derived from a build
+// version stamped into this script by vite.config.ts on every event. That is
+// deterministic across restarts and across worker updates.
 //
-// Cache name and precache list are both now build-derived (Finding SW4 —
-// the old hand-written PRECACHE only ever covered the app shell, never
-// the actual hashed JS/CSS output) via dist/precache-manifest.json,
-// written by the precacheManifestPlugin in vite.config.ts. FALLBACK_CACHE
-// is used only if that fetch fails (e.g. `vite dev`, or a fresh checkout
-// that's never been built) so the worker still installs something usable
-// rather than failing outright.
-const FALLBACK_CACHE = "session-clock-fallback";
-const PRECACHE = [
+// Lifecycle rules:
+//  - install writes the new generation's cache and marks it ready only when
+//    the shell files were cached;
+//  - activate deletes older session-clock caches only after the new cache is
+//    present and marked ready;
+//  - every asynchronous cache write is paired with event.waitUntil();
+//  - a failed precache never deletes the previous working cache, and the app
+//    remains usable online because install failure leaves the old worker in
+//    control.
+//
+// The recording-first CDN configuration and all sound URLs live in app code;
+// this worker only preserves the existing public-origin allowlist.
+
+importScripts("/sw-core.js");
+
+const CORE = self.ScSWCore;
+const CACHE_VERSION = "__SC_BUILD_VERSION__";
+// Resolved from the constant above, not from a mutable worker global.
+const cacheName = () => CORE.cacheNameFor(CACHE_VERSION);
+
+// Used only when the build manifest cannot be fetched (vite dev / fresh
+// checkout). It is still a deterministic cache generation.
+const FALLBACK_CACHE = "session-clock-dev";
+const SHELL_FILES = [
   "/",
   "/index.html",
   "/splash-base.png",
   "/splash-triangle.png",
 ];
+const META_URL = "/.session-clock-cache-meta";
 
-// Public, unauthenticated, safe-to-persist-offline origins only. Every
-// other cross-origin request (Spotify/Google/Notion/GitHub/Todoist auth
-// and API endpoints, accounts.*, etc.) is deliberately left off this list
-// — those respond with per-user, often token-bearing data and are always
-// network-only from this Service Worker's point of view (see the fetch
-// handler below); a page's own JS is still free to cache/store their
-// results itself if it wants to, that's a separate concern from this
-// origin-level Cache Storage layer.
+// Public, unauthenticated, safe-to-persist-offline origins only.
 const CACHEABLE_EXTERNAL_ORIGINS = new Set([
-  "fonts.googleapis.com", // stylesheet listing font URLs
-  "fonts.gstatic.com", // the actual font files
-  "sdk.scdn.co", // Spotify Web Playback SDK script
-  "i.ytimg.com", // YouTube video thumbnails
-  "cdn.jsdelivr.net", // self-hosted CC0 ambient sound files (ADJ189/Ambient-Sounds)
-  "lrclib.net", // public, no-auth lyrics lookup
-  "api.open-meteo.com", // public, no-auth weather data
-  "nominatim.openstreetmap.org", // public, no-auth geocoding
+  "fonts.googleapis.com",
+  "fonts.gstatic.com",
+  "sdk.scdn.co",
+  "i.ytimg.com",
+  "cdn.jsdelivr.net",
+  "lrclib.net",
+  "api.open-meteo.com",
+  "nominatim.openstreetmap.org",
 ]);
 
-// App asset cache lookups ignore `Vary`. Precaching fetches each file with a bare
-// request, but the browser's own requests carry extra headers (module
-// scripts are CORS-mode and send `Origin`). Any server that answers with
-// `Vary: Origin` (vite preview, many CDNs) would otherwise make every
-// cached JS/CSS file miss, so a cached app failed to boot offline. The
-// asset URLs are content-hashed, so ignoring Vary can't serve a wrong file.
 const MATCH = { ignoreVary: true };
 
-// respondWith() must always be given a usable Response:
-//  - caches.match() resolves to `undefined` on a miss, and passing that on
-//    throws "TypeError: Returned response is null" (a page error);
-//  - Response.error() is logged by the browser as "Response served by
-//    service worker is an error" (also a page error).
-// So a miss becomes an ordinary 504. fetch() callers see !res.ok and fall
-// back as they would for any failed request; <script>/<link> still fire
-// their `error` events, which the boot guard already handles.
 const offlineResponse = () =>
   new Response("", { status: 504, statusText: "Offline (service worker)" });
 const orOffline = (cached) => cached || offlineResponse();
-
-// Resolved once at install time: the manifest's `version` if the fetch
-// succeeds, else FALLBACK_CACHE. Every other handler below reads this
-// rather than a hardcoded string.
-let CACHE = FALLBACK_CACHE;
 
 async function buildPrecacheList() {
   try {
     const res = await fetch("/precache-manifest.json", { cache: "no-store" });
     if (!res.ok) throw new Error("no manifest");
     const manifest = await res.json();
-    if (!manifest?.version || !Array.isArray(manifest.files))
+    if (!manifest || !Array.isArray(manifest.files)) {
       throw new Error("bad manifest");
-    return {
-      cacheName: `session-clock-${manifest.version}`,
-      files: [...PRECACHE, ...manifest.files],
-    };
+    }
+    return [...SHELL_FILES, ...manifest.files];
   } catch {
-    return { cacheName: FALLBACK_CACHE, files: PRECACHE };
+    return SHELL_FILES.slice();
+  }
+}
+
+async function cacheShell(cache, files) {
+  const unique = Array.from(new Set(files));
+  const results = await Promise.allSettled(
+    unique.map((file) => cache.add(file)),
+  );
+  const shellOk = SHELL_FILES.every((file) => {
+    const i = unique.indexOf(file);
+    return i !== -1 && results[i] && results[i].status === "fulfilled";
+  });
+  await cache.put(
+    META_URL,
+    new Response(
+      JSON.stringify({
+        version: CACHE_VERSION,
+        shellOk,
+        cached: results.filter((r) => r.status === "fulfilled").length,
+        total: unique.length,
+        at: Date.now(),
+      }),
+      { headers: { "content-type": "application/json" } },
+    ),
+  );
+  return shellOk;
+}
+
+async function cacheIsReady(name) {
+  try {
+    const cache = await caches.open(name);
+    const res = await cache.match(META_URL);
+    if (!res) return false;
+    const meta = await res.json();
+    return !!(meta && meta.shellOk);
+  } catch {
+    return false;
   }
 }
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
-    buildPrecacheList()
-      .then(({ cacheName, files }) => {
-        CACHE = cacheName;
-        return caches.open(CACHE).then((c) => c.addAll(files));
-      })
-      .then(() => self.skipWaiting()),
+    (async () => {
+      const name = cacheName();
+      const cache = await caches.open(name);
+      const files = await buildPrecacheList();
+      const ready = await cacheShell(cache, files);
+      if (!ready) {
+        // Keep the previous worker/cache in control. The site is still usable
+        // online; this only means a full offline shell is not guaranteed yet.
+        throw new Error("shell precache incomplete");
+      }
+      await self.skipWaiting();
+    })(),
   );
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    buildPrecacheList()
-      .then(({ cacheName }) => {
-        CACHE = cacheName;
-        return caches
-          .keys()
-          .then((keys) =>
-            Promise.all(
-              keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)),
-            ),
-          );
-      })
-      .then(() => self.clients.claim()),
+    (async () => {
+      const name = cacheName();
+      // Delete older generations only after the incoming cache is verified.
+      if (await cacheIsReady(name)) {
+        const keys = await caches.keys();
+        await Promise.all(
+          keys
+            .filter((key) => CORE.shouldDeleteCache(key, name))
+            .map((key) => caches.delete(key)),
+        );
+      }
+      await self.clients.claim();
+    })(),
   );
 });
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
+  if (!CORE.isCacheableRequest(req)) return;
+
   const url = new URL(req.url);
-
-  // Cache Storage entries are meant for GET/HEAD; never attempt to write
-  // (or read stale writes for) anything else — POST/PUT OAuth token
-  // exchanges and the like just go straight to network.
-  if (req.method !== "GET") return; // not intercepted: browser handles it
-
-  // Never cache a request carrying credentials — an Authorization header
-  // (every one of this app's authenticated API calls) or a same-origin
-  // request explicitly sent with cookies. Straight network passthrough.
-  if (req.headers.has("Authorization")) return;
+  const name = cacheName();
 
   if (url.origin !== location.origin) {
-    if (!CACHEABLE_EXTERNAL_ORIGINS.has(url.hostname)) {
-      // Not on the public-origin allowlist (Spotify/Google/Notion/GitHub/
-      // Todoist API + accounts.* endpoints, etc.) — network-only, no
-      // Cache Storage involvement at all.
-      return; // not intercepted: plain network, errors stay the page's own
+    if (!CORE.isCacheableExternal(url.hostname, CACHEABLE_EXTERNAL_ORIGINS)) {
+      return; // network-only; errors stay the page's own
     }
-    // Allowlisted public origin — network with cache fallback (offline
-    // support for fonts/thumbnails/ambient audio/lyrics/weather), and
-    // only cache genuinely successful, basic/cors (non-opaque) responses.
     e.respondWith(
       fetch(req)
         .then((r) => {
-          if (r.ok && (r.type === "basic" || r.type === "cors")) {
+          if (CORE.isCacheableResponse(r)) {
             const clone = r.clone();
-            caches.open(CACHE).then((c) => c.put(req, clone));
+            e.waitUntil(
+              caches
+                .open(name)
+                .then((c) => c.put(req, clone))
+                .catch(() => {
+                  // A cache write failure must not fail the network response.
+                }),
+            );
           }
           return r;
         })
@@ -154,54 +173,71 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Same-origin navigation (the HTML shell itself) — network-first, cache
-  // only as an offline fallback. This is what actually fixes SW1: a new
-  // deploy is now visible on the very next reload instead of however long
-  // it takes for something else to evict the old cached copy.
+  // Same-origin navigation: network-first, cache only as an offline fallback.
   if (req.mode === "navigate" || req.destination === "document") {
     e.respondWith(
       fetch(req)
         .then((r) => {
           const clone = r.clone();
-          caches.open(CACHE).then((c) => c.put(req, clone));
+          e.waitUntil(
+            caches
+              .open(name)
+              .then((c) => c.put(req, clone))
+              .catch(() => {
+                // Navigation still succeeds if the cache is unavailable.
+              }),
+          );
           return r;
         })
         .catch(() =>
           caches
             .match(req, MATCH)
             .then((cached) => cached || caches.match("/index.html", MATCH))
-            .then((cached) => cached || Response.error()),
+            .then((cached) => cached || offlineResponse()),
         ),
     );
     return;
   }
 
-  // Same-origin built assets (hashed JS/CSS/images, per Vite's
-  // assetFileNames/chunkFileNames config) — safe to serve cache-first:
-  // the hash in the filename means a stale cache entry and a "new
-  // version" are never the same URL, so this can't reproduce SW1's
-  // problem the way caching the unhashed HTML shell could.
+  // Same-origin hashed assets: cache-first with a background refresh.
   e.respondWith(
     caches.match(req, MATCH).then((cached) => {
       if (cached) {
-        // Cache-first: refresh in the background, never let a failed
-        // revalidation surface as an unhandled rejection.
         e.waitUntil(
           fetch(req)
             .then((r) => {
-              if (r.ok)
-                return caches.open(CACHE).then((c) => c.put(req, r.clone()));
+              if (r.ok) {
+                return caches.open(name).then((c) => c.put(req, r.clone()));
+              }
             })
-            .catch(() => {}),
+            .catch(() => {
+              // Offline revalidation is best-effort.
+            }),
         );
         return cached;
       }
       return fetch(req)
         .then((r) => {
-          if (r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone()));
+          if (r.ok) {
+            const clone = r.clone();
+            e.waitUntil(
+              caches
+                .open(name)
+                .then((c) => c.put(req, clone))
+                .catch(() => {
+                  // The fetched response is still returned.
+                }),
+            );
+          }
           return r;
         })
-        .catch(offlineResponse);
+        .catch(() => offlineResponse());
     }),
   );
 });
+
+// Exposed only for debugging in the worker console; handlers never read it.
+self.SC_CACHE_INFO = {
+  version: CACHE_VERSION,
+  fallback: FALLBACK_CACHE,
+};
