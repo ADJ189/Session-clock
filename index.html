@@ -523,18 +523,29 @@
           function (e) {
             var t = e.target;
             if (t && t !== window && t.tagName) {
-              // Resource load failure: only a failed script is fatal. A failed
-              // stylesheet/image must not take the app down — the critical
-              // splash CSS above is inline for exactly that reason.
+              // Resource load failure: only the critical app entry script failure is fatal.
+              // Optional scripts (analytics, widgets, etc.) or stylesheets/images must
+              // never take down the app or trigger a fatal boot failure.
               if (t.tagName === "SCRIPT") {
-                console.error("Session Clock: failed to load", t.src);
-                remember("network", "resource", "Failed to load script", null, {
-                  url: t.src || "",
-                });
-                window.__scBootFail(
-                  "Failed to load " + (t.src || "a script"),
-                  true,
-                );
+                var isCritical =
+                  t.id === "sc-app-entry" ||
+                  t.getAttribute("data-sc-critical") === "true" ||
+                  (t.src && (t.src.indexOf("main.ts") !== -1 || t.src.indexOf("/assets/index") !== -1));
+                if (isCritical) {
+                  console.error("Session Clock: failed to load critical script", t.src);
+                  remember("network", "resource", "Failed to load critical script", null, {
+                    url: t.src || "",
+                  });
+                  window.__scBootFail(
+                    "Failed to load " + (t.src || "app entry script"),
+                    true,
+                  );
+                } else {
+                  console.warn("Session Clock: optional script failed to load (non-fatal)", t.src);
+                  remember("network", "resource", "Failed to load optional script", null, {
+                    url: t.src || "",
+                  });
+                }
               } else {
                 remember("network", "resource", "Failed to load " + t.tagName, null, {
                   url: t.src || t.href || "",
@@ -1803,7 +1814,7 @@
     </div>
     <div id="zenExitHint">Press Esc to exit Zen Mode</div>
 
-    <script type="module" src="src/main.ts"></script>
+    <script id="sc-app-entry" data-sc-critical="true" type="module" src="src/main.ts"></script>
     <!-- Command Palette -->
     <div class="cmd-overlay" id="cmdOverlay">
       <div

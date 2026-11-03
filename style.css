@@ -2194,6 +2194,23 @@ body.light-theme .settings-select option { background: #f1f5f9; }
 .settings-action-btn:active { transform: scale(.97); }
 .settings-action-btn--full  { grid-column: 1 / -1; text-align: center; }
 
+/* Privacy reassurance note below settings */
+.settings-privacy-note {
+  margin: 6px 22px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid rgba(255, 255, 255, .07);
+  font-size: .62rem;
+  line-height: 1.45;
+  color: var(--clr-text);
+  opacity: .75;
+}
+body.light-theme .settings-privacy-note {
+  background: rgba(0, 0, 0, .025);
+  border-color: rgba(0, 0, 0, .06);
+}
+
 /* Light theme */
 body.light-theme .settings-tab-bar   { background: rgba(240,244,252,.9); border-color: rgba(0,0,0,.08); }
 body.light-theme .settings-tab-btn   { color: var(--clr-text); }
