@@ -208,20 +208,9 @@ test.describe("contextual top-bar tab", () => {
     await page.goto("/");
     await waitForBoot(page);
 
-    const pill = page.locator("#contextPill");
-    await expect(pill).toBeVisible();
-    await expect(pill).not.toHaveText(/utc|sync/i);
+    // Top-right #contextPill has been removed to keep the header minimal
+    await expect(page.locator("#contextPill")).toHaveCount(0);
     expect(timeRequests).toEqual([]);
-    await expect(pill).toHaveAttribute("title", /device clock · .+% illuminated/);
-    const lunarSuffix = (await pill.getAttribute("title"))!.split("device clock · ")[1];
-    await pill.evaluate((el) => { for (let i = 0; i < 7; i++) (el as HTMLElement).click(); });
-    await expect(pill).toHaveAttribute("title", `Local Sidereal Time — astronomical measure · ${lunarSuffix}`);
-    // Wait through another UI refresh, then restore the ordinary context.
-    await page.waitForTimeout(1100);
-    await expect(pill).toHaveAttribute("title", `Local Sidereal Time — astronomical measure · ${lunarSuffix}`);
-    await pill.evaluate((el) => { for (let i = 0; i < 7; i++) (el as HTMLElement).click(); });
-    await expect(pill).toHaveAttribute("title", /device clock ·/);
-    expect((await pill.getAttribute("title"))!.split("% illuminated")).toHaveLength(2);
   });
 
   test("top-bar controls fit without overlapping on narrow screens @mobile", async ({
@@ -310,7 +299,7 @@ test.describe("contextual top-bar tab", () => {
           `${item.name} ends inside viewport`,
         ).toBeLessThanOrEqual(report.width + 1);
       }
-      await expect(page.locator("#contextPill")).toBeVisible();
+      await expect(page.locator("#contextPill")).toHaveCount(0);
       await expect(page.locator("#weatherPill")).toBeVisible();
     }
   });

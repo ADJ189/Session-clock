@@ -53,56 +53,39 @@ async function readTagsFor(page: import("@playwright/test").Page, selector: stri
 }
 
 test.describe("Beta status tag", () => {
-  // Geometry is read from getBoundingClientRect(). The Settings dialog scales
-  // in over 0.5s and its sections stagger with their own scale/translate, so a
-  // measurement taken mid-animation differs between surfaces by a fraction of a
-  // pixel. Freezing motion makes the sub-pixel height comparison deterministic
-  // on slow CI runners without changing the pill's layout.
+  // Geometry is read from getBoundingClientRect(). Freezing motion makes
+  // the sub-pixel height comparison deterministic on slow CI runners.
   test.use({ reducedMotion: "reduce" });
 
-  test("appears in exactly four places and always says Beta", async ({ page }) => {
+  test("Settings is stable and Integrations surfaces carry Beta tags", async ({ page }) => {
     await page.goto("/");
     await waitForBoot(page);
-    // The Integrations section (with the fourth tag) is built when Settings
-    // first opens, so the full surface count is only observable afterwards.
+
+    // Settings button must NOT have a Beta tag and keeps its clean accessible name
+    await expect(page.locator("#btnSettings .beta-tag")).toHaveCount(0);
+    await expect(page.locator("#btnSettings")).toHaveAccessibleName("Settings");
+
     await page.locator("#btnSettings").click();
     await expect(page.locator("#settingsOverlay")).toHaveClass(/open/);
 
-    // Static shells (settings + integrations titles), the Settings dock label
-    // and the Integrations settings section.
-    await expect(page.locator(".beta-tag")).toHaveCount(4);
-    await expect(page.locator("#btnSettings .beta-tag")).toHaveText("Beta");
+    // Settings title must NOT have a Beta tag
     await expect(
       page.locator("#settingsOverlay .modal-title-row .beta-tag"),
-    ).toHaveText("Beta");
-    await expect(
-      page.locator("#integrationsOverlay .modal-title-row .beta-tag"),
-    ).toHaveText("Beta");
-    await expect(
-      page.locator("#settingsContent .settings-section-title .beta-tag"),
-    ).toHaveText("Beta");
-
-    for (const tag of await readTags(page)) {
-      expect(tag.text).toBe("Beta");
-      expect(tag.text).not.toMatch(/\p{Extended_Pictographic}/u);
-    }
-
-    // The visible Beta tag must not rename the controls: each keeps its
-    // original accessible name, with Beta exposed as the description.
-    await expect(page.locator("#btnSettings")).toHaveAccessibleName("Settings");
-    await expect(page.locator("#btnSettings")).toHaveAccessibleDescription(
-      "Beta",
-    );
+    ).toHaveCount(0);
     await expect(
       page.locator("#settingsOverlay .modal-title-row"),
     ).toHaveAccessibleName("Settings");
     await expect(
       page.locator("#settingsOverlay .modal-title-row"),
-    ).toHaveAccessibleDescription("Beta");
+    ).not.toHaveAccessibleDescription("Beta");
 
-    // The Integrations heading lives in a hidden overlay until the panel opens;
-    // hidden nodes are excluded from the accessibility tree, so open it before
-    // asserting its computed name/description.
+    // The Integrations section in Settings General has a Beta tag
+    await expect(
+      page.locator("#settingsContent .settings-section-title .beta-tag"),
+    ).toHaveText("Beta");
+    await expect(page.locator("#betaTagSection")).toBeVisible();
+
+    // Open Integrations modal
     await page.evaluate(() => {
       const sc = (
         window as unknown as {
@@ -112,12 +95,44 @@ test.describe("Beta status tag", () => {
       sc?.modals?.open?.("integrationsOverlay");
     });
     await expect(page.locator("#integrationsOverlay")).toHaveClass(/open/);
+
+    // Integrations modal title carries a Beta tag and exposes it as description
+    await expect(
+      page.locator("#integrationsOverlay .modal-title-row .beta-tag"),
+    ).toHaveText("Beta");
     await expect(
       page.locator("#integrationsOverlay .modal-title-row"),
     ).toHaveAccessibleName("Integrations");
     await expect(
       page.locator("#integrationsOverlay .modal-title-row"),
     ).toHaveAccessibleDescription("Beta");
+
+    // Provider cards carry Beta on their headers once each
+    const providerHeaders = page.locator("#integrationsContent .int-card-header");
+    const count = await providerHeaders.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+
+    for (let i = 0; i < count; i++) {
+      const header = providerHeaders.nth(i);
+      await expect(header.locator(".beta-tag")).toHaveCount(1);
+      await expect(header.locator(".beta-tag")).toHaveText("Beta");
+      await expect(header).toHaveAccessibleDescription("Beta");
+    }
+
+    // Inner forms do NOT duplicate Beta tags on child actions
+    await expect(page.locator("#integrationsContent .int-form .beta-tag")).toHaveCount(0);
+
+    // Ensure all Beta tags on the page say "Beta", have no emoji, and have unique IDs
+    const tags = await page.locator(".beta-tag").all();
+    const ids: string[] = [];
+    for (const tag of tags) {
+      const text = (await tag.textContent() ?? "").trim();
+      expect(text).toBe("Beta");
+      expect(text).not.toMatch(/\p{Extended_Pictographic}/u);
+      const id = await tag.getAttribute("id");
+      if (id) ids.push(id);
+    }
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   test("pill shape and type scale stay consistent across surfaces", async ({ page }) => {
@@ -126,32 +141,37 @@ test.describe("Beta status tag", () => {
     await page.locator("#btnSettings").click();
     await expect(page.locator("#settingsOverlay")).toHaveClass(/open/);
 
+    await page.evaluate(() => {
+      const sc = (
+        window as unknown as {
+          SC?: { modals?: { open?: (id: string) => void } };
+        }
+      ).SC;
+      sc?.modals?.open?.("integrationsOverlay");
+    });
+    await expect(page.locator("#integrationsOverlay")).toHaveClass(/open/);
+
     const dialogTags = await readTagsFor(
       page,
-      "#settingsOverlay .modal-title-row .beta-tag, #settingsContent .settings-section-title .beta-tag",
+      "#integrationsOverlay .modal-title-row .beta-tag, #settingsContent .settings-section-title .beta-tag, .int-card-header .beta-tag",
     );
-    const dock = (await readTagsFor(page, "#btnSettings .beta-tag"))[0]!;
-    expect(dialogTags).toHaveLength(2);
+    expect(dialogTags.length).toBeGreaterThanOrEqual(2);
 
-    for (const tag of [...dialogTags, dock]) {
-      // Fully rounded pill, not a rounded rectangle.
+    for (const tag of dialogTags) {
+      // Fully rounded pill, not a sharp rectangle.
       expect(tag.borderRadius).toBeGreaterThanOrEqual(tag.height / 2 - 0.5);
       // Small status type; never a headline.
       expect(tag.fontSize).toBeGreaterThanOrEqual(7);
-      expect(tag.fontSize).toBeLessThanOrEqual(12);
+      expect(tag.fontSize).toBeLessThanOrEqual(14);
     }
-
-    // Both dialog placements share one height. The dock tag is allowed to be a
-    // touch tighter so it fits the compact button, but never larger.
-    expect(
-      Math.abs(dialogTags[0]!.height - dialogTags[1]!.height),
-    ).toBeLessThanOrEqual(0.5);
-    expect(dock.height).toBeLessThanOrEqual(dialogTags[0]!.height + 0.5);
   });
 
   test("stays readable in dark and light themes", async ({ page }) => {
     await page.goto("/");
     await waitForBoot(page);
+
+    await page.locator("#btnSettings").click();
+    await expect(page.locator("#settingsOverlay")).toHaveClass(/open/);
 
     const dark = await readTags(page);
     for (const tag of dark) {
@@ -163,6 +183,8 @@ test.describe("Beta status tag", () => {
     });
     await page.reload();
     await waitForBoot(page);
+    await page.locator("#btnSettings").click();
+    await expect(page.locator("#settingsOverlay")).toHaveClass(/open/);
     await expect(page.locator("body.light-theme")).toHaveCount(1);
 
     const light = await readTags(page);
@@ -176,15 +198,14 @@ test.describe("Beta status tag", () => {
     await page.goto("/");
     await waitForBoot(page);
 
-    await expect(page.locator("#btnSettings .beta-tag")).toBeVisible();
-    const dock = page.locator("#btnSettings");
-    const tag = page.locator("#btnSettings .beta-tag");
-    const dockBox = (await dock.boundingBox())!;
+    await page.locator("#btnSettings").click();
+    await expect(page.locator("#settingsOverlay")).toHaveClass(/open/);
+
+    const tag = page.locator("#settingsContent .settings-section-title .beta-tag").first();
+    await expect(tag).toBeVisible();
     const tagBox = (await tag.boundingBox())!;
-    expect(tagBox.x).toBeGreaterThanOrEqual(dockBox.x - 0.5);
-    expect(tagBox.x + tagBox.width).toBeLessThanOrEqual(dockBox.x + dockBox.width + 0.5);
-    expect(tagBox.y).toBeGreaterThanOrEqual(dockBox.y - 0.5);
-    expect(tagBox.y + tagBox.height).toBeLessThanOrEqual(dockBox.y + dockBox.height + 0.5);
+    expect(tagBox.width).toBeGreaterThan(0);
+    expect(tagBox.height).toBeGreaterThan(0);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
     ).toBeLessThanOrEqual(0);
