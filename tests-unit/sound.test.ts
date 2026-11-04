@@ -1,5 +1,5 @@
 import { test } from "node:test";
-import { assertEquals, assert, assertMatch } from "./assert.ts";
+import assert from "node:assert/strict";
 import { installDomStubs } from "./dom-stubs.ts";
 import { AMBIENT_PRESET_IDS } from "../src/audio/engine.ts";
 import { SPATIAL_PROFILES } from "../src/audio/spatial.ts";
@@ -29,52 +29,52 @@ const FILE_TRACK_SNAPSHOT: Record<
 };
 
 test("sound ids, names, icons and order are unchanged", () => {
-  assertEquals(sound.SOUNDS.length, 35);
-  assertEquals(
+  assert.strictEqual(sound.SOUNDS.length, 35);
+  assert.deepStrictEqual(
     sound.SOUNDS.map((s) => s.id),
     [...AMBIENT_PRESET_IDS],
   );
   for (const s of sound.SOUNDS) {
-    assert(s.name.length > 0, `${s.id} has no name`);
-    assert(s.icon.length > 0, `${s.id} has no icon`);
-    assert((s.desc ?? "").length > 0, `${s.id} has no description`);
+    assert.ok(s.name.length > 0, `${s.id} has no name`);
+    assert.ok(s.icon.length > 0, `${s.id} has no icon`);
+    assert.ok((s.desc ?? "").length > 0, `${s.id} has no description`);
   }
-  assertEquals(new Set(sound.SOUNDS.map((s) => s.name)).size, 35);
+  assert.strictEqual(new Set(sound.SOUNDS.map((s) => s.name)).size, 35);
 });
 
 test("every sound has an accent and every accent is a hex colour", () => {
   for (const s of sound.SOUNDS) {
     const accent = sound.SOUND_ACCENT[s.id];
-    assert(accent, `${s.id} has no accent`);
-    assertMatch(accent, /^#[0-9a-f]{6}$/i);
+    assert.ok(accent, `${s.id} has no accent`);
+    assert.match(accent, /^#[0-9a-f]{6}$/i);
   }
 });
 
 test("spatial coverage matches the visible sound list exactly", () => {
-  assertEquals(
+  assert.deepStrictEqual(
     Object.keys(SPATIAL_PROFILES),
     sound.SOUNDS.map((s) => s.id),
   );
 });
 
 test("recorded ambience keeps its CDN and per-track trims", () => {
-  assertEquals(
+  assert.strictEqual(
     AUDIO_CDN_BASE,
     "https://cdn.jsdelivr.net/gh/ADJ189/Ambient-Sounds@v2",
   );
-  assertEquals(Object.keys(FILE_TRACKS).sort(), Object.keys(FILE_TRACK_SNAPSHOT).sort());
+  assert.deepStrictEqual(Object.keys(FILE_TRACKS).sort(), Object.keys(FILE_TRACK_SNAPSHOT).sort());
   for (const [id, expected] of Object.entries(FILE_TRACK_SNAPSHOT)) {
     const config = FILE_TRACKS[id];
-    assert(config, `${id} missing from FILE_TRACKS`);
-    assertEquals(config.crossfadeSec, expected.crossfadeSec, `${id} crossfade`);
-    assertEquals(config.gainTrim, expected.gainTrim, `${id} gain trim`);
-    assertEquals(config.proceduralFallback, true, `${id} fallback`);
-    assertMatch(config.url, /^\/opus\/[a-z]+\/[a-z]+\.opus$/);
+    assert.ok(config, `${id} missing from FILE_TRACKS`);
+    assert.strictEqual(config.crossfadeSec, expected.crossfadeSec, `${id} crossfade`);
+    assert.strictEqual(config.gainTrim, expected.gainTrim, `${id} gain trim`);
+    assert.strictEqual(config.proceduralFallback, true, `${id} fallback`);
+    assert.match(config.url, /^\/opus\/[a-z]+\/[a-z]+\.opus$/);
   }
 });
 
 test("binaural presets keep their names, carriers and beats", () => {
-  assertEquals(
+  assert.deepStrictEqual(
     sound.BINAURAL_PRESETS.map((p) => p.id),
     ["gamma", "beta", "alpha", "theta", "delta"],
   );
@@ -86,11 +86,11 @@ test("binaural presets keep their names, carriers and beats", () => {
     delta: 2,
   };
   for (const preset of sound.BINAURAL_PRESETS) {
-    assertEquals(preset.carrier, 200);
-    assertEquals(preset.beat, beats[preset.id]);
-    assert(preset.name.length > 0);
-    assert(preset.icon.length > 0);
-    assertMatch(sound.SOUND_ACCENT[preset.id]!, /^#[0-9a-f]{6}$/i);
+    assert.strictEqual(preset.carrier, 200);
+    assert.strictEqual(preset.beat, beats[preset.id]);
+    assert.ok(preset.name.length > 0);
+    assert.ok(preset.icon.length > 0);
+    assert.match(sound.SOUND_ACCENT[preset.id]!, /^#[0-9a-f]{6}$/i);
   }
 });
 
@@ -120,23 +120,23 @@ test("UI toggles and storage keys still exist in the module surface", () => {
     "play",
     "toggle",
   ] as const) {
-    assertEquals(typeof sound[fn], "function", `${fn} is missing`);
+    assert.strictEqual(typeof sound[fn], "function", `${fn} is missing`);
   }
 });
 
 test("spatial mode defaults off and toggles through the public API", () => {
-  assertEquals(sound.isSpatialEnabled(), false);
+  assert.strictEqual(sound.isSpatialEnabled(), false);
   sound.setSpatial(true);
-  assertEquals(sound.isSpatialEnabled(), true);
+  assert.strictEqual(sound.isSpatialEnabled(), true);
   sound.setSpatial(false);
-  assertEquals(sound.isSpatialEnabled(), false);
+  assert.strictEqual(sound.isSpatialEnabled(), false);
 });
 
 test("head tracking defaults off on a device without permission", () => {
-  assertEquals(sound.isHeadTrackingEnabled(), false);
+  assert.strictEqual(sound.isHeadTrackingEnabled(), false);
   sound.setHeadTracking(true);
   // Without DeviceOrientationEvent/CAPS support the call must not enable a
   // listener it cannot drive; either result is safe, but it must not throw.
-  assertEquals(typeof sound.isHeadTrackingEnabled(), "boolean");
+  assert.strictEqual(typeof sound.isHeadTrackingEnabled(), "boolean");
   sound.setHeadTracking(false);
 });

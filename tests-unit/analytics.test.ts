@@ -1,5 +1,5 @@
 import { test } from "node:test";
-import { assert, assertEquals } from "./assert.ts";
+import assert from "node:assert/strict";
 import { installDomStubs } from "./dom-stubs.ts";
 import {
   getAnalyticsPreference,
@@ -39,61 +39,61 @@ test("analytics defaults to 'auto' when storage is empty", () => {
   localStorage.removeItem(ANALYTICS_STORAGE_KEY);
   localStorage.removeItem(ANALYTICS_AUTO_BLOCKED_KEY);
 
-  assertEquals(getAnalyticsPreference(), "auto");
-  assertEquals(isAutoBlocked(), false);
-  assertEquals(isAnalyticsAllowed(false), true);
+  assert.strictEqual(getAnalyticsPreference(), "auto");
+  assert.strictEqual(isAutoBlocked(), false);
+  assert.strictEqual(isAnalyticsAllowed(false), true);
 });
 
 test("setAnalyticsPreference saves 'on' and 'off'", () => {
   setAnalyticsPreference("off");
-  assertEquals(getAnalyticsPreference(), "off");
-  assertEquals(isAnalyticsAllowed(false), false);
+  assert.strictEqual(getAnalyticsPreference(), "off");
+  assert.strictEqual(isAnalyticsAllowed(false), false);
 
   setAnalyticsPreference("on");
-  assertEquals(getAnalyticsPreference(), "on");
-  assertEquals(isAnalyticsAllowed(false), true);
+  assert.strictEqual(getAnalyticsPreference(), "on");
+  assert.strictEqual(isAnalyticsAllowed(false), true);
 
   resetAnalyticsToAuto();
-  assertEquals(getAnalyticsPreference(), "auto");
+  assert.strictEqual(getAnalyticsPreference(), "auto");
 });
 
 test("auto-blocked marker suppresses auto analytics until cleared", () => {
   resetAnalyticsToAuto();
   localStorage.setItem(ANALYTICS_AUTO_BLOCKED_KEY, "1");
 
-  assertEquals(isAutoBlocked(), true);
-  assertEquals(isAnalyticsAllowed(false), false);
+  assert.strictEqual(isAutoBlocked(), true);
+  assert.strictEqual(isAnalyticsAllowed(false), false);
 
   // Switching explicitly to 'on' clears the marker
   setAnalyticsPreference("on");
-  assertEquals(isAutoBlocked(), false);
-  assertEquals(isAnalyticsAllowed(false), true);
+  assert.strictEqual(isAutoBlocked(), false);
+  assert.strictEqual(isAnalyticsAllowed(false), true);
 
   // Switch back to auto mode before testing marker again
   resetAnalyticsToAuto();
   localStorage.setItem(ANALYTICS_AUTO_BLOCKED_KEY, "1");
-  assertEquals(isAnalyticsAllowed(false), false);
+  assert.strictEqual(isAnalyticsAllowed(false), false);
 
   // Resetting to auto clears the marker
   resetAnalyticsToAuto();
-  assertEquals(isAutoBlocked(), false);
-  assertEquals(isAnalyticsAllowed(false), true);
+  assert.strictEqual(isAutoBlocked(), false);
+  assert.strictEqual(isAnalyticsAllowed(false), true);
 });
 
 test("privacyMode overrides preference and suppresses analytics", () => {
   setAnalyticsPreference("on");
-  assertEquals(isAnalyticsAllowed(false), true);
-  assertEquals(isAnalyticsAllowed(true), false);
+  assert.strictEqual(isAnalyticsAllowed(false), true);
+  assert.strictEqual(isAnalyticsAllowed(true), false);
 
   resetAnalyticsToAuto();
-  assertEquals(isAnalyticsAllowed(false), true);
-  assertEquals(isAnalyticsAllowed(true), false);
+  assert.strictEqual(isAnalyticsAllowed(false), true);
+  assert.strictEqual(isAnalyticsAllowed(true), false);
 });
 
 test("unloadAnalytics sets disabled-by-user status without throwing", () => {
   _resetAnalyticsForTesting();
   unloadAnalytics();
-  assertEquals(getAnalyticsStatus(), "disabled-by-user");
+  assert.strictEqual(getAnalyticsStatus(), "disabled-by-user");
 });
 
 test("status listener receives runtime status changes", () => {
@@ -102,23 +102,23 @@ test("status listener receives runtime status changes", () => {
   const unsubscribe = onAnalyticsStatusChange((st) => statuses.push(st));
 
   unloadAnalytics();
-  assert(statuses.includes("disabled-by-user"));
+  assert.ok(statuses.includes("disabled-by-user"));
 
   unsubscribe();
   const countBefore = statuses.length;
   unloadAnalytics();
-  assertEquals(statuses.length, countBefore);
+  assert.strictEqual(statuses.length, countBefore);
 });
 
 test("loadAnalytics returns false immediately when privacy mode is active", async () => {
   _resetAnalyticsForTesting();
   const result = await loadAnalytics(true);
-  assertEquals(result, false);
-  assertEquals(getAnalyticsStatus(), "disabled-by-user");
+  assert.strictEqual(result, false);
+  assert.strictEqual(getAnalyticsStatus(), "disabled-by-user");
 });
 
 test("CLOUDFLARE_BEACON_URL is the official beacon endpoint", () => {
-  assertEquals(
+  assert.strictEqual(
     CLOUDFLARE_BEACON_URL,
     "https://static.cloudflareinsights.com/beacon.min.js",
   );
@@ -129,7 +129,7 @@ test("syncAnalytics sets status to unavailable when auto-blocked marker is set",
   resetAnalyticsToAuto();
   localStorage.setItem(ANALYTICS_AUTO_BLOCKED_KEY, "1");
   syncAnalytics(false);
-  assertEquals(getAnalyticsStatus(), "unavailable");
+  assert.strictEqual(getAnalyticsStatus(), "unavailable");
 });
 
 test("unloadAnalytics removes beacon globals and guards sendBeacon", () => {
@@ -155,14 +155,14 @@ test("unloadAnalytics removes beacon globals and guards sendBeacon", () => {
   try {
     unloadAnalytics();
 
-    assertEquals(globalWin.__cfBeacon, undefined);
+    assert.strictEqual(globalWin.__cfBeacon, undefined);
     // sendBeacon to cloudflareinsights should be swallowed
     navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
-    assertEquals(beaconCalls.length, 0);
+    assert.strictEqual(beaconCalls.length, 0);
 
     // sendBeacon to other URLs should pass through
     navigator.sendBeacon("https://example.com/other");
-    assertEquals(beaconCalls.length, 1);
+    assert.strictEqual(beaconCalls.length, 1);
   } finally {
     if (prevSendBeacon) {
       (navigator as any).sendBeacon = prevSendBeacon;
@@ -196,12 +196,12 @@ test("enabling analytics restores sendBeacon or allows beacon measurements", () 
     // 1. Unload analytics -> guard is installed, CF beacon dropped
     unloadAnalytics();
     navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
-    assertEquals(beaconCalls.length, 0);
+    assert.strictEqual(beaconCalls.length, 0);
 
     // 2. Enable analytics -> preference is 'on'
     setAnalyticsPreference("on");
     navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
-    assertEquals(beaconCalls.length, 1);
+    assert.strictEqual(beaconCalls.length, 1);
   } finally {
     if (prevSendBeacon) {
       (navigator as any).sendBeacon = prevSendBeacon;
@@ -221,19 +221,19 @@ test("pomodoro session snapshot preserves progress across reload", () => {
     pomCount: 3,
   });
   const snap = Pom.getSessionSnapshot();
-  assertEquals(snap.active, true);
-  assertEquals(snap.phase, "work");
-  assertEquals(snap.pomCount, 3);
-  assert(snap.phaseElapsed >= 45000);
+  assert.strictEqual(snap.active, true);
+  assert.strictEqual(snap.phase, "work");
+  assert.strictEqual(snap.pomCount, 3);
+  assert.ok(snap.phaseElapsed >= 45000);
   Pom.setActive(false);
 });
 
 test("DATA_CATEGORIES includes sc_analytics_mode and sc_analytics_auto_blocked", () => {
   const prefsCat = DATA_CATEGORIES.find((c) => c.id === "preferences");
-  assert(prefsCat);
-  assert(prefsCat.keys.includes(ANALYTICS_STORAGE_KEY));
+  assert.ok(prefsCat);
+  assert.ok(prefsCat.keys.includes(ANALYTICS_STORAGE_KEY));
 
   const sysCat = DATA_CATEGORIES.find((c) => c.id === "system");
-  assert(sysCat);
-  assert(sysCat.keys.includes(ANALYTICS_AUTO_BLOCKED_KEY));
+  assert.ok(sysCat);
+  assert.ok(sysCat.keys.includes(ANALYTICS_AUTO_BLOCKED_KEY));
 });

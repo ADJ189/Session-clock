@@ -1,5 +1,5 @@
 import { test } from "node:test";
-import { assertEquals, assert } from "./assert.ts";
+import assert from "node:assert/strict";
 import { MockAudioContext, MockGainNode } from "./mock-audio.ts";
 import {
   AMBIENT_PRESET_IDS,
@@ -15,10 +15,10 @@ function outputGain(voice: AmbientVoice): MockGainNode {
 }
 
 test("the preset list is unique and complete", () => {
-  assertEquals(AMBIENT_PRESET_IDS.length, 35);
-  assertEquals(new Set(AMBIENT_PRESET_IDS).size, 35);
-  assertEquals(isAmbientPresetId("rain"), true);
-  assertEquals(isAmbientPresetId("not-a-sound"), false);
+  assert.strictEqual(AMBIENT_PRESET_IDS.length, 35);
+  assert.strictEqual(new Set(AMBIENT_PRESET_IDS).size, 35);
+  assert.strictEqual(isAmbientPresetId("rain"), true);
+  assert.strictEqual(isAmbientPresetId("not-a-sound"), false);
 });
 
 test("every preset builds a non-silent voice without errors", () => {
@@ -33,17 +33,17 @@ test("every preset builds a non-silent voice without errors", () => {
       });
       voices.push(voice);
       const stats = voice.stats();
-      assert(
+      assert.ok(
         stats.nodes > 1 || stats.sources > 0 || stats.tasks > 0,
         `${id} built an empty voice`,
       );
-      assert(stats.sources > 0 || stats.tasks > 0, `${id} built no sources or events`);
-      assert(outputGain(voice).gain.value > 0, `${id} output gain is zero`);
+      assert.ok(stats.sources > 0 || stats.tasks > 0, `${id} built no sources or events`);
+      assert.ok(outputGain(voice).gain.value > 0, `${id} output gain is zero`);
     }
     const after = getEngineStats();
-    assertEquals(after.buildErrors, before.buildErrors);
-    assertEquals(after.schedulerErrors, before.schedulerErrors);
-    assertEquals(after.createdVoices - before.createdVoices, AMBIENT_PRESET_IDS.length);
+    assert.strictEqual(after.buildErrors, before.buildErrors);
+    assert.strictEqual(after.schedulerErrors, before.schedulerErrors);
+    assert.strictEqual(after.createdVoices - before.createdVoices, AMBIENT_PRESET_IDS.length);
   } finally {
     for (const voice of voices) voice.stop();
   }
@@ -57,21 +57,21 @@ test("start/stop updates voice and process state", () => {
     manualScheduler: true,
   });
   try {
-    assertEquals(voice.active, false);
-    assertEquals(getActiveVoiceCount(), before + 1);
+    assert.strictEqual(voice.active, false);
+    assert.strictEqual(getActiveVoiceCount(), before + 1);
     voice.start();
-    assertEquals(voice.active, true);
+    assert.strictEqual(voice.active, true);
     voice.start();
-    assertEquals(voice.active, true, "double start is harmless");
-    assertEquals(ctx.startedSources() > 0, true);
+    assert.strictEqual(voice.active, true, "double start is harmless");
+    assert.strictEqual(ctx.startedSources() > 0, true);
   } finally {
     voice.stop();
   }
-  assertEquals(voice.active, false);
-  assertEquals(getActiveVoiceCount(), before);
-  assertEquals(voice.stats().nodes, 0);
-  assertEquals(voice.stats().sources, 0);
-  assertEquals(voice.stats().tasks, 0);
+  assert.strictEqual(voice.active, false);
+  assert.strictEqual(getActiveVoiceCount(), before);
+  assert.strictEqual(voice.stats().nodes, 0);
+  assert.strictEqual(voice.stats().sources, 0);
+  assert.strictEqual(voice.stats().tasks, 0);
 });
 
 test("stop is idempotent", () => {
@@ -83,7 +83,7 @@ test("stop is idempotent", () => {
   voice.stop();
   voice.stop();
   const after = getEngineStats();
-  assertEquals(after.stoppedVoices - before.stoppedVoices, 1);
+  assert.strictEqual(after.stoppedVoices - before.stoppedVoices, 1);
 });
 
 test("seeded voices are deterministic in shape", () => {
@@ -97,9 +97,9 @@ test("seeded voices are deterministic in shape", () => {
     manualScheduler: true,
   });
   try {
-    assertEquals(a.stats().nodes, b.stats().nodes);
-    assertEquals(a.stats().sources, b.stats().sources);
-    assertEquals(a.stats().tasks, b.stats().tasks);
+    assert.strictEqual(a.stats().nodes, b.stats().nodes);
+    assert.strictEqual(a.stats().sources, b.stats().sources);
+    assert.strictEqual(a.stats().tasks, b.stats().tasks);
   } finally {
     a.stop();
     b.stop();
@@ -117,8 +117,8 @@ test("voices share the per-context noise cache", () => {
   });
   const afterB = b.stats().noiseCacheBytes;
   try {
-    assert(afterA > 0);
-    assert(afterB >= afterA, "cache never shrinks when a new voice joins");
+    assert.ok(afterA > 0);
+    assert.ok(afterB >= afterA, "cache never shrinks when a new voice joins");
   } finally {
     a.stop();
     b.stop();
@@ -134,7 +134,7 @@ test("manual scheduling registers tasks without a wall timer", async () => {
     voice.start();
     // If a timer were started this process would stay alive; stopping the
     // voice must be enough to let the test body finish promptly.
-    assertEquals(voice.stats().tasks > 0, true);
+    assert.strictEqual(voice.stats().tasks > 0, true);
   } finally {
     voice.stop();
   }
@@ -152,19 +152,19 @@ test("50 start/stop cycles per preset leave no live nodes or tasks", () => {
       });
       voice.start();
       voice.stop();
-      assertEquals(voice.active, false, `${id} cycle ${cycle} active`);
-      assertEquals(voice.stats().nodes, 0, `${id} cycle ${cycle} nodes`);
-      assertEquals(voice.stats().sources, 0, `${id} cycle ${cycle} sources`);
-      assertEquals(voice.stats().tasks, 0, `${id} cycle ${cycle} tasks`);
+      assert.strictEqual(voice.active, false, `${id} cycle ${cycle} active`);
+      assert.strictEqual(voice.stats().nodes, 0, `${id} cycle ${cycle} nodes`);
+      assert.strictEqual(voice.stats().sources, 0, `${id} cycle ${cycle} sources`);
+      assert.strictEqual(voice.stats().tasks, 0, `${id} cycle ${cycle} tasks`);
     }
   }
 
-  assertEquals(getActiveVoiceCount(), 0);
+  assert.strictEqual(getActiveVoiceCount(), 0);
   const after = getEngineStats();
   // A failed build would be counted, and would mean the cycle test silently
   // exercised a broken preset rather than the real one.
-  assertEquals(after.buildErrors, before.buildErrors);
-  assertEquals(after.schedulerErrors, before.schedulerErrors);
+  assert.strictEqual(after.buildErrors, before.buildErrors);
+  assert.strictEqual(after.schedulerErrors, before.schedulerErrors);
 });
 
 test("five simultaneous tracks allocate independently and release on stop", () => {
@@ -180,20 +180,20 @@ test("five simultaneous tracks allocate independently and release on stop", () =
 
   try {
     for (const voice of voices) voice.start();
-    assertEquals(getActiveVoiceCount(), before + ids.length);
+    assert.strictEqual(getActiveVoiceCount(), before + ids.length);
     const idsSeen = new Set(voices.map((voice) => outputGain(voice).id));
-    assertEquals(idsSeen.size, ids.length, "each track owns a distinct output");
+    assert.strictEqual(idsSeen.size, ids.length, "each track owns a distinct output");
     for (const voice of voices) {
-      assert(voice.stats().nodes > 0, "a concurrent track has no nodes");
+      assert.ok(voice.stats().nodes > 0, "a concurrent track has no nodes");
     }
   } finally {
     for (const voice of voices) voice.stop();
   }
 
-  assertEquals(getActiveVoiceCount(), before);
+  assert.strictEqual(getActiveVoiceCount(), before);
   for (const voice of voices) {
-    assertEquals(voice.stats().nodes, 0);
-    assertEquals(voice.stats().sources, 0);
-    assertEquals(voice.stats().tasks, 0);
+    assert.strictEqual(voice.stats().nodes, 0);
+    assert.strictEqual(voice.stats().sources, 0);
+    assert.strictEqual(voice.stats().tasks, 0);
   }
 });

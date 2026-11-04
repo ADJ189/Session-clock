@@ -1,5 +1,5 @@
 import { test } from "node:test";
-import { assertEquals, assert, assertDeepEquals } from "./assert.ts";
+import assert from "node:assert/strict";
 import { AMBIENT_PRESET_IDS } from "../src/audio/engine.ts";
 import {
   clampFinite,
@@ -14,7 +14,7 @@ import {
 const EPS = 1e-9;
 
 function close(actual: number, expected: number, eps = 1e-6): void {
-  assert(
+  assert.ok(
     Math.abs(actual - expected) <= eps,
     `expected ${expected}, got ${actual}`,
   );
@@ -22,62 +22,62 @@ function close(actual: number, expected: number, eps = 1e-6): void {
 
 test("every ambient preset has a spatial profile and nothing extra", () => {
   const profileIds = Object.keys(SPATIAL_PROFILES);
-  assertDeepEquals(profileIds, [...AMBIENT_PRESET_IDS]);
-  assertEquals(new Set(profileIds).size, AMBIENT_PRESET_IDS.length);
+  assert.deepStrictEqual(profileIds, [...AMBIENT_PRESET_IDS]);
+  assert.strictEqual(new Set(profileIds).size, AMBIENT_PRESET_IDS.length);
 });
 
 test("profiles are finitely specified and use HRTF panning", () => {
   for (const id of AMBIENT_PRESET_IDS) {
     const p = SPATIAL_PROFILES[id];
-    assertEquals(p.panningModel, "HRTF", id);
-    assert(
+    assert.strictEqual(p.panningModel, "HRTF", id);
+    assert.ok(
       ["track-emitter", "centered", "bypass"].includes(p.mode),
       `${id} mode`,
     );
-    assert(Number.isFinite(p.position.azimuthDeg), `${id} azimuth`);
-    assert(Number.isFinite(p.position.elevationDeg), `${id} elevation`);
-    assert(p.position.distanceM > 0, `${id} distance`);
-    assert(p.distance.maxDistance >= p.distance.refDistance, `${id} distance range`);
-    assert(p.distance.rolloffFactor >= 0, `${id} rolloff`);
+    assert.ok(Number.isFinite(p.position.azimuthDeg), `${id} azimuth`);
+    assert.ok(Number.isFinite(p.position.elevationDeg), `${id} elevation`);
+    assert.ok(p.position.distanceM > 0, `${id} distance`);
+    assert.ok(p.distance.maxDistance >= p.distance.refDistance, `${id} distance range`);
+    assert.ok(p.distance.rolloffFactor >= 0, `${id} rolloff`);
     if (p.movement.kind !== "fixed") {
-      assert(p.movement.widthDeg > 0, `${id} width`);
-      assert(p.movement.rateRadPerSec > 0, `${id} rate`);
+      assert.ok(p.movement.widthDeg > 0, `${id} width`);
+      assert.ok(p.movement.rateRadPerSec > 0, `${id} rate`);
     }
   }
 });
 
 test("getSpatialProfile returns null for unknown ids", () => {
-  assertEquals(getSpatialProfile("rain")?.mode, "track-emitter");
-  assertEquals(getSpatialProfile("heartbeat")?.mode, "bypass");
-  assertEquals(getSpatialProfile("nope"), null);
+  assert.strictEqual(getSpatialProfile("rain")?.mode, "track-emitter");
+  assert.strictEqual(getSpatialProfile("heartbeat")?.mode, "bypass");
+  assert.strictEqual(getSpatialProfile("nope"), null);
 });
 
 test("degreesToRadians converts a half turn", () => {
-  assert(Number.isFinite(degreesToRadians(180)));
+  assert.ok(Number.isFinite(degreesToRadians(180)));
   close(degreesToRadians(180), Math.PI);
   close(degreesToRadians(90), Math.PI / 2);
 });
 
 test("clampFinite treats non-finite input as the lower bound", () => {
-  assertEquals(clampFinite(Number.NaN, -5, 5), -5);
-  assertEquals(clampFinite(Number.POSITIVE_INFINITY, -5, 5), -5);
-  assertEquals(clampFinite(2, -5, 5), 2);
+  assert.strictEqual(clampFinite(Number.NaN, -5, 5), -5);
+  assert.strictEqual(clampFinite(Number.POSITIVE_INFINITY, -5, 5), -5);
+  assert.strictEqual(clampFinite(2, -5, 5), 2);
 });
 
 test("spherical coordinates use +X right, +Y up, -Z forward", () => {
   const front = sphericalToCartesian(0, 0, 1);
-  assert(front);
+  assert.ok(front);
   close(front.x, 0);
   close(front.y, 0);
   close(front.z, -1);
 
   const right = sphericalToCartesian(90, 0, 1);
-  assert(right);
+  assert.ok(right);
   close(right.x, 1);
   close(right.z, 0);
 
   const up = sphericalToCartesian(0, 90, 1);
-  assert(up);
+  assert.ok(up);
   close(up.y, 1);
   close(up.z, 0);
 });
@@ -85,14 +85,14 @@ test("spherical coordinates use +X right, +Y up, -Z forward", () => {
 test("spherical clamps out-of-range input", () => {
   const clamped = sphericalToCartesian(400, 200, 0);
   const expected = sphericalToCartesian(180, 90, 0.05);
-  assert(clamped && expected);
+  assert.ok(clamped && expected);
   close(clamped.x, expected.x);
   close(clamped.y, expected.y);
   close(clamped.z, expected.z);
 });
 
 test("movementPan is deterministic and bounded", () => {
-  assertEquals(movementPan({ kind: "fixed" }, 12, 3), 0);
+  assert.strictEqual(movementPan({ kind: "fixed" }, 12, 3), 0);
   const sweep = movementPan({ kind: "sweep", widthDeg: 30, rateRadPerSec: 1 }, 0.5, 0.25);
   close(sweep, Math.sin(0.75), EPS);
   for (const movement of [
@@ -101,25 +101,25 @@ test("movementPan is deterministic and bounded", () => {
   ] as const) {
     for (let t = 0; t < 100; t += 0.37) {
       const value = movementPan(movement, t, 0.1);
-      assert(value >= -1.0000001 && value <= 1.0000001, `out of range ${value}`);
+      assert.ok(value >= -1.0000001 && value <= 1.0000001, `out of range ${value}`);
     }
   }
 });
 
 test("fixed profiles only follow their configured azimuth", () => {
   const profile = SPATIAL_PROFILES.fire;
-  assertEquals(profile.movement.kind, "fixed");
+  assert.strictEqual(profile.movement.kind, "fixed");
   const a = positionForProfile(profile, 0, 0);
   const b = positionForProfile(profile, 100, 5);
   close(a.x, b.x);
   close(a.y, b.y);
   close(a.z, b.z);
-  assert(a.x > 0, "fire sits slightly right");
+  assert.ok(a.x > 0, "fire sits slightly right");
 });
 
 test("bypass profiles stay centred regardless of elapsed time", () => {
   const profile = SPATIAL_PROFILES.heartbeat;
-  assertEquals(profile.mode, "bypass");
+  assert.strictEqual(profile.mode, "bypass");
   const a = positionForProfile(profile, 0, 0);
   const b = positionForProfile(profile, 42, 9);
   close(a.x, 0);
@@ -130,17 +130,17 @@ test("bypass profiles stay centred regardless of elapsed time", () => {
 
 test("moving profiles swing around their base azimuth", () => {
   const profile = SPATIAL_PROFILES.rain;
-  assert(profile.movement.kind === "sweep");
+  assert.ok(profile.movement.kind === "sweep");
   const left = positionForProfile(profile, 0, -Math.PI / 2);
   const right = positionForProfile(profile, 0, Math.PI / 2);
-  assert(left.x < 0, "phase -90° should sit left");
-  assert(right.x > 0, "phase +90° should sit right");
+  assert.ok(left.x < 0, "phase -90° should sit left");
+  assert.ok(right.x > 0, "phase +90° should sit right");
 });
 
 test("distance influences attenuation geometry", () => {
   const near = sphericalToCartesian(0, 0, 1);
   const far = sphericalToCartesian(0, 0, 10);
-  assert(near && far);
+  assert.ok(near && far);
   close(Math.hypot(near.x, near.y, near.z), 1);
   close(Math.hypot(far.x, far.y, far.z), 10);
 });

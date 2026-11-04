@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
-import { assertEquals } from "./assert.ts";
+import assert from "node:assert/strict";
 
 interface ServiceWorkerCore {
   CACHE_PREFIX: string;
@@ -26,60 +26,60 @@ await import("../public/sw-core.js");
 const core = (globalThis as unknown as { ScSWCore: ServiceWorkerCore }).ScSWCore;
 
 test("cache names are derived from a normalised build version", () => {
-  assertEquals(core.cacheNameFor("__SC_BUILD_VERSION__"), "session-clock-dev");
-  assertEquals(core.cacheNameFor(""), "session-clock-dev");
-  assertEquals(core.cacheNameFor(null), "session-clock-dev");
-  assertEquals(core.cacheNameFor("  ABC-123  "), "session-clock-abc-123");
-  assertEquals(core.cacheNameFor("a b/c"), "session-clock-abc");
-  assertEquals(
+  assert.strictEqual(core.cacheNameFor("__SC_BUILD_VERSION__"), "session-clock-dev");
+  assert.strictEqual(core.cacheNameFor(""), "session-clock-dev");
+  assert.strictEqual(core.cacheNameFor(null), "session-clock-dev");
+  assert.strictEqual(core.cacheNameFor("  ABC-123  "), "session-clock-abc-123");
+  assert.strictEqual(core.cacheNameFor("a b/c"), "session-clock-abc");
+  assert.strictEqual(
     core.cacheNameFor("x".repeat(80)).length,
     "session-clock-".length + 40,
   );
 });
 
 test("only this app's cache generations are touched", () => {
-  assertEquals(core.isSessionClockCache("session-clock-dev"), true);
-  assertEquals(core.isSessionClockCache("session-clock-abc"), true);
-  assertEquals(core.isSessionClockCache("other-app-v1"), false);
-  assertEquals(core.isSessionClockCache(null), false);
-  assertEquals(core.shouldDeleteCache("session-clock-old", "session-clock-new"), true);
-  assertEquals(core.shouldDeleteCache("session-clock-new", "session-clock-new"), false);
-  assertEquals(core.shouldDeleteCache("other", "session-clock-new"), false);
+  assert.strictEqual(core.isSessionClockCache("session-clock-dev"), true);
+  assert.strictEqual(core.isSessionClockCache("session-clock-abc"), true);
+  assert.strictEqual(core.isSessionClockCache("other-app-v1"), false);
+  assert.strictEqual(core.isSessionClockCache(null), false);
+  assert.strictEqual(core.shouldDeleteCache("session-clock-old", "session-clock-new"), true);
+  assert.strictEqual(core.shouldDeleteCache("session-clock-new", "session-clock-new"), false);
+  assert.strictEqual(core.shouldDeleteCache("other", "session-clock-new"), false);
 });
 
 test("the build stamp parser finds a stamped comment line", () => {
-  assertEquals(core.parseBuildVersion("// build:20250101abc\n"), "20250101abc");
-  assertEquals(core.parseBuildVersion("// BUILD:abc.123\n"), "abc.123");
-  assertEquals(core.parseBuildVersion("const x = 1;\n// build:abc"), "abc");
-  assertEquals(core.parseBuildVersion("const build = 'abc';"), "");
-  assertEquals(core.parseBuildVersion(""), "");
+  assert.strictEqual(core.parseBuildVersion("// build:20250101abc\n"), "20250101abc");
+  assert.strictEqual(core.parseBuildVersion("// BUILD:abc.123\n"), "abc.123");
+  assert.strictEqual(core.parseBuildVersion("const x = 1;\n// build:abc"), "abc");
+  assert.strictEqual(core.parseBuildVersion("const build = 'abc';"), "");
+  assert.strictEqual(core.parseBuildVersion(""), "");
 });
 
 test("external hosts are checked against a Set or an array", () => {
   const set = new Set(["cdn.jsdelivr.net", "fonts.gstatic.com"]);
-  assertEquals(core.isCacheableExternal("cdn.jsdelivr.net", set), true);
-  assertEquals(core.isCacheableExternal("evil.example", set), false);
-  assertEquals(
+  assert.strictEqual(core.isCacheableExternal("cdn.jsdelivr.net", set), true);
+  assert.strictEqual(core.isCacheableExternal("evil.example", set), false);
+  assert.strictEqual(
     core.isCacheableExternal("fonts.gstatic.com", ["fonts.gstatic.com"]),
     true,
   );
-  assertEquals(core.isCacheableExternal("", set), false);
+  assert.strictEqual(core.isCacheableExternal("", set), false);
 });
 
 test("only successful basic/cors responses are persisted", () => {
-  assertEquals(core.isCacheableResponse({ ok: true, type: "basic" }), true);
-  assertEquals(core.isCacheableResponse({ ok: true, type: "cors" }), true);
-  assertEquals(core.isCacheableResponse({ ok: false, type: "basic" }), false);
-  assertEquals(core.isCacheableResponse({ ok: true, type: "opaque" }), false);
-  assertEquals(core.isCacheableResponse(null), false);
+  assert.strictEqual(core.isCacheableResponse({ ok: true, type: "basic" }), true);
+  assert.strictEqual(core.isCacheableResponse({ ok: true, type: "cors" }), true);
+  assert.strictEqual(core.isCacheableResponse({ ok: false, type: "basic" }), false);
+  assert.strictEqual(core.isCacheableResponse({ ok: true, type: "opaque" }), false);
+  assert.strictEqual(core.isCacheableResponse(null), false);
 });
 
 test("requests are GET/HEAD and never carry authorization", () => {
-  assertEquals(core.isCacheableRequest({ method: "GET" }), true);
-  assertEquals(core.isCacheableRequest({ method: "HEAD" }), true);
-  assertEquals(core.isCacheableRequest({ method: "POST" }), false);
-  assertEquals(core.isCacheableRequest(null), false);
-  assertEquals(
+  assert.strictEqual(core.isCacheableRequest({ method: "GET" }), true);
+  assert.strictEqual(core.isCacheableRequest({ method: "HEAD" }), true);
+  assert.strictEqual(core.isCacheableRequest({ method: "POST" }), false);
+  assert.strictEqual(core.isCacheableRequest(null), false);
+  assert.strictEqual(
     core.isCacheableRequest({
       method: "GET",
       headers: new Headers({ authorization: "Bearer secret" }),
@@ -92,8 +92,8 @@ test("the worker source is wired to the shared core", async () => {
   const source = await readFile(
     new URL("../public/sw.js", import.meta.url),
   );
-  assertEquals(source.includes('importScripts("/sw-core.js")'), true);
-  assertEquals(source.includes("__SC_BUILD_VERSION__"), true);
-  assertEquals(source.includes("CORE.shouldDeleteCache"), true);
-  assertEquals(source.includes("CORE.isCacheableRequest"), true);
+  assert.strictEqual(source.includes('importScripts("/sw-core.js")'), true);
+  assert.strictEqual(source.includes("__SC_BUILD_VERSION__"), true);
+  assert.strictEqual(source.includes("CORE.shouldDeleteCache"), true);
+  assert.strictEqual(source.includes("CORE.isCacheableRequest"), true);
 });
