@@ -1,4 +1,4 @@
-﻿import { test, expect, waitForBoot, closeThemePanel } from "./fixtures";
+import { test, expect, waitForBoot, closeThemePanel } from "./fixtures";
 
 test.describe.configure({ mode: "serial" });
 // A service worker can serve assets from its cache, which bypasses page.route.
@@ -196,6 +196,7 @@ test.describe("audio and optional-subsystem resilience", () => {
     await showSeconds(page);
     await page.addInitScript(() => {
       class BlockedAudioContext {
+        state = "closed";
         constructor() {
           throw new Error("AudioContext blocked for test");
         }
