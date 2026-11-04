@@ -71,6 +71,25 @@ import {
 import { mount, unmount } from "svelte";
 import IntegrationsPanel from "./app/integrations/IntegrationsPanel.svelte";
 import type { IntegrationsService } from "./app/integrations/types";
+import {
+  clearCredentials as clear,
+  ensureFreshToken,
+  GOOGLE_CLIENT_ID_KEY,
+  loadCredentials as load,
+  OAUTH_PROVIDERS,
+  oauthLogin,
+  redirectUri,
+  saveCredentials as save,
+} from "./auth";
+
+// The OAuth surface lives in ./auth so it can be unit tested without Svelte.
+// Re-export it so existing `Integrations.*` call sites keep working.
+export {
+  ensureFreshToken,
+  oauthHandleCallback,
+  oauthLogin,
+  type OAuthCallbackResult,
+} from "./auth";
 
 // ─────────────────────────────────────────────────────────────────────
 // TYPES
@@ -85,93 +104,8 @@ export type IntegrationId =
   | "github";
 
 // ─────────────────────────────────────────────────────────────────────
-// STORAGE HELPERS — tokens are obfuscated (XOR + base64), not plaintext
-// This is not cryptographic security; it satisfies CodeQL's cleartext
-// storage check and prevents casual inspection of localStorage.
+// LEGACY CREDENTIAL SWEEP
 // ─────────────────────────────────────────────────────────────────────
-const _MASK = "sc_session_clock_2024";
-function _ob(s: string): string {
-  let out = "";
-  for (let i = 0; i < s.length; i++) {
-    out += String.fromCharCode(
-      s.charCodeAt(i) ^ _MASK.charCodeAt(i % _MASK.length),
-    );
-  }
-  return btoa(out);
-}
-function _deob(s: string): string {
-  try {
-    const d = atob(s);
-    let out = "";
-    for (let i = 0; i < d.length; i++) {
-      out += String.fromCharCode(
-        d.charCodeAt(i) ^ _MASK.charCodeAt(i % _MASK.length),
-      );
-    }
-    return out;
-  } catch {
-    return s;
-  } // fallback for unencoded legacy values
-}
-
-const KEY = (id: string) => `sc_int_${id}`;
-function save(id: string, data: Record<string, string>) {
-  const obfuscated: Record<string, string> = {};
-  for (const [k, v] of Object.entries(data)) obfuscated[k] = _ob(v);
-  localStorage.setItem(KEY(id), JSON.stringify(obfuscated));
-}
-function load(id: string): Record<string, string> | null {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY(id)) || "null");
-    if (!raw) return null;
-    const result: Record<string, string> = {};
-    for (const [k, v] of Object.entries(raw as Record<string, string>))
-      result[k] = _deob(v);
-    return result;
-  } catch {
-    return null;
-  }
-}
-function clear(id: string) {
-  localStorage.removeItem(KEY(id));
-}
-
-function redirectUri(): string {
-  return window.location.origin + window.location.pathname;
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// SHARED PKCE HELPERS — used by every authorization-code provider
-// ─────────────────────────────────────────────────────────────────────
-async function pkceChallenge(verifier: string): Promise<string> {
-  const data = new TextEncoder().encode(verifier);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return btoa(String.fromCharCode(...new Uint8Array(hash)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-}
-function pkceVerifier(length = 64): string {
-  const arr = new Uint8Array(length);
-  crypto.getRandomValues(arr);
-  return btoa(String.fromCharCode(...arr))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "")
-    .slice(0, length);
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// GENERIC OAUTH — covers Spotify (direct) and Notion/GitHub/Todoist/
-// Linear (proxied through /api/oauth/token). One login/callback/refresh
-// implementation instead of one copy per provider.
-// ─────────────────────────────────────────────────────────────────────
-const OAUTH_PROXY = "/api/oauth/token";
-const SPOTIFY_SCOPES =
-  "user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private";
-const GOOGLE_SCOPES =
-  "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/calendar.readonly";
-const GOOGLE_CLIENT_ID_KEY = "sc_google_client_id";
 // Legacy key from a since-removed feature (a self-host form that
 // collected a visitor's own Client Secret — see CONTRIBUTING.md for
 // why that was reverted). Nothing writes this anymore, but it needs an
@@ -186,72 +120,6 @@ const LEGACY_GOOGLE_CLIENT_SECRET_KEY = "sc_google_client_secret";
 // and never explicitly disconnected.
 localStorage.removeItem(LEGACY_GOOGLE_CLIENT_SECRET_KEY);
 
-interface OAuthProviderConfig {
-  authorizeUrl: string;
-  tokenUrl: string; // only used when direct === true
-  scope: string;
-  clientIdKey: string;
-  direct: boolean; // true = public client, browser calls tokenUrl itself
-  extraAuthParams?: Record<string, string>;
-}
-
-const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
-  spotify: {
-    authorizeUrl: "https://accounts.spotify.com/authorize",
-    tokenUrl: "https://accounts.spotify.com/api/token",
-    scope: SPOTIFY_SCOPES,
-    clientIdKey: "sc_spotify_client_id",
-    direct: true,
-  },
-  notion: {
-    authorizeUrl: "https://api.notion.com/v1/oauth/authorize",
-    tokenUrl: "",
-    scope: "",
-    clientIdKey: "sc_notion_client_id",
-    direct: false,
-    extraAuthParams: { owner: "user" },
-  },
-  github: {
-    authorizeUrl: "https://github.com/login/oauth/authorize",
-    tokenUrl: "",
-    scope: "repo read:user",
-    clientIdKey: "sc_github_client_id",
-    direct: false,
-  },
-  todoist: {
-    authorizeUrl: "https://todoist.com/oauth/authorize",
-    tokenUrl: "",
-    scope: "data:read_write",
-    clientIdKey: "sc_todoist_client_id",
-    direct: false,
-  },
-  linear: {
-    authorizeUrl: "https://linear.app/oauth/authorize",
-    tokenUrl: "",
-    scope: "read",
-    clientIdKey: "sc_linear_client_id",
-    direct: false,
-  },
-  google: {
-    authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-    tokenUrl: "",
-    scope: GOOGLE_SCOPES,
-    clientIdKey: GOOGLE_CLIENT_ID_KEY,
-    direct: false,
-    // access_type=offline + prompt=consent is what actually gets a
-    // refresh_token back from Google — without both, a returning user
-    // only ever gets a short-lived access token again (Google only
-    // issues a refresh_token on the *first* consent unless prompt is
-    // forced). include_granted_scopes lets YouTube + Calendar be
-    // connected incrementally without re-consenting to both every time.
-    extraAuthParams: {
-      access_type: "offline",
-      prompt: "consent",
-      include_granted_scopes: "true",
-    },
-  },
-};
-
 export const FOCUS_PLAYLIST_SEARCHES = [
   "Focus Deep Work",
   "Study Music",
@@ -260,208 +128,6 @@ export const FOCUS_PLAYLIST_SEARCHES = [
   "Deep Focus",
   "Productive Morning",
 ];
-
-// Kicks off the Authorization Code + PKCE dance for any provider above.
-// `clientId` is the OAuth app's public client ID (never a secret) that
-// the user pastes in after registering their own app — same pattern as
-// the original Spotify flow, just generalised.
-export async function oauthLogin(
-  provider: string,
-  clientId: string,
-): Promise<void> {
-  const cfg = OAUTH_PROVIDERS[provider];
-  if (!cfg) return;
-  const safeId = clientId.replace(/[^a-zA-Z0-9_\-.]/g, "");
-  if (!safeId) return;
-  localStorage.setItem(cfg.clientIdKey, safeId);
-
-  const verifier = pkceVerifier();
-  const challenge = await pkceChallenge(verifier);
-  const nonce = pkceVerifier(24);
-  // sessionStorage, not localStorage: this flow does a full page
-  // navigation away and back (window.location.assign below), which
-  // sessionStorage survives within the same tab — but unlike
-  // localStorage it's scoped per-tab and auto-clears when the tab
-  // closes, so an abandoned flow (user closes the tab mid-authorize)
-  // doesn't leave a stale verifier sitting around indefinitely, and
-  // starting two different providers' flows in two tabs at once can't
-  // clobber each other's pending state the way a shared localStorage
-  // key could.
-  sessionStorage.setItem("sc_oauth_verifier", verifier);
-  sessionStorage.setItem("sc_oauth_state", `${provider}:${nonce}`);
-
-  const url = new URL(cfg.authorizeUrl);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("client_id", safeId);
-  url.searchParams.set("redirect_uri", redirectUri());
-  url.searchParams.set("state", `${provider}:${nonce}`);
-  if (cfg.scope) url.searchParams.set("scope", cfg.scope);
-  url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("code_challenge", challenge);
-  for (const [k, v] of Object.entries(cfg.extraAuthParams ?? {}))
-    url.searchParams.set(k, v);
-
-  window.location.assign(url.toString());
-}
-
-// The callback URL and one-shot CSRF state are single-use — clear them
-// on every path out of oauthHandleCallback, success or failure, so a
-// failed attempt doesn't get silently retried on refresh with a code
-// the provider will now reject as already used.
-function cleanUpOAuthRedirect(): void {
-  window.history.replaceState({}, "", window.location.pathname);
-  sessionStorage.removeItem("sc_oauth_verifier");
-  sessionStorage.removeItem("sc_oauth_state");
-}
-
-// Call once on page load. Detects a `?code=&state=` redirect from any
-// provider above, validates the CSRF state, exchanges the code (directly
-// for Spotify, via the proxy for everyone else), and stores the result.
-// Returns `{ provider, error }` (error omitted on success) so callers
-// can tell a genuine failure from "no callback in progress" (null) —
-// previously any exchange failure was indistinguishable from the latter
-// and left the ?code= in the URL to be silently retried on refresh.
-export async function oauthHandleCallback(): Promise<{
-  provider: string;
-  error?: string;
-} | null> {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get("code");
-  const state = params.get("state");
-  if (!code || !state) return null;
-  if (state !== sessionStorage.getItem("sc_oauth_state")) return null; // CSRF check
-
-  const provider = state.split(":")[0] ?? "";
-  const cfg = OAUTH_PROVIDERS[provider];
-  if (!cfg) return null;
-
-  const clientId = localStorage.getItem(cfg.clientIdKey) ?? "";
-  const verifier = sessionStorage.getItem("sc_oauth_verifier") ?? "";
-  const redirect_uri = redirectUri();
-
-  try {
-    const res = cfg.direct
-      ? await fetch(cfg.tokenUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            redirect_uri,
-            client_id: clientId,
-            code_verifier: verifier,
-          }),
-        })
-      : await fetch(OAUTH_PROXY, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider,
-            grant_type: "authorization_code",
-            code,
-            redirect_uri,
-            code_verifier: verifier,
-          }),
-        });
-    const data = await res.json();
-    if (!data.access_token) {
-      cleanUpOAuthRedirect();
-      return {
-        provider,
-        error:
-          data.error_description ||
-          data.message ||
-          data.error ||
-          `sign-in failed (${res.status})`,
-      };
-    }
-    save(provider, {
-      token: data.access_token,
-      refresh: data.refresh_token ?? "",
-      expires: expiryFrom(data.expires_in),
-    });
-    cleanUpOAuthRedirect();
-    return { provider };
-  } catch {
-    cleanUpOAuthRedirect();
-    return { provider, error: "network error" };
-  }
-}
-
-// Converts a provider's `expires_in` (seconds) to an absolute expiry
-// timestamp string, or "" if it's missing/malformed. Previously this was
-// computed inline as `Date.now() + data.expires_in * 1000`, which yields
-// "NaN" when the field is absent or non-numeric — and a persisted "NaN"
-// expiry compares false against everything, so the token looked
-// perpetually expired and triggered a refresh on every single call.
-// `fallbackSeconds` is used by the refresh path, where a token that
-// *does* expire must never be recorded as non-expiring.
-function expiryFrom(expiresIn: unknown, fallbackSeconds?: number): string {
-  const n = Number(expiresIn);
-  if (expiresIn != null && expiresIn !== "" && Number.isFinite(n) && n > 0)
-    return String(Date.now() + n * 1000);
-  return fallbackSeconds ? String(Date.now() + fallbackSeconds * 1000) : "";
-}
-
-// Shared refresh path for every OAuth provider that issues refresh
-// tokens (Spotify, Linear, Google; GitHub/Notion/Todoist tokens don't
-// expire).
-export async function ensureFreshToken(
-  provider: string,
-): Promise<string | null> {
-  const creds = load(provider);
-  if (!creds?.token) return null;
-  if (!creds.expires || Date.now() < Number(creds.expires) - 60_000)
-    return creds.token;
-  if (!creds.refresh) {
-    // Token is expired and there's no refresh token on file — this can
-    // only happen for a connection made before refresh tokens existed
-    // here (e.g. Google's old GIS "token model" flow, migrated away
-    // from in favor of the real Authorization Code flow above). Clear
-    // it rather than leaving isXConnected() reporting true forever
-    // against a dead token — that left YouTube/Calendar silently
-    // showing no data with no way back to the connect button short of
-    // manually disconnecting first.
-    clear(provider);
-    return null;
-  }
-
-  const cfg = OAUTH_PROVIDERS[provider];
-  if (!cfg) return null;
-  const clientId = localStorage.getItem(cfg.clientIdKey) ?? "";
-  try {
-    const res = cfg.direct
-      ? await fetch(cfg.tokenUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: creds.refresh,
-            client_id: clientId,
-          }),
-        })
-      : await fetch(OAUTH_PROXY, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider,
-            grant_type: "refresh_token",
-            refresh_token: creds.refresh,
-          }),
-        });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.access_token) return null;
-    save(provider, {
-      token: data.access_token,
-      refresh: data.refresh_token ?? creds.refresh,
-      expires: expiryFrom(data.expires_in, 3600), // 1h default: a refreshed token must never be recorded as non-expiring
-    });
-    return data.access_token;
-  } catch {
-    return null;
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 1. SPOTIFY

@@ -577,6 +577,14 @@ interface TrackSpatialRig {
   panner: PannerNode | null;
   fallback: StereoPannerNode | null;
   route: "hrtf" | "equalpower";
+  /**
+   * Audio-clock time at which this rig was attached. All movement is
+   * `ctx.currentTime - startedAt`, so the initial placement, later ticks and
+   * panner automation share one monotonic clock (and so suspending the
+   * context freezes movement instead of letting wall time move the source).
+   */
+  startedAt: number;
+  /** Single random phase per rig, used for the initial placement and every update. */
   phaseOffset: number;
 }
 
@@ -585,6 +593,8 @@ const spatialRigs: Record<string, TrackSpatialRig> = {};
 // HRTF position params are effectively k-rate; ~25 Hz is plenty and avoids
 // one audio-param write per display frame per track.
 const SPATIAL_UPDATE_INTERVAL = 1 / 25;
+// Also on the audio clock: a wall-clock throttle would fight the movement
+// clock when the page is throttled or the context is suspended.
 let lastSpatialUpdate = -Infinity;
 
 function safeParam(
@@ -670,8 +680,14 @@ function attachSpatialRig(id: string, gainNode: GainNode): void {
   const profile = getSpatialProfile(id);
   if (!profile || profile.mode === "bypass") return;
 
+  // One phase, created once. The initial placement and every later tick use
+  // this exact value; drawing a second `Math.random()` for the rig made the
+  // first update land on a different phase than the starting position. The
+  // draw is intentionally outside the per-voice seed (see audio/prng.ts) so
+  // two replays of the same track do not sit in identical stereo positions.
   const now = ctx.currentTime;
-  const position = positionForProfile(profile, now, Math.random() * Math.PI * 2);
+  const phaseOffset = Math.random() * Math.PI * 2;
+  const position = positionForProfile(profile, 0, phaseOffset);
 
   try {
     gainNode.disconnect(analyser!);
@@ -689,7 +705,8 @@ function attachSpatialRig(id: string, gainNode: GainNode): void {
       panner,
       fallback: null,
       route: "hrtf",
-      phaseOffset: Math.random() * Math.PI * 2,
+      startedAt: now,
+      phaseOffset,
     };
     return;
   } catch {
@@ -706,7 +723,8 @@ function attachSpatialRig(id: string, gainNode: GainNode): void {
       panner: null,
       fallback,
       route: "equalpower",
-      phaseOffset: Math.random() * Math.PI * 2,
+      startedAt: now,
+      phaseOffset,
     };
   } catch {
     // Even equal-power panning failed; reconnect the dry path so audio
@@ -763,26 +781,37 @@ export function setSpatial(v: boolean): void {
   });
 }
 
-export function tickSpatial(now: number): void {
+// Called from the animation frame, but takes no timestamp argument: every
+// value that reaches `positionForProfile()` is elapsed audio time. Mixing
+// `requestAnimationFrame`'s page-relative timestamp into this used to make a
+// moving track jump on its first update (the placement used audio time, the
+// tick used page time) and on every context suspend/resume.
+export function tickSpatial(): void {
   if (!spatialEnabled || !ctx) return;
+  const now = ctx.currentTime;
   if (!Number.isFinite(now)) return;
+  // `currentTime` is monotonic within one context, but a rebuilt context
+  // starts near zero. Without this guard the throttle would stay ahead of the
+  // new clock and freeze movement for the rest of the session.
+  if (now < lastSpatialUpdate) lastSpatialUpdate = -Infinity;
   if (now - lastSpatialUpdate < SPATIAL_UPDATE_INTERVAL) return;
   lastSpatialUpdate = now;
 
   Object.keys(spatialRigs).forEach((id) => {
     const rig = spatialRigs[id];
     if (!rig || rig.profile.movement.kind === "fixed") return;
+    const elapsed = Math.max(0, now - rig.startedAt);
     const position = positionForProfile(
       rig.profile,
-      now,
+      elapsed,
       rig.phaseOffset,
     );
-    if (rig.panner) writePannerPosition(rig.panner, position, ctx!.currentTime);
+    if (rig.panner) writePannerPosition(rig.panner, position, now);
     if (rig.fallback) {
       safeParam(
         rig.fallback.pan,
         panFromPosition(position),
-        ctx!.currentTime,
+        now,
         0.08,
       );
     }

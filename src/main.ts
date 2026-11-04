@@ -1331,8 +1331,9 @@ function renderFrame(ts: number) {
   // no per-frame node allocation), so unlike the visual work above it's
   // cheap enough to keep running on LOW rather than freezing the
   // soundstage in place. LOW's own outer frame-skip (line ~970 above)
-  // already throttles how often this runs to ~20fps naturally.
-  Sound.tickSpatial(ts / 1000);
+  // already throttles how often this runs to ~20fps naturally. It reads the
+  // audio clock itself; the RAF timestamp is deliberately not passed in.
+  Sound.tickSpatial();
 
   const now = new Date();
   const ms = now.getMilliseconds(),
@@ -6449,46 +6450,74 @@ function init() {
   )
     void MusicDock.initSpotifyPlayback();
   // Handle OAuth redirect callbacks — one handler for every provider
-  // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here
-  // with ?code=&state=<provider>:<nonce>).
-  if (window.location.search.includes("code=")) {
-    Integrations.oauthHandleCallback().then((result) => {
-      if (result?.error) {
-        // A real failure (bad/missing secret, mismatched self-hosted
-        // Client ID+Secret pair, provider-side rejection, etc.) — this
-        // used to fail silently with no toast and no way to tell why.
-        const name =
-          result.provider[0]!.toUpperCase() + result.provider.slice(1);
-        showToast(`⚠️ ${name} connection failed: ${result.error}`, 6000);
-      } else if (result) {
-        const name =
-          result.provider[0]!.toUpperCase() + result.provider.slice(1);
-        showToast(`✅ ${name} connected!`, 4000);
-        // Spotify's Web Playback SDK device wasn't live yet at the
-        // isSpotifyConnected() check above (token lands here, after
-        // the redirect) — bring it up now instead of waiting for the
-        // user to reload the page themselves to see anything play.
-        if (
-          result.provider === "spotify" &&
-          MusicDock.isMusicDeckEnabled() &&
-          MusicDock.getProviderPref() !== "youtube"
-        )
-          void MusicDock.initSpotifyPlayback().then(() =>
-            MusicDock.refreshDockConnectionState(),
+  // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here with
+  // ?code=&state=<provider>:<nonce>; a denial lands with ?error=...&state=).
+  // The detector mirrors the handler: it also covers provider errors and
+  // state-only responses, while an unrelated ?code= or an ordinary page load
+  // returns null and is left untouched.
+  const oauthParams = new URLSearchParams(window.location.search);
+  if (
+    oauthParams.has("code") ||
+    oauthParams.has("error") ||
+    oauthParams.has("state")
+  ) {
+    void Integrations.oauthHandleCallback()
+      .then((result) => {
+        if (!result) return;
+        // The provider value is validated in the handler, but treat it
+        // defensively: an empty or odd value must not break the toast.
+        const rawName =
+          typeof result.provider === "string"
+            ? result.provider.replace(/[^a-z0-9]/gi, "").slice(0, 24)
+            : "";
+        const name = rawName
+          ? rawName[0]!.toUpperCase() + rawName.slice(1)
+          : "Sign-in";
+        if (!result.ok) {
+          // Includes cancelled/denied at the provider and every invalid or
+          // malformed callback — this used to fail silently with no toast,
+          // and left the ?code= in the URL to be retried on refresh.
+          showToast(
+            result.cancelled
+              ? `ℹ️ ${name} connection cancelled`
+              : `⚠️ ${name} connection failed: ${result.error}`,
+            6000,
           );
-        // Same reasoning for Google: the "Connect YouTube" click that
-        // started this round-trip happened on the *previous* page
-        // load, so its own continuation code never runs here — resume
-        // it manually, and refresh the Calendar side-card immediately
-        // instead of waiting for its next 60s poll.
-        if (result.provider === "google") {
-          MusicDock.refreshYouTubeConnectionState();
-          SideTasks.refreshNow();
+        } else {
+          showToast(`✅ ${name} connected!`, 4000);
+          // Spotify's Web Playback SDK device wasn't live yet at the
+          // isSpotifyConnected() check above (token lands here, after
+          // the redirect) — bring it up now instead of waiting for the
+          // user to reload the page themselves to see anything play.
+          if (
+            result.provider === "spotify" &&
+            MusicDock.isMusicDeckEnabled() &&
+            MusicDock.getProviderPref() !== "youtube"
+          )
+            void MusicDock.initSpotifyPlayback().then(() =>
+              MusicDock.refreshDockConnectionState(),
+            );
+          // Same reasoning for Google: the "Connect YouTube" click that
+          // started this round-trip happened on the *previous* page
+          // load, so its own continuation code never runs here — resume
+          // it manually, and refresh the Calendar side-card immediately
+          // instead of waiting for its next 60s poll.
+          if (result.provider === "google") {
+            MusicDock.refreshYouTubeConnectionState();
+            SideTasks.refreshNow();
+          }
         }
-      }
-      if (intContent)
-        Integrations.buildIntegrationsPanel(intContent, { showToast });
-    });
+      })
+      .catch(() => {
+        // A rejected handler must not surface as an unhandled rejection or
+        // stop the rest of boot. The URL/session cleanup is best-effort
+        // inside the handler itself.
+        showToast("⚠️ Sign-in could not be completed. Please try again.", 6000);
+      })
+      .finally(() => {
+        if (intContent)
+          Integrations.buildIntegrationsPanel(intContent, { showToast });
+      });
   }
 
   // Language modal
