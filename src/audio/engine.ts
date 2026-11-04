@@ -289,7 +289,7 @@ class Rig {
   private attachLfo(target: AudioParam, spec?: LfoOptions): void {
     if (!spec) return;
     const lfo = makeLfo(this.ctx, spec);
-    this.scope.track(lfo.oscillator);
+    this.scope.trackSource(lfo.oscillator);
     this.scope.track(lfo.gain);
     lfo.oscillator.connect(lfo.gain);
     lfo.gain.connect(target);
