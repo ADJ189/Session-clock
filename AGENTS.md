@@ -5,10 +5,10 @@ Guidance for AI agents and contributors working in this repository.
 ## What this is
 
 Session Clock is a local-first focus timer and clock. It is a TypeScript
-app built with Vite — hand-wired DOM for most of the UI, plus Svelte 5
-components for self-contained surfaces (currently the Theme Finder) — with
-canvas/Web Audio for the animated themes and ambient sound. All user data stays
-in `localStorage`; there is no required account or backend data store.
+app built with Vite and Svelte 5 runes components (Theme Finder, Settings,
+Integrations, workspace surfaces) — with canvas/Web Audio for the animated
+themes and ambient sound. All user data stays in `localStorage`; there is no
+required account or backend data store.
 
 Deployment target is Cloudflare Pages, with optional Pages Functions under
 `functions/` for OAuth token exchange and a Notion API relay.
@@ -44,12 +44,12 @@ or installs a second copy of a package.
 
 ```
 src/
-  main.ts          entry point and most UI wiring (large; split new features out)
+  app/             Svelte 5 runes components (App, layout, settings, integrations, modals, shared)
+  main.ts          entry point and boot orchestration
   features.ts      onboarding, status line, templates, countdown, world clock
   i18n.ts          8 locales (en, es, fr, de, ja, ko, pt, hi)
   themes.ts        theme metadata; renderer.ts holds the canvas renderers
   themelib.ts      Theme Finder controller (storage, filtering, cached card wall)
-  app/components/  Svelte 5 islands (theme-finder/); no scoped styles — style.css owns visuals
   musicdock.ts     opt-in YouTube/Spotify dock
   sound.ts         synthesized ambient audio engine
   pomodoro.ts      Pomodoro state machine
@@ -61,8 +61,9 @@ src/
 functions/         Cloudflare Pages Functions (OAuth relay, Notion proxy)
 public/            static assets, manifest, service worker, legal mirrors
 tests/             Playwright specs and shared fixtures
+tests-unit/        Node/Deno unit suite
 style.css          single global stylesheet (large, sectioned)
-index.html         static shell; most UI is built/wired by main.ts
+index.html         static shell with #app-root
 ```
 
 Prefer a new module for a self-contained feature instead of growing

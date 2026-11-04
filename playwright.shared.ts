@@ -21,12 +21,16 @@ export const sharedUse = {
   timezoneId: "UTC",
 } as const;
 
+const isDeno = typeof (globalThis as unknown as { Deno?: unknown }).Deno !== "undefined" || !process.env.npm_execpath;
+
 export const webServer = externalBaseURL
   ? undefined
   : {
       // Build once, then serve dist/. `--strictPort` fails loudly instead of
       // silently moving to another port and testing the wrong thing.
-      command: `npm run build && npm run preview -- --host 127.0.0.1 --port ${PORT} --strictPort`,
+      command: isDeno
+        ? `deno task build && deno run -A node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port ${PORT} --strictPort`
+        : `npm run build && npm run preview -- --host 127.0.0.1 --port ${PORT} --strictPort`,
       url: baseURL,
       // Always run the build; an existing preview may serve stale output.
       reuseExistingServer: false,

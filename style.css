@@ -326,20 +326,6 @@ html.force-no-backdrop-filter body.light-theme .sc-toast {
 
 /* RIGHT cluster */
 .topbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-/* Contextual status tab — local app state (theme/focus/countdown), never
-   a network-sync claim. */
-.context-pill {
-  display: inline-flex; align-items: center;
-  max-width: clamp(90px, 18vw, 210px);
-  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-  font-size: .64rem; letter-spacing: .05em; font-weight: 600;
-  color: var(--clr-text); opacity: .55;
-  font-variant-numeric: tabular-nums;
-  padding: 4px 10px; border-radius: 99px; cursor: default;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
-  transition: background .3s, color .3s, opacity .3s;
-}
 .topbar-icon-btn {
   display: flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: 9px; border: none; cursor: pointer;
@@ -1329,7 +1315,6 @@ body:has(#themePanel.collapsed) #themesRevealBtn { opacity: 1; transform: transl
   /* ID selector: the base .clock-pos-pill display rule appears later in this
      file, so a class-only media override would lose the cascade. */
   #clockPosPill { display: none; }
-  .context-pill { max-width: 82px; padding-inline: 9px; }
   /* The palette shortcut is still reachable through Ctrl+K / the bottom
      dock; its inline "⌘K" hint only widens the icon-button row. */
   .cmd-btn-label { display: none; }
@@ -1407,7 +1392,6 @@ body.light-theme .feat-btn           { background: rgba(0,0,0,.05); border-color
 body.light-theme .media-card         { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.09); }
 body.light-theme .topbar             { background: rgba(240,244,252,.7); border-color: rgba(0,0,0,.08); }
 body.light-theme .topbar-icon-btn    { background: rgba(0,0,0,.05); color: var(--clr-text); }
-body.light-theme .context-pill           { background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.09); }
 body.light-theme .session-card       { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.09); }
 body.light-theme #focusInput         { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.12); }
 body.light-theme .topbar-themes-btn { box-shadow: 0 2px 8px rgba(0,0,0,.12); border-color: rgba(0,0,0,.1); }
@@ -2786,13 +2770,6 @@ body.light-theme .cmd-item-icon { background: rgba(0,0,0,.05); }
 .distraction-btn svg { opacity: .8; }
 .distraction-count { font-size: .58rem; opacity: .4; color: var(--clr-text); }
 
-/* Context tab — quiet typographic presence */
-.context-pill {
-  cursor: default;
-  transition: color .3s, background .3s;
-}
-.context-pill:hover { opacity: .9 !important; }
-
 /* Template cards */
 .template-card {
   display: flex; flex-direction: column; align-items: center;
@@ -3696,7 +3673,8 @@ body.light-theme .lang-btn--active { background: var(--clr-btn-bg); }
 .icon-tile--sm  { width: 26px; height: 26px; border-radius: 8px; font-size: .8rem; }
 .icon-tile--lg  { width: 40px; height: 40px; border-radius: 12px; font-size: 1.25rem; }
 .int-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; }
-.int-name { font-size: .78rem; font-weight: 700; color: var(--clr-text); }
+.int-name { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--clr-text); }
+.int-name .beta-tag { height: 1rem; padding: 0 .26rem; font-size: .52rem; }
 .int-desc { font-size: .6rem; opacity: .45; line-height: 1.4; color: var(--clr-text); }
 .int-status {
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
@@ -3798,14 +3776,6 @@ body.light-theme .int-card--open .int-form { border-top-color: rgba(0,0,0,.07); 
   background: rgba(0,0,0,.14);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
-}
-
-/* ── Context tab — restrained typographic pill ─────────────── */
-.context-pill {
-  font-size: .62rem;
-  letter-spacing: .05em;
-  font-weight: 600;
-  text-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
 
 /* ── Status line — cinematic subtitle feel ──────────────────── */
@@ -4297,15 +4267,6 @@ body.session-running .session-status-line {
   font-weight: 800;
 }
 
-/* ── Context tab — Dialed type, keeps the pill surface ──────── */
-.context-pill {
-  font-size: .6rem;
-  letter-spacing: .06em;
-  opacity: .5;
-  transition: opacity .2s, background .3s;
-}
-.context-pill:hover { opacity: .85; }
-
 /* ── Panel toggle button — Dialed minimal ────────────────────  */
 #panelToggle {
   font-size: .58rem;
@@ -4340,7 +4301,6 @@ body.session-running .session-status-line {
 }
 
 /* ── Light theme — Dialed works beautifully light too ───────  */
-body.light-theme .context-pill { color: var(--clr-text); }
 body.light-theme .greeting  { color: var(--clr-text); }
 body.light-theme #focusTag  { color: var(--clr-text); }
 body.light-theme .session-label { color: var(--clr-text); }

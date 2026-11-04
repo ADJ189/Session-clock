@@ -760,6 +760,9 @@
     <div id="letterboxBot"></div>
     <canvas id="transCanvas"></canvas>
 
+    <!-- Svelte application root -->
+    <div id="app-root"></div>
+
     <!-- Top bar -->
     <header class="topbar">
       <div class="topbar-left">
@@ -815,7 +818,6 @@
       </div>
       <div id="showBadge" class="showbadge"></div>
       <div class="topbar-right">
-        <div class="context-pill" id="contextPill" title="Local app status">Session Clock</div>
         <button
           class="clock-pos-pill"
           id="clockPosPill"
@@ -1428,7 +1430,7 @@
     <div class="sc-overlay" id="settingsOverlay">
       <div class="sc-modal sc-modal--settings">
         <div class="modal-header">
-          <h2 class="modal-title-row" aria-label="Settings" aria-describedby="betaTagSettingsTitle">Settings <span class="beta-tag" id="betaTagSettingsTitle">Beta</span></h2>
+          <h2 class="modal-title-row" aria-label="Settings">Settings</h2>
           <button
             class="modal-close"
             aria-label="Close"
