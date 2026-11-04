@@ -14,6 +14,25 @@ test("different seeds diverge", () => {
   assert.notDeepStrictEqual([a.next(), a.next()], [b.next(), b.next()]);
 });
 
+test("the seed contract covers generator parameters only", () => {
+  // This is the guarantee documented at the top of prng.ts: a seed reproduces
+  // the per-event parameters a generator draws (duration, gain, frequency,
+  // pan), at the same call positions. It does NOT reproduce event timing or
+  // noise-buffer content — scheduler.ts, noise.ts and dsp.ts use random
+  // sources that are deliberately outside this stream.
+  const parameters = (seed: number) => {
+    const r = createRandom(seed);
+    return {
+      duration: r.range(0.7, 1.6),
+      gain: r.range(0.02, 0.055),
+      frequency: r.range(380, 1150),
+      pan: r.pm(0.5),
+    };
+  };
+  assert.deepStrictEqual(parameters(123), parameters(123));
+  assert.notDeepStrictEqual(parameters(123), parameters(124));
+});
+
 test("next() stays in [0, 1)", () => {
   const r = createRandom(7);
   for (let i = 0; i < 2000; i++) {

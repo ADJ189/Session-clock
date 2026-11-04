@@ -187,8 +187,12 @@ test("moving profiles update their panner position on tick", () => {
   const panner = ctx.hrtfPanners.at(-1)!;
   const before = panner.positionX.events.length;
 
-  Sound.tickSpatial(0);
-  Sound.tickSpatial(1);
+  // `tickSpatial()` reads the audio clock; a fake-clock tick without
+  // advancing it is expected to be a no-op for a moving rig.
+  ctx.currentTime += 1;
+  Sound.tickSpatial();
+  ctx.currentTime += 1;
+  Sound.tickSpatial();
   assert.ok(
     panner.positionX.events.length > before,
     "sweep profile should write a new X position",
@@ -246,6 +250,30 @@ test("stopping one track leaves another track's rig intact", () => {
   assert.ok(Sound.isPlaying("wind"), "the other track kept playing");
   assert.ok(windGain.connections.includes(windPanner!));
   assert.ok(windPanner!.connections.includes(analyser));
+});
+
+test("spatial nodes keep the default channel configuration", () => {
+  const ctx = reset();
+  assert.ok(Sound.playTrack("rain"));
+  const panner = ctx.hrtfPanners.at(-1)!;
+  const gain = trackGainFor(ctx, panner);
+
+  // No profile may advertise an input layout the graph ignores (see the
+  // comment on SpatialProfile), and the panner must stay at the Web Audio
+  // default: it inherits the track's channel layout and localises internally.
+  for (const profile of Object.values(SPATIAL_PROFILES)) {
+    assert.strictEqual(
+      "inputLayout" in (profile as unknown as Record<string, unknown>),
+      false,
+    );
+  }
+  assert.strictEqual(panner.channelCount, 2);
+  assert.strictEqual(
+    gain.connections.filter((node) => node === panner).length,
+    1,
+    "one edge: no channel is split or duplicated before the panner",
+  );
+  assert.strictEqual(panner.connections.length, 1);
 });
 
 test("head tracking subscribes and unsubscribes the listener feed", () => {

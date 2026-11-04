@@ -26,9 +26,21 @@ test("every ambient preset has a spatial profile and nothing extra", () => {
   assert.strictEqual(new Set(profileIds).size, AMBIENT_PRESET_IDS.length);
 });
 
+// The profile shape is part of the audio contract: every key must be read by
+// the graph. `inputLayout` was removed because PannerNode already inherits the
+// track's channel layout, so a per-profile mono/stereo flag was configuration
+// that changed nothing. This assertion keeps it from creeping back in unread.
 test("profiles are finitely specified and use HRTF panning", () => {
+  const expectedKeys = [
+    "distance",
+    "mode",
+    "movement",
+    "panningModel",
+    "position",
+  ];
   for (const id of AMBIENT_PRESET_IDS) {
     const p = SPATIAL_PROFILES[id];
+    assert.deepStrictEqual(Object.keys(p).sort(), expectedKeys, `${id} keys`);
     assert.strictEqual(p.panningModel, "HRTF", id);
     assert.ok(
       ["track-emitter", "centered", "bypass"].includes(p.mode),
