@@ -95,6 +95,14 @@ import * as Motion from "./motion";
 import * as ThemeLib from "./themelib";
 import { copyDiagnosticsText, installDiagnostics } from "./diagnostics";
 import { rendererHealth } from "./rendererHealth";
+import { mount, unmount } from "svelte";
+import SettingsTabBar from "./app/settings/SettingsTabBar.svelte";
+import GeneralPanel from "./app/settings/panels/GeneralPanel.svelte";
+import SoundPanel from "./app/settings/panels/SoundPanel.svelte";
+import FocusPanel from "./app/settings/panels/FocusPanel.svelte";
+import DisplayPanel from "./app/settings/panels/DisplayPanel.svelte";
+import PrivacyPanel from "./app/settings/panels/PrivacyPanel.svelte";
+import QuickActionDock from "./app/layout/QuickActionDock.svelte";
 
 // ── Platform detection ───────────────────────────────────────────────
 // Runs first, synchronously, before anything else touches the DOM — CSS
@@ -347,7 +355,6 @@ const DOM = {
   showBadge: $("showBadge"),
   infoLabel: $("infoLabel"),
   infoSlide: $("infoSlide"),
-  contextPill: $("contextPill"),
 };
 
 // ── Session timer ──────────────────────────────────────────────────────
@@ -375,7 +382,6 @@ function startTimer() {
   bcBroadcast("session", { running: true });
   APIs.requestNotifications();
   APIs.acquireWakeLock();
-  refreshContextPill();
 }
 
 function pauseTimer() {
@@ -394,7 +400,6 @@ function pauseTimer() {
   Features.updateDistractionUI(false);
   Intel.onFlowInterrupt();
   bcBroadcast("session", { running: false });
-  refreshContextPill();
 }
 
 function resetTimer() {
@@ -478,7 +483,6 @@ function resetTimer() {
   DOM.focusInput.value = "";
   if (Pom.isActive()) Pom.reset();
   bcBroadcast("session", { running: false });
-  refreshContextPill();
 }
 
 DOM.btnStart.addEventListener("click", () =>
@@ -541,7 +545,6 @@ function restoreSavedSession(): void {
         DOM.btnStart as HTMLButtonElement,
       );
       Features.setStatusState("paused");
-      refreshContextPill();
     }
   } catch {
     // Corrupt saved state
@@ -1191,7 +1194,6 @@ function applyTheme(theme: Theme, instant = false) {
       }, 420);
     }
 
-    refreshContextPill();
     ThemeLib.onThemeApplied(theme.id);
     lastQKey = "";
     localStorage.setItem("sc_last_theme", theme.id);
@@ -1217,40 +1219,6 @@ function applyTheme(theme: Theme, instant = false) {
     return;
   }
   runTransition(theme.transition ?? "defaultFade", doApply);
-}
-
-// ── Contextual top-bar tab ─────────────────────────────────────────────
-// Shows useful local app state (active theme, focus phase, deadline
-// countdown, or the optional sidereal easter egg) instead of implying any
-// network time synchronisation. Updates are throttled to the once-per-second
-// UI tick, so it never cycles rapidly.
-let countdownText: string | null = null;
-let lunarTooltipSuffix = "";
-function contextPillLabel(): string {
-  if (Easter.isSiderealMode()) {
-    return Easter.getSiderealTime(window.__scLat ?? 0);
-  }
-  if (countdownText) return `⏳ ${countdownText}`;
-  if (sessionRunning) {
-    if (Pom.isActive()) {
-      const phase = Pom.getPhase();
-      const minutes = Math.ceil(Pom.getRemainingSeconds() / 60);
-      return `● ${phase === "work" ? "Focus" : "Break"} · ${minutes}m left`;
-    }
-    return "● Focus in progress";
-  }
-  return currentTheme.name;
-}
-function refreshContextPill() {
-  const pill = DOM.contextPill;
-  if (!pill) return;
-  pill.textContent = contextPillLabel();
-  const title = Easter.isSiderealMode()
-    ? "Local Sidereal Time — astronomical measure"
-    : sessionRunning
-      ? "Local session status · device clock"
-      : `${currentTheme.name} · device clock`;
-  pill.title = lunarTooltipSuffix ? `${title} · ${lunarTooltipSuffix}` : title;
 }
 
 // ── Render loop ────────────────────────────────────────────────────────
@@ -1425,7 +1393,6 @@ function renderFrame(ts: number) {
     lastSec = sec;
     // Midnight confetti check
     window.__checkMidnight?.();
-    refreshContextPill();
 
     // Update status line
     if (sessionRunning && Pom.isActive()) {
@@ -1897,63 +1864,17 @@ function buildPanel() {
     closeOverlay: () => closeModal("themeLibOverlay"),
   });
 
-  // ── Feature dock — Themes, Sound, Zen, Settings ──────────────────────
-  // Utility icons share one stroke style (24px grid, 1.8 stroke); emoji stay in
-  // theme identity only.
-  const ICON = (d: string) =>
-    `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-  const ICONS = {
-    themes: ICON('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>'),
-    sound: ICON('<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>'),
-    zen: ICON('<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a4.25 4.25 0 0 1 0 8.5 4.25 4.25 0 0 0 0 8.5"/>'),
-    settings: ICON('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
-  };
-  const featDefs: [string, string, string, () => void][] = [
-    // [id, icon svg, label, action]
-    ["btnDockThemes", ICONS.themes, "Themes", () => focusLockIntercept(toggleThemePanel)],
-    [
-      "btnSound",
-      ICONS.sound,
-      "Sound",
-      () => {
+  mount(QuickActionDock, {
+    target: featBar,
+    props: {
+      onopenthemes: () => focusLockIntercept(toggleThemePanel),
+      onopensound: () => {
         buildSoundUI();
         openModal("soundOverlay");
       },
-    ],
-    ["btnZen", ICONS.zen, "Zen", toggleZen],
-    ["btnSettings", ICONS.settings, "Settings", openSettings],
-  ];
-  featDefs.forEach(([id, icon, label, action]) => {
-    const b = document.createElement("button");
-    b.className = "feat-btn";
-    b.id = id;
-    const iconEl = document.createElement("span");
-    iconEl.className = "feat-icon";
-    iconEl.innerHTML = icon; // developer-authored constant SVG above
-    const lblEl = document.createElement("span");
-    lblEl.className = "feat-label";
-    lblEl.textContent = label;
-    if (id === "btnSettings") {
-      // The Settings surface is still Beta. The tag stays a non-interactive
-      // child: the button keeps its original accessible name ("Settings") and
-      // exposes "Beta" as its description, so the status is announced without
-      // renaming the control or adding a second focus target.
-      b.classList.add("feat-btn--beta");
-      b.setAttribute("aria-label", label);
-      const row = document.createElement("span");
-      row.className = "feat-label-row";
-      const beta = document.createElement("span");
-      beta.className = "beta-tag";
-      beta.id = "betaTagDock";
-      beta.textContent = "Beta";
-      b.setAttribute("aria-describedby", "betaTagDock");
-      row.append(lblEl, beta);
-      b.append(iconEl, row);
-    } else {
-      b.append(iconEl, lblEl);
-    }
-    b.addEventListener("click", action);
-    featBar.appendChild(b);
+      ontogglezen: toggleZen,
+      onopensettings: openSettings,
+    },
   });
 
   // Keep the dock's Themes item in sync with the Theme Library overlay,
@@ -3832,6 +3753,9 @@ function openSettings() {
   openModal("settingsOverlay");
 }
 
+let _settingsTabBarApp: ReturnType<typeof mount> | null = null;
+let _settingsContentApp: ReturnType<typeof mount> | null = null;
+
 function buildSettingsUI(activeTab = "general") {
   const settingsModal = $("settingsOverlay");
   const focusedId =
@@ -3842,1077 +3766,404 @@ function buildSettingsUI(activeTab = "general") {
   const tabBarEl = $("settingsTabBar");
   const el = $("settingsContent");
   if (!el || !tabBarEl) return;
-  el.innerHTML = "";
-  tabBarEl.innerHTML = "";
 
-  // Slide + fade the new pane in, direction-aware (left↔right) based on
-  // where the target tab sits relative to the one we're leaving — makes
-  // switching tabs feel like physically sliding a panel instead of a
-  // jump-cut.
   const newIndex = Math.max(0, SETTINGS_TAB_ORDER.indexOf(activeTab));
   const dir =
     newIndex === _lastSettingsTabIndex
       ? 1
       : Math.sign(newIndex - _lastSettingsTabIndex) || 1;
   _lastSettingsTabIndex = newIndex;
+  _lastSettingsTab = activeTab;
+
   el.classList.remove("pane-sliding");
   el.style.setProperty("--pane-slide-x", `${dir * 14}px`);
-  void el.offsetWidth; // reflow to restart animation
+  void el.offsetWidth;
   el.classList.add("pane-sliding");
 
-  // ── Tab definitions ───────────────────────────────────────────────────
-  // Each tab owns an accent color for its icon tile (same --int-accent
-  // pattern the Integrations tab uses) instead of a bare emoji floating
-  // in space — gives the bar the colored-glyph identity of Apple's own
-  // Settings app / Metrolist's provider tiles.
-  const tabs = [
-    { id: "general", icon: "⚙", label: "General", accent: "#8e8e93" },
-    { id: "sound", icon: "🎵", label: "Sound", accent: "#ff375f" },
-    { id: "focus", icon: "⏱", label: "Focus", accent: "#5e5ce6" },
-    { id: "display", icon: "🎨", label: "Display", accent: "#0a84ff" },
-    { id: "privacy", icon: "🔒", label: "Privacy", accent: "#30d158" },
-  ];
-
-  // Tab bar — written to #settingsTabBar (outside scroll container)
-  const tabBar = document.createElement("div");
-  tabBar.className = "settings-tab-bar";
-  tabs.forEach((t) => {
-    const btn = document.createElement("button");
-    btn.className = "settings-tab-btn" + (t.id === activeTab ? " active" : "");
-    btn.dataset.tab = t.id;
-    btn.style.setProperty("--int-accent", t.accent);
-    const ic = document.createElement("span");
-    ic.className = "stb-icon icon-tile icon-tile--sm";
-    ic.textContent = t.icon;
-    const lb = document.createElement("span");
-    lb.className = "stb-label";
-    lb.textContent = t.label;
-    btn.append(ic, lb);
-    btn.addEventListener("click", () => {
-      _lastSettingsTab = t.id;
-      buildSettingsUI(t.id);
-    });
-    tabBar.appendChild(btn);
+  // Mount Svelte SettingsTabBar
+  if (_settingsTabBarApp) {
+    unmount(_settingsTabBarApp);
+    _settingsTabBarApp = null;
+  }
+  tabBarEl.innerHTML = "";
+  _settingsTabBarApp = mount(SettingsTabBar, {
+    target: tabBarEl,
+    props: {
+      activeTab,
+      ontabchange: (tId: string) => {
+        _lastSettingsTab = tId;
+        buildSettingsUI(tId);
+      },
+    },
   });
-  tabBarEl.appendChild(tabBar);
 
-  // Pane container — scrollable body
-  const paneWrap = el; // write directly to settingsContent
+  // Mount Svelte Panel into el (#settingsContent)
+  if (_settingsContentApp) {
+    unmount(_settingsContentApp);
+    _settingsContentApp = null;
+  }
+  el.innerHTML = "";
 
-  const makeSection = (title: string, beta = false) => {
-    const s = document.createElement("div");
-    s.className = "settings-section";
-    const h = document.createElement("div");
-    h.className = "settings-section-title";
-    h.textContent = title;
-    if (beta) {
-      const tag = document.createElement("span");
-      tag.className = "beta-tag";
-      tag.id = "betaTagSection";
-      tag.textContent = "Beta";
-      h.appendChild(tag);
-    }
-    s.appendChild(h);
-    return s;
-  };
-
-  const makeRow = (
-    lText: string,
-    dText: string,
-    btnId: string,
-    on: boolean,
-    badge?: string,
-  ) => {
-    const row = document.createElement("div");
-    row.className = "settings-row";
-    const info = document.createElement("div");
-    info.className = "settings-row-info";
-    const top = document.createElement("div");
-    top.className = "settings-row-top";
-    const lbl = document.createElement("span");
-    lbl.className = "settings-row-label";
-    lbl.textContent = lText;
-    top.appendChild(lbl);
-    if (badge) {
-      const b = document.createElement("span");
-      b.className = "settings-badge";
-      b.textContent = badge;
-      top.appendChild(b);
-    }
-    const dsc = document.createElement("span");
-    dsc.className = "settings-row-desc";
-    dsc.textContent = dText;
-    info.append(top, dsc);
-    const tog = document.createElement("button");
-    tog.className = "settings-toggle" + (on ? " on" : "");
-    tog.id = btnId;
-    tog.setAttribute("role", "switch");
-    tog.setAttribute("aria-checked", String(on));
-    tog.setAttribute("aria-label", lText);
-    row.append(info, tog);
-    return row;
-  };
-
-  const wireToggle = (id: string, fn: (on: boolean) => void) => {
-    paneWrap
-      .querySelector<HTMLButtonElement>("#" + id)
-      ?.addEventListener("click", (e) => {
-        const btn = e.currentTarget as HTMLButtonElement;
-        const wasOn = btn.classList.contains("on");
-        btn.classList.toggle("on");
-        btn.setAttribute("aria-checked", String(!wasOn));
-        // Ripple animation on enable
-        if (!wasOn) {
-          const rip = document.createElement("span");
-          rip.className = "toggle-ripple";
-          btn.appendChild(rip);
-          setTimeout(() => rip.remove(), 600);
-        }
-        fn(!wasOn);
-      });
-  };
-
-  // ══ GENERAL ════════════════════════════════════════════════════════════
   if (activeTab === "general") {
-    // ── Presets — one click to bundle several settings for a use case ──
-    const PRESETS: Array<{
-      id: string;
-      icon: string;
-      accent: string;
-      label: string;
-      blurb: string;
-      work: number;
-      brk: number;
-      sound: string;
-      smartBreak: boolean;
-      idleNudge: boolean;
-      calm: boolean;
-      reminderMins: number;
-    }> = [
-      {
-        id: "student",
-        icon: "📚",
-        accent: "#bf5af2",
-        label: "Student",
-        blurb: "25/5 Pomodoro · library ambience · break reminders",
-        work: 25,
-        brk: 5,
-        sound: "library",
-        smartBreak: true,
-        idleNudge: true,
-        calm: false,
-        reminderMins: 60,
-      },
-      {
-        id: "office",
-        icon: "💼",
-        accent: "#0a84ff",
-        label: "Office Worker",
-        blurb: "50/10 sessions · café ambience · fewer nudges",
-        work: 50,
-        brk: 10,
-        sound: "cafe",
-        smartBreak: true,
-        idleNudge: false,
-        calm: false,
-        reminderMins: 90,
-      },
-      {
-        id: "deepwork",
-        icon: "🌙",
-        accent: "#5e5ce6",
-        label: "Deep Work",
-        blurb: "90/15 long blocks · brown noise · no interruptions",
-        work: 90,
-        brk: 15,
-        sound: "brown",
-        smartBreak: false,
-        idleNudge: false,
-        calm: false,
-        reminderMins: 120,
-      },
-      {
-        id: "minimal",
-        icon: "🧘",
-        accent: "#8e8e93",
-        label: "Minimalist",
-        blurb: "25/5 · silent · Calm Mode · nothing else on",
-        work: 25,
-        brk: 5,
-        sound: "",
-        smartBreak: false,
-        idleNudge: false,
-        calm: true,
-        reminderMins: 90,
-      },
-    ];
-    const presetSec = makeSection("Presets");
-    const presetHint = document.createElement("p");
-    presetHint.className = "settings-hint";
-    presetHint.textContent =
-      "Bundles Pomodoro timing, ambient sound, and a few Focus/Display settings for a use case. Anything can still be changed individually afterward.";
-    presetSec.appendChild(presetHint);
-    const presetGrid = document.createElement("div");
-    presetGrid.className = "preset-grid";
-    PRESETS.forEach((p) => {
-      const btn = document.createElement("button");
-      btn.className = "preset-card";
-      btn.style.setProperty("--int-accent", p.accent);
-      const ic = document.createElement("span");
-      ic.className = "preset-icon icon-tile";
-      ic.textContent = p.icon;
-      const lb = document.createElement("span");
-      lb.className = "preset-label";
-      lb.textContent = p.label;
-      const bl = document.createElement("span");
-      bl.className = "preset-blurb";
-      bl.textContent = p.blurb;
-      btn.append(ic, lb, bl);
-      btn.addEventListener("click", () => {
-        Pom.setWorkMins(p.work);
-        Pom.setBreakMins(p.brk);
-        Sound.stop();
-        if (p.sound) Sound.play(p.sound);
-        localStorage.setItem("sc_smart_break", p.smartBreak ? "1" : "0");
-        localStorage.setItem("sc_idle_detect", p.idleNudge ? "1" : "0");
-        wireIdleListeners(p.idleNudge);
-        localStorage.setItem("sc_break_reminder_mins", String(p.reminderMins));
-        localStorage.setItem("sc_calm_mode", p.calm ? "1" : "0");
-        document.body.classList.toggle("calm-mode", p.calm);
-        if (p.calm) {
-          localStorage.setItem("sc_reduce_motion", "1");
-          document.body.classList.add("reduced-motion");
-          localStorage.setItem("sc_parallax", "0");
-          setTier("med");
-          invalidateCache();
-        }
-        showToast(`${p.icon} ${p.label} preset applied`, 3500);
-        buildSettingsUI(_lastSettingsTab);
-      });
-      presetGrid.appendChild(btn);
-    });
-    presetSec.appendChild(presetGrid);
-    paneWrap.appendChild(presetSec);
-
-    const clockModes: {
-      mode: ClockMode;
-      label: string;
-      icon: string;
-      desc: string;
-    }[] = [
-      { mode: "digital", label: "Digital", icon: "🔢", desc: "Classic digits" },
-      { mode: "analogue", label: "Analogue", icon: "🕐", desc: "Sweep hands" },
-      { mode: "flip", label: "Flip", icon: "📅", desc: "3D card flip" },
-      { mode: "word", label: "Word", icon: "📝", desc: "It is half past" },
-      { mode: "minimal", label: "Minimal", icon: "○", desc: "Hour only, huge" },
-      { mode: "segment", label: "Segment", icon: "📟", desc: "LED 7-segment" },
-    ];
-    const clockSec = makeSection("Clock Style");
-    const grid = document.createElement("div");
-    grid.className = "clock-mode-grid";
-    clockModes.forEach(({ mode, label, icon, desc }) => {
-      const btn = document.createElement("button");
-      btn.className = "clock-mode-btn" + (clockMode === mode ? " active" : "");
-      btn.dataset.mode = mode;
-      const iEl = document.createElement("span");
-      iEl.className = "cmb-icon";
-      iEl.textContent = icon;
-      const lEl = document.createElement("span");
-      lEl.className = "cmb-label";
-      lEl.textContent = label;
-      const dEl = document.createElement("span");
-      dEl.className = "cmb-desc";
-      dEl.textContent = desc;
-      btn.append(iEl, lEl, dEl);
-      btn.addEventListener("click", () => {
-        setClockMode(mode);
-        updateClockCanvas();
-        grid
-          .querySelectorAll(".clock-mode-btn")
-          .forEach((b) =>
-            b.classList.toggle(
-              "active",
-              (b as HTMLElement).dataset.mode === mode,
-            ),
-          );
-      });
-      grid.appendChild(btn);
-    });
-    clockSec.appendChild(grid);
-    paneWrap.appendChild(clockSec);
-
-    // Quick actions
-    const actionSec = makeSection("Quick Actions");
-    const actionGrid = document.createElement("div");
-    actionGrid.className = "settings-action-grid";
-    const quickActions = [
-      {
-        label: "🎨 Custom Theme",
-        fn: () => {
-          closeModal("settingsOverlay");
-          openThemeBuilder();
-        },
-      },
-      {
-        label: "📱 QR Handoff",
-        fn: () => {
-          closeModal("settingsOverlay");
-          openQRHandoff();
-        },
-      },
-      {
-        label: "🎬 Animedoro",
-        fn: () => {
-          closeModal("settingsOverlay");
-          startAnimedoro();
-          openModal("pomOverlay");
-        },
-      },
-      {
-        label: "⛶ Kiosk Mode",
-        fn: () => {
-          closeModal("settingsOverlay");
-          toggleKiosk();
-        },
-      },
-      {
-        label: "📺 Present",
-        fn: () => {
-          closeModal("settingsOverlay");
-          togglePresent();
-        },
-      },
-      {
-        label: "🖼 Picture-in-Picture",
-        fn: async () => {
-          closeModal("settingsOverlay");
-          if (APIs.isPiPActive()) {
-            await APIs.exitPiP();
-            showToast("PiP closed");
-          } else {
-            await APIs.enterPiP(document.getElementById("clock-block-wrap")!, {
-              accent: currentTheme.accent,
-              text: currentTheme.text,
-              baseBg: currentTheme.baseBg,
-            });
-            showToast("Clock floating in PiP");
-          }
-        },
-      },
-    ];
-    quickActions.forEach(({ label, fn }) => {
-      const btn = document.createElement("button");
-      btn.className = "settings-action-btn";
-      btn.textContent = label;
-      btn.addEventListener("click", fn as () => void);
-      actionGrid.appendChild(btn);
-    });
-    actionSec.appendChild(actionGrid);
-    paneWrap.appendChild(actionSec);
-
-    // Language
-    const langSec = makeSection("Language");
-    const langBtn = document.createElement("button");
-    langBtn.className = "settings-action-btn settings-action-btn--full";
-    const curFlag = LOCALE_FLAGS[getLocale()];
-    const curName = LOCALE_NAMES[getLocale()];
-    langBtn.textContent = `${curFlag} ${curName} — Change language`;
-    langBtn.addEventListener("click", () => {
-      buildLanguageUI(document.getElementById("languageContent")!);
-      openModal("languageOverlay");
-    });
-    langSec.appendChild(langBtn);
-    paneWrap.appendChild(langSec);
-
-    // Integrations shortcut
-    const intSec = makeSection("Integrations", true);
-    const intBtn = document.createElement("button");
-    intBtn.className = "settings-action-btn settings-action-btn--full";
+    const curFlag = LOCALE_FLAGS[getLocale()] || "🌐";
+    const curName = LOCALE_NAMES[getLocale()] || "English";
     const connectedCount = Object.values(
       Integrations.getConnectionStatus(),
     ).filter(Boolean).length;
-    intBtn.textContent =
-      connectedCount > 0
-        ? `🔗 ${connectedCount} integration${connectedCount > 1 ? "s" : ""} connected — Manage`
-        : "🔗 Connect Spotify, Calendar, Notion, Todoist…";
-    intBtn.addEventListener("click", () => {
-      closeModal("settingsOverlay");
-      openIntegrations();
-    });
-    intSec.appendChild(intBtn);
-    paneWrap.appendChild(intSec);
-  } else if (activeTab === "sound") {
-    const audioSec = makeSection("Audio");
-    audioSec.appendChild(
-      makeRow(
-        "3D Spatial Audio",
-        "Sounds pan independently — best with headphones",
-        "toggleSpatial",
-        Sound.isSpatialEnabled(),
-        "ILD+ITD",
-      ),
-    );
-    if (Sound.isHeadTrackingAvailable()) {
-      audioSec.appendChild(
-        makeRow(
-          "Head Tracking",
-          "Turn your phone and the soundstage stays anchored in place, like AirPods spatial audio",
-          "toggleHeadTracking",
-          Sound.isHeadTrackingEnabled(),
-        ),
-      );
-    }
-    audioSec.appendChild(
-      makeRow(
-        "Box Breathing on Break",
-        "Guided breathing overlay during Pomodoro breaks",
-        "toggleBreathing",
-        breathingBreakEnabled,
-      ),
-    );
-    audioSec.appendChild(
-      makeRow(
-        "UI Sound Effects",
-        "Subtle click, chime, and interaction sounds",
-        "toggleUiSounds",
-        localStorage.getItem("sc_ui_sounds") !== "0",
-      ),
-    );
-    audioSec.appendChild(
-      makeRow(
-        "Auto-play Theme Ambience",
-        "Some themes (like Common Room) can auto-start matching ambient sounds when selected",
-        "toggleAutoThemeAmbience",
-        localStorage.getItem("sc_auto_theme_ambience") === "1",
-      ),
-    );
-    paneWrap.appendChild(audioSec);
 
-    // ── Music panel — opt-in only ──────────────────────────────────────
-    // Off on a clean profile: no Connect Spotify card, no hidden player
-    // engines, no background polling until someone explicitly enables it.
-    const musicSec = makeSection("Music Panel");
-    musicSec.appendChild(
-      makeRow(
-        "Show Music Panel",
-        "Adds an optional floating player for YouTube (default) or Spotify. Hidden entirely until you turn it on",
-        "toggleMusicDeck",
-        MusicDock.isMusicDeckEnabled(),
-      ),
-    );
-    const providerRow = document.createElement("div");
-    providerRow.className = "settings-row";
-    const providerInfo = document.createElement("div");
-    providerInfo.className = "settings-row-info";
-    const providerLabel = document.createElement("div");
-    providerLabel.className = "settings-row-label";
-    providerLabel.textContent = "Providers";
-    const providerDesc = document.createElement("span");
-    providerDesc.className = "settings-row-desc";
-    providerDesc.textContent =
-      "YouTube is the default. Spotify's connect prompt only appears when Spotify is selected.";
-    providerInfo.append(providerLabel, providerDesc);
-    const providerSelect = document.createElement("select");
-    providerSelect.className = "settings-select";
-    providerSelect.setAttribute("aria-label", "Music providers");
-    (
-      [
-        ["youtube", "YouTube"],
-        ["spotify", "Spotify"],
-        ["both", "Both"],
-      ] as const
-    ).forEach(([value, label]) => {
-      const opt = document.createElement("option");
-      opt.value = value;
-      opt.textContent = label;
-      if (MusicDock.getProviderPref() === value) opt.selected = true;
-      providerSelect.appendChild(opt);
-    });
-    providerSelect.addEventListener("change", () => {
-      MusicDock.setProviderPref(
-        providerSelect.value as MusicDock.MusicProviderPref,
-      );
-      if (
-        MusicDock.isMusicDeckEnabled() &&
-        MusicDock.getProviderPref() !== "youtube" &&
-        Integrations.isSpotifyConnected()
-      )
-        void MusicDock.initSpotifyPlayback();
-      showToast(`Music panel: ${providerSelect.selectedOptions[0]?.textContent}`);
-    });
-    providerRow.append(providerInfo, providerSelect);
-    musicSec.appendChild(providerRow);
-    paneWrap.appendChild(musicSec);
-    wireToggle("toggleMusicDeck", (on) => {
-      MusicDock.setMusicDeckEnabled(on);
-      if (
-        on &&
-        MusicDock.getProviderPref() !== "youtube" &&
-        Integrations.isSpotifyConnected()
-      )
-        void MusicDock.initSpotifyPlayback();
-      showToast(on ? "Music panel enabled" : "Music panel hidden");
-    });
-
-    const soundBtnSec = makeSection("Mixer");
-    soundBtnSec.appendChild(buildMixerLaunchCard());
-    paneWrap.appendChild(soundBtnSec);
-
-    const npSec = makeSection("Now Playing → Theme");
-    npSec.appendChild(
-      makeRow(
-        "Auto-switch Theme",
-        "When Spotify (or a manually-entered track) matches a soundtrack, switch to that theme",
-        "toggleNowPlayingTheme",
-        localStorage.getItem("sc_nowplaying_theme") === "1",
-      ),
-    );
-    const npRow = document.createElement("div");
-    npRow.className = "settings-row";
-    const npInput = document.createElement("input");
-    npInput.type = "text";
-    npInput.className = "np-manual-input";
-    npInput.placeholder =
-      "What's playing? (any player — song, artist, or soundtrack)";
-    npInput.setAttribute("aria-label", "What's playing");
-    npInput.value = localStorage.getItem("sc_nowplaying_manual") || "";
-    npRow.appendChild(npInput);
-    npSec.appendChild(npRow);
-    const npHint = document.createElement("p");
-    npHint.className = "settings-hint";
-    npHint.textContent = Integrations.isSpotifyConnected()
-      ? "✓ Spotify connected — this checks automatically too."
-      : "Connect Spotify in General → Integrations for automatic detection, or just type here.";
-    npSec.appendChild(npHint);
-    paneWrap.appendChild(npSec);
-
-    npInput.addEventListener("change", () => {
-      const val = npInput.value.trim();
-      localStorage.setItem("sc_nowplaying_manual", val);
-      if (!val) return;
-      tryMatchNowPlayingTheme({ title: val, artist: "" }, true);
-    });
-    npInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") npInput.blur();
-    });
-
-    wireToggle("toggleNowPlayingTheme", (on) => {
-      localStorage.setItem("sc_nowplaying_theme", on ? "1" : "0");
-      showToast(
-        on
-          ? "🎵 Now Playing theme-matching on"
-          : "Now Playing theme-matching off",
-      );
-      if (on) startNowPlayingPoll();
-      else stopNowPlayingPoll();
-    });
-
-    wireToggle("toggleSpatial", (on) => Sound.setSpatial(on));
-    if (Sound.isHeadTrackingAvailable()) {
-      wireToggle("toggleHeadTracking", async (on) => {
-        if (on && CAPS.deviceOrientationNeedsPermission) {
-          const granted = await requestMotionPermission();
-          if (!granted) {
-            showToast("Motion access declined");
-            return;
+    _settingsContentApp = mount(GeneralPanel, {
+      target: el,
+      props: {
+        activeClockMode: clockMode,
+        languageLabel: `${curFlag} ${curName} — Change language`,
+        connectedCount,
+        onselectpreset: (pId: string) => {
+          const PRESETS = [
+            {
+              id: "student",
+              icon: "📚",
+              label: "Student",
+              work: 25,
+              brk: 5,
+              sound: "library",
+              smartBreak: true,
+              idleNudge: true,
+              calm: false,
+              reminderMins: 60,
+            },
+            {
+              id: "office",
+              icon: "💼",
+              label: "Office Worker",
+              work: 50,
+              brk: 10,
+              sound: "cafe",
+              smartBreak: true,
+              idleNudge: false,
+              calm: false,
+              reminderMins: 90,
+            },
+            {
+              id: "deepwork",
+              icon: "🌙",
+              label: "Deep Work",
+              work: 90,
+              brk: 15,
+              sound: "brown",
+              smartBreak: false,
+              idleNudge: false,
+              calm: false,
+              reminderMins: 120,
+            },
+            {
+              id: "minimal",
+              icon: "🧘",
+              label: "Minimalist",
+              work: 25,
+              brk: 5,
+              sound: "",
+              smartBreak: false,
+              idleNudge: false,
+              calm: true,
+              reminderMins: 90,
+            },
+          ];
+          const p = PRESETS.find((pr) => pr.id === pId);
+          if (p) {
+            Pom.setWorkMins(p.work);
+            Pom.setBreakMins(p.brk);
+            Sound.stop();
+            if (p.sound) Sound.play(p.sound);
+            localStorage.setItem("sc_smart_break", p.smartBreak ? "1" : "0");
+            localStorage.setItem("sc_idle_detect", p.idleNudge ? "1" : "0");
+            wireIdleListeners(p.idleNudge);
+            localStorage.setItem("sc_break_reminder_mins", String(p.reminderMins));
+            localStorage.setItem("sc_calm_mode", p.calm ? "1" : "0");
+            document.body.classList.toggle("calm-mode", p.calm);
+            if (p.calm) {
+              localStorage.setItem("sc_reduce_motion", "1");
+              document.body.classList.add("reduced-motion");
+              localStorage.setItem("sc_parallax", "0");
+              setTier("med");
+              invalidateCache();
+            }
+            showToast(`${p.icon} ${p.label} preset applied`, 3500);
+            buildSettingsUI(_lastSettingsTab);
           }
-        }
-        Sound.setHeadTracking(on);
-        if (on && !Sound.isSpatialEnabled())
+        },
+        onselectclockmode: (mode: string) => {
+          setClockMode(mode as ClockMode);
+          updateClockCanvas();
+          buildSettingsUI("general");
+        },
+        onquickaction: (id: string) => {
+          closeModal("settingsOverlay");
+          if (id === "custom-theme") openThemeBuilder();
+          else if (id === "qr-handoff") openQRHandoff();
+          else if (id === "animedoro") {
+            startAnimedoro();
+            openModal("pomOverlay");
+          } else if (id === "kiosk") toggleKiosk();
+          else if (id === "present") togglePresent();
+          else if (id === "pip") {
+            if (APIs.isPiPActive()) {
+              void APIs.exitPiP();
+              showToast("PiP closed");
+            } else {
+              void APIs.enterPiP(document.getElementById("clock-block-wrap")!, {
+                accent: currentTheme.accent,
+                text: currentTheme.text,
+                baseBg: currentTheme.baseBg,
+              });
+              showToast("Clock floating in PiP");
+            }
+          }
+        },
+        onopenlanguage: () => {
+          closeModal("settingsOverlay");
+          buildLanguageUI(document.getElementById("languageContent")!);
+          openModal("languageOverlay");
+        },
+        onopenintegrations: () => {
+          closeModal("settingsOverlay");
+          openIntegrations();
+        },
+      },
+    });
+  } else if (activeTab === "sound") {
+    _settingsContentApp = mount(SoundPanel, {
+      target: el,
+      props: {
+        spatial: Sound.isSpatialEnabled(),
+        headTracking: Sound.isHeadTrackingEnabled(),
+        headTrackingAvailable: Sound.isHeadTrackingAvailable(),
+        breathing: breathingBreakEnabled,
+        uiSounds: localStorage.getItem("sc_ui_sounds") !== "0",
+        autoThemeAmbience: localStorage.getItem("sc_auto_theme_ambience") === "1",
+        musicDeck: MusicDock.isMusicDeckEnabled(),
+        musicProvider: MusicDock.getProviderPref(),
+        nowPlayingTheme: localStorage.getItem("sc_nowplaying_theme") === "1",
+        nowPlayingManual: localStorage.getItem("sc_nowplaying_manual") || "",
+        spotifyConnected: Integrations.isSpotifyConnected(),
+        activeTracksCount: 0,
+        mixerSubtext: "Layer rain, waves, café, vinyl & more",
+        ontoggleSpatial: (val: boolean) => {
+          Sound.setSpatial(val);
+          buildSettingsUI("sound");
+        },
+        ontoggleHeadTracking: async (val: boolean) => {
+          if (val && CAPS.deviceOrientationNeedsPermission) {
+            const granted = await requestMotionPermission();
+            if (!granted) {
+              showToast("Motion access declined");
+              return;
+            }
+          }
+          Sound.setHeadTracking(val);
+          if (val && !Sound.isSpatialEnabled())
+            showToast(
+              "Head tracking on — turn on 3D Spatial Audio above to hear it move",
+            );
+          buildSettingsUI("sound");
+        },
+        ontoggleBreathing: (val: boolean) => {
+          breathingBreakEnabled = val;
+          localStorage.setItem("sc_breathing_break", val ? "1" : "0");
+          buildSettingsUI("sound");
+        },
+        ontoggleUiSounds: (val: boolean) => {
+          localStorage.setItem("sc_ui_sounds", val ? "1" : "0");
+          showToast(val ? "🔔 UI sounds on" : "🔕 UI sounds off");
+          buildSettingsUI("sound");
+        },
+        ontoggleAutoThemeAmbience: (val: boolean) => {
+          localStorage.setItem("sc_auto_theme_ambience", val ? "1" : "0");
           showToast(
-            "Head tracking on — turn on 3D Spatial Audio above to hear it move",
+            val ? "🎵 Theme ambience auto-play on" : "Theme ambience auto-play off",
           );
-      });
-    }
-    wireToggle("toggleBreathing", (on) => {
-      breathingBreakEnabled = on;
-      localStorage.setItem("sc_breathing_break", on ? "1" : "0");
-    });
-    wireToggle("toggleUiSounds", (on) => {
-      localStorage.setItem("sc_ui_sounds", on ? "1" : "0");
-      showToast(on ? "🔔 UI sounds on" : "🔕 UI sounds off");
-    });
-    wireToggle("toggleAutoThemeAmbience", (on) => {
-      localStorage.setItem("sc_auto_theme_ambience", on ? "1" : "0");
-      showToast(
-        on ? "🎵 Theme ambience auto-play on" : "Theme ambience auto-play off",
-      );
-    });
-  }
-
-  // ══ FOCUS ═════════════════════════════════════════════════════════════
-  else if (activeTab === "focus") {
-    const focusSec = makeSection("Pomodoro & Sessions");
-    focusSec.appendChild(
-      makeRow(
-        "Focus Lock Delay",
-        "3-second intentional friction before opening panels during Pomodoro",
-        "toggleFocusLockS",
-        focusLockEnabled,
-      ),
-    );
-    focusSec.appendChild(
-      makeRow(
-        "Smart Break Reminder",
-        "Nudges you with a toast + notification during long, non-Pomodoro sessions",
-        "toggleSmartBreak",
-        localStorage.getItem("sc_smart_break") !== "0",
-      ),
-    );
-
-    const intervalRow = document.createElement("div");
-    intervalRow.className = "settings-row";
-    const intInfo = document.createElement("div");
-    intInfo.className = "settings-row-info";
-    const intTop = document.createElement("div");
-    intTop.className = "settings-row-top";
-    const intLbl = document.createElement("span");
-    intLbl.className = "settings-row-label";
-    intLbl.textContent = "Remind me after";
-    intTop.appendChild(intLbl);
-    intInfo.appendChild(intTop);
-    const intSelect = document.createElement("select");
-    intSelect.className = "settings-select";
-    intSelect.setAttribute("aria-label", "Remind me after");
-    [30, 45, 60, 90, 120].forEach((m) => {
-      const opt = document.createElement("option");
-      opt.value = String(m);
-      opt.textContent = `${m} min`;
-      if (
-        Number.parseInt(localStorage.getItem("sc_break_reminder_mins") || "90", 10) ===
-        m
-      )
-        opt.selected = true;
-      intSelect.appendChild(opt);
-    });
-    intSelect.addEventListener("change", () =>
-      localStorage.setItem("sc_break_reminder_mins", intSelect.value),
-    );
-    intervalRow.append(intInfo, intSelect);
-    focusSec.appendChild(intervalRow);
-
-    focusSec.appendChild(
-      makeRow(
-        "Idle Nudge",
-        'After 15 min with no input, a gentle "still there?" toast — never pauses or alters your timer',
-        "toggleIdleDetect",
-        localStorage.getItem("sc_idle_detect") === "1",
-      ),
-    );
-
-    paneWrap.appendChild(focusSec);
-
-    // ── Zen Mode customization ────────────────────────────────────────
-    const zenSec = makeSection("Zen Mode");
-
-    const zenSoundRow = document.createElement("div");
-    zenSoundRow.className = "settings-row";
-    const zenSoundInfo = document.createElement("div");
-    zenSoundInfo.className = "settings-row-info";
-    const zenSoundTop = document.createElement("div");
-    zenSoundTop.className = "settings-row-top";
-    const zenSoundLbl = document.createElement("span");
-    zenSoundLbl.className = "settings-row-label";
-    zenSoundLbl.textContent = "Ambient Sound";
-    zenSoundTop.appendChild(zenSoundLbl);
-    const zenSoundDesc = document.createElement("span");
-    zenSoundDesc.className = "settings-row-desc";
-    zenSoundDesc.textContent =
-      "Auto-plays when you enter Zen Mode, stops when you leave — only if nothing is already playing.";
-    zenSoundInfo.append(zenSoundTop, zenSoundDesc);
-    const zenSoundSelect = document.createElement("select");
-    zenSoundSelect.className = "settings-select";
-    zenSoundSelect.setAttribute("aria-label", "Zen Mode ambient sound");
-    const noneOpt = document.createElement("option");
-    noneOpt.value = "";
-    noneOpt.textContent = "None";
-    zenSoundSelect.appendChild(noneOpt);
-    Sound.SOUNDS.forEach((s) => {
-      // Recording-only tracks (river/waterfall/thunder/night/birds) go
-      // silent — with no toggle to notice why — on a browser that can't
-      // decode Ogg/Opus, since Zen mode has no mixer UI to grey out like
-      // buildSoundUI() does. Leave them off the list entirely here rather
-      // than let Zen mode auto-start a track that can't actually play.
-      if (!Sound.isFileTrackSupported(s.id)) return;
-      const opt = document.createElement("option");
-      opt.value = s.id;
-      opt.textContent = `${s.icon} ${s.name}`;
-      if ((localStorage.getItem("sc_zen_sound") || "") === s.id)
-        opt.selected = true;
-      zenSoundSelect.appendChild(opt);
-    });
-    zenSoundSelect.addEventListener("change", () => {
-      if (zenSoundSelect.value)
-        localStorage.setItem("sc_zen_sound", zenSoundSelect.value);
-      else localStorage.removeItem("sc_zen_sound");
-    });
-    zenSoundRow.append(zenSoundInfo, zenSoundSelect);
-    zenSec.appendChild(zenSoundRow);
-
-    const zenDelayRow = document.createElement("div");
-    zenDelayRow.className = "settings-row";
-    const zenDelayInfo = document.createElement("div");
-    zenDelayInfo.className = "settings-row-info";
-    const zenDelayTop = document.createElement("div");
-    zenDelayTop.className = "settings-row-top";
-    const zenDelayLbl = document.createElement("span");
-    zenDelayLbl.className = "settings-row-label";
-    zenDelayLbl.textContent = "Cursor Auto-Hide";
-    zenDelayTop.appendChild(zenDelayLbl);
-    const zenDelayDesc = document.createElement("span");
-    zenDelayDesc.className = "settings-row-desc";
-    zenDelayDesc.textContent =
-      "How long the cursor and a faint exit hint stay visible after you stop moving the mouse.";
-    zenDelayInfo.append(zenDelayTop, zenDelayDesc);
-    const zenDelaySelect = document.createElement("select");
-    zenDelaySelect.className = "settings-select";
-    zenDelaySelect.setAttribute(
-      "aria-label",
-      "Zen Mode cursor auto-hide delay",
-    );
-    (
-      [
-        ["1500", "Fast · 1.5s"],
-        ["2500", "Normal · 2.5s"],
-        ["4000", "Slow · 4s"],
-      ] as const
-    ).forEach(([ms, label]) => {
-      const opt = document.createElement("option");
-      opt.value = ms;
-      opt.textContent = label;
-      if ((localStorage.getItem("sc_zen_dim_delay") || "2500") === ms)
-        opt.selected = true;
-      zenDelaySelect.appendChild(opt);
-    });
-    zenDelaySelect.addEventListener("change", () =>
-      localStorage.setItem("sc_zen_dim_delay", zenDelaySelect.value),
-    );
-    zenDelayRow.append(zenDelayInfo, zenDelaySelect);
-    zenSec.appendChild(zenDelayRow);
-
-    zenSec.appendChild(
-      makeRow(
-        "Breathing Rings",
-        "The slow pulsing rings around the clock while in Zen Mode",
-        "toggleZenRings",
-        localStorage.getItem("sc_zen_rings") !== "0",
-      ),
-    );
-
-    paneWrap.appendChild(zenSec);
-    wireToggle("toggleZenRings", (on) =>
-      localStorage.setItem("sc_zen_rings", on ? "1" : "0"),
-    );
-
-    const pomBtn = document.createElement("button");
-    pomBtn.className = "settings-action-btn settings-action-btn--full";
-    pomBtn.textContent = "⏱ Pomodoro Settings";
-    pomBtn.addEventListener("click", () => {
-      closeModal("settingsOverlay");
-      openModal("pomOverlay");
-    });
-    const pomSec = makeSection("Timer");
-    pomSec.appendChild(pomBtn);
-    paneWrap.appendChild(pomSec);
-
-    wireToggle("toggleFocusLockS", () => toggleFocusLock());
-    wireToggle("toggleSmartBreak", (on) => {
-      localStorage.setItem("sc_smart_break", on ? "1" : "0");
-    });
-    wireToggle("toggleIdleDetect", (on) => applyIdleDetection(on));
-  }
-
-  // ══ DISPLAY ═══════════════════════════════════════════════════════════
-  else if (activeTab === "display") {
-    // Clock position — scoped to whichever clock style is active right now,
-    // so each style (digital, analogue, flip…) remembers its own preference.
-    const layoutSec = makeSection("Layout");
-    const clockPosRow = document.createElement("div");
-    clockPosRow.className = "settings-row";
-    const cpInfo = document.createElement("div");
-    cpInfo.className = "settings-row-info";
-    const cpTop = document.createElement("div");
-    cpTop.className = "settings-row-top";
-    const cpLbl = document.createElement("span");
-    cpLbl.className = "settings-row-label";
-    cpLbl.textContent = "Clock Position";
-    cpTop.appendChild(cpLbl);
-    const cpDesc = document.createElement("span");
-    cpDesc.className = "settings-row-desc";
-    cpDesc.textContent = `Top: classic layout. Centre: full-viewport clock. Applies to the ${clockMode} style only.`;
-    cpInfo.append(cpTop, cpDesc);
-    const cpSeg = document.createElement("div");
-    cpSeg.className = "settings-seg";
-    ["top", "center"].forEach((pos) => {
-      const btn = document.createElement("button");
-      btn.className =
-        "settings-seg-btn" +
-        (getClockPosition(clockMode) === pos ? " active" : "");
-      btn.textContent = pos === "top" ? "⊟ Top" : "⊞ Centre";
-      btn.addEventListener("click", () => {
-        applyClockPosition(pos as "top" | "center");
-        cpSeg
-          .querySelectorAll(".settings-seg-btn")
-          .forEach((b, i) =>
-            b.classList.toggle("active", i === (pos === "top" ? 0 : 1)),
+          buildSettingsUI("sound");
+        },
+        ontoggleMusicDeck: (val: boolean) => {
+          MusicDock.setMusicDeckEnabled(val);
+          if (
+            val &&
+            MusicDock.getProviderPref() !== "youtube" &&
+            Integrations.isSpotifyConnected()
+          )
+            void MusicDock.initSpotifyPlayback();
+          showToast(val ? "Music panel enabled" : "Music panel hidden");
+          buildSettingsUI("sound");
+        },
+        onchangeMusicProvider: (val: "youtube" | "spotify" | "both") => {
+          MusicDock.setProviderPref(val);
+          if (
+            MusicDock.isMusicDeckEnabled() &&
+            val !== "youtube" &&
+            Integrations.isSpotifyConnected()
+          )
+            void MusicDock.initSpotifyPlayback();
+          showToast(`Music panel: ${val}`);
+          buildSettingsUI("sound");
+        },
+        onopenmixer: () => {
+          closeModal("settingsOverlay");
+          buildSoundUI();
+          openModal("soundOverlay");
+        },
+        ontoggleNowPlayingTheme: (val: boolean) => {
+          localStorage.setItem("sc_nowplaying_theme", val ? "1" : "0");
+          showToast(
+            val
+              ? "🎵 Now Playing theme-matching on"
+              : "Now Playing theme-matching off",
           );
-      });
-      cpSeg.appendChild(btn);
+          if (val) startNowPlayingPoll();
+          else stopNowPlayingPoll();
+          buildSettingsUI("sound");
+        },
+        onchangeNowPlayingManual: (val: string) => {
+          const trimmed = val.trim();
+          localStorage.setItem("sc_nowplaying_manual", trimmed);
+          if (trimmed) tryMatchNowPlayingTheme({ title: trimmed, artist: "" }, true);
+        },
+      },
     });
-    clockPosRow.append(cpInfo, cpSeg);
-    layoutSec.appendChild(clockPosRow);
-    layoutSec.appendChild(
-      makeRow(
-        "Minimal Session Panel",
-        "In Centre mode, shrink the session timer, dock it to the side, and hide the day-progress bar and quote — keeps the clock the focal point",
-        "toggleCenterMinimal",
-        centerMinimal,
-      ),
+  } else if (activeTab === "focus") {
+    const availSounds = Sound.SOUNDS.filter((s) => Sound.isFileTrackSupported(s.id)).map(
+      (s) => ({
+        id: s.id,
+        name: s.name,
+        icon: s.icon,
+      }),
     );
-
-    // Digits — independent hide-seconds / hide-milliseconds
-    const digitsSec = makeSection("Digits");
-    digitsSec.appendChild(
-      makeRow(
-        "Hide Seconds",
-        "Drop the seconds digits/hand across every clock style — just hours and minutes",
-        "toggleHideSeconds",
-        hideSeconds,
-      ),
-    );
-    digitsSec.appendChild(
-      makeRow(
-        "Hide Milliseconds",
-        "Hide the fractional-second readout under the clock (kept even with seconds shown, unless this is on)",
-        "toggleHideMs",
-        hideMs,
-      ),
-    );
-    digitsSec.appendChild(
-      makeRow(
-        "24-Hour Time",
-        "Show hours as 00–23 with no AM/PM — applies to Digital, Minimal, Flip and Segment styles",
-        "toggle24Hour",
-        use24Hour,
-      ),
-    );
-    paneWrap.appendChild(layoutSec);
-    paneWrap.appendChild(digitsSec);
-
-    // ── Calm Mode — one toggle that simplifies everything at once ──────
-    const calmSec = makeSection("Simplify");
-    calmSec.appendChild(
-      makeRow(
-        "Calm Mode",
-        "One switch for less visual intensity — reduces motion, turns off parallax, and lowers render quality",
-        "toggleCalmMode",
-        localStorage.getItem("sc_calm_mode") === "1",
-      ),
-    );
-    calmSec.appendChild(
-      makeRow(
-        "Focus Mode",
-        "Fades away buttons and chrome after a few idle seconds; move the mouse to bring them back",
-        "toggleFocusModeS",
-        localStorage.getItem("sc_focus_mode") === "1",
-      ),
-    );
-    paneWrap.appendChild(calmSec);
-
-    if ("documentPictureInPicture" in window) {
-      const pipBtn = document.createElement("button");
-      pipBtn.className = "settings-action-btn settings-action-btn--full";
-      pipBtn.textContent = "🪟 Pop Out Mini Clock (Always on Top)";
-      pipBtn.addEventListener("click", () => {
-        closeModal("settingsOverlay");
-        openMiniClockPiP();
-      });
-      const pipSec = makeSection("Always on Top");
-      pipSec.appendChild(pipBtn);
-      paneWrap.appendChild(pipSec);
-    }
-
-    const animSec = makeSection("Motion & Animations");
+    _settingsContentApp = mount(FocusPanel, {
+      target: el,
+      props: {
+        focusLock: focusLockEnabled,
+        smartBreak: localStorage.getItem("sc_smart_break") !== "0",
+        breakReminderMins: Number.parseInt(
+          localStorage.getItem("sc_break_reminder_mins") || "90",
+          10,
+        ),
+        idleDetect: localStorage.getItem("sc_idle_detect") === "1",
+        zenSound: localStorage.getItem("sc_zen_sound") || "",
+        zenDimDelay: localStorage.getItem("sc_zen_dim_delay") || "2500",
+        zenRings: localStorage.getItem("sc_zen_rings") !== "0",
+        availableSounds: availSounds,
+        ontoggleFocusLock: () => {
+          toggleFocusLock();
+          buildSettingsUI("focus");
+        },
+        ontoggleSmartBreak: (val: boolean) => {
+          localStorage.setItem("sc_smart_break", val ? "1" : "0");
+          buildSettingsUI("focus");
+        },
+        onchangeBreakReminderMins: (mins: number) => {
+          localStorage.setItem("sc_break_reminder_mins", String(mins));
+        },
+        ontoggleIdleDetect: (val: boolean) => {
+          applyIdleDetection(val);
+          buildSettingsUI("focus");
+        },
+        onchangeZenSound: (val: string) => {
+          if (val) localStorage.setItem("sc_zen_sound", val);
+          else localStorage.removeItem("sc_zen_sound");
+        },
+        onchangeZenDimDelay: (val: string) => {
+          localStorage.setItem("sc_zen_dim_delay", val);
+        },
+        ontoggleZenRings: (val: boolean) => {
+          localStorage.setItem("sc_zen_rings", val ? "1" : "0");
+          buildSettingsUI("focus");
+        },
+        onopenpomodoro: () => {
+          closeModal("settingsOverlay");
+          buildPomUI();
+          openModal("pomOverlay");
+        },
+      },
+    });
+  } else if (activeTab === "display") {
     const reduceMotion =
       localStorage.getItem("sc_reduce_motion") === "1" ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    animSec.appendChild(
-      makeRow(
-        "Reduce Motion",
-        "Simpler transitions, no parallax, no particle animations",
-        "toggleReduceMotion",
+
+    _settingsContentApp = mount(DisplayPanel, {
+      target: el,
+      props: {
+        clockPos: getClockPosition(clockMode),
+        clockMode,
+        centerMinimal,
+        hideSeconds,
+        hideMs,
+        use24Hour,
+        calmMode: localStorage.getItem("sc_calm_mode") === "1",
+        focusMode: localStorage.getItem("sc_focus_mode") === "1",
         reduceMotion,
-      ),
-    );
-    animSec.appendChild(
-      makeRow(
-        "Parallax Depth",
-        "Canvas layers shift with mouse/gyroscope movement",
-        "toggleParallax",
-        localStorage.getItem("sc_parallax") !== "0",
-      ),
-    );
-    if (CAPS.vibration) {
-      animSec.appendChild(
-        makeRow(
-          "Haptic Feedback",
-          "A light tap on buttons, toggles and sliders, plus session start/complete and milestones",
-          "toggleHaptics",
-          localStorage.getItem("sc_haptics") !== "0",
-        ),
-      );
-    }
-    paneWrap.appendChild(animSec);
-
-    const perfSec = makeSection("Performance");
-    const qualityRow = document.createElement("div");
-    qualityRow.className = "settings-row";
-    const qualInfo = document.createElement("div");
-    qualInfo.className = "settings-row-info";
-    const qualTop = document.createElement("div");
-    qualTop.className = "settings-row-top";
-    const qualLbl = document.createElement("span");
-    qualLbl.className = "settings-row-label";
-    qualLbl.textContent = "Render Quality";
-    const fpsBadge = document.createElement("span");
-    fpsBadge.className = "settings-badge";
-    fpsBadge.textContent = `${getFps()} fps`;
-    qualTop.append(qualLbl, fpsBadge);
-    const qualDesc = document.createElement("span");
-    qualDesc.className = "settings-row-desc";
-    qualDesc.textContent = `Auto-detected: ${getTier().toUpperCase()}`;
-    qualInfo.append(qualTop, qualDesc);
-    const qualSelect = document.createElement("select");
-    qualSelect.className = "settings-select";
-    qualSelect.setAttribute("aria-label", "Render Quality");
-    (["auto", "high", "med", "low"] as const).forEach((v) => {
-      const opt = document.createElement("option");
-      opt.value = v === "auto" ? "" : v;
-      opt.textContent =
-        v === "auto" ? "Auto" : v.charAt(0).toUpperCase() + v.slice(1);
-      const stored = localStorage.getItem("sc_quality");
-      if ((v === "auto" && !stored) || stored === v) opt.selected = true;
-      qualSelect.appendChild(opt);
-    });
-    qualSelect.addEventListener("change", () => {
-      const val = qualSelect.value as QualityTier | "";
-      if (val) setTier(val as QualityTier);
-      else setAutoQuality();
-      invalidateCache();
-      qualDesc.textContent = val
-        ? `Quality: ${getTier().toUpperCase()}`
-        : `Auto-detected: ${getTier().toUpperCase()}`;
-      fpsBadge.textContent = `${getFps()} fps`;
-      showToast(
-        val
-          ? `Quality set to ${getTier().toUpperCase()}`
-          : `Quality set to Auto (${getTier().toUpperCase()})`,
-      );
-    });
-    qualityRow.append(qualInfo, qualSelect);
-    perfSec.appendChild(qualityRow);
-    paneWrap.appendChild(perfSec);
-
-    // ── Compatibility — read-only diagnostics + one manual override for
-    // browsers/engines whose blur rendering is technically supported but
-    // slow or glitchy in practice (a real report can't always be told
-    // apart from "unsupported" by feature-detection alone). ─────────────
-    const compatSec = makeSection("Compatibility");
-    const compatInfo = document.createElement("div");
-    compatInfo.className = "settings-compat-grid";
-    platformSummary().forEach(({ label, value }) => {
-      const row = document.createElement("div");
-      row.className = "settings-compat-row";
-      const l = document.createElement("span");
-      l.className = "settings-compat-label";
-      l.textContent = label;
-      const v = document.createElement("span");
-      v.className = "settings-compat-value";
-      v.textContent = value;
-      row.append(l, v);
-      compatInfo.appendChild(row);
-    });
-    compatSec.appendChild(compatInfo);
-    // User-triggered diagnostics export (same sanitized text as the boot-error
-    // screen). The runtime keeps a bounded, redacted buffer, so this is safe to
-    // share in a bug report.
-    const diagBtn = document.createElement("button");
-    diagBtn.type = "button";
-    diagBtn.className = "settings-action-btn settings-action-btn--full";
-    diagBtn.textContent = "Copy diagnostics";
-    diagBtn.addEventListener("click", async () => {
-      const copied = await copyDiagnosticsText(diagnostics.text());
-      showToast(copied ? "Diagnostics copied" : "Couldn't copy diagnostics");
-    });
-    compatSec.appendChild(diagBtn);
-    compatSec.appendChild(
-      makeRow(
-        "Force Simplified Surfaces",
-        "Skip frosted-glass blur on panels/modals in favor of a plain background — useful if blur renders slow or glitchy on this device",
-        "toggleForceNoBlur",
-        document.documentElement.classList.contains("force-no-backdrop-filter"),
-      ),
-    );
-    paneWrap.appendChild(compatSec);
-
-    wireToggle("toggleForceNoBlur", (on) => {
-      document.documentElement.classList.toggle("force-no-backdrop-filter", on);
-      localStorage.setItem("sc_force_no_blur", on ? "1" : "0");
-      showToast(on ? "Simplified surfaces on" : "Frosted glass restored");
-    });
-
-    wireToggle("toggleCalmMode", (on) => applyCalmMode(on));
-    wireToggle("toggleFocusModeS", (on) => applyFocusMode(on));
-    wireToggle("toggleReduceMotion", (on) => {
-      localStorage.setItem("sc_reduce_motion", on ? "1" : "0");
-      document.body.classList.toggle("reduced-motion", on);
-      showToast(on ? "Reduced motion on" : "Full animations on");
-    });
-    wireToggle("toggleParallax", async (on) => {
-      localStorage.setItem("sc_parallax", on ? "1" : "0");
-      // iOS requires the gyroscope permission prompt to originate from this
-      // exact tap — request it here rather than at boot, where it would be
-      // silently ignored and parallax would just never work on iPhone/iPad.
-      if (on && CAPS.deviceOrientationNeedsPermission) {
-        const granted = await requestMotionPermission();
-        if (granted) attachGyroParallax();
-        else
+        parallax: localStorage.getItem("sc_parallax") !== "0",
+        haptics: localStorage.getItem("sc_haptics") !== "0",
+        hapticsAvailable: Boolean(CAPS.vibration),
+        fps: getFps(),
+        tier: getTier(),
+        quality: localStorage.getItem("sc_quality") || "",
+        onchangeClockPos: (pos: "center" | "top") => {
+          applyClockPosition(pos);
+          buildSettingsUI("display");
+        },
+        ontoggleCenterMinimal: (val: boolean) => {
+          centerMinimal = val;
+          localStorage.setItem("sc_center_minimal", val ? "1" : "0");
+          applyCenterMinimal(val);
+          buildSettingsUI("display");
+        },
+        ontoggleHideSeconds: (val: boolean) => {
+          applyHideSeconds(val);
+          buildSettingsUI("display");
+        },
+        ontoggleHideMs: (val: boolean) => {
+          applyHideMs(val);
+          buildSettingsUI("display");
+        },
+        ontoggle24Hour: (val: boolean) => {
+          applyUse24Hour(val);
+          updateClockCanvas();
+          buildSettingsUI("display");
+        },
+        ontoggleCalmMode: (val: boolean) => {
+          applyCalmMode(val);
+          buildSettingsUI("display");
+        },
+        ontoggleFocusMode: (val: boolean) => {
+          applyFocusMode(val);
+          buildSettingsUI("display");
+        },
+        ontoggleReduceMotion: (val: boolean) => {
+          localStorage.setItem("sc_reduce_motion", val ? "1" : "0");
+          document.body.classList.toggle("reduced-motion", val);
+          buildSettingsUI("display");
+        },
+        ontoggleParallax: (val: boolean) => {
+          localStorage.setItem("sc_parallax", val ? "1" : "0");
+          buildSettingsUI("display");
+        },
+        ontoggleHaptics: (val: boolean) => {
+          localStorage.setItem("sc_haptics", val ? "1" : "0");
+          buildSettingsUI("display");
+        },
+        onchangeQuality: (val: string) => {
+          if (val) setTier(val as QualityTier);
+          else setAutoQuality();
+          invalidateCache();
           showToast(
-            "Motion access declined — mouse parallax still works on desktop",
+            val
+              ? `Quality set to ${getTier().toUpperCase()}`
+              : `Quality set to Auto (${getTier().toUpperCase()})`,
           );
-      }
-      showToast(on ? "Parallax on" : "Parallax off");
+          buildSettingsUI("display");
+        },
+      },
     });
-    if (CAPS.vibration) {
-      wireToggle("toggleHaptics", (on) => {
-        localStorage.setItem("sc_haptics", on ? "1" : "0");
-        if (on) haptic(15); // immediate confirmation tick so it's obvious what just changed
-        showToast(on ? "Haptic feedback on" : "Haptic feedback off");
-      });
-    }
-    wireToggle("toggleHideSeconds", (on) => applyHideSeconds(on));
-    wireToggle("toggleHideMs", (on) => applyHideMs(on));
-    wireToggle("toggle24Hour", (on) => applyUse24Hour(on));
-    wireToggle("toggleCenterMinimal", (on) => applyCenterMinimal(on));
-  }
-
-  // ══ PRIVACY ══════════════════════════════════════════════════════════
-  else if (activeTab === "privacy") {
-    const privSec = makeSection("Privacy Mode");
-    privSec.appendChild(
-      makeRow(
-        "Privacy Mode",
-        "Disables weather, Google Fonts and analytics — local only",
-        "togglePrivacyS",
-        privacyMode,
-        privacyMode ? "On" : undefined,
-      ),
-    );
-    paneWrap.appendChild(privSec);
-
-    // Optional Usage Analytics section
-    const analyticsSec = makeSection(t().analyticsTitle);
-    analyticsSec.id = "analyticsSettingsSec";
+  } else if (activeTab === "privacy") {
     const isPriv = isPrivacyMode();
     const pref = getAnalyticsPreference();
     const status = getAnalyticsStatus();
@@ -4950,146 +4201,80 @@ function buildSettingsUI(activeTab = "general") {
           : t().analyticsStatusActive;
     }
 
-    analyticsSec.appendChild(
-      makeRow(
-        t().analyticsTitle,
-        descText,
-        "toggleAnalyticsS",
-        isEffectivelyOn,
-        badgeText,
-      ),
-    );
-
-    if (!isPriv && (status === "unavailable" || autoBlocked || pref !== "auto")) {
-      const actionsDiv = document.createElement("div");
-      actionsDiv.className = "settings-action-grid";
-      actionsDiv.style.paddingTop = "4px";
-
-      if (status === "unavailable" || autoBlocked || pref === "off") {
-        const btnRetry = document.createElement("button");
-        btnRetry.className = "settings-action-btn";
-        btnRetry.id = "btnRetryAnalytics";
-        btnRetry.textContent = "🔄 " + t().analyticsActionEnable;
-        btnRetry.addEventListener("click", () => {
+    _settingsContentApp = mount(PrivacyPanel, {
+      target: el,
+      props: {
+        privacyMode: isPriv,
+        analyticsTitle: t().analyticsTitle,
+        analyticsDesc: descText,
+        analyticsBadge: badgeText,
+        analyticsOn: isEffectivelyOn,
+        showRetryAnalytics:
+          !isPriv &&
+          (status === "unavailable" || autoBlocked || pref === "off"),
+        showAutoAnalytics: !isPriv && (pref !== "auto" || autoBlocked),
+        retryAnalyticsLabel: t().analyticsActionEnable,
+        autoAnalyticsLabel: t().analyticsActionAuto,
+        analyticsReassurance: t().analyticsReassurance,
+        incognito: Privacy.isIncognito(),
+        autoClear: Privacy.isAutoClear(),
+        ontogglePrivacy: (on: boolean) => {
+          togglePrivacy();
+          if (on) {
+            document.body.classList.add("privacy-activating");
+            setTimeout(
+              () => document.body.classList.remove("privacy-activating"),
+              800,
+            );
+          }
+          buildSettingsUI("privacy");
+        },
+        ontoggleAnalytics: (on: boolean) => {
+          if (!on) {
+            try {
+              sessionStorage.setItem("sc_reopen_settings", "privacy");
+            } catch {
+              // ignore
+            }
+            saveSessionState();
+          }
+          setAnalyticsPreference(on ? "on" : "off", isPrivacyMode());
+          buildSettingsUI("privacy");
+        },
+        onretryAnalytics: () => {
           setAnalyticsPreference("on", isPrivacyMode());
-          updateAnalyticsSettingsUI();
-        });
-        actionsDiv.appendChild(btnRetry);
-      }
-
-      if (pref !== "auto" || autoBlocked) {
-        const btnAuto = document.createElement("button");
-        btnAuto.className = "settings-action-btn";
-        btnAuto.id = "btnAutoAnalytics";
-        btnAuto.textContent = "⚡ " + t().analyticsActionAuto;
-        btnAuto.addEventListener("click", () => {
+          buildSettingsUI("privacy");
+        },
+        onautoAnalytics: () => {
           resetAnalyticsToAuto(isPrivacyMode());
-          updateAnalyticsSettingsUI();
-        });
-        actionsDiv.appendChild(btnAuto);
-      }
-
-      analyticsSec.appendChild(actionsDiv);
-    }
-
-    const noteEl = document.createElement("div");
-    noteEl.className = "settings-privacy-note";
-    noteEl.textContent = t().analyticsReassurance;
-    analyticsSec.appendChild(noteEl);
-
-    paneWrap.appendChild(analyticsSec);
-
-    const sessionSec = makeSection("Sessions");
-    sessionSec.appendChild(
-      makeRow(
-        "Private Focus Log",
-        "Focus log entries stay in memory only for this tab — other settings/stats still save as usual",
-        "toggleIncognito",
-        Privacy.isIncognito(),
-      ),
-    );
-    sessionSec.appendChild(
-      makeRow(
-        "Auto-Clear on Close",
-        "Wipe session log & focus data when tab closes",
-        "toggleAutoClear",
-        Privacy.isAutoClear(),
-      ),
-    );
-    paneWrap.appendChild(sessionSec);
-
-    const dataBtnSec = makeSection("Data");
-    const dataBtn = document.createElement("button");
-    dataBtn.className = "settings-action-btn settings-action-btn--full";
-    dataBtn.textContent = "🛡 View & Manage My Data";
-    dataBtn.addEventListener("click", () => {
-      closeModal("settingsOverlay");
-      openDataPanel();
-    });
-    dataBtnSec.appendChild(dataBtn);
-    paneWrap.appendChild(dataBtnSec);
-
-    const legalSec = makeSection("Legal");
-    const privacyBtn = document.createElement("button");
-    privacyBtn.className = "settings-action-btn settings-action-btn--full";
-    privacyBtn.textContent = "📄 Privacy Policy";
-    privacyBtn.addEventListener("click", () => openLegalPanel("privacy"));
-    legalSec.appendChild(privacyBtn);
-    const termsBtn = document.createElement("button");
-    termsBtn.className = "settings-action-btn settings-action-btn--full";
-    termsBtn.textContent = "📃 Terms of Service";
-    termsBtn.addEventListener("click", () => openLegalPanel("terms"));
-    legalSec.appendChild(termsBtn);
-    paneWrap.appendChild(legalSec);
-
-    // Privacy mode toggle with lock animation
-    wireToggle("togglePrivacyS", (on) => {
-      togglePrivacy();
-      // Lock-down animation
-      if (on) {
-        document.body.classList.add("privacy-activating");
-        setTimeout(
-          () => document.body.classList.remove("privacy-activating"),
-          800,
-        );
-      }
-      buildSettingsUI("privacy");
-    });
-    wireToggle("toggleAnalyticsS", (on) => {
-      if (!on) {
-        try {
-          sessionStorage.setItem("sc_reopen_settings", "privacy");
-        } catch {
-          // ignore
-        }
-        saveSessionState();
-      }
-      setAnalyticsPreference(on ? "on" : "off", isPrivacyMode());
-      updateAnalyticsSettingsUI();
-    });
-    wireToggle("toggleIncognito", (on) => {
-      Privacy.setIncognito(on);
-      showToast(
-        on
-          ? "🕵 Private Focus Log on — log entries not saved"
-          : "Private Focus Log off",
-      );
-    });
-    wireToggle("toggleAutoClear", (on) => {
-      Privacy.setAutoClear(on);
-      showToast(on ? "Auto-clear on close enabled" : "Auto-clear disabled");
+          buildSettingsUI("privacy");
+        },
+        ontoggleIncognito: (on: boolean) => {
+          Privacy.setIncognito(on);
+          showToast(
+            on
+              ? "🕵 Private Focus Log on — log entries not saved"
+              : "Private Focus Log off",
+          );
+          buildSettingsUI("privacy");
+        },
+        ontoggleAutoClear: (on: boolean) => {
+          Privacy.setAutoClear(on);
+          showToast(on ? "Auto-clear on close enabled" : "Auto-clear disabled");
+          buildSettingsUI("privacy");
+        },
+        onopendata: () => {
+          closeModal("settingsOverlay");
+          openDataPanel();
+        },
+        onopenlegal: (doc: "privacy" | "terms") => openLegalPanel(doc),
+      },
     });
   }
 
-  // Add bottom padding so last row isn't flush against modal edge
   const pad = document.createElement("div");
   pad.style.height = "12px";
   el.appendChild(pad);
-
-  void Motion.staggerIn(
-    paneWrap,
-    ".settings-section-title, .settings-row, .settings-action-btn",
-  );
 
   if (focusedId) {
     const elToFocus = $(focusedId);
@@ -5103,7 +4288,6 @@ function buildSettingsUI(activeTab = "general") {
   }
 }
 
-/** Update the analytics section within Privacy settings in place to preserve active focus. */
 function updateAnalyticsSettingsUI(): void {
   const settingsModal = $("settingsOverlay");
   if (
@@ -5113,123 +4297,8 @@ function updateAnalyticsSettingsUI(): void {
   ) {
     return;
   }
-
   const focusedId = document.activeElement ? document.activeElement.id : null;
-
-  const sec = $("analyticsSettingsSec");
-  if (!sec) {
-    buildSettingsUI("privacy");
-    return;
-  }
-
-  const isPriv = isPrivacyMode();
-  const pref = getAnalyticsPreference();
-  const status = getAnalyticsStatus();
-  const autoBlocked = isAutoBlocked();
-
-  let badgeText: string | undefined;
-  let descText = t().analyticsDescNormal;
-  const isEffectivelyOn =
-    !isPriv &&
-    pref !== "off" &&
-    (status === "active" || (status === "not-attempted" && !autoBlocked));
-
-  if (isPriv) {
-    badgeText = "Off (Privacy Mode)";
-    descText = t().analyticsDescPrivacyMode;
-  } else if (pref === "off") {
-    badgeText = t().analyticsStatusDisabled;
-    descText = t().analyticsDescNormal;
-  } else if (status === "unavailable" || (pref === "auto" && autoBlocked)) {
-    badgeText = t().analyticsStatusUnavailable;
-    descText = t().analyticsDescBlocked;
-  } else if (status === "loading") {
-    badgeText = t().analyticsStatusChecking;
-    descText = t().analyticsDescNormal;
-  } else if (status === "active") {
-    badgeText =
-      pref === "auto"
-        ? t().analyticsStatusAutoOn
-        : t().analyticsStatusActive;
-    descText = t().analyticsDescNormal;
-  } else {
-    badgeText =
-      pref === "auto"
-        ? t().analyticsStatusAutoOn
-        : t().analyticsStatusActive;
-  }
-
-  const tog = sec.querySelector<HTMLButtonElement>("#toggleAnalyticsS");
-  if (tog) {
-    tog.classList.toggle("on", isEffectivelyOn);
-    tog.setAttribute("aria-checked", String(isEffectivelyOn));
-  }
-
-  const descEl = sec.querySelector(".settings-row-desc");
-  if (descEl) {
-    descEl.textContent = descText;
-  }
-
-  const rowTop = sec.querySelector(".settings-row-top");
-  let badgeEl = sec.querySelector(".settings-badge");
-  if (badgeText) {
-    if (!badgeEl && rowTop) {
-      badgeEl = document.createElement("span");
-      badgeEl.className = "settings-badge";
-      rowTop.appendChild(badgeEl);
-    }
-    if (badgeEl) {
-      badgeEl.textContent = badgeText;
-    }
-  } else if (badgeEl) {
-    badgeEl.remove();
-  }
-
-  let actionsDiv = sec.querySelector<HTMLDivElement>(".settings-action-grid");
-  const showActions =
-    !isPriv && (status === "unavailable" || autoBlocked || pref !== "auto");
-
-  if (showActions) {
-    if (!actionsDiv) {
-      actionsDiv = document.createElement("div");
-      actionsDiv.className = "settings-action-grid";
-      actionsDiv.style.paddingTop = "4px";
-      const noteEl = sec.querySelector(".settings-privacy-note");
-      if (noteEl) {
-        sec.insertBefore(actionsDiv, noteEl);
-      } else {
-        sec.appendChild(actionsDiv);
-      }
-    }
-    actionsDiv.innerHTML = "";
-
-    if (status === "unavailable" || autoBlocked || pref === "off") {
-      const btnRetry = document.createElement("button");
-      btnRetry.className = "settings-action-btn";
-      btnRetry.id = "btnRetryAnalytics";
-      btnRetry.textContent = "🔄 " + t().analyticsActionEnable;
-      btnRetry.addEventListener("click", () => {
-        setAnalyticsPreference("on", isPrivacyMode());
-        updateAnalyticsSettingsUI();
-      });
-      actionsDiv.appendChild(btnRetry);
-    }
-
-    if (pref !== "auto" || autoBlocked) {
-      const btnAuto = document.createElement("button");
-      btnAuto.className = "settings-action-btn";
-      btnAuto.id = "btnAutoAnalytics";
-      btnAuto.textContent = "⚡ " + t().analyticsActionAuto;
-      btnAuto.addEventListener("click", () => {
-        resetAnalyticsToAuto(isPrivacyMode());
-        updateAnalyticsSettingsUI();
-      });
-      actionsDiv.appendChild(btnAuto);
-    }
-  } else if (actionsDiv) {
-    actionsDiv.remove();
-  }
-
+  buildSettingsUI("privacy");
   if (focusedId) {
     const elToFocus = $(focusedId);
     if (elToFocus) {
@@ -5241,8 +4310,6 @@ function updateAnalyticsSettingsUI(): void {
     }
   }
 }
-
-// Reactively update the settings modal in place if status changes while privacy tab is visible
 onAnalyticsStatusChange(() => {
   updateAnalyticsSettingsUI();
 });
@@ -7291,9 +6358,6 @@ function init() {
         }
       },
     );
-  } else {
-    // Local clock/status stays available; only network-backed weather is off.
-    refreshContextPill();
   }
 
   // ── Command Palette ────────────────────────────────────────────────
@@ -7350,20 +6414,10 @@ function init() {
         target,
         (display, done) => {
           if (done) {
-            countdownText = null;
-            refreshContextPill();
             showToast(`⏳ ${display}`, 5000);
-            return;
           }
-          countdownText = display;
-          refreshContextPill();
         },
-        () => {
-          // Cancelled by the user — drop the cached text so the top bar
-          // returns to theme / focus status instead of a frozen countdown.
-          countdownText = null;
-          refreshContextPill();
-        },
+        () => {},
       );
       showToast(`⏳ Counting down to ${label}`);
     });
@@ -7479,11 +6533,6 @@ function init() {
     }, 3000);
 
     // Lunar phase in the contextual tab tooltip
-    setTimeout(() => {
-      const lunar = Features.getLunarPhase();
-      lunarTooltipSuffix = `${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
-      refreshContextPill();
-    }, 2000);
   }
 
   // Voice timer — initialise if browser supports it
@@ -8335,6 +7384,19 @@ function buildCommandPalette() {
             APIs.isWakeLockEnabled() ? "Screen stays on" : "Wake lock off",
           ),
         ),
+    ],
+    [
+      "sidereal-time",
+      "🔭 Toggle Sidereal Time",
+      "Astronomical time measure",
+      () => {
+        Easter.toggleSiderealMode();
+        showToast(
+          Easter.isSiderealMode()
+            ? "🔭 Sidereal time mode — for astronomers"
+            : "Local status restored",
+        );
+      },
     ],
   ];
   settingsList.forEach(([id, name, desc, action]) => {

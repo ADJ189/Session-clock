@@ -43,7 +43,6 @@ export function initEaster(
   setupMidnightWatch();
   setupDeviceShake();
   setupHyperfocusHold();
-  setupContextPillSecret();
   check100Sessions();
 }
 
@@ -732,34 +731,12 @@ function setupHyperfocusHold() {
   });
 }
 
-// ── 7. Context tab 7× → Sidereal Time ─────────────────────────────────
-let contextClickCount = 0;
-let contextClickTimer = 0;
+// ── 7. Sidereal Time ─────────────────────────────────
 let siderealMode = false;
 
-function setupContextPillSecret() {
-  const pill = document.getElementById("contextPill");
-  if (!pill) return;
-  pill.addEventListener("click", () => {
-    contextClickCount++;
-    clearTimeout(contextClickTimer);
-    if (contextClickCount >= 7) {
-      contextClickCount = 0;
-      siderealMode = !siderealMode;
-      pill.title = siderealMode
-        ? "Local Sidereal Time — astronomical measure"
-        : "";
-      _showToast(
-        siderealMode
-          ? "🔭 Sidereal time mode — for astronomers"
-          : "Local status restored",
-        3500,
-      );
-    }
-    contextClickTimer = window.setTimeout(() => {
-      contextClickCount = 0;
-    }, 1500);
-  });
+export function toggleSiderealMode(): boolean {
+  siderealMode = !siderealMode;
+  return siderealMode;
 }
 
 export function isSiderealMode() {

@@ -68,6 +68,9 @@ import {
   DEFAULT_SPOTIFY_CLIENT_ID,
   DEFAULT_GOOGLE_CLIENT_ID,
 } from "./authconfig";
+import { mount, unmount } from "svelte";
+import IntegrationsPanel from "./app/integrations/IntegrationsPanel.svelte";
+import type { IntegrationsService } from "./app/integrations/types";
 
 // ─────────────────────────────────────────────────────────────────────
 // TYPES
@@ -874,533 +877,48 @@ export interface IntegrationPanelCallbacks {
   showToast: (msg: string, dur?: number) => void;
 }
 
+let activeIntMount: ReturnType<typeof mount> | null = null;
+
 export function buildIntegrationsPanel(
   container: HTMLElement,
   cb: IntegrationPanelCallbacks,
 ) {
+  if (activeIntMount) {
+    try {
+      unmount(activeIntMount);
+    } catch {}
+    activeIntMount = null;
+  }
   container.className = "int-grid";
   while (container.firstChild) container.removeChild(container.firstChild);
 
-  const defs: Array<{
-    id: IntegrationId;
-    icon: string;
-    name: string;
-    desc: string;
-    color: string;
-    connected: () => boolean;
-    setupForm: (wrap: HTMLElement) => void;
-  }> = [
-    {
-      id: "spotify",
-      icon: "🎵",
-      name: "Spotify",
-      color: "#1DB954",
-      desc: "Show now-playing, control playback, and launch focus playlists.",
-      connected: isSpotifyConnected,
-      setupForm(wrap) {
-        if (DEFAULT_SPOTIFY_CLIENT_ID) {
-          // App ships its own registered Spotify app — one click, no
-          // setup required from the visitor.
-          const btn = connectBtn("Connect with Spotify");
-          btn.addEventListener("click", () =>
-            spotifyLogin(DEFAULT_SPOTIFY_CLIENT_ID),
-          );
-          wrap.append(
-            btn,
-            ...manualTokenToggle(() => spotifySelfHostForm(cb, wrap)),
-          );
-          return;
-        }
-        spotifySelfHostForm(cb, wrap);
-      },
-    },
-    {
-      id: "youtube",
-      icon: "📺",
-      name: "YouTube",
-      color: "#FF0000",
-      desc: "Pull focus/study playlists from YouTube. Shares the Google connection below.",
-      connected: isYouTubeConnected,
-      setupForm(wrap) {
-        wrap.append(...googleSetupNodes(cb, "YouTube"));
-      },
-    },
-    {
-      id: "gcal",
-      icon: "📅",
-      name: "Google Calendar",
-      color: "#4285F4",
-      desc: "Show upcoming events in the focus widget.",
-      connected: isGCalConnected,
-      setupForm(wrap) {
-        wrap.append(...googleSetupNodes(cb, "Calendar"));
-        const divider = para(
-          "— or, for a public calendar only, a plain API key works without signing in —",
-        );
-        const apiInp = input("API Key", "text");
-        const calInp = input("Calendar ID (default: primary)", "text");
-        const d = load("gcal");
-        if (d) {
-          apiInp.value = d.apiKey ?? "";
-          calInp.value = d.calendarId ?? "primary";
-        }
-        const btn = connectBtn("Save API key");
-        btn.addEventListener("click", () => {
-          const k = apiInp.value.trim();
-          const c2 = calInp.value.trim() || "primary";
-          if (!k) {
-            cb.showToast("Enter an API key");
-            return;
-          }
-          saveGCalCredentials(k, c2);
-          buildIntegrationsPanel(container, cb);
-          cb.showToast("📅 Google Calendar connected");
-        });
-        wrap.append(divider, apiInp, calInp, btn);
-      },
-    },
-    {
-      id: "notion",
-      icon: "📝",
-      name: "Notion",
-      color: "#787774",
-      desc: "See your Notion tasks in the focus sidebar.",
-      connected: isNotionConnected,
-      setupForm(wrap) {
-        wrap.append(
-          para(
-            "Create a public OAuth integration at notion.so/my-integrations, add this exact Redirect URI, then paste the OAuth Client ID:",
-          ),
-          codeLine(redirectUri()),
-        );
-        const idInp = input("OAuth Client ID", "text");
-        idInp.value = localStorage.getItem("sc_notion_client_id") ?? "";
-        const oauthBtn = connectBtn("Connect with Notion");
-        oauthBtn.addEventListener("click", async () => {
-          const id = idInp.value.trim();
-          if (!id) {
-            cb.showToast("Enter a Client ID first");
-            return;
-          }
-          await oauthLogin("notion", id);
-        });
-        const dbInp = input("Database ID (needed either way)", "text");
-        const d = load("notion");
-        if (d) dbInp.value = d.databaseId ?? "";
-        const saveDbBtn = connectBtn("Save database ID");
-        saveDbBtn.addEventListener("click", () => {
-          const db = dbInp.value.trim();
-          if (!db) {
-            cb.showToast("Enter a database ID");
-            return;
-          }
-          const existing = load("notion");
-          if (!existing?.token) {
-            cb.showToast("Connect with Notion first");
-            return;
-          }
-          saveNotionCredentials(existing.token, db);
-          cb.showToast("📝 Database linked");
-        });
-        wrap.append(
-          idInp,
-          oauthBtn,
-          para(
-            "Then share your database with the integration and enter its ID:",
-          ),
-          dbInp,
-          saveDbBtn,
-        );
-        wrap.append(
-          ...manualTokenFallback(
-            "notion",
-            cb,
-            container,
-            "Internal Integration Token (secret_…)",
-            (token) => {
-              const db = dbInp.value.trim();
-              if (!db) {
-                cb.showToast("Enter a database ID first");
-                return false;
-              }
-              saveNotionCredentials(token, db);
-              return true;
-            },
-          ),
-        );
-      },
-    },
-    {
-      id: "todoist",
-      icon: "✅",
-      name: "Todoist",
-      color: "#E44332",
-      desc: "Show today's Todoist tasks in the focus sidebar.",
-      connected: isTodoistConnected,
-      setupForm(wrap) {
-        wrap.append(
-          para(
-            "Create an app at developer.todoist.com/appconsole, add this exact OAuth redirect URL, then paste the Client ID:",
-          ),
-          codeLine(redirectUri()),
-        );
-        const idInp = input("Client ID", "text");
-        idInp.value = localStorage.getItem("sc_todoist_client_id") ?? "";
-        const btn = connectBtn("Connect with Todoist");
-        btn.addEventListener("click", async () => {
-          const id = idInp.value.trim();
-          if (!id) {
-            cb.showToast("Enter a Client ID first");
-            return;
-          }
-          await oauthLogin("todoist", id);
-        });
-        wrap.append(idInp, btn);
-        wrap.append(
-          ...manualTokenFallback(
-            "todoist",
-            cb,
-            container,
-            "API Token",
-            (token) => {
-              saveTodoistCredentials(token);
-              return true;
-            },
-          ),
-        );
-      },
-    },
-    {
-      id: "linear",
-      icon: "🔷",
-      name: "Linear",
-      color: "#5E6AD2",
-      desc: "Show your assigned Linear issues in the focus sidebar.",
-      connected: isLinearConnected,
-      setupForm(wrap) {
-        wrap.append(
-          para(
-            "Create an OAuth app at linear.app/settings/api/applications, add this exact redirect URI, then paste the Client ID:",
-          ),
-          codeLine(redirectUri()),
-        );
-        const idInp = input("Client ID", "text");
-        idInp.value = localStorage.getItem("sc_linear_client_id") ?? "";
-        const btn = connectBtn("Connect with Linear");
-        btn.addEventListener("click", async () => {
-          const id = idInp.value.trim();
-          if (!id) {
-            cb.showToast("Enter a Client ID first");
-            return;
-          }
-          await oauthLogin("linear", id);
-        });
-        wrap.append(idInp, btn);
-        wrap.append(
-          ...manualTokenFallback(
-            "linear",
-            cb,
-            container,
-            "Personal API Key (lin_api_…)",
-            (token) => {
-              saveLinearCredentials(token);
-              return true;
-            },
-          ),
-        );
-      },
-    },
-    {
-      id: "github",
-      icon: "🐙",
-      name: "GitHub",
-      color: "#8b8f98",
-      desc: "Show your assigned GitHub issues and PRs in the focus sidebar.",
-      connected: isGithubConnected,
-      setupForm(wrap) {
-        wrap.append(
-          para(
-            "Create an OAuth App at github.com/settings/developers, set this exact callback URL, then paste the Client ID:",
-          ),
-          codeLine(redirectUri()),
-        );
-        const idInp = input("Client ID", "text");
-        idInp.value = localStorage.getItem("sc_github_client_id") ?? "";
-        const btn = connectBtn("Connect with GitHub");
-        btn.addEventListener("click", async () => {
-          const id = idInp.value.trim();
-          if (!id) {
-            cb.showToast("Enter a Client ID first");
-            return;
-          }
-          await oauthLogin("github", id);
-        });
-        wrap.append(idInp, btn);
-        wrap.append(
-          ...manualTokenFallback(
-            "github",
-            cb,
-            container,
-            "Personal Access Token (ghp_…)",
-            (token) => {
-              saveGithubCredentials(token);
-              return true;
-            },
-          ),
-        );
-      },
-    },
-  ];
+  const service: IntegrationsService = {
+    cb,
+    isSpotifyConnected,
+    isYouTubeConnected,
+    isGCalConnected,
+    isNotionConnected,
+    isTodoistConnected,
+    isLinearConnected,
+    isGithubConnected,
+    disconnectAll,
+    spotifyLogin,
+    googleLogin,
+    oauthLogin,
+    saveGCalCredentials,
+    saveNotionCredentials,
+    saveTodoistCredentials,
+    saveLinearCredentials,
+    saveGithubCredentials,
+    loadData: load,
+    getRedirectUri: redirectUri,
+    defaultSpotifyClientId: DEFAULT_SPOTIFY_CLIENT_ID,
+    defaultGoogleClientId: DEFAULT_GOOGLE_CLIENT_ID,
+    googleClientIdKey: GOOGLE_CLIENT_ID_KEY,
+  };
 
-  defs.forEach((def) => {
-    const isConn = def.connected();
-
-    const card = document.createElement("div");
-    card.className = "int-card" + (isConn ? " int-card--on" : "");
-    card.style.setProperty("--int-accent", def.color);
-
-    const header = document.createElement("button");
-    header.type = "button";
-    header.className = "int-card-header";
-    header.setAttribute("aria-expanded", "false");
-
-    const tile = document.createElement("span");
-    tile.className = "int-tile";
-    tile.textContent = def.icon;
-
-    const info = document.createElement("span");
-    info.className = "int-info";
-    const nm = document.createElement("span");
-    nm.className = "int-name";
-    nm.textContent = def.name;
-    const ds = document.createElement("span");
-    ds.className = "int-desc";
-    ds.textContent = def.desc;
-    info.append(nm, ds);
-
-    const status = document.createElement("span");
-    status.className = "int-status";
-    const dot = document.createElement("span");
-    dot.className = "int-status-dot";
-    dot.setAttribute("aria-hidden", "true");
-    status.append(
-      dot,
-      document.createTextNode(isConn ? "Connected" : "Connect"),
-    );
-
-    const chevron = document.createElement("span");
-    chevron.className = "int-chevron";
-    chevron.setAttribute("aria-hidden", "true");
-    chevron.innerHTML =
-      '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
-
-    header.append(tile, info, status, chevron);
-
-    const formOuter = document.createElement("div");
-    formOuter.className = "int-form-outer";
-    const formWrap = document.createElement("div");
-    formWrap.className = "int-form";
-    formWrap.inert = true;
-    formOuter.appendChild(formWrap);
-
-    if (isConn) {
-      const disconnectBtn = document.createElement("button");
-      disconnectBtn.className = "int-disconnect-btn";
-      disconnectBtn.textContent = `Disconnect ${def.name}`;
-      disconnectBtn.addEventListener("click", () => {
-        disconnectAll(def.id);
-        buildIntegrationsPanel(container, cb);
-        cb.showToast(`${def.name} disconnected`);
-      });
-      formWrap.appendChild(disconnectBtn);
-    } else {
-      def.setupForm(formWrap);
-    }
-
-    header.addEventListener("click", () => {
-      const expanded = header.getAttribute("aria-expanded") === "true";
-      header.setAttribute("aria-expanded", expanded ? "false" : "true");
-      card.classList.toggle("int-card--open", !expanded);
-      // Keep the collapsed form out of tab order / screen-reader flow —
-      // it's still in the DOM (for the height-animation trick above),
-      // just visually clipped, so without this a keyboard/AT user could
-      // tab into fields that look invisible.
-      formWrap.toggleAttribute("inert", expanded);
-    });
-
-    card.append(header, formOuter);
-    container.appendChild(card);
+  activeIntMount = mount(IntegrationsPanel, {
+    target: container,
+    props: { service },
   });
-}
-
-// Shared "Connect with Google" block used by both the YouTube and
-// Google Calendar cards, since they're one underlying connection.
-function googleSetupNodes(
-  cb: IntegrationPanelCallbacks,
-  forFeature: string,
-): HTMLElement[] {
-  if (DEFAULT_GOOGLE_CLIENT_ID) {
-    const btn = connectBtn(`Connect Google for ${forFeature}`);
-    btn.addEventListener("click", async () => {
-      btn.textContent = "Connecting…";
-      await googleLogin(DEFAULT_GOOGLE_CLIENT_ID); // redirects away — nothing after this line runs
-    });
-    const selfHostSlot = document.createElement("div");
-    const toggle = manualTokenToggle(
-      () => selfHostSlot.append(...googleSelfHostNodes(cb, forFeature)),
-      "use a different Client ID ▾",
-    );
-    return [btn, ...toggle, selfHostSlot];
-  }
-  return googleSelfHostNodes(cb, forFeature);
-}
-
-// Unlike Spotify's self-host form (a genuine "bring your own app" —
-// Spotify's PKCE public client needs no secret, so the browser can
-// talk to Spotify's token endpoint directly with whatever Client ID a
-// visitor pastes), Google's "Web application" client type is
-// confidential: completing the exchange needs a secret, which only
-// this deployment's own /api/oauth/token proxy holds (as a Worker env
-// var — see CONTRIBUTING.md). A visitor's own separate Google Cloud
-// project can't work here without also handing its secret to this
-// page, and storing an OAuth client secret in localStorage (readable
-// by any XSS, and — unlike a leaked access token — able to impersonate
-// the whole app, not just one user's session) isn't a tradeoff worth
-// making for that. So this field, despite asking for a Client ID the
-// same way Spotify's does, only ever works with the ID this deployment
-// already has configured server-side — it exists for pasting/
-// confirming that ID (e.g. after clearing localStorage), not for
-// registering a separate one.
-function googleSelfHostNodes(
-  cb: IntegrationPanelCallbacks,
-  forFeature: string,
-): HTMLElement[] {
-  const p = para(
-    `Paste the Google OAuth Client ID this deployment already has configured (ask the site owner if you don't have it — see CONTRIBUTING.md). Its Authorized redirect URI must be exactly:`,
-  );
-  const code = codeLine(redirectUri());
-  const inp = input("Client ID", "text");
-  inp.value = localStorage.getItem(GOOGLE_CLIENT_ID_KEY) ?? "";
-  const btn = connectBtn(`Connect Google for ${forFeature}`);
-  btn.addEventListener("click", async () => {
-    const id = inp.value.trim();
-    if (!id) {
-      cb.showToast("Enter a Client ID first");
-      return;
-    }
-    btn.textContent = "Connecting…";
-    await googleLogin(id); // redirects away — nothing after this line runs
-  });
-  return [p, code, inp, btn];
-}
-
-function spotifySelfHostForm(
-  cb: IntegrationPanelCallbacks,
-  wrap: HTMLElement,
-): void {
-  wrap.append(
-    para(
-      "Create a free app at developer.spotify.com → Dashboard → Create App, add this exact Redirect URI, then paste the Client ID:",
-    ),
-    codeLine(redirectUri()),
-  );
-  const inp = input("Client ID", "text");
-  inp.value = localStorage.getItem("sc_spotify_client_id") ?? "";
-  const btn = connectBtn("Connect with Spotify");
-  btn.addEventListener("click", async () => {
-    const id = inp.value.trim();
-    if (!id) {
-      cb.showToast("Enter a Client ID first");
-      return;
-    }
-    await spotifyLogin(id);
-  });
-  wrap.append(inp, btn);
-}
-
-// Small "use your own app instead" collapsible link, shown under the
-// one-click default-app button so self-hosters/power users can still
-// register and use their own OAuth Client ID instead of the site's.
-function manualTokenToggle(
-  onOpen: () => void,
-  label = "use your own app instead ▾",
-): HTMLElement[] {
-  const toggle = document.createElement("button");
-  toggle.textContent = label;
-  toggle.style.cssText =
-    "background:none;border:none;color:inherit;opacity:.4;font-size:.6rem;cursor:pointer;padding:8px 0;";
-  let opened = false;
-  toggle.addEventListener("click", () => {
-    if (opened) return;
-    opened = true;
-    onOpen();
-    toggle.remove();
-  });
-  return [toggle];
-}
-
-// Collapsible "paste a token instead" fallback for OAuth-only cards, for
-// anyone who'd rather not register their own OAuth app.
-function manualTokenFallback(
-  id: IntegrationId,
-  cb: IntegrationPanelCallbacks,
-  container: HTMLElement,
-  label: string,
-  onSave: (token: string) => boolean,
-): HTMLElement[] {
-  const toggle = document.createElement("button");
-  toggle.textContent = "or paste a token manually ▾";
-  toggle.style.cssText =
-    "background:none;border:none;color:inherit;opacity:.4;font-size:.6rem;cursor:pointer;padding:8px 0;";
-  const box = document.createElement("div");
-  box.style.display = "none";
-  const inp = input(label, "text");
-  const btn = connectBtn("Save token");
-  btn.addEventListener("click", () => {
-    const t = inp.value.trim();
-    if (!t) {
-      cb.showToast("Enter a token first");
-      return;
-    }
-    if (onSave(t)) {
-      buildIntegrationsPanel(container, cb);
-      cb.showToast(`${id[0]!.toUpperCase()}${id.slice(1)} connected`);
-    }
-  });
-  box.append(inp, btn);
-  toggle.addEventListener("click", () => {
-    box.style.display = box.style.display === "none" ? "block" : "none";
-  });
-  return [toggle, box];
-}
-
-// DOM helpers
-function para(text: string): HTMLElement {
-  const p = document.createElement("p");
-  p.style.cssText =
-    "font-size:.62rem;opacity:.45;margin:10px 0 8px;line-height:1.6;";
-  p.textContent = text;
-  return p;
-}
-function codeLine(text: string): HTMLElement {
-  const c = document.createElement("code");
-  c.style.cssText =
-    "display:block;font-size:.6rem;background:rgba(255,255,255,.06);border-radius:6px;padding:6px 9px;margin-bottom:8px;word-break:break-all;user-select:all;";
-  c.textContent = text;
-  return c;
-}
-function input(placeholder: string, type = "text"): HTMLInputElement {
-  const el = document.createElement("input");
-  el.type = type;
-  el.placeholder = placeholder;
-  el.setAttribute("aria-label", placeholder);
-  el.style.cssText =
-    "width:100%;padding:9px 13px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:inherit;font:inherit;font-size:.74rem;margin-bottom:8px;box-sizing:border-box;";
-  return el;
-}
-function connectBtn(label: string): HTMLButtonElement {
-  const btn = document.createElement("button");
-  btn.className = "int-connect-btn";
-  btn.textContent = label;
-  return btn;
 }
