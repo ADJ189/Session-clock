@@ -1,8 +1,22 @@
-// Deterministic PRNG for procedural ambience.
+// Seeded PRNG for procedural ambience.
 //
-// Production uses a random seed per voice. Tests pass a fixed seed so event
-// timing and noise offsets are reproducible. mulberry32 is small, fast and
-// good enough for sound design; it is not used for security.
+// What a seed promises: the *procedural parameters* a generator draws from
+// this source — event durations, gains, frequencies, pans and starting phases
+// in `engine.ts` — are reproducible. The same seed and the same call order
+// produce the same values.
+//
+// What it does not promise: a bit-identical performance. These paths stay
+// deliberately unseeded because they are either time-driven or shared across
+// voices:
+//   • `scheduler.ts` picks event *timing* with `Math.random()` (wall/audio
+//     clock policy, not a generator parameter);
+//   • `noise.ts` fills cached noise buffers once per context with
+//     `Math.random()`, and the cache is shared between voices;
+//   • `dsp.ts` picks a random offset inside a sampled buffer;
+//   • `sound.ts` draws a spatial phase offset per rig.
+// Production seeds each voice randomly; tests pass a fixed seed to reproduce
+// parameters, never to assert identical audio output. mulberry32 is small,
+// fast and good enough for sound design; it is not used for security.
 
 export interface RandomSource {
   /** Uniform [0, 1). */

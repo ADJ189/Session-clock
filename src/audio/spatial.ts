@@ -3,6 +3,14 @@
 // emitters are a later extension. Values follow the HRTF integration spec:
 // azimuth/elevation in degrees, distance in loose scene metres, movement
 // width in degrees. They are starting sound-design values, not measurements.
+//
+// Input layout: there is deliberately no per-profile mono/stereo field. A
+// PannerNode inherits the channel layout of whatever feeds it (the per-track
+// gain) and performs its own localisation, so a profile-level "auto" value
+// would look like a setting while doing nothing. If a track ever needs an
+// explicit conversion (for example a mono down-mix before an equal-power
+// fallback), add it to the graph with a channel-count assertion in
+// tests-unit/spatial-graph.test.ts — not as an unread profile property.
 
 import type { AmbientPresetId } from "./engine";
 import { clamp } from "./dsp";
@@ -34,7 +42,6 @@ export interface SpatialProfile {
     maxDistance: number;
     rolloffFactor: number;
   };
-  inputLayout: "auto" | "mono" | "stereo";
 }
 
 const DEFAULT_DISTANCE = {
@@ -50,7 +57,6 @@ function profile(
   elevationDeg: number,
   distanceM: number,
   movement: SpatialMovement,
-  inputLayout: SpatialProfile["inputLayout"] = "auto",
 ): SpatialProfile {
   return {
     mode,
@@ -58,7 +64,6 @@ function profile(
     position: { azimuthDeg, elevationDeg, distanceM },
     movement,
     distance: DEFAULT_DISTANCE,
-    inputLayout,
   };
 }
 
@@ -85,41 +90,41 @@ const burst = (widthDeg: number, rateRadPerSec: number): SpatialMovement => ({
 });
 
 export const SPATIAL_PROFILES = {
-  rain: profile("track-emitter", 0, 0, 6, sweep(49.5, 0.04), "stereo"),
-  roofrain: profile("track-emitter", 0, 25, 3, sweep(58.5, 0.05), "stereo"),
+  rain: profile("track-emitter", 0, 0, 6, sweep(49.5, 0.04)),
+  roofrain: profile("track-emitter", 0, 25, 3, sweep(58.5, 0.05)),
   white: profile("centered", 0, 0, 1, fixed()),
   pink: profile("centered", 0, 0, 1, fixed()),
-  brown: profile("centered", 0, 0, 1.5, wander(27, 0.02), "mono"),
-  forest: profile("track-emitter", 0, 0, 8, burst(49.5, 0.07), "stereo"),
-  cafe: profile("track-emitter", 0, 0, 5, wander(49.5, 0.12), "stereo"),
-  ocean: profile("track-emitter", 0, 0, 12, sweep(58.5, 0.05), "stereo"),
-  fire: profile("track-emitter", 14, 0, 2, fixed(), "mono"),
-  wind: profile("track-emitter", 0, 0, 7, wander(63, 0.03), "stereo"),
-  snow: profile("track-emitter", 0, 0, 6, wander(22.5, 0.015), "stereo"),
-  keyboard: profile("track-emitter", -18, 0, 1.2, fixed(), "mono"),
-  library: profile("track-emitter", -5, 0, 3.5, wander(18, 0.01), "stereo"),
-  airplane: profile("track-emitter", 0, 0, 1.5, fixed(), "stereo"),
-  spaceship: profile("track-emitter", 0, 0, 3.5, fixed(), "mono"),
-  campfire: profile("track-emitter", -9, 0, 2.5, fixed(), "mono"),
-  waves: profile("track-emitter", 0, 0, 8, burst(54, 0.06), "stereo"),
-  river: profile("track-emitter", 0, 0, 6, wander(31.5, 0.03), "stereo"),
-  waterfall: profile("track-emitter", 0, 0, 9, fixed(), "stereo"),
-  thunder: profile("track-emitter", 0, 0, 25, sweep(49.5, 0.04), "stereo"),
-  night: profile("track-emitter", 0, 0, 7, wander(18, 0.01), "stereo"),
-  birds: profile("track-emitter", 0, 5, 7, burst(67.5, 0.09), "stereo"),
-  hum: profile("centered", 0, 0, 1, fixed(), "mono"),
-  frogs: profile("track-emitter", 0, -3, 6, burst(58.5, 0.1), "mono"),
-  city: profile("track-emitter", 0, 0, 20, wander(45, 0.05), "stereo"),
-  fan: profile("track-emitter", 0, 0, 1.5, fixed(), "mono"),
-  clock: profile("track-emitter", -14, 0, 1, fixed(), "mono"),
-  vinyl: profile("track-emitter", 0, 0, 1.2, fixed(), "stereo"),
+  brown: profile("centered", 0, 0, 1.5, wander(27, 0.02)),
+  forest: profile("track-emitter", 0, 0, 8, burst(49.5, 0.07)),
+  cafe: profile("track-emitter", 0, 0, 5, wander(49.5, 0.12)),
+  ocean: profile("track-emitter", 0, 0, 12, sweep(58.5, 0.05)),
+  fire: profile("track-emitter", 14, 0, 2, fixed()),
+  wind: profile("track-emitter", 0, 0, 7, wander(63, 0.03)),
+  snow: profile("track-emitter", 0, 0, 6, wander(22.5, 0.015)),
+  keyboard: profile("track-emitter", -18, 0, 1.2, fixed()),
+  library: profile("track-emitter", -5, 0, 3.5, wander(18, 0.01)),
+  airplane: profile("track-emitter", 0, 0, 1.5, fixed()),
+  spaceship: profile("track-emitter", 0, 0, 3.5, fixed()),
+  campfire: profile("track-emitter", -9, 0, 2.5, fixed()),
+  waves: profile("track-emitter", 0, 0, 8, burst(54, 0.06)),
+  river: profile("track-emitter", 0, 0, 6, wander(31.5, 0.03)),
+  waterfall: profile("track-emitter", 0, 0, 9, fixed()),
+  thunder: profile("track-emitter", 0, 0, 25, sweep(49.5, 0.04)),
+  night: profile("track-emitter", 0, 0, 7, wander(18, 0.01)),
+  birds: profile("track-emitter", 0, 5, 7, burst(67.5, 0.09)),
+  hum: profile("centered", 0, 0, 1, fixed()),
+  frogs: profile("track-emitter", 0, -3, 6, burst(58.5, 0.1)),
+  city: profile("track-emitter", 0, 0, 20, wander(45, 0.05)),
+  fan: profile("track-emitter", 0, 0, 1.5, fixed()),
+  clock: profile("track-emitter", -14, 0, 1, fixed()),
+  vinyl: profile("track-emitter", 0, 0, 1.2, fixed()),
   heartbeat: profile("bypass", 0, 0, 0.8, fixed()),
-  drone: profile("centered", 0, 0, 4, fixed(), "mono"),
-  space: profile("track-emitter", 0, 0, 15, wander(36, 0.015), "stereo"),
-  lofi: profile("track-emitter", 0, 0, 2, fixed(), "stereo"),
-  pad: profile("track-emitter", 0, 0, 5, wander(31.5, 0.02), "stereo"),
-  musicbox: profile("track-emitter", 9, 0, 2.2, fixed(), "mono"),
-  bells: profile("track-emitter", 0, 5, 6, burst(45, 0.08), "mono"),
+  drone: profile("centered", 0, 0, 4, fixed()),
+  space: profile("track-emitter", 0, 0, 15, wander(36, 0.015)),
+  lofi: profile("track-emitter", 0, 0, 2, fixed()),
+  pad: profile("track-emitter", 0, 0, 5, wander(31.5, 0.02)),
+  musicbox: profile("track-emitter", 9, 0, 2.2, fixed()),
+  bells: profile("track-emitter", 0, 5, 6, burst(45, 0.08)),
 } satisfies Record<AmbientPresetId, SpatialProfile>;
 
 export function getSpatialProfile(id: string): SpatialProfile | null {

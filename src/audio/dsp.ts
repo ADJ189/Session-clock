@@ -212,6 +212,8 @@ export function createNoiseHit(
   if (options.playbackRate != null) {
     source.playbackRate.value = clamp(options.playbackRate, 0.1, 4);
   }
+  // Seeded randomness does not reach buffer offsets (see prng.ts): the same
+  // sample is allowed to start at a different point each time it is retriggered.
   const offset = Math.random() * Math.max(0.001, buffer.duration * 0.25);
   const playDuration = options.duration + 0.05;
   // Thunder and similar bursts can outlast the shared noise buffer. Looping

@@ -28,6 +28,8 @@ function cacheFor(ctx: BaseAudioContext): Map<string, CacheEntry> {
 }
 
 function fillWhite(data: Float32Array, amp: number): void {
+  // Unseeded on purpose: buffers are cached per AudioContext and shared by
+  // every voice, so a per-voice seed cannot own this content (see prng.ts).
   for (let i = 0; i < data.length; i++) {
     data[i] = (Math.random() * 2 - 1) * amp;
   }
