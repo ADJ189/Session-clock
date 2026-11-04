@@ -18,6 +18,7 @@
     fps = 60,
     tier = "high",
     quality = "",
+    forceNoBlur = false,
     onchangeClockPos,
     ontoggleCenterMinimal,
     ontoggleHideSeconds,
@@ -29,6 +30,8 @@
     ontoggleParallax,
     ontoggleHaptics,
     onchangeQuality,
+    ontoggleForceNoBlur,
+    oncopydiagnostics,
   }: {
     clockPos?: "center" | "top";
     clockMode?: string;
@@ -45,6 +48,7 @@
     fps?: number;
     tier?: string;
     quality?: string;
+    forceNoBlur?: boolean;
     onchangeClockPos: (pos: "center" | "top") => void;
     ontoggleCenterMinimal: (val: boolean) => void;
     ontoggleHideSeconds: (val: boolean) => void;
@@ -56,6 +60,8 @@
     ontoggleParallax: (val: boolean) => void;
     ontoggleHaptics: (val: boolean) => void;
     onchangeQuality: (val: string) => void;
+    ontoggleForceNoBlur: (val: boolean) => void;
+    oncopydiagnostics: () => void;
   } = $props();
 </script>
 
@@ -185,4 +191,22 @@
       <option value="low">Low</option>
     </select>
   </div>
+</SettingsSection>
+
+<SettingsSection title="Compatibility">
+  <SettingsRow
+    label="Force Simplified Surfaces"
+    description="Disables frosted-glass backdrop blurs for smoother performance on low-power devices"
+    btnId="toggleForceNoBlur"
+    checked={forceNoBlur}
+    onchange={ontoggleForceNoBlur}
+  />
+  <button
+    type="button"
+    class="settings-action-btn settings-action-btn--full"
+    id="btnCopyDiagnostics"
+    onclick={oncopydiagnostics}
+  >
+    📋 Copy Diagnostics
+  </button>
 </SettingsSection>
