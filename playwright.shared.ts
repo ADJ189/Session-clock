@@ -21,7 +21,7 @@ export const sharedUse = {
   timezoneId: "UTC",
 } as const;
 
-const isDeno = typeof (globalThis as unknown as { Deno?: unknown }).Deno !== "undefined" || !process.env.npm_execpath;
+const isDeno = typeof (globalThis as unknown as { Deno?: unknown }).Deno !== "undefined";
 
 export const webServer = externalBaseURL
   ? undefined
