@@ -32,3 +32,7 @@ playwright-report/
 test-results/
 blob-report/
 playwright/.cache/
+
+# Logs
+*.log
+npm-debug.log*

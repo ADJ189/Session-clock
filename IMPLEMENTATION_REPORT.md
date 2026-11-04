@@ -411,49 +411,136 @@ These are deliberate omissions, not silent passes:
 
 ---
 
-## 7. Svelte UI Migration — Full Modernization Pass Completed
+## 7. Svelte UI Migration — Hybrid Status
 
-In accordance with `Session-Clock-Svelte-Migration-and-UI-Cleanup-Spec.md`:
+The branch contains a Svelte 5 migration **in progress**, not a completed one.
+Mounted in the real entry points (`src/main.ts`, `src/integrations.ts`,
+`src/themelib.ts`):
 
-1. **Svelte 5 Application Root**: Introduced `src/app/App.svelte` and root mount target `#app-root` in `index.html`.
-2. **Shared Svelte Design Primitives**:
-   - `ModalShell.svelte`
-   - `IconButton.svelte`
-   - `BetaTag.svelte`
-   - `SettingsSection.svelte`
-   - `SettingsRow.svelte`
-   - `EmptyState.svelte`
-3. **Complete Migration of Settings to Svelte 5**:
-   - `SettingsDialog.svelte`
-   - `SettingsTabBar.svelte`
-   - `GeneralPanel.svelte`
-   - `SoundPanel.svelte`
-   - `FocusPanel.svelte`
-   - `DisplayPanel.svelte`
-   - `PrivacyPanel.svelte`
-   - Replaced imperative ~1400-line DOM generation in `main.ts` `buildSettingsUI()` with declarative Svelte 5 component mounts into `#settingsTabBar` and `#settingsContent`.
-4. **Integrations Svelte UI**:
-   - `IntegrationsDialog.svelte`
-   - `ProviderCard.svelte` (with `id="betaTagProvider_{id}"` and `aria-describedby`)
-   - `ProviderConnectForm.svelte`
-   - Provider OAuth services remain preserved in TypeScript.
-5. **Main Workspace & Modal Layout Svelte Components**:
-   - `AppHeader.svelte` (minimal header without obsolete `#contextPill`)
-   - `MainWorkspace.svelte`
-   - `ClockSurface.svelte`
-   - `SessionCard.svelte`
-   - `QuoteArea.svelte`
-   - `QuickActionDock.svelte`
-   - `CommandPalette.svelte`
-6. **Full Verification Results across Deno**:
-   - Deno Unit Tests: **124 passed / 0 failed**
-   - TypeScript `tsc --noEmit`: **0 errors**
-   - Oxlint: **0 errors**
-   - Playwright E2E:
-     - `desktop-chromium`: **99 passed / 0 failed**
-     - `desktop-firefox`: **12 passed / 0 failed**
-     - `desktop-webkit`: **12 passed / 0 failed**
-     - `mobile-chromium-emulation`: **14 passed / 0 failed**
-     - `mobile-webkit-emulation`: **14 passed / 0 failed**
-     - `playwright.mobile.config.ts`: **28 passed / 0 failed**
-     - Total Playwright tests passed: **179 passed / 0 failed (0 skipped)**.
+1. **Theme Finder chrome** — `src/app/components/theme-finder/`, mounted by `themelib.ts`. The card wall stays imperative so filtering re-attaches cached nodes.
+2. **Settings** — `SettingsTabBar.svelte` plus `GeneralPanel`, `SoundPanel`, `FocusPanel`, `DisplayPanel` and `PrivacyPanel`, mounted from `buildSettingsUI()` in `main.ts`.
+3. **Quick Action Dock** — `QuickActionDock.svelte`, mounted from `main.ts`.
+4. **Integrations panel** — `IntegrationsPanel.svelte`, mounted from `integrations.ts`; `ProviderCard.svelte` and `ProviderConnectForm.svelte` are used by it.
+
+Present but **not wired** (scaffolds, retained as the migration target):
+`App.svelte`, `layout/AppHeader.svelte`, `layout/MainWorkspace.svelte`,
+`clock/ClockSurface.svelte`, `session/SessionCard.svelte`,
+`session/QuoteArea.svelte`, `modals/CommandPalette.svelte`,
+`integrations/IntegrationsDialog.svelte`, `settings/SettingsDialog.svelte`,
+and the shared primitives that only those files import (`ModalShell`,
+`IconButton`, `EmptyState`). `index.html` still hosts the imperative shell,
+and `main.ts` still builds the header, workspace and command palette itself.
+Those files must not be cited as proof the migration is complete, and the
+legacy UI must not be deleted until each replacement is wired and tested.
+
+Several components still hard-code English copy. New user-visible strings
+belong in `src/i18n.ts` (all eight locales); localising the existing islands
+is a known follow-up, not part of this merge.
+
+**Verification from the previous pass** (before the pre-merge fixes; kept for
+history — the current numbers are in Section 8):
+
+- Deno unit tests: **124 passed / 0 failed**
+- `tsc --noEmit`: **0 errors**
+- Oxlint: **0 errors**
+- Playwright: `desktop-chromium` 99, `desktop-firefox` 12,
+  `desktop-webkit` 12, `mobile-chromium-emulation` 14,
+  `mobile-webkit-emulation` 14, `playwright.mobile.config.ts` 28 —
+  **179 passed / 0 failed**.
+
+---
+
+## 8. Pre-merge fix pass — 2026-11-04
+
+Scope: `SESSION_CLOCK_PRE_MERGE_FIX_PLAN.md`. The pass fixes the four
+correctness items (spatial clock, OAuth callbacks, scheduler isolation, stale
+events), resolves `inputLayout`, aligns Node/dependency tooling, and adds
+regression coverage. No UI redesign or migration work was bundled in.
+
+### 8.1 Fix → evidence
+
+| Plan section | Fix | Where | Regression test |
+| --- | --- | --- | --- |
+| 2 · Spatial clock/phase | One clock (`AudioContext.currentTime`) for placement, movement and the update throttle. Each rig stores `startedAt` and one `phaseOffset` generated at attach; `tickSpatial()` takes no timestamp. HRTF → equal-power → dry fallbacks unchanged. | `src/sound.ts`, `src/main.ts` | `tests-unit/spatial-runtime.test.ts` (9 tests: first tick does not move, half-period mirror, suspend/resume freeze, throttle, fixed profiles, fallback, two independent rigs, all-profile geometry) |
+| 3 · OAuth callbacks | `code` / `error` / `state` detection replaces the `code=` substring check; callback context is required; state is validated before the provider is trusted; denial returns `{ ok: false, cancelled: true }`; every terminal path removes only the OAuth query keys and the one-shot verifier/state; token errors are sanitised. Handler has `.catch()` and rebuilds the panel in `.finally()`. | `src/auth.ts` (new), `src/integrations.ts`, `src/main.ts` | `tests-unit/auth.test.ts` (19 tests: success, proxy shape, denial, unknown error code, mismatched/missing/malformed state, unknown provider, missing verifier, non-2xx, `not_configured`, unreadable body, missing token, network failure, sanitisation, ordinary load untouched, unrelated `?code=` ignored, login) |
+| 4 · Scheduler isolation | Consecutive failures are per task (`maxConsecutiveFailures`, default 8), reset on success; only the task on its own streak is evicted; aggregate `errorCount` is diagnostics-only; a throwing `onError` cannot escape. | `src/audio/scheduler.ts` | `tests-unit/scheduler.test.ts` (17 tests, includes one failing task never evicting another, intermittent reset, throwing `onError`, last-task eviction) |
+| 5 · Stale events | Missed events are dropped: up to 32 skips per task per tick, then the deadline rebases to `now + interval`; per-tick cap of 8 kept; a past timestamp is never passed to a generator; `droppedEventCount` exposed. | `src/audio/scheduler.ts` | `tests-unit/scheduler.test.ts` (long suspension, bounded catch-up, next event ≥ now, healthy task after rebase, every executed time ≥ current audio time) |
+| 6 · `inputLayout` | Removed the property and every per-profile value (Option B). A `PannerNode` inherits the input's channel layout; the rationale is documented in `src/audio/spatial.ts`. | `src/audio/spatial.ts` | `tests-unit/spatial.test.ts` asserts the exact profile key set and that `inputLayout` cannot reappear; `tests-unit/spatial-graph.test.ts` checks channel config |
+| 7.1 · Node engine | `engines.node: ">=24"` added to `package.json` and the lockfile root; README, CONTRIBUTING and AGENTS now say the same. `engine-strict` stays off for Cloudflare Pages. | `package.json`, `package-lock.json`, docs | `npm ci` (CI) validates the manifest/lock pair |
+| 7.2 · Dependency | `vite` 6.4.4 → 6.4.5 (see 8.2). | `package.json`, `package-lock.json` | `vite v6.4.5` reported by `deno task build` |
+| 7.3 · Seeded randomness | Documented the actual guarantee (generator parameters only) and narrowed the comments; event timing, cached noise content, buffer offsets and spatial phase stay deliberately unseeded. No behaviour change. | `src/audio/prng.ts`, `scheduler.ts`, `noise.ts`, `dsp.ts`, `sound.ts` | `tests-unit/prng.test.ts` parameter-stream reproducibility test |
+| 7.5 · Svelte scope | Migration documented as hybrid: mounted islands listed, unused scaffolds named, no claim of completion. | `CONTRIBUTING.md`, `AGENTS.md`, this report §7 | — |
+
+Additional hardening while extracting `auth.ts`: provider text is stripped of
+control characters and angle brackets, truncated to 160 characters, and mapped
+through a fixed error dictionary before it can reach a toast.
+
+### 8.2 Dependency/security review
+
+`npm audit` could not be run on this machine (no Node/npm installed; every
+gate below ran through the `deno.json` mirrors against the installed
+`node_modules/`). The lockfile was checked against the GitHub Advisory
+Database and the OSV API instead.
+
+- **Affected:** `vite` 6.4.4 — GHSA-8g5g-mxqh-grgj / CVE-2026-118662
+  (moderate). `server.fs.deny` could be bypassed with `?raw`, `?import&raw` or
+  `?import&url&inline`, so a dev server explicitly exposed with `--host` could
+  return denied files. Only 6.4.4 is in the affected range.
+- **Fix:** 6.4.5. Its dependency ranges are identical to 6.4.4, so no other
+  lock entries change. Tarball downloaded from the registry and its `sha512`
+  computed locally:
+  `sha512-4enwjFfi4IwtEh0w+jPzpLVOFQiPHmmzPxcHXQOyEur47o6u0jE573DmGpjA+7irXoMLYRZD5ZaFUEneS3abPg==`.
+- **Clean at the locked versions** (OSV query, no advisories): `esbuild`
+  0.25.12, `rollup` 4.62.4, `svelte` 5.57.3,
+  `@sveltejs/vite-plugin-svelte` 6.2.4, `postcss` 8.5.26, `oxlint` 1.89.0,
+  `typescript` 7.0.2, `@playwright/test` 1.64.1, `animejs` 4.5.0.
+- **Accepted exceptions:** none.
+- `node_modules/vite` was replaced with the 6.4.5 tarball locally so the gate
+  below exercises the upgraded version rather than the old install.
+
+### 8.3 Merge-gate results
+
+Commands were run from this checkout with Deno 2.9.8 driving the installed
+`node_modules/` entry points (`node_modules/vite/bin/vite.js`,
+`node_modules/typescript/bin/tsc`, `node_modules/oxlint/bin/oxlint`,
+`node_modules/@playwright/test/cli.js`). `vite v6.4.5` was confirmed in the
+build log.
+
+| Gate | Result |
+| --- | --- |
+| `typecheck` | **0 errors** |
+| `typecheck:unit` | **0 errors** |
+| `typecheck:e2e` | **0 errors** |
+| `lint` (oxlint) | **0 errors**; warnings only (pre-existing `unicorn/prefer-add-event-listener`, `require-post-message-target-origin` in `src/main.ts`, plus earlier warnings in `renderer.ts`, `tests/beta.spec.ts`, `intelligence.ts`) |
+| `test:unit` | **164 passed / 0 failed**, repeated 4× consecutively to catch order/random-state flakes |
+| `build` | **passes** with Vite 6.4.5 (largest chunk 641.29 kB / 199.13 kB gzip — the existing chunk-size warning) |
+| Playwright `test:e2e` (5 projects) | see 8.4 |
+| Playwright `test:e2e:mobile` | see 8.4 |
+
+The unit suite grew from 124 to 164 tests: `auth.test.ts` (+19),
+`scheduler.test.ts` (17 total, +10 new), `spatial-runtime.test.ts` (+9),
+`prng.test.ts` (+1), plus the profile-key/clock assertions added to
+`spatial.test.ts` and `spatial-graph.test.ts`.
+
+### 8.4 Not verified in this environment
+
+These are gaps in local verification, not claimed passes:
+
+- **`npm ci` / `npm audit` / `npm outdated` from a clean Node 24 install.**
+  No Node/npm on this machine. The manifest and lockfile were validated by
+  parsing and by running the lockfile's own tool versions, but CI's `npm ci`
+  remains the authoritative check.
+- **Real audio listening.** Headphones/speaker checks for the new spatial
+  clock (no startup jump, no click, HRTF and fallback on a browser without
+  HRTF) need a human and hardware.
+- **Live OAuth providers.** Cancellation/denial, reconnect and token refresh
+  were exercised with stubbed `fetch`/`sessionStorage`/`history`, not against
+  real Spotify/Google/GitHub endpoints (the Playwright fixtures abort
+  third-party requests).
+- **SonarCloud.** Re-analysis of the previously reported test-assertion
+  warning must run on the pushed commit; it cannot be reproduced offline.
+- **Two-build service-worker upgrade** and long background-tab endurance in a
+  real browser (the scheduler's stale-event behaviour is unit-tested with a
+  fake audio clock).
+- **Playwright WebKit is Playwright's build, not real Safari**, and the mobile
+  projects are emulation — report results per project.

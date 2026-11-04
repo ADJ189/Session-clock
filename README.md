@@ -57,12 +57,13 @@ npm run test:e2e                 # Playwright, five browser projects
 npm run build                    # production → dist/
 ```
 
-Requires Node.js 24+ and npm. The main development, test, and CI workflow
-runs on the installed Node toolchain. Deno is optional: `deno.json` mirrors
-the same tasks (`deno task test:unit`, `deno task test:e2e`) for local use,
-without changing any npm script or the production build. The Deno tasks call
-the installed `node_modules/` binaries and do not modify them, so using Deno
-locally never breaks the npm entry points.
+Requires Node.js 24+ and npm. The repository declares `engines.node: ">=24"`
+in `package.json`, and CI installs Node 24. The main development, test, and CI
+workflow runs on the installed Node toolchain. Deno is optional: `deno.json`
+mirrors the same tasks (`deno task test:unit`, `deno task test:e2e`) for local
+use, without changing any npm script or the production build. The Deno tasks
+call the installed `node_modules/` binaries and do not modify them, so using
+Deno locally never breaks the npm entry points.
 
 Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The included workflow handles `typecheck → build → deploy` automatically.
 

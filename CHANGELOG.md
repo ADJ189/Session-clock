@@ -2,16 +2,23 @@
 
 All notable changes to Session Clock are documented here.
 
-> **Versioning note (starting this release):** version numbers are now a
-> plain two-decimal `x.xx`, bumped by **+0.05** for a larger update (new
-> features, redesigns, multiple significant changes bundled together) and
-> **+0.01** for a minor patch or small fix. `1.71` (previously `1.7.1`) →
-> `1.76` below is the first release under this scheme, since this update
-> bundles several larger changes together.
+Session Clock uses standard three-part semantic versioning (`MAJOR.MINOR.PATCH`).
 
-## [v2.0.0] — 2026-11-25 - Svelte Migration and Much More 
+## [2.0.0] — 2026-11-04
 
-Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session panel, a local-only contextual status tab, an opt-in music deck, and a rebuilt first-run welcome.
+Session Clock 2.0.0 marks the launch of the V2 generation: introducing a searchable Theme Library, floating action dock, calmer clock defaults, a redesigned Center-mode session panel, and comprehensive audio engine, OAuth integration, and platform stability fixes.
+
+### Added
+
+- **Theme Library**: a searchable gallery replaces the bottom theme panel. Collections for all themes, recently used, favourites and the six categories; A–Z sort; favourites and recents stored as IDs only (`sc_theme_favs_v1`, `sc_theme_recent_v1`, included in the Privacy data export/delete). Every card still applies through `applyTheme()`.
+- Neutral V2 interface tokens (`--ui-*`) with a light-surface variant for light themes.
+- Feature dock is now a floating capsule (Sound, Zen, Settings) with one consistent SVG icon set.
+- `tests/redesign.spec.ts`: first-run welcome layout and skip/default flows, Center-mode panel geometry at six viewport sizes, Top-mode panel geometry, saved full-stack Center layout, solid-accent button contrast across themes, HH:MM defaults, contextual tab (no time-sync requests), top-bar fit at nine widths from 320px up, install-button absence, Haptics visibility by platform, and the opt-in music deck.
+- Music Panel settings: an explicit on/off toggle plus a YouTube/Spotify/Both provider choice. The deck is absent on a clean profile and YouTube is the default.
+- Optional `deno.json` task mirrors (`deno task test:unit`, `deno task test:e2e`, `deno task build`, …) for contributors who prefer Deno locally. The app, build and CI remain Node/npm-only; no npm script requires Deno. The tasks run the installed `node_modules/` entry points with `"nodeModulesDir": "manual"`, so a Deno run cannot rewrite `node_modules/.bin` or introduce a second copy of a package that would break `npm run test:e2e`.
+- Regression coverage for the pre-merge fixes: `tests-unit/auth.test.ts` (every OAuth callback terminal path, state validation, cleanup), an expanded `tests-unit/scheduler.test.ts` (per-task isolation, intermittent failure reset, stale-burst suppression, bounded catch-up), `tests-unit/spatial-runtime.test.ts` (single-clock movement, suspend/resume), and profile-key assertions in `tests-unit/spatial.test.ts` that fail if an unread configuration field is reintroduced. The unit suite grew from 124 to 164 tests.
+- `npm run previews` (`scripts/gen-theme-previews.mjs`): scene-thumbnail generator; cards use gradient previews.
+- Playwright coverage for the library (`tests/themelib.spec.ts`).
 
 ### Changed
 
@@ -19,16 +26,17 @@ Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session p
 - **Center mode**: the session panel is now a compact right-side card with a legible timer and three usable controls. The decorative Pomodoro ring is hidden instead of scaling the whole wrapper (which used to shrink the timer). On narrow screens the card moves to the bottom-right above the dock and respects safe-area insets.
 - **Contextual top-bar tab**: the old UTC/offline pill is replaced by a local status tab showing the active theme, focus phase, or deadline countdown. There is no network time sync; the clock reads the device clock.
 - **First-run welcome**: content-led height, a vector stopwatch mark, shorter copy, feature hints, a visible step label, and accessible progress/skip controls. All welcome copy and action labels now come from `src/i18n.ts` in all eight locales.
-- **Themes in the dock**: the floating dock now includes a Themes action alongside the top-bar button.
+- **Themes in the dock**: the floating dock now includes a Themes action alongside the top-bar button. The "K" shortcut and the Themes buttons open the Theme Library; the old bottom panel stays in the DOM, collapsed.
 - **Theme Finder UI**: the gallery chrome (header, search, sort, collection nav, current-theme spotlight, recent rail, wall heading, empty state) is now a Svelte 5 component under `src/app/components/theme-finder/`. `themelib.ts` remains the framework-free controller, and the card wall stays imperative so filtering still re-attaches cached nodes instead of rebuilding ~100 previews per keystroke. Selectors, classes, ARIA and storage keys are unchanged.
 - **Theme Finder internals**: the theme→CSS-variable mapping, star glyph path and preview URL are shared helpers instead of being duplicated between the Svelte component and the imperative card wall. Unused snapshot/prop fields and dead exports were removed.
 - **Docs**: README default-UX copy now notes the opt-in music deck; CONTRIBUTING testing instructions and the privacy policy no longer describe network time sync. `AGENTS.md` documents the project for future agents/contributors.
-
-### Added
-
-- `tests/redesign.spec.ts`: first-run welcome layout and skip/default flows, Center-mode panel geometry at six viewport sizes, Top-mode panel geometry, saved full-stack Center layout, solid-accent button contrast across themes, HH:MM defaults, contextual tab (no time-sync requests), top-bar fit at nine widths from 320px up, install-button absence, Haptics visibility by platform, and the opt-in music deck.
-- Music Panel settings: an explicit on/off toggle plus a YouTube/Spotify/Both provider choice. The deck is absent on a clean profile and YouTube is the default.
-- Optional `deno.json` task mirrors (`deno task test:unit`, `deno task test:e2e`, `deno task build`, …) for contributors who prefer Deno locally. The app, build and CI remain Node/npm-only; no npm script requires Deno. The tasks run the installed `node_modules/` entry points with `"nodeModulesDir": "manual"`, so a Deno run cannot rewrite `node_modules/.bin` or introduce a second copy of a package that would break `npm run test:e2e`.
+- **OAuth internals**: provider config, credential storage, PKCE state, login and callback handling now live in `src/auth.ts`, which imports no Svelte component. That makes the real callback path unit-testable (previously it could only be reached through `integrations.ts`, which imports `.svelte`). `src/integrations.ts` re-exports the same functions, so callers and storage keys are unchanged.
+- **Spatial timing**: spatial movement now runs entirely on `AudioContext.currentTime`. Each rig records `startedAt` and generates **one** `phaseOffset` at attach time, so the initial placement and every later update agree. `tickSpatial()` no longer accepts a `requestAnimationFrame` timestamp.
+- **Scheduler policy**: failures are counted per task (`maxConsecutiveFailures`, default 8) and reset on success, so one throwing task can no longer evict unrelated ones. Aggregate `errorCount` is retained for diagnostics only. Missed ambience events are intentionally dropped: up to 32 stale events are skipped per tick, then the deadline is rebased to `now + interval`; `droppedEventCount` exposes the total.
+- **Tooling**: `package.json` now declares `engines.node: ">=24"`, matching README, CONTRIBUTING and CI. `.gitignore` ignores `*.log` and `npm-debug.log*`.
+- **Seeded-randomness scope**: the PRNG comments and `tests-unit/prng.test.ts` now state what a seed actually guarantees — reproducible generator parameters (duration, gain, frequency, pan, start phase) — and that event timing, cached noise-buffer content and buffer offsets stay unseeded.
+- README header refreshed: the app logo now leads, followed by the badges, the app preview, and the rest of the page.
+- Version bumped to `2.0.0` in `package.json` and `package-lock.json`.
 
 ### Removed
 
@@ -36,6 +44,7 @@ Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session p
 - `src/timesync.ts`, the `SyncResult` type, sync trust labels/tooltips, and Privacy Mode's time-sync claim.
 - The stale `worldtimeapi.org` entry in the service-worker external-cache allowlist; the app no longer requests network time.
 - Stale `src/**/*.svelte` entry in `tsconfig.json`.
+- `SpatialProfile.inputLayout` (`"auto" | "mono" | "stereo"`) and every per-profile value. No runtime code ever read it, so it looked like a working setting while doing nothing. A `PannerNode` already inherits the channel layout of its input, which is the behaviour those profiles wanted.
 
 ### Fixed
 
@@ -50,24 +59,12 @@ Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session p
 - `npm run test:unit` runs cleanly on Node 24 and 26. The unit glob now passes a test-file pattern (Node no longer accepts a bare directory with an ESM loader), `src/soundfiles.ts` declares its constructor fields instead of using parameter properties (strip-only TypeScript rejects those), and the DOM stub supplies the EventTarget methods `src/platform.ts` expects outside Deno.
 - `npm run typecheck:unit` no longer depends on a separate `tests-unit/tsconfig.json`. The root `tsconfig.json` now covers both `src/` and `tests-unit/`, so the CI step works from any checkout and the duplicate config file is gone.
 - The Beta pill geometry spec now runs with reduced motion. The Settings dialog scales in and its sections stagger, so measuring mid-animation left a sub-pixel height difference on slower CI runners.
-
-## [2.0.0] — V2 line begins
-
-Session Clock moves to standard three-part semantic versioning (`MAJOR.MINOR.PATCH`) starting with this release; the two-decimal `x.xx` scheme described below applies to releases up to `1.99`.
-
-### Added
-
-- **Theme Library**: a searchable gallery replaces the bottom theme panel. Collections for all themes, recently used, favourites and the six categories; A–Z sort; favourites and recents stored as IDs only (`sc_theme_favs_v1`, `sc_theme_recent_v1`, included in the Privacy data export/delete). Every card still applies through `applyTheme()`.
-- Neutral V2 interface tokens (`--ui-*`) with a light-surface variant for light themes.
-- `npm run previews` (`scripts/gen-theme-previews.mjs`): experimental scene-thumbnail generator; no thumbnails are shipped yet, cards use a gradient preview.
-- Playwright coverage for the library (`tests/themelib.spec.ts`).
-
-### Changed
-
-- Feature dock is now a floating capsule (Sound, Zen, Settings) with one consistent SVG icon set.
-- The "K" shortcut and the Themes buttons open the Theme Library; the old bottom panel stays in the DOM, collapsed.
-- README header refreshed: the app logo now leads, followed by the badges, the app preview, and the rest of the page.
-- Version bumped to `2.0.0` in `package.json` and `package-lock.json`.
+- **Spatial audio no longer jumps when a moving track starts or resumes.** Movement mixed two time origins (an `AudioContext` start position versus `requestAnimationFrame` timestamps), and the initial placement used a different random phase than the first update. Both now come from one audio clock and one stored phase offset, and the throttle follows the same clock, so a rebuilt `AudioContext` cannot warp the position backwards.
+- **One failing audio task can no longer silently stop every ambient layer.** The scheduler counted failures globally and evicted arbitrary tasks; failures are now per task and reset on success, and a throwing `onError` handler no longer escapes the tick loop.
+- **Returning to a background tab no longer replays minutes of ambience at once.** Stale events are skipped (bounded), the deadline is rebased after a long pause, and generators never receive a past timestamp as if it were a fresh event.
+- **OAuth cancel/deny and invalid callbacks are no longer silent.** Detection now looks at `code`, `error` and `state` instead of a `code=` substring check. Provider denial shows a clear cancellation message, mismatched or missing state is reported, every terminal path removes the one-shot query parameters and verifier, and a refresh cannot retry a stale code. Token-exchange failures surface a sanitised message instead of a raw response body.
+- `vite` 6.4.4 → 6.4.5 for [GHSA-8g5g-mxqh-grgj](https://github.com/advisories/GHSA-8g5g-mxqh-grgj) (moderate: `server.fs.deny` could be bypassed with `?raw` / `?import&raw` query parameters, so a dev server explicitly exposed with `--host` could return denied files). Only 6.4.4 was affected; the lockfile pins the same published tarball with its verified `sha512`.
+- Redundant unused import of `oauthHandleCallback` in `src/integrations.ts` removed to keep lint clean.
 
 ## [1.99] — First-load reliability: boot guard, safe storage, critical splash CSS
 

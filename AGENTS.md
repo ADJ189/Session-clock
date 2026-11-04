@@ -15,7 +15,11 @@ Deployment target is Cloudflare Pages, with optional Pages Functions under
 
 ## Commands
 
-Tooling runs on the installed Node.js/npm toolchain (Node 24+).
+Tooling runs on the installed Node.js/npm toolchain (Node 24+). `package.json`
+declares `engines.node: ">=24"`; keep the README, CI workflow and Cloudflare
+Pages build settings on the same minimum. `.npmrc` deliberately leaves
+`engine-strict` off for Pages compatibility, so the declaration documents the
+minimum rather than blocking installs.
 
 ```bash
 npm run dev            # Vite dev server, http://localhost:5173
@@ -54,6 +58,7 @@ src/
   sound.ts         synthesized ambient audio engine
   pomodoro.ts      Pomodoro state machine
   integrations.ts  Spotify / YouTube / Google / Notion / GitHub / Todoist / Linear
+  auth.ts          OAuth provider config, credentials, PKCE state, login + callback (no Svelte import)
   storage.ts       safeGet/safeSet/safeJson* wrappers for blocked storage
   platform.ts      engine/OS detection, haptics, capabilities
   privacy.ts       privacy/incognito/auto-clear + data export
@@ -85,6 +90,17 @@ Prefer a new module for a self-contained feature instead of growing
   the feature they belong to, and avoid late duplicate overrides.
 - User-facing copy belongs in `src/i18n.ts`, not hard-coded in render code.
   Add every new key to the `Strings` interface and all eight locale objects.
+- **One clock per audio subsystem.** Anything scheduled on an `AudioContext`
+  uses `ctx.currentTime`; never feed it a `requestAnimationFrame` timestamp.
+  Spatial movement keeps a per-rig `startedAt` and one `phaseOffset`.
+- **`src/auth.ts` must stay Svelte-free.** It holds the real OAuth callback
+  path so `tests-unit/auth.test.ts` can import it. `integrations.ts` re-exports
+  it; do not move logic back into a module that imports `.svelte` files.
+- **Scheduler failures are per task.** Never count failures in a shared field
+  or remove tasks from another rig. See `src/audio/scheduler.ts`.
+- **Do not add configuration fields the graph never reads.** `SpatialProfile`
+  used to declare `inputLayout` while nothing consumed it; it was removed in
+  favour of the documented `PannerNode` channel-inheritance behaviour.
 
 ## Important behavior
 
@@ -113,6 +129,24 @@ Prefer a new module for a self-contained feature instead of growing
   are hidden. Keep the contextual status tab visible — it is the mobile
   fallback for local app state. Header overlap is covered by the same redesign
   spec at nine widths.
+- **Ambience drops missed events on purpose.** After background-tab throttling
+  or a suspended context the scheduler skips stale events (bounded), then
+  rebases its deadline to `now + interval`; it never replays minutes of birds
+  or crackles. This is intentional — see section 5 of the pre-merge plan.
+- **OAuth callbacks are terminal and self-cleaning.** A callback is only
+  claimed when a pending `sc_oauth_state` exists or the returned state names a
+  known provider. Every terminal path removes the one-shot query parameters
+  and the stored verifier, so a refresh cannot redeem a stale code. Provider
+  denials return `{ ok: false, cancelled: true }` and are shown, not swallowed.
+- **The Svelte migration is a hybrid, not complete.** Theme Finder, Settings
+  panels, the Quick Action Dock and the Integrations panel are real Svelte
+  islands. `src/app/App.svelte`, `AppHeader.svelte`, `MainWorkspace.svelte` and
+  `CommandPalette.svelte` are unused scaffolds; do not delete the legacy UI or
+  describe the app as fully migrated because those files exist.
+- **Seeded randomness only covers procedural parameters.** `Rig`'s `RandomSource`
+  reproduces selected generator choices (e.g. drop/wave parameters), not event
+  timing (`Math.random()` in `scheduler.ts`) or noise sample data
+  (`noise.ts` / `dsp.ts`). Do not claim bit-identical audio output from a seed.
 
 ## Testing
 
