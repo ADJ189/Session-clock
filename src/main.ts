@@ -3899,7 +3899,7 @@ function buildSettingsUI(activeTab = "general") {
         onquickaction: (id: string) => {
           closeModal("settingsOverlay");
           if (id === "custom-theme") openThemeBuilder();
-          else if (id === "qr-handoff") openQRHandoff();
+          else if (id === "qr-handoff") void openQRHandoff();
           else if (id === "animedoro") {
             startAnimedoro();
             openModal("pomOverlay");
