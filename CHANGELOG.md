@@ -9,7 +9,7 @@ All notable changes to Session Clock are documented here.
 > `1.76` below is the first release under this scheme, since this update
 > bundles several larger changes together.
 
-## [Unreleased] — 2026-10-25
+## [v2.0.0] — 2026-11-25 - Svelte Migration and Much More 
 
 Redesign and cleanup pass: calmer clock defaults, a usable Center-mode session panel, a local-only contextual status tab, an opt-in music deck, and a rebuilt first-run welcome.
 
