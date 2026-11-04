@@ -355,7 +355,7 @@ test.describe("music deck opt-in", () => {
 });
 
 test.describe("platform capability controls", () => {
-  test("Haptic Feedback appears only where vibration is usable", async ({
+  test("Haptic Feedback appears only where vibration is usable @mobile", async ({
     page,
   }, testInfo) => {
     await page.goto("/");
@@ -369,7 +369,7 @@ test.describe("platform capability controls", () => {
     // Android device family should offer the switch. mobile-chrome runs the
     // Pixel 7 profile, so it is the sole project where the row belongs.
     const row = page.getByText("Haptic Feedback", { exact: true });
-    if (testInfo.project.name === "mobile-chrome") {
+    if (testInfo.project.name === "mobile-chromium-emulation") {
       await expect(row).toBeVisible();
     } else {
       await expect(row).toHaveCount(0);
