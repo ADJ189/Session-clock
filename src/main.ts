@@ -498,6 +498,7 @@ function saveSessionState(): void {
       : sessionElapsed;
     const task = DOM.focusInput ? DOM.focusInput.value : "";
     const pomState = Pom.isActive() ? Pom.getSessionSnapshot() : null;
+    const incognito = Privacy.isIncognito();
 
     if (sessionRunning || dur > 0 || task.length > 0 || Pom.isActive()) {
       const state = {
@@ -505,6 +506,7 @@ function saveSessionState(): void {
         elapsed: dur,
         task,
         pomodoro: pomState,
+        incognito,
       };
       sessionStorage.setItem("sc_saved_session", JSON.stringify(state));
     }
@@ -529,6 +531,9 @@ function restoreSavedSession(): void {
     if (data.pomodoro) {
       Pom.restoreSessionSnapshot(data.pomodoro);
     }
+    if (data.incognito) {
+      Privacy.setIncognito(true);
+    }
 
     const elapsed = typeof data.elapsed === "number" ? data.elapsed : 0;
     if (data.running) {
@@ -536,7 +541,7 @@ function restoreSavedSession(): void {
       startTimer();
     } else if (elapsed > 0) {
       sessionElapsed = elapsed;
-      DOM.sTmr.textContent = fmtSession(elapsed);
+      if (!Pom.isActive()) DOM.sTmr.textContent = fmtSession(elapsed);
       DOM.focusInputWrap.classList.add("visible");
       Features.updateButtonLabels(
         "paused",
@@ -1331,8 +1336,7 @@ function renderFrame(ts: number) {
   // no per-frame node allocation), so unlike the visual work above it's
   // cheap enough to keep running on LOW rather than freezing the
   // soundstage in place. LOW's own outer frame-skip (line ~970 above)
-  // already throttles how often this runs to ~20fps naturally. It reads the
-  // audio clock itself; the RAF timestamp is deliberately not passed in.
+  // already throttles how often this runs to ~20fps naturally.
   Sound.tickSpatial();
 
   const now = new Date();
@@ -1396,7 +1400,11 @@ function renderFrame(ts: number) {
     window.__checkMidnight?.();
 
     // Update status line
-    if (sessionRunning && Pom.isActive()) {
+    if (Easter.isSiderealMode()) {
+      const lat = (window as unknown as { __scLat?: number }).__scLat ?? 0;
+      const el = document.getElementById("sessionStatusLine");
+      if (el) el.textContent = Easter.getSiderealTime(lat);
+    } else if (sessionRunning && Pom.isActive()) {
       const phase = Pom.getPhase();
       const rem = Pom.getRemainingSeconds();
       Features.setStatusState("running", {
@@ -3757,13 +3765,63 @@ function openSettings() {
 let _settingsTabBarApp: ReturnType<typeof mount> | null = null;
 let _settingsContentApp: ReturnType<typeof mount> | null = null;
 
+interface SettingsFocusInfo {
+  id?: string;
+  dataTab?: string;
+  index?: number;
+}
+
+function getSettingsFocusInfo(modal: HTMLElement | null): SettingsFocusInfo | null {
+  if (!modal) return null;
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !modal.contains(active)) return null;
+  if (active.id) return { id: active.id };
+  const tab = active.getAttribute("data-tab");
+  if (tab) return { dataTab: tab };
+  const focusables = Array.from(
+    modal.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+  const index = focusables.indexOf(active);
+  return { index: index >= 0 ? index : undefined };
+}
+
+function restoreSettingsFocus(
+  info: SettingsFocusInfo | null,
+  modal: HTMLElement | null,
+): void {
+  if (!info || !modal) return;
+  try {
+    let elToFocus: HTMLElement | null = null;
+    if (info.id) {
+      elToFocus = modal.querySelector<HTMLElement>(`#${CSS.escape(info.id)}`);
+    } else if (info.dataTab) {
+      elToFocus = modal.querySelector<HTMLElement>(
+        `[data-tab="${CSS.escape(info.dataTab)}"]`,
+      );
+    } else if (info.index !== undefined) {
+      const focusables = Array.from(
+        modal.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      elToFocus = focusables[info.index] ?? null;
+    }
+    if (!elToFocus) {
+      elToFocus = modal.querySelector<HTMLElement>(
+        '.settings-tab-btn.active, button, input',
+      );
+    }
+    elToFocus?.focus();
+  } catch {
+    // ignore
+  }
+}
+
 function buildSettingsUI(activeTab = "general") {
   const settingsModal = $("settingsOverlay");
-  const focusedId =
-    document.activeElement instanceof HTMLElement &&
-    settingsModal?.contains(document.activeElement)
-      ? document.activeElement.id
-      : null;
+  const focusInfo = getSettingsFocusInfo(settingsModal);
   const tabBarEl = $("settingsTabBar");
   const el = $("settingsContent");
   if (!el || !tabBarEl) return;
@@ -4107,6 +4165,7 @@ function buildSettingsUI(activeTab = "general") {
         fps: getFps(),
         tier: getTier(),
         quality: localStorage.getItem("sc_quality") || "",
+        forceNoBlur: localStorage.getItem("sc_force_no_blur") === "1",
         onchangeClockPos: (pos: "center" | "top") => {
           applyClockPosition(pos);
           buildSettingsUI("display");
@@ -4143,8 +4202,14 @@ function buildSettingsUI(activeTab = "general") {
           document.body.classList.toggle("reduced-motion", val);
           buildSettingsUI("display");
         },
-        ontoggleParallax: (val: boolean) => {
+        ontoggleParallax: async (val: boolean) => {
           localStorage.setItem("sc_parallax", val ? "1" : "0");
+          if (val) {
+            if (CAPS.deviceOrientationNeedsPermission) {
+              await requestMotionPermission();
+            }
+            attachGyroParallax();
+          }
           buildSettingsUI("display");
         },
         ontoggleHaptics: (val: boolean) => {
@@ -4161,6 +4226,25 @@ function buildSettingsUI(activeTab = "general") {
               : `Quality set to Auto (${getTier().toUpperCase()})`,
           );
           buildSettingsUI("display");
+        },
+        ontoggleForceNoBlur: (val: boolean) => {
+          localStorage.setItem("sc_force_no_blur", val ? "1" : "0");
+          document.documentElement.classList.toggle(
+            "force-no-backdrop-filter",
+            val,
+          );
+          buildSettingsUI("display");
+        },
+        oncopydiagnostics: async () => {
+          const text =
+            (window as unknown as { __scDiagnosticsText?: () => string })
+              .__scDiagnosticsText?.() ?? "";
+          const ok = await copyDiagnosticsText(text);
+          showToast(
+            ok
+              ? "📋 Diagnostics copied to clipboard"
+              : "Could not copy diagnostics",
+          );
         },
       },
     });
@@ -4277,16 +4361,7 @@ function buildSettingsUI(activeTab = "general") {
   pad.style.height = "12px";
   el.appendChild(pad);
 
-  if (focusedId) {
-    const elToFocus = $(focusedId);
-    if (elToFocus) {
-      try {
-        elToFocus.focus();
-      } catch {
-        // ignore
-      }
-    }
-  }
+  restoreSettingsFocus(focusInfo, settingsModal);
 }
 
 function updateAnalyticsSettingsUI(): void {
@@ -4298,18 +4373,9 @@ function updateAnalyticsSettingsUI(): void {
   ) {
     return;
   }
-  const focusedId = document.activeElement ? document.activeElement.id : null;
+  const focusInfo = getSettingsFocusInfo(settingsModal);
   buildSettingsUI("privacy");
-  if (focusedId) {
-    const elToFocus = $(focusedId);
-    if (elToFocus) {
-      try {
-        elToFocus.focus();
-      } catch {
-        // ignore
-      }
-    }
-  }
+  restoreSettingsFocus(focusInfo, settingsModal);
 }
 onAnalyticsStatusChange(() => {
   updateAnalyticsSettingsUI();
@@ -6414,11 +6480,25 @@ function init() {
         label,
         target,
         (display, done) => {
+          const statusEl = document.getElementById("sessionStatusLine");
           if (done) {
             showToast(`⏳ ${display}`, 5000);
+            Features.setStatusState(sessionRunning ? "running" : "idle", {
+              pomEnabled: Pom.isActive(),
+              pomPhase: Pom.getPhase(),
+              remainingSecs: Pom.getRemainingSeconds(),
+            });
+          } else {
+            if (statusEl) statusEl.textContent = display;
           }
         },
-        () => {},
+        () => {
+          Features.setStatusState(sessionRunning ? "running" : "idle", {
+            pomEnabled: Pom.isActive(),
+            pomPhase: Pom.getPhase(),
+            remainingSecs: Pom.getRemainingSeconds(),
+          });
+        },
       );
       showToast(`⏳ Counting down to ${label}`);
     });
@@ -6450,74 +6530,46 @@ function init() {
   )
     void MusicDock.initSpotifyPlayback();
   // Handle OAuth redirect callbacks — one handler for every provider
-  // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here with
-  // ?code=&state=<provider>:<nonce>; a denial lands with ?error=...&state=).
-  // The detector mirrors the handler: it also covers provider errors and
-  // state-only responses, while an unrelated ?code= or an ordinary page load
-  // returns null and is left untouched.
-  const oauthParams = new URLSearchParams(window.location.search);
-  if (
-    oauthParams.has("code") ||
-    oauthParams.has("error") ||
-    oauthParams.has("state")
-  ) {
-    void Integrations.oauthHandleCallback()
-      .then((result) => {
-        if (!result) return;
-        // The provider value is validated in the handler, but treat it
-        // defensively: an empty or odd value must not break the toast.
-        const rawName =
-          typeof result.provider === "string"
-            ? result.provider.replace(/[^a-z0-9]/gi, "").slice(0, 24)
-            : "";
-        const name = rawName
-          ? rawName[0]!.toUpperCase() + rawName.slice(1)
-          : "Sign-in";
-        if (!result.ok) {
-          // Includes cancelled/denied at the provider and every invalid or
-          // malformed callback — this used to fail silently with no toast,
-          // and left the ?code= in the URL to be retried on refresh.
-          showToast(
-            result.cancelled
-              ? `ℹ️ ${name} connection cancelled`
-              : `⚠️ ${name} connection failed: ${result.error}`,
-            6000,
+  // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here
+  // with ?code=&state=<provider>:<nonce>).
+  if (window.location.search.includes("code=")) {
+    Integrations.oauthHandleCallback().then((result) => {
+      if (result && !result.ok) {
+        // A real failure (bad/missing secret, mismatched self-hosted
+        // Client ID+Secret pair, provider-side rejection, etc.) — this
+        // used to fail silently with no toast and no way to tell why.
+        const name =
+          result.provider[0]!.toUpperCase() + result.provider.slice(1);
+        showToast(`⚠️ ${name} connection failed: ${result.error}`, 6000);
+      } else if (result?.ok) {
+        const name =
+          result.provider[0]!.toUpperCase() + result.provider.slice(1);
+        showToast(`✅ ${name} connected!`, 4000);
+        // Spotify's Web Playback SDK device wasn't live yet at the
+        // isSpotifyConnected() check above (token lands here, after
+        // the redirect) — bring it up now instead of waiting for the
+        // user to reload the page themselves to see anything play.
+        if (
+          result.provider === "spotify" &&
+          MusicDock.isMusicDeckEnabled() &&
+          MusicDock.getProviderPref() !== "youtube"
+        )
+          void MusicDock.initSpotifyPlayback().then(() =>
+            MusicDock.refreshDockConnectionState(),
           );
-        } else {
-          showToast(`✅ ${name} connected!`, 4000);
-          // Spotify's Web Playback SDK device wasn't live yet at the
-          // isSpotifyConnected() check above (token lands here, after
-          // the redirect) — bring it up now instead of waiting for the
-          // user to reload the page themselves to see anything play.
-          if (
-            result.provider === "spotify" &&
-            MusicDock.isMusicDeckEnabled() &&
-            MusicDock.getProviderPref() !== "youtube"
-          )
-            void MusicDock.initSpotifyPlayback().then(() =>
-              MusicDock.refreshDockConnectionState(),
-            );
-          // Same reasoning for Google: the "Connect YouTube" click that
-          // started this round-trip happened on the *previous* page
-          // load, so its own continuation code never runs here — resume
-          // it manually, and refresh the Calendar side-card immediately
-          // instead of waiting for its next 60s poll.
-          if (result.provider === "google") {
-            MusicDock.refreshYouTubeConnectionState();
-            SideTasks.refreshNow();
-          }
+        // Same reasoning for Google: the "Connect YouTube" click that
+        // started this round-trip happened on the *previous* page
+        // load, so its own continuation code never runs here — resume
+        // it manually, and refresh the Calendar side-card immediately
+        // instead of waiting for its next 60s poll.
+        if (result.provider === "google") {
+          MusicDock.refreshYouTubeConnectionState();
+          SideTasks.refreshNow();
         }
-      })
-      .catch(() => {
-        // A rejected handler must not surface as an unhandled rejection or
-        // stop the rest of boot. The URL/session cleanup is best-effort
-        // inside the handler itself.
-        showToast("⚠️ Sign-in could not be completed. Please try again.", 6000);
-      })
-      .finally(() => {
-        if (intContent)
-          Integrations.buildIntegrationsPanel(intContent, { showToast });
-      });
+      }
+      if (intContent)
+        Integrations.buildIntegrationsPanel(intContent, { showToast });
+    });
   }
 
   // Language modal
@@ -7419,9 +7471,20 @@ function buildCommandPalette() {
       "🔭 Toggle Sidereal Time",
       "Astronomical time measure",
       () => {
-        Easter.toggleSiderealMode();
+        const on = Easter.toggleSiderealMode();
+        const statusEl = document.getElementById("sessionStatusLine");
+        if (on) {
+          const lat = (window as unknown as { __scLat?: number }).__scLat ?? 0;
+          if (statusEl) statusEl.textContent = Easter.getSiderealTime(lat);
+        } else {
+          Features.setStatusState(sessionRunning ? "running" : "idle", {
+            pomEnabled: Pom.isActive(),
+            pomPhase: Pom.getPhase(),
+            remainingSecs: Pom.getRemainingSeconds(),
+          });
+        }
         showToast(
-          Easter.isSiderealMode()
+          on
             ? "🔭 Sidereal time mode — for astronomers"
             : "Local status restored",
         );

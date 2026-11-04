@@ -58,19 +58,26 @@ export function getProviderPref(): MusicProviderPref {
   const raw = safeGet(MUSIC_PROVIDERS_KEY);
   return raw === "spotify" || raw === "both" ? raw : "youtube";
 }
+function teardownSpotify(): void {
+  player?.disconnect();
+  player = null;
+  deviceId = null;
+  spotifyInitGeneration++;
+  spotifyInitPromise = null;
+}
+
 export function setMusicDeckEnabled(on: boolean): void {
   safeSet(MUSIC_DECK_KEY, on ? "1" : "0");
   if (!on) {
-    player?.disconnect();
-    player = null;
-    deviceId = null;
-    spotifyInitGeneration++;
-    spotifyInitPromise = null;
+    teardownSpotify();
   }
   syncMount();
 }
 export function setProviderPref(pref: MusicProviderPref): void {
   safeSet(MUSIC_PROVIDERS_KEY, pref);
+  if (pref === "youtube") {
+    teardownSpotify();
+  }
   syncMount();
 }
 
@@ -145,7 +152,12 @@ async function getSpotifyToken(): Promise<string | null> {
  * initialized or not connected.
  */
 export function initSpotifyPlayback(): Promise<boolean> {
-  if (!isMusicDeckEnabled() || !Integrations.isSpotifyConnected())
+  const pref = getProviderPref();
+  if (
+    !isMusicDeckEnabled() ||
+    !Integrations.isSpotifyConnected() ||
+    (pref !== "spotify" && pref !== "both")
+  )
     return Promise.resolve(false);
   if (player) return Promise.resolve(true);
   // Share one in-flight initialization so concurrent callers (provider
@@ -161,7 +173,13 @@ export function initSpotifyPlayback(): Promise<boolean> {
 
 async function createSpotifyPlayer(generation: number): Promise<boolean> {
   await loadSpotifySdk();
-  if (!isMusicDeckEnabled() || generation !== spotifyInitGeneration) return false;
+  const pref = getProviderPref();
+  if (
+    !isMusicDeckEnabled() ||
+    (pref !== "spotify" && pref !== "both") ||
+    generation !== spotifyInitGeneration
+  )
+    return false;
   // Re-check: another path may have finished while the SDK was loading.
   if (player) return true;
 
@@ -267,7 +285,14 @@ export async function notifyFocusPhase(
   phase: "work" | "break" | "idle",
   active: boolean,
 ): Promise<void> {
-  if (!isMusicDeckEnabled() || !isAutoSyncEnabled() || !player) return;
+  const pref = getProviderPref();
+  if (
+    !isMusicDeckEnabled() ||
+    (pref !== "spotify" && pref !== "both") ||
+    !isAutoSyncEnabled() ||
+    !player
+  )
+    return;
   const activePlayer = player;
   if (phase === "work" && active) {
     if (!deviceId) return;
@@ -328,6 +353,18 @@ export function mountDock(container: HTMLElement): void {
 export function unmountDock(): void {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = null;
+  if (dockEl) {
+    const ytLyricsPanel = dockEl.querySelector<HTMLElement>(
+      '[data-role="yt-lyrics-panel"]',
+    );
+    if (ytLyricsPanel) {
+      const existingPoll = ytLyricsPolls.get(ytLyricsPanel);
+      if (existingPoll) {
+        clearInterval(existingPoll);
+        ytLyricsPolls.delete(ytLyricsPanel);
+      }
+    }
+  }
   dockEl?.remove();
   dockEl = null;
 }
@@ -1036,7 +1073,7 @@ async function toggleLyricsPanel(
     const existing = ytLyricsPolls.get(panel);
     if (existing) clearInterval(existing);
     const pollId = window.setInterval(() => {
-      if (panel.classList.contains("sc-hidden")) {
+      if (!panel.isConnected || panel.classList.contains("sc-hidden")) {
         clearInterval(pollId);
         if (ytLyricsPolls.get(panel) === pollId) ytLyricsPolls.delete(panel);
         return;

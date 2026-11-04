@@ -137,31 +137,21 @@ function installSendBeaconGuard(): void {
     data?: BodyInit | null,
   ): boolean => {
     const isPriv = safeGet("sc_privacy") === "1";
-    if (currentStatus === "active" || isAnalyticsAllowed(isPriv)) {
+    if (isAnalyticsAllowed(isPriv)) {
       return originalSendBeacon ? originalSendBeacon(url, data) : true;
     }
 
     let isCf = false;
-    const base =
-      typeof window !== "undefined" && window.location?.href
-        ? window.location.href
-        : "https://sessionclock.com/";
     try {
       const urlStr = typeof url === "string" ? url : (url?.href || String(url));
+      const base =
+        typeof window !== "undefined" && window.location?.href
+          ? window.location.href
+          : "https://sessionclock.com/";
       const parsed = new URL(urlStr, base);
-      isCf =
-        parsed.hostname === "cloudflareinsights.com" ||
-        parsed.hostname.endsWith(".cloudflareinsights.com");
+      isCf = parsed.hostname.endsWith("cloudflareinsights.com");
     } catch {
-      try {
-        const fallbackRaw = typeof url === "string" ? url : String(url);
-        const fallbackParsed = new URL(fallbackRaw, base);
-        isCf =
-          fallbackParsed.hostname === "cloudflareinsights.com" ||
-          fallbackParsed.hostname.endsWith(".cloudflareinsights.com");
-      } catch {
-        isCf = false;
-      }
+      isCf = String(url).includes("cloudflareinsights.com");
     }
 
     if (isCf) {
@@ -227,6 +217,8 @@ export function unloadAnalytics(): void {
         // Non-fatal
       }
     }
+    setStatus("disabled-by-user");
+    recordAnalyticsDiagnostic("disabled-by-user");
     window.location.reload();
     return;
   }
