@@ -544,3 +544,42 @@ These are gaps in local verification, not claimed passes:
   fake audio clock).
 - **Playwright WebKit is Playwright's build, not real Safari**, and the mobile
   projects are emulation — report results per project.
+
+---
+
+## 9. Svelte 5 Full UI Migration (Phases 0 — 9)
+
+**Date:** 2026-11-05  
+**Execution:** Complete 10-phase migration per `Session-Clock-Complete-Svelte-Migration-Runbook.md`.
+
+### 9.1 Summary of Architecture & Outcomes
+
+1. **Pure Declarative Svelte 5 Structure:**
+   - App shell mounted into `#app-root` (`App.svelte`).
+   - Workspace surfaces migrated: `ClockSurface.svelte`, `SessionCard.svelte`, `QuoteArea.svelte`.
+   - Settings consolidated from isolated imperative mount/unmount islands into a single reactive `SettingsDialog.svelte` composing General, Sound, Focus, Display, and Privacy panels.
+   - All modal dialogs converted to declarative Svelte 5 components: `SoundMixerDialog.svelte`, `CustomThemeBuilderDialog.svelte`, `DataManagementDialog.svelte`, `LegalDialog.svelte`, `LanguageDialog.svelte`, `KeyboardShortcutsDialog.svelte`, `PomodoroDialog.svelte`, `CommandPalette.svelte`.
+   - Zero `document.createElement()` calls used for application UI controls and dialogs.
+
+2. **Entry Point Shrinkage:**
+   - `src/main.ts` reduced from **7,531 lines to 23 lines** (99.7% reduction).
+   - Startup lifecycle and coordination extracted to `src/app/bootstrap.ts`.
+   - Headless controllers handle domain logic: `clock-controller.ts`, `session-controller.ts`, `settings-controller.ts`, `sound-mixer-controller.ts`, `theme-builder-controller.ts`, `command-controller.ts`, `modal-controller.ts`.
+   - Canvas render loop and clock renderers extracted to `src/app/renderer/canvas-engine.ts`.
+   - Services extracted to `display-service.ts`, `session-features.ts`, `wallpaper-service.ts`, `info-strip.ts`, `command-registry.ts`.
+
+3. **Strict Boundary Enforcement:**
+   - `scripts/check-svelte-boundaries.mjs` validates in CI/build:
+     - `src/main.ts` <= 100 lines.
+     - Zero legacy banned UI builders in `src/main.ts` (`buildSoundUI`, `buildColorRows`, `buildDataPanel`, `buildLegalPanel`, `buildLanguageUI`, `buildSettingsUI`).
+     - Zero Svelte imports in non-UI core engines (`src/sound.ts`, `src/auth.ts`, `src/pomodoro.ts`, `src/renderer.ts`, `src/storage.ts`, `src/platform.ts`, `src/audio/**`).
+     - Zero duplicate IDs in `index.html`.
+
+4. **Test Suite Expansion:**
+   - Unit test suite grew from 164 to **199 tests** (100% passing):
+     - `tests-unit/app-contract.test.ts` (10 tests): asserts DOM unique ID and required element contracts across components and `index.html`.
+     - `tests-unit/color.test.ts` (6 tests): validates color math and luminance algorithms.
+     - `tests-unit/sound-mixer-controller.test.ts` (6 tests): validates mixer state, presets, volume clamping, and night mode.
+     - `tests-unit/theme-builder-controller.test.ts` (7 tests): validates theme draft state, RGB/HSL conversion, and import/export.
+     - `tests-unit/command-controller.test.ts` (4 tests): validates fuzzy scoring, tag grouping, and segment highlighting without unsafe HTML.
+

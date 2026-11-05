@@ -138,11 +138,13 @@ Prefer a new module for a self-contained feature instead of growing
   known provider. Every terminal path removes the one-shot query parameters
   and the stored verifier, so a refresh cannot redeem a stale code. Provider
   denials return `{ ok: false, cancelled: true }` and are shown, not swallowed.
-- **The Svelte migration is a hybrid, not complete.** Theme Finder, Settings
-  panels, the Quick Action Dock and the Integrations panel are real Svelte
-  islands. `src/app/App.svelte`, `AppHeader.svelte`, `MainWorkspace.svelte` and
-  `CommandPalette.svelte` are unused scaffolds; do not delete the legacy UI or
-  describe the app as fully migrated because those files exist.
+- **The Svelte 5 UI migration is complete.** The entire UI structure is rendered via
+  declarative Svelte 5 runes components (`App.svelte`, `AppHeader.svelte`,
+  `MainWorkspace.svelte`, `QuickActionDock.svelte`, `CommandPalette.svelte`, and modal
+  dialogs mounted into their respective overlays). `src/main.ts` is a lightweight entry point
+  (< 100 lines) delegating to `src/app/bootstrap.ts` and dedicated controllers.
+  Audio graphs, DSP, Pomodoro state machines, OAuth, and canvas renderers
+  remain pure, framework-independent TypeScript modules with no Svelte imports.
 - **Seeded randomness only covers procedural parameters.** `Rig`'s `RandomSource`
   reproduces selected generator choices (e.g. drop/wave parameters), not event
   timing (`Math.random()` in `scheduler.ts`) or noise sample data
