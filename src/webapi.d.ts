@@ -94,9 +94,12 @@ interface Document {
 /** UI blips exposed by main.ts so other modules can fire them without a
  *  circular import. */
 interface ScUiSounds {
+  click?: () => void;
+  toggle?: (on: boolean) => void;
   sessionStart?: () => void;
   sessionEnd?: () => void;
   themeSwitch?: () => void;
+  error?: () => void;
 }
 
 /** Cross-module hooks the app deliberately hangs off `window` (to avoid
