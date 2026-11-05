@@ -237,3 +237,70 @@ test("DATA_CATEGORIES includes sc_analytics_mode and sc_analytics_auto_blocked",
   assert.ok(sysCat);
   assert.ok(sysCat.keys.includes(ANALYTICS_AUTO_BLOCKED_KEY));
 });
+
+test("unloadAnalytics settles pending load promise and allows new load", async () => {
+  _resetAnalyticsForTesting();
+  setAnalyticsPreference("on");
+
+  // Start loading (will be pending waiting for script onload or timeout)
+  const pending = loadAnalytics(false);
+  assert.strictEqual(getAnalyticsStatus(), "loading");
+
+  // Unload while in flight
+  unloadAnalytics();
+  const res = await pending;
+  assert.strictEqual(res, false);
+  assert.strictEqual(getAnalyticsStatus(), "disabled-by-user");
+
+  // Starting a new load should succeed in creating a new attempt without being stuck on old promise
+  setAnalyticsPreference("on");
+  const secondAttempt = loadAnalytics(false);
+  assert.strictEqual(getAnalyticsStatus(), "loading");
+  unloadAnalytics();
+  await secondAttempt;
+});
+
+test("sendBeacon guard accurately filters cloudflareinsights without incomplete substring matching", () => {
+  _resetAnalyticsForTesting();
+  const prevWin = (globalThis as any).window;
+  const globalWin = prevWin || {};
+  (globalThis as any).window = globalWin;
+  globalWin.location = {
+    href: "https://sessionclock.com/",
+    origin: "https://sessionclock.com",
+    pathname: "/",
+    reload: () => {},
+  };
+
+  const beaconCalls: string[] = [];
+  const prevSendBeacon = (navigator as any).sendBeacon;
+  (navigator as any).sendBeacon = (url: string) => {
+    beaconCalls.push(url);
+    return true;
+  };
+
+  try {
+    setAnalyticsPreference("off");
+    unloadAnalytics();
+
+    // 1. Exact match and official subdomain should be blocked (dropped)
+    navigator.sendBeacon("https://cloudflareinsights.com/cdn-cgi/rum");
+    navigator.sendBeacon("https://static.cloudflareinsights.com/beacon.min.js");
+    assert.strictEqual(beaconCalls.length, 0);
+
+    // 2. Lookalike domain with cloudflareinsights as suffix must NOT be dropped
+    navigator.sendBeacon("https://evilcloudflareinsights.com/cdn-cgi/rum");
+    assert.strictEqual(beaconCalls.length, 1);
+
+    // 3. Unrelated domain with cloudflareinsights in query string must NOT be dropped
+    navigator.sendBeacon("https://example.com/track?ref=cloudflareinsights.com");
+    assert.strictEqual(beaconCalls.length, 2);
+  } finally {
+    if (prevSendBeacon) {
+      (navigator as any).sendBeacon = prevSendBeacon;
+    } else {
+      delete (navigator as any).sendBeacon;
+    }
+    (globalThis as any).window = prevWin;
+  }
+});

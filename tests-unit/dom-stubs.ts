@@ -36,11 +36,20 @@ export function installDomStubs(): void {
   }
 
   if (!g.document) {
+    const defaultEl = {
+      classList: { add() {}, remove() {}, toggle() {} },
+      appendChild() {},
+      remove() {},
+      setAttribute() {},
+      addEventListener() {},
+      removeEventListener() {},
+      canPlayType: () => "",
+    };
     g.document = {
-      documentElement: {
-        classList: { add() {}, remove() {}, toggle() {} },
-      },
-      createElement: () => ({ canPlayType: () => "" }),
+      documentElement: defaultEl,
+      head: defaultEl,
+      body: defaultEl,
+      createElement: () => ({ ...defaultEl }),
       getElementById: () => null,
       addEventListener() {},
       removeEventListener() {},
