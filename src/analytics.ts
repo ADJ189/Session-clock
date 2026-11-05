@@ -149,9 +149,12 @@ function installSendBeaconGuard(): void {
           ? window.location.href
           : "https://sessionclock.com/";
       const parsed = new URL(urlStr, base);
-      isCf = parsed.hostname.endsWith("cloudflareinsights.com");
+      isCf =
+        (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+        (parsed.hostname === "cloudflareinsights.com" ||
+          parsed.hostname.endsWith(".cloudflareinsights.com"));
     } catch {
-      isCf = String(url).includes("cloudflareinsights.com");
+      isCf = false;
     }
 
     if (isCf) {
@@ -171,6 +174,11 @@ export function restoreSendBeacon(): void {
 /** Remove any injected beacon script tag and guard against further measurements. */
 export function unloadAnalytics(): void {
   const wasRunning = currentStatus === "active";
+
+  if (cancelActiveLoad) {
+    cancelActiveLoad();
+  }
+  activeLoadPromise = null;
 
   if (typeof document !== "undefined" && typeof document.getElementById === "function") {
     const el = document.getElementById(SCRIPT_ID);
@@ -228,6 +236,7 @@ export function unloadAnalytics(): void {
 }
 
 let activeLoadPromise: Promise<boolean> | null = null;
+let cancelActiveLoad: (() => void) | null = null;
 
 /**
  * Attempt to load the Cloudflare Web Analytics beacon script.
@@ -282,7 +291,17 @@ export async function loadAnalytics(privacyModeActive = false): Promise<boolean>
         timer = null;
       }
       activeLoadPromise = null;
+      cancelActiveLoad = null;
     };
+
+    const cancel = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      document.getElementById(SCRIPT_ID)?.remove();
+      resolve(false);
+    };
+    cancelActiveLoad = cancel;
 
     const handleSuccess = () => {
       if (settled) return;
@@ -396,7 +415,12 @@ export function initAnalytics(privacyModeActive = false): void {
 export function _resetAnalyticsForTesting(): void {
   currentStatus = "not-attempted";
   statusListeners.clear();
+  if (cancelActiveLoad) {
+    cancelActiveLoad();
+  }
   activeLoadPromise = null;
+  cancelActiveLoad = null;
   beforeReloadHook = null;
   restoreSendBeacon();
+  originalSendBeacon = null;
 }

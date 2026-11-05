@@ -196,6 +196,8 @@ interface YtPlayerLike {
   getPlayerState?(): number;
   playVideo?(): void;
   pauseVideo?(): void;
+  stopVideo?(): void;
+  destroy?(): void;
   nextVideo?(): void;
   previousVideo?(): void;
   seekTo?(seconds: number, allowSeekAhead: boolean): void;

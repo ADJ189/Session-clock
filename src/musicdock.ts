@@ -354,6 +354,9 @@ export function unmountDock(): void {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = null;
   if (dockEl) {
+    const p = ytPlayers.get(dockEl);
+    p?.stopVideo?.();
+    p?.pauseVideo?.();
     const ytLyricsPanel = dockEl.querySelector<HTMLElement>(
       '[data-role="yt-lyrics-panel"]',
     );
@@ -367,6 +370,33 @@ export function unmountDock(): void {
   }
   dockEl?.remove();
   dockEl = null;
+
+  if (pipWindow) {
+    const pipDock = pipWindow.document.querySelector<HTMLElement>(
+      ".sc-music-dock",
+    );
+    if (pipDock) {
+      const p = ytPlayers.get(pipDock);
+      p?.stopVideo?.();
+      p?.pauseVideo?.();
+      const ytLyricsPanel = pipDock.querySelector<HTMLElement>(
+        '[data-role="yt-lyrics-panel"]',
+      );
+      if (ytLyricsPanel) {
+        const existingPoll = ytLyricsPolls.get(ytLyricsPanel);
+        if (existingPoll) {
+          clearInterval(existingPoll);
+          ytLyricsPolls.delete(ytLyricsPanel);
+        }
+      }
+    }
+    try {
+      pipWindow.close();
+    } catch {
+      /* ignore */
+    }
+    pipWindow = null;
+  }
 }
 
 /** Reconciles the mounted UI with the current saved preferences. */
