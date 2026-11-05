@@ -1,7 +1,7 @@
 import { test, expect, waitForBoot } from "./fixtures";
 
 test.describe("startup", () => {
-  test("boots cleanly: no exceptions, no failed own assets, no boot-error screen", async ({
+  test("boots cleanly: no exceptions, no failed own assets, no boot-error screen @smoke @mobile", async ({
     page,
     problems,
   }) => {

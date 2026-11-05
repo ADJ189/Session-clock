@@ -60,5 +60,3 @@ export interface PomodoroSettings {
 }
 
 export type PomPhase = 'work' | 'break' | 'longBreak';
-
-export interface SyncResult { offset: number; rtt: number; }

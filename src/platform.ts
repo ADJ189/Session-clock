@@ -5,6 +5,8 @@
 // as classes on <html> so CSS can react with zero JS in the render path;
 // JS call sites use the exported CAPS/helpers instead of re-detecting.
 
+import "./globals";
+
 export type OSFamily =
   | "ios"
   | "ipados"
@@ -71,10 +73,11 @@ export const ENGINE: Engine = detectEngine();
 export const BROWSER: Browser = detectBrowser();
 export const IS_APPLE = OS === "ios" || OS === "ipados" || OS === "macos";
 export const IS_TOUCH =
-  matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+  (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) ||
+  (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0);
 export const IS_STANDALONE =
-  matchMedia("(display-mode: standalone)").matches ||
-  navigator.standalone === true;
+  (typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches) ||
+  (typeof navigator !== "undefined" && (navigator as any).standalone === true);
 
 /** Real feature probes (not UA sniffing) for the handful of CSS/JS features
  * that still vary enough across engines/versions to need a JS-level check
@@ -98,8 +101,12 @@ function detectFeatureFlags() {
   return {
     backdropFilter,
     dvh,
-    requestIdleCallback: "requestIdleCallback" in window,
-    hasSafeArea: CSS.supports?.("padding: env(safe-area-inset-top)") ?? false,
+    requestIdleCallback:
+      typeof window !== "undefined" && "requestIdleCallback" in window,
+    hasSafeArea:
+      (typeof CSS !== "undefined" &&
+        CSS.supports?.("padding: env(safe-area-inset-top)")) ??
+      false,
   };
 }
 export const FEATURES = detectFeatureFlags();
@@ -145,14 +152,22 @@ function iosOrientationEvent():
 }
 
 export const CAPS = {
-  // Vibration API — Android Chrome/Firefox support it; iOS Safari (and thus
+  // Vibration API - Android Chrome/Firefox support it; iOS Safari (and thus
   // every browser on iOS, since they all run on WebKit) never has, by policy.
-  vibration: "vibrate" in navigator,
+  // Chromium desktop exposes `navigator.vibrate` as a no-op, so API presence
+  // alone would show a dead Haptics switch on Windows/macOS/Linux. Gate on an
+  // actual Android device family, not just the method being defined.
+  vibration: "vibrate" in navigator && OS === "android",
   // Document Picture-in-Picture — Chromium only. Used for the mini-clock
   // and music-dock pop-out; both already degrade gracefully, this just
   // lets CSS hide the trigger entirely instead of showing a dead button.
   documentPiP: "documentPictureInPicture" in window,
-  deviceOrientation: "DeviceOrientationEvent" in window,
+  // Keep this dynamic: capability probes and tests may define the constructor
+  // after the module is evaluated, and support is still read at the point of
+  // use.
+  get deviceOrientation() {
+    return "DeviceOrientationEvent" in window;
+  },
   deviceOrientationNeedsPermission:
     typeof iosOrientationEvent()?.requestPermission === "function",
   webShare: typeof navigator.share === "function",
@@ -336,4 +351,9 @@ export function subscribeOrientation(cb: OrientationCB): () => void {
   attachOrientationListener();
   orientationSubs.add(cb);
   return () => orientationSubs.delete(cb);
+}
+
+/** Introspection for diagnostics/tests: how many orientation consumers are live. */
+export function getOrientationSubscriberCount(): number {
+  return orientationSubs.size;
 }

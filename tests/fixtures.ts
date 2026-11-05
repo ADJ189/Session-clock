@@ -109,3 +109,19 @@ export async function closeThemePanel(page: import("@playwright/test").Page) {
   // Collapsed state is pointer-events:none, so it can no longer intercept.
   await expect(panel).toHaveCSS("pointer-events", "none");
 }
+
+/** WCAG relative luminance of an `rgb()`/`rgba()` string. */
+export function relativeLuminance(value: string): number {
+  const channels = (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+  const [r = 0, g = 0, b = 0] = channels.map((channel) => {
+    const c = channel / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+export function contrastRatio(foreground: string, background: string): number {
+  const fg = relativeLuminance(foreground);
+  const bg = relativeLuminance(background);
+  return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+}

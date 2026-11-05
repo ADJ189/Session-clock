@@ -1,7 +1,7 @@
 // Timeout helper for fetch(). Self-managed AbortController + timer, always
 // cleared in `finally` so a timer never lingers after the request settles
 // (the previous polyfill left a dangling setTimeout on every successful
-// weather/geocode fetch — same leak pattern as timesync.ts).
+// weather/geocode fetch).
 async function fetchWithTimeout(
   url: string,
   ms: number,
@@ -310,6 +310,12 @@ export async function initWeather(
     if (icon) iconEl.textContent = icon;
     textEl.textContent = text;
     if (title) pillEl.title = title;
+    pillEl.setAttribute(
+      "aria-label",
+      text === "Set location"
+        ? "Set your weather location"
+        : `Open weather — ${text}`,
+    );
     pillEl.classList.add("loaded");
   };
 

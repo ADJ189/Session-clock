@@ -7,7 +7,7 @@ test.describe("session timer", () => {
     await closeThemePanel(page);
   });
 
-  test("start → pause → resume → reset", async ({ page, problems }) => {
+  test("start → pause → resume → reset @smoke", async ({ page, problems }) => {
     const body = page.locator("body");
     const start = page.locator("#btnStart");
     const timer = page.locator("#sessionTimer");

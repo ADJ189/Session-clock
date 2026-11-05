@@ -1,6 +1,6 @@
 {
   "name": "session-clock",
-  "version": "1.99",
+  "version": "2.0.0",
   "description": "Beautiful animated clock — 101+ themes, Pomodoro, ambient sound, literary clock, focus log.",
   "private": true,
   "type": "module",
@@ -9,27 +9,33 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "typecheck:unit": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "typecheck:e2e": "tsc -p tests/tsconfig.json",
+    "test": "npm run test:unit",
+    "test:unit": "node --import ./tests-unit/register.mjs --test \"tests-unit/*.test.ts\"",
     "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test --config=playwright.mobile.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:chromium": "playwright test --project=chromium",
-    "test:e2e:firefox": "playwright test --project=firefox",
-    "test:e2e:webkit": "playwright test --project=webkit",
+    "test:e2e:chromium": "playwright test --project=desktop-chromium",
+    "test:e2e:firefox": "playwright test --project=desktop-firefox",
+    "test:e2e:webkit": "playwright test --project=desktop-webkit",
     "test:e2e:report": "playwright show-report",
-    "e2e:install": "playwright install --with-deps"
+    "e2e:install": "playwright install",
+    "previews": "node scripts/gen-theme-previews.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@types/node": "^26.6.5",
     "oxlint": "^1.89.0",
+    "svelte": "^5.57.3",
     "typescript": "^7.0.2",
     "vite": "^6.4.5"
   },
   "dependencies": {
-    "ambiently": "^1.0.0",
     "animejs": "^4.5.0"
   }
 }

@@ -1,14 +1,18 @@
 <div align="center">
 
-<img src="public/readme-banner.svg" width="900" alt="Session Clock — A cinematic focus timer. Every theme is a world." />
+<img src="public/logo.png" width="160" alt="Session Clock logo" />
 
-<img src="public/preview.png" width="900" alt="Session Clock app preview — Good Night clock view, session timer, and the Spotify/YouTube music dock" />
+# Session Clock
+
+**A cinematic focus timer. Every theme is a world.**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Zero deps](https://img.shields.io/badge/runtime_deps-0-22c55e?style=flat-square)](package.json)
 [![PWA](https://img.shields.io/badge/PWA-ready-8b5cf6?style=flat-square)](public/manifest.json)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue?style=flat-square)](LICENSE)
 [![CodeQL](https://img.shields.io/badge/CodeQL-clean-16a34a?style=flat-square)](https://github.com/ADJ189/Session-clock/security)
+
+<img src="public/preview.png" width="900" alt="Session Clock app preview — a centred clock, a compact session timer, and the optional music dock" />
 
 [**Open App →**](https://accurate-time.pages.dev/)&nbsp;&nbsp;·&nbsp;&nbsp;[**Wiki →**](https://github.com/ADJ189/Session-clock/wiki)&nbsp;&nbsp;·&nbsp;&nbsp;[Issues](https://github.com/ADJ189/Session-clock/issues)
 
@@ -22,6 +26,7 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 |---|---|
 | **Themes** | 103 animated, each with a custom intro — TV, film, animation, anime, F1, natural |
 | **Sound Mixer** | 17 synthesized ambient tracks · crossfade scenes · night mode · live VU meter |
+| **Music** | Opt-in player, hidden by default · YouTube-first · Spotify only when selected |
 | **Now Playing** | Matches ~30 soundtracks against Spotify (or any player, manually) and switches theme |
 | **Modes** | Pomodoro (fully custom cycles) · **Zen** · **Calm** · **Focus** · Kiosk · PiP · Voice |
 | **Intelligence** | Streaks · Velocity · **Flow Intensity** · Configurable break reminders |
@@ -33,7 +38,7 @@ Session Clock is a precision focus timer built on one idea: **the environment yo
 
 ---
 
-## Latest Version : 1.99.0
+## Latest Version : 2.0.0
 
 Check [CHANGELOG.md](CHANGELOG.md) for the version details.
 
@@ -44,10 +49,21 @@ Check [CHANGELOG.md](CHANGELOG.md) for the version details.
 ```bash
 git clone https://github.com/ADJ189/Session-clock
 cd Session-clock
-npm install && npm run dev       # localhost:5173
+npm install                      # one-time dependency fetch
+npm run dev                      # localhost:5173
 npm run typecheck                # strict TypeScript check
+npm run test:unit                # Node unit suite
+npm run test:e2e                 # Playwright, five browser projects
 npm run build                    # production → dist/
 ```
+
+Requires Node.js 24+ and npm. The repository declares `engines.node: ">=24"`
+in `package.json`, and CI installs Node 24. The main development, test, and CI
+workflow runs on the installed Node toolchain. Deno is optional: `deno.json`
+mirrors the same tasks (`deno task test:unit`, `deno task test:e2e`) for local
+use, without changing any npm script or the production build. The Deno tasks
+call the installed `node_modules/` binaries and do not modify them, so using
+Deno locally never breaks the npm entry points.
 
 Push to `main` → **Settings → Pages → GitHub Actions** to deploy. The included workflow handles `typecheck → build → deploy` automatically.
 

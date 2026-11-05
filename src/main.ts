@@ -1,12 +1,6 @@
 import type { Theme } from "./types";
 import { THEMES, THEME_BY_ID, THEMES_BY_CAT, NAT_QUOTES } from "./themes";
-import { THEME_CATEGORIES } from "./types";
 
-// Media categories shown as picker tabs — everything except 'nat', which
-// renders in its own non-tabbed section. Derived once from the single
-// category source of truth so a new category added there needs no
-// matching edit here.
-const MEDIA_CATEGORIES = THEME_CATEGORIES.filter((c) => c !== "nat");
 import type { TimeString, LitEntry } from "./types";
 import {
   p2,
@@ -17,7 +11,6 @@ import {
   GREETS,
   localStorageBytes,
 } from "./utils";
-import { clockOffset, synced, syncTime, setSyncHandler } from "./timesync";
 import {
   initWeather,
   stopWeather,
@@ -51,6 +44,7 @@ import {
   setTier,
   setAutoQuality,
   tickFps,
+  resetFpsSampling,
   getFps,
   isTabVisible,
   type QualityTier,
@@ -65,17 +59,32 @@ import * as NowPlaying from "./nowplaying";
 import * as MusicDock from "./musicdock";
 import * as SideTasks from "./sidetasks";
 import {
-  t,
   setLocale,
   getLocale,
+  t,
   LOCALE_NAMES,
   LOCALE_FLAGS,
   type Locale,
 } from "./i18n";
 import {
+  initAnalytics,
+  syncAnalytics,
+  unloadAnalytics,
+  getAnalyticsPreference,
+  setAnalyticsPreference,
+  resetAnalyticsToAuto,
+  getAnalyticsStatus,
+  onAnalyticsStatusChange,
+  isAutoBlocked,
+  setBeforeAnalyticsReload,
+} from "./analytics";
+import {
   applyPlatformClasses,
   bindGlobalHaptics,
+  BROWSER,
   CAPS,
+  ENGINE,
+  OS,
   haptic,
   requestMotionPermission,
   subscribeOrientation,
@@ -83,6 +92,17 @@ import {
 } from "./platform";
 import * as Palette from "./palette";
 import * as Motion from "./motion";
+import * as ThemeLib from "./themelib";
+import { copyDiagnosticsText, installDiagnostics } from "./diagnostics";
+import { rendererHealth } from "./rendererHealth";
+import { mount, unmount } from "svelte";
+import SettingsTabBar from "./app/settings/SettingsTabBar.svelte";
+import GeneralPanel from "./app/settings/panels/GeneralPanel.svelte";
+import SoundPanel from "./app/settings/panels/SoundPanel.svelte";
+import FocusPanel from "./app/settings/panels/FocusPanel.svelte";
+import DisplayPanel from "./app/settings/panels/DisplayPanel.svelte";
+import PrivacyPanel from "./app/settings/panels/PrivacyPanel.svelte";
+import QuickActionDock from "./app/layout/QuickActionDock.svelte";
 
 // ── Platform detection ───────────────────────────────────────────────
 // Runs first, synchronously, before anything else touches the DOM — CSS
@@ -91,6 +111,108 @@ import * as Motion from "./motion";
 // of the wrong layout.
 applyPlatformClasses();
 bindGlobalHaptics();
+
+// ── Readiness + diagnostics ───────────────────────────────────────────
+// Separate states so "the clock is usable" is never inferred from a canvas
+// or audio subsystem having initialised. index.html's boot guard only turns
+// fatal when coreReady is false; renderer and audio may degrade independently.
+const APP_VERSION = "2.0.0";
+interface ScReadinessState {
+  coreReady: boolean;
+  rendererReady: boolean;
+  audioReady: boolean;
+  optionalFeaturesReady: boolean;
+  bootStage: string;
+}
+const readiness: ScReadinessState = {
+  coreReady: false,
+  rendererReady: false,
+  audioReady: false,
+  optionalFeaturesReady: false,
+  bootStage: "module-evaluated",
+};
+window.__scReady = readiness;
+
+function featureProbe(): Record<string, boolean> {
+  let canvas2d = false;
+  try {
+    canvas2d = !!document.createElement("canvas").getContext("2d");
+  } catch {
+    canvas2d = false;
+  }
+  const w = window as Window & { webkitAudioContext?: unknown };
+  return {
+    canvas2d,
+    audioContext: "AudioContext" in window || "webkitAudioContext" in w,
+    serviceWorker: "serviceWorker" in navigator,
+    offscreenCanvas: "OffscreenCanvas" in window,
+    opus: CAPS.oggOpus,
+    broadcastChannel: "BroadcastChannel" in window,
+    storage: (() => {
+      try {
+        localStorage.setItem("__sc_diag_probe__", "1");
+        localStorage.removeItem("__sc_diag_probe__");
+        return true;
+      } catch {
+        return false;
+      }
+    })(),
+  };
+}
+
+const diagnostics = installDiagnostics({
+  stage: "boot",
+  environment: () => ({
+    appVersion: APP_VERSION,
+    buildId: (globalThis as { __SC_BUILD_ID__?: string }).__SC_BUILD_ID__,
+    browser: BROWSER,
+    engine: ENGINE,
+    os: OS,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    screen: `${screen.width}x${screen.height}`,
+    dpr: window.devicePixelRatio,
+    visibility: document.visibilityState,
+    qualityTier: getTier(),
+    hardwareConcurrency: navigator.hardwareConcurrency,
+    deviceMemoryGb: navigator.deviceMemory,
+    features: featureProbe(),
+    serviceWorkerControlled: !!navigator.serviceWorker?.controller,
+    online: navigator.onLine,
+  }),
+});
+
+function setBootStage(stage: string) {
+  readiness.bootStage = stage;
+  window.__bootStage = stage;
+  diagnostics.record({
+    subsystem: "boot",
+    kind: "readiness",
+    message: `stage: ${stage}`,
+  });
+}
+
+function markCoreReady() {
+  if (readiness.coreReady) return;
+  readiness.coreReady = true;
+  window.__coreReady = true;
+  setBootStage("core-ready");
+}
+
+function markRendererReady() {
+  if (readiness.rendererReady) return;
+  readiness.rendererReady = true;
+  window.__rendererReady = true;
+  setBootStage(`renderer-${rendererHealth.status}`);
+}
+
+function markAudioReady() {
+  if (readiness.audioReady) return;
+  readiness.audioReady = true;
+  window.__audioReady = true;
+  setBootStage("audio-ready");
+}
+
+window.__scMarkAudioReady = markAudioReady;
 // Persisted "Force Simplified Surfaces" override — applied here, before
 // first paint, same as the platform-detected classes above, so a user who
 // turned this on doesn't see one frame of frosted glass before it flips off.
@@ -106,7 +228,11 @@ document.documentElement.classList.toggle(
 // the browser and produces no sound at all.
 (() => {
   const unlock = () => {
-    Sound.unlockAudio();
+    try {
+      Sound.unlockAudio();
+    } finally {
+      markAudioReady();
+    }
     window.removeEventListener("pointerdown", unlock);
     window.removeEventListener("keydown", unlock);
     window.removeEventListener("touchstart", unlock);
@@ -212,7 +338,6 @@ const DOM = {
   dayPct: $("dayPct"),
   pFill: $("progressFill"),
   sTmr: $("sessionTimer"),
-  utcPill: $("utcPill"),
   greeting: $("greeting"),
   quoteText: $("quoteText"),
   litMeta: $("litMeta"),
@@ -301,7 +426,7 @@ function resetTimer() {
 
     // Smart break recommendation
     const sessionMins = Math.floor(dur / 60000);
-    const distractionCount = parseInt(
+    const distractionCount = Number.parseInt(
       localStorage.getItem("sc_distraction_today") ?? "0",
     );
     const smartBreak = Features.calcSmartBreak(
@@ -365,6 +490,78 @@ DOM.btnStart.addEventListener("click", () =>
 );
 DOM.btnReset.addEventListener("click", resetTimer);
 
+// ── Session persistence across analytics reload ───────────────────────
+function saveSessionState(): void {
+  try {
+    const dur = sessionRunning
+      ? performance.now() - sessionStart
+      : sessionElapsed;
+    const task = DOM.focusInput ? DOM.focusInput.value : "";
+    const pomState = Pom.isActive() ? Pom.getSessionSnapshot() : null;
+    const incognito = Privacy.isIncognito();
+
+    if (sessionRunning || dur > 0 || task.length > 0 || Pom.isActive()) {
+      const state = {
+        running: sessionRunning,
+        elapsed: dur,
+        task,
+        pomodoro: pomState,
+        incognito,
+      };
+      sessionStorage.setItem("sc_saved_session", JSON.stringify(state));
+    }
+  } catch {
+    // sessionStorage quota or security error
+  }
+}
+
+function restoreSavedSession(): void {
+  try {
+    const raw = sessionStorage.getItem("sc_saved_session");
+    if (!raw) return;
+    sessionStorage.removeItem("sc_saved_session");
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== "object") return;
+
+    if (typeof data.task === "string" && data.task) {
+      DOM.focusInput.value = data.task;
+      DOM.focusInputWrap.classList.add("visible");
+    }
+
+    if (data.pomodoro) {
+      Pom.restoreSessionSnapshot(data.pomodoro);
+    }
+    if (data.incognito) {
+      Privacy.setIncognito(true);
+    }
+
+    const elapsed = typeof data.elapsed === "number" ? data.elapsed : 0;
+    if (data.running) {
+      sessionElapsed = elapsed;
+      startTimer();
+    } else if (elapsed > 0) {
+      sessionElapsed = elapsed;
+      if (!Pom.isActive()) DOM.sTmr.textContent = fmtSession(elapsed);
+      DOM.focusInputWrap.classList.add("visible");
+      Features.updateButtonLabels(
+        "paused",
+        Pom.getPhase(),
+        Pom.isActive(),
+        DOM.btnStart as HTMLButtonElement,
+      );
+      Features.setStatusState("paused");
+    }
+  } catch {
+    // Corrupt saved state
+  }
+}
+
+setBeforeAnalyticsReload(saveSessionState);
+if (typeof window !== "undefined") {
+  window.addEventListener("sc-before-analytics-reload", saveSessionState);
+  window.addEventListener("beforeunload", saveSessionState);
+}
+
 // ── Privacy toggle ────────────────────────────────────────────────────
 let privacyMode = safeGet("sc_privacy") === "1";
 let breathingBreakEnabled = safeGet("sc_breathing_break") !== "0";
@@ -427,9 +624,11 @@ function applyCenterMinimal(on: boolean) {
   document.body.classList.toggle("center-minimal", on);
 }
 
-// GitHub star/support celebration — intercepts the topbar GitHub link so
-// clicking it shows a small animated "star us" moment (with confetti)
-// before following through, instead of navigating away instantly.
+// GitHub project card — the top-bar mark opens a small, useful repository
+// card. The old forced avatar-ring/confetti celebration is gone: visiting
+// the repository is a common navigation action, so it must never wait on an
+// animation or a support sequence. Live counts remain optional and are
+// simply hidden when the request fails, privacy mode is on, or we're offline.
 function wireGithubCelebration() {
   const link = document.querySelector<HTMLAnchorElement>(
     '.topbar-icon-btn[href*="github.com"]',
@@ -438,17 +637,10 @@ function wireGithubCelebration() {
   if (!link || !overlay) return;
 
   const closeIt = () => overlay.classList.remove("open");
-  const proceedTo = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
-    closeIt();
-  };
 
   link.addEventListener("click", (e) => {
     e.preventDefault();
     overlay.classList.add("open");
-    Easter.fireConfetti();
-    setTimeout(() => Easter.fireConfetti(), 350);
-    void Motion.githubCelebration(document.querySelector(".gh-avatar"));
     void Motion.modalSpotlightIn($("ghOverlay")?.querySelector(".gh-modal"));
 
     // Live star/fork counts — purely decorative, so a failed/slow fetch
@@ -469,10 +661,7 @@ function wireGithubCelebration() {
   });
 
   $("ghClose")?.addEventListener("click", closeIt);
-  $("ghSkip")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    proceedTo(link.href);
-  });
+  $("ghSkip")?.addEventListener("click", closeIt);
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) closeIt();
   });
@@ -480,8 +669,9 @@ function wireGithubCelebration() {
     if (e.key === "Escape" && overlay.classList.contains("open")) closeIt();
   });
 
-  // Star/Support links keep their normal target="_blank" navigation —
-  // just close the modal shortly after so it doesn't linger.
+  // Repository / star / sponsor links keep their normal target="_blank"
+  // navigation — just close the card shortly after so it doesn't linger.
+  $("ghBtnView")?.addEventListener("click", () => setTimeout(closeIt, 400));
   $("ghBtnStar")?.addEventListener("click", () => setTimeout(closeIt, 400));
   $("ghBtnDonate")?.addEventListener("click", () => setTimeout(closeIt, 400));
 }
@@ -490,8 +680,12 @@ function wireGithubCelebration() {
 // body-level class so each renderer's CSS (and the analogue second-hand
 // draw call) can simply check for it instead of threading a flag through
 // every render path.
-let hideSeconds = safeGet("sc_hide_seconds") === "1";
-let hideMs = safeGet("sc_hide_ms") === "1";
+// New visitors get the calm HH:MM default. An explicit saved choice ("0")
+// always wins, so upgrading never overwrites someone's seconds/ms setting.
+const _savedHideSeconds = safeGet("sc_hide_seconds");
+const _savedHideMs = safeGet("sc_hide_ms");
+let hideSeconds = _savedHideSeconds === null ? true : _savedHideSeconds === "1";
+let hideMs = _savedHideMs === null ? true : _savedHideMs === "1";
 // 24-hour time — same body-class approach as hide-seconds/hide-ms so CSS
 // and every render path (digital/minimal/flip/segment) can react without
 // threading a flag through each function signature.
@@ -528,7 +722,6 @@ function togglePrivacy() {
   privacyMode = !privacyMode;
   localStorage.setItem("sc_privacy", privacyMode ? "1" : "0");
   if (privacyMode) {
-    updateSyncDisplay("failed");
     stopWeather();
     const wp = $("weatherPill");
     if (wp) {
@@ -537,9 +730,19 @@ function togglePrivacy() {
     // Apply system fonts — no Google Fonts in privacy mode
     document.body.style.fontFamily =
       '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
-    showToast("🔒 Privacy Mode: fonts, weather & sync disabled");
+    const settingsModal = $("settingsOverlay");
+    if (settingsModal?.classList.contains("open")) {
+      try {
+        sessionStorage.setItem("sc_reopen_settings", "privacy");
+      } catch {
+        // ignore
+      }
+    }
+    saveSessionState();
+    unloadAnalytics();
+    showToast("🔒 Privacy Mode: fonts, weather & analytics disabled");
   } else {
-    syncTime();
+    syncAnalytics(false);
     initWeather(
       $("weatherIcon"),
       $("weatherText"),
@@ -828,6 +1031,76 @@ const cssVar = (name: string, val: string) => root.style.setProperty(name, val);
 // tabs would ping-pong the same theme back and forth forever.
 let applyingRemoteTheme = false;
 
+/** Expand a single hex nibble (`f`) to its two-digit form (`ff`). */
+function expandHexPair(ch: string): number {
+  return Number.parseInt(ch + ch, 16);
+}
+
+/** sRGB 8-bit channel → linear-light value, per WCAG 2.x. */
+function channelToLinear(channel: number): number {
+  const c = Math.min(255, Math.max(0, channel)) / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+/**
+ * WCAG relative luminance for a CSS hex (`#rgb`, `#rrggbb`, `#rrggbbaa`) or
+ * `rgb()`/`rgba()` colour. Used only to pick readable ink for solid accent
+ * fills, so alpha is ignored.
+ */
+function relativeLuminance(color: string): number {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  const value = color.trim();
+  if (value.startsWith("#")) {
+    const hex = value.slice(1);
+    if (hex.length === 3 || hex.length === 4) {
+      r = expandHexPair(hex.charAt(0));
+      g = expandHexPair(hex.charAt(1));
+      b = expandHexPair(hex.charAt(2));
+    } else if (hex.length >= 6) {
+      r = Number.parseInt(hex.slice(0, 2), 16);
+      g = Number.parseInt(hex.slice(2, 4), 16);
+      b = Number.parseInt(hex.slice(4, 6), 16);
+    }
+  } else {
+    const parts = value.match(/[\d.]+/g);
+    if (parts && parts.length >= 3) {
+      r = Number(parts[0]);
+      g = Number(parts[1]);
+      b = Number(parts[2]);
+    }
+  }
+  if ([r, g, b].some((channel) => !Number.isFinite(channel))) return 0;
+  return (
+    0.2126 * channelToLinear(r) +
+    0.7152 * channelToLinear(g) +
+    0.0722 * channelToLinear(b)
+  );
+}
+
+const ON_ACCENT_DARK = "#06110c";
+const ON_ACCENT_LIGHT = "#ffffff";
+
+/**
+ * Dark or white ink for text/icons on a solid accent fill, whichever has the
+ * higher WCAG contrast ratio. Theme `btnFg` is deliberately not used here: it
+ * is tuned for translucent `btnBg` surfaces, and several themes set it equal
+ * to the accent itself — invisible on a solid accent button.
+ */
+function onAccentInk(color: string): string {
+  const background = relativeLuminance(color);
+  const contrast = (ink: string) => {
+    const lum = relativeLuminance(ink);
+    return (
+      (Math.max(background, lum) + 0.05) / (Math.min(background, lum) + 0.05)
+    );
+  };
+  return contrast(ON_ACCENT_DARK) >= contrast(ON_ACCENT_LIGHT)
+    ? ON_ACCENT_DARK
+    : ON_ACCENT_LIGHT;
+}
+
 // Monotonic token bumped on every applyTheme() call. A media-theme switch
 // applies via a canvas transition callback that fires partway through the
 // animation, and runTransition() bypasses straight to the callback when a
@@ -853,12 +1126,13 @@ function applyTheme(theme: Theme, instant = false) {
     cssVar("--clr-text", theme.text);
     cssVar("--clr-accent", theme.accent);
     cssVar("--clr-accent2", theme.accent2);
+    cssVar("--clr-on-accent", onAccentInk(theme.accent));
     // Set RGB components for use in rgba() and animations
     const accentRgb = theme.accent.startsWith("#")
       ? theme.accent
           .slice(1)
           .match(/.{2}/g)!
-          .map((h) => parseInt(h, 16))
+          .map((h) => Number.parseInt(h, 16))
           .join(",")
       : "110,231,183";
     cssVar("--clr-accent-rgb", accentRgb);
@@ -925,15 +1199,7 @@ function applyTheme(theme: Theme, instant = false) {
       }, 420);
     }
 
-    updateSyncDisplay(synced ? "ok" : "failed");
-    document
-      .querySelectorAll<HTMLElement>(".nat-btn,.media-card")
-      .forEach((b) => {
-        const isNowActive = b.dataset.id === theme.id;
-        const wasActive = b.classList.contains("active");
-        b.classList.toggle("active", isNowActive);
-        if (isNowActive && !wasActive && !instant) void Motion.popIn(b);
-      });
+    ThemeLib.onThemeApplied(theme.id);
     lastQKey = "";
     localStorage.setItem("sc_last_theme", theme.id);
     if (!applyingRemoteTheme) bcBroadcast("theme", { id: theme.id });
@@ -960,21 +1226,19 @@ function applyTheme(theme: Theme, instant = false) {
   runTransition(theme.transition ?? "defaultFade", doApply);
 }
 
-// ── Sync state (drives the UTC/trust pill; no separate visual pill) ─────
-function updateSyncDisplay(state: "syncing" | "ok" | "failed") {
-  if (state === "ok") {
-    Features.setSyncTrust("ntp");
-  } else if (state === "failed") {
-    Features.setSyncTrust("offline");
-  }
-}
-setSyncHandler(updateSyncDisplay);
-
 // ── Render loop ────────────────────────────────────────────────────────
 let lastTs = 0,
   lastSec = -1,
   lastQKey = "",
-  _rafSkip = 0;
+  _rafSkip = 0,
+  _modalFrameTs = 0,
+  _fpsPaused = false;
+// While a dialog covers the app, the clock behind it only needs to stay
+// roughly current. Running the full per-frame DOM work (digits, day-progress
+// bar, session timer) at display rate under a backdrop-filter makes the
+// browser re-blur the whole screen every frame, which starves the main
+// thread on software-rendered WebKit.
+const MODAL_FRAME_MS = 250;
 
 // Lazy-loaded literary-clock quote database — a ~300-line dataset only
 // used by one specific theme, so it's fetched on demand (kicked off as
@@ -1016,12 +1280,34 @@ function renderFrame(ts: number) {
     }
   }
 
+  const modalThrottled = document.body.classList.contains("modal-open");
+  if (modalThrottled) {
+    if (ts - _modalFrameTs < MODAL_FRAME_MS) {
+      requestAnimationFrame(renderFrame);
+      return;
+    }
+    _modalFrameTs = ts;
+  }
+
   requestAnimationFrame(renderFrame);
-  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  // Normally capped at 50ms so a stalled tab can't produce a huge jump; the
+  // throttled path legitimately has ~250ms between frames, so allow that
+  // through or time-based ticks (flow intensity) would run ~5x slow.
+  const dt = Math.min((ts - lastTs) / 1000, modalThrottled ? 0.3 : 0.05);
   lastTs = ts;
 
-  // FPS tracking + auto quality tier
-  tickFps(ts);
+  // FPS tracking + auto quality tier. Frames slowed on purpose while a dialog
+  // is open say nothing about device performance, so they are not sampled;
+  // the window restarts clean on the first full-rate frame afterwards.
+  if (modalThrottled) {
+    _fpsPaused = true;
+  } else {
+    if (_fpsPaused) {
+      _fpsPaused = false;
+      resetFpsSampling(ts);
+    }
+    tickFps(ts);
+  }
 
   // Parallax — skip on LOW tier, reduce-motion, or user disabled
   const parallaxEnabled =
@@ -1035,7 +1321,13 @@ function renderFrame(ts: number) {
     setParallax(0, 0);
   }
 
-  drawBg(dt, currentTheme, Intel.getFlowIntensity());
+  // Skip background rendering while a full-screen modal is open.
+  if (!document.body.classList.contains("modal-open")) {
+    drawBg(dt, currentTheme, Intel.getFlowIntensity());
+  }
+  // The renderer may deliberately be disabled/static; that still counts as a
+  // usable first frame. This is separate from core readiness.
+  markRendererReady();
 
   // Tick flow intensity
   Intel.tickFlowIntensity(sessionRunning, dt);
@@ -1045,9 +1337,9 @@ function renderFrame(ts: number) {
   // cheap enough to keep running on LOW rather than freezing the
   // soundstage in place. LOW's own outer frame-skip (line ~970 above)
   // already throttles how often this runs to ~20fps naturally.
-  Sound.tickSpatial(ts / 1000);
+  Sound.tickSpatial();
 
-  const now = new Date(Date.now() + clockOffset);
+  const now = new Date();
   const ms = now.getMilliseconds(),
     sec = now.getSeconds(),
     min = now.getMinutes(),
@@ -1106,20 +1398,13 @@ function renderFrame(ts: number) {
     lastSec = sec;
     // Midnight confetti check
     window.__checkMidnight?.();
-    const uh = now.getUTCHours(),
-      um = now.getUTCMinutes(),
-      us = now.getUTCSeconds();
-    // Sidereal time easter egg
-    if (Easter.isSiderealMode()) {
-      const lat = window.__scLat ?? 0;
-      DOM.utcPill.textContent = Easter.getSiderealTime(lat);
-    } else {
-      DOM.utcPill.textContent = Features.getTrustLabel();
-    }
-    DOM.utcPill.title = Features.getTrustTooltip();
 
     // Update status line
-    if (sessionRunning && Pom.isActive()) {
+    if (Easter.isSiderealMode()) {
+      const lat = (window as unknown as { __scLat?: number }).__scLat ?? 0;
+      const el = document.getElementById("sessionStatusLine");
+      if (el) el.textContent = Easter.getSiderealTime(lat);
+    } else if (sessionRunning && Pom.isActive()) {
       const phase = Pom.getPhase();
       const rem = Pom.getRemainingSeconds();
       Features.setStatusState("running", {
@@ -1576,166 +1861,52 @@ function setLogoContent(
 }
 
 // ── Theme panel ────────────────────────────────────────────────────────
-let activePanelTab = "nat";
-
 function buildPanel() {
-  const panelRows = $("themePanelRows");
-  panelRows.innerHTML = "";
   const featBar = $("featBar");
   featBar.innerHTML = "";
 
-  // ── Tab bar ──────────────────────────────────────────────────────────
-  const tabs = document.createElement("div");
-  tabs.className = "panel-tabs";
-  const tabDefs: [string, string, string][] = [
-    ["nat", "🌿", "Natural"],
-    ["tv", "📺", "TV Shows"],
-    ["movie", "🎬", "Movies"],
-    ["animation", "🎨", "Animation"],
-    ["anime", "⛩", "Anime"],
-    ["f1", "🏎", "F1 Teams"],
-  ];
-  const contents: Record<string, HTMLElement> = {};
-  tabDefs.forEach(([id, icon, label]) => {
-    const btn = document.createElement("button");
-    btn.className = "panel-tab" + (id === activePanelTab ? " active" : "");
-    btn.dataset.tab = id;
-    const iconEl = document.createElement("span");
-    iconEl.className = "tab-icon";
-    iconEl.textContent = icon;
-    const lblEl = document.createElement("span");
-    lblEl.className = "tab-label";
-    lblEl.textContent = label;
-    btn.append(iconEl, lblEl);
-    btn.addEventListener("click", () => switchPanelTab(id));
-    tabs.appendChild(btn);
-  });
-  panelRows.appendChild(tabs);
-
-  // ── Tab contents ──────────────────────────────────────────────────────
-  const makeNatBtn = (t: Theme) => {
-    const btn = document.createElement("button");
-    btn.className = "nat-btn" + (t.id === currentTheme.id ? " active" : "");
-    btn.dataset.id = t.id;
-    btn.title = t.name;
-    btn.style.background = t.swatch ?? t.accent;
-    const tip = document.createElement("span");
-    tip.className = "nat-tip";
-    tip.textContent = t.name;
-    btn.appendChild(tip);
-    btn.addEventListener("click", () => applyTheme(t));
-    return btn;
-  };
-
-  const makeCard = (t: Theme) => {
-    const card = document.createElement("button");
-    card.className = "media-card" + (t.id === currentTheme.id ? " active" : "");
-    card.dataset.id = t.id;
-    card.addEventListener("click", () => applyTheme(t));
-    const logo = document.createElement("div");
-    logo.className = "media-logo";
-    setLogoContent(logo, LOGOS[t.id], () => makeFallbackLogo(t));
-    const nm = document.createElement("div");
-    nm.className = "media-name";
-    nm.textContent = t.name;
-    const sb = document.createElement("div");
-    sb.className = "media-sub";
-    sb.style.color = t.accent;
-    sb.textContent = t.sub ?? "";
-    const txt = document.createElement("div");
-    txt.className = "media-card-text";
-    txt.append(nm, sb);
-
-    card.append(logo, txt);
-    return card;
-  };
-
-  // Natural tab
-  const natContent = document.createElement("div");
-  natContent.className =
-    "tab-content" + (activePanelTab === "nat" ? " active" : "");
-  natContent.dataset.tab = "nat";
-
-  const pureNat = THEMES_BY_CAT.nat.filter((t) => !["literary"].includes(t.id));
-  const specialNat = THEMES_BY_CAT.nat.filter((t) =>
-    ["literary"].includes(t.id),
-  );
-
-  const natGrid = document.createElement("div");
-  natGrid.className = "nat-grid";
-  pureNat.forEach((t) => natGrid.appendChild(makeNatBtn(t)));
-  natContent.appendChild(natGrid);
-
-  if (specialNat.length) {
-    const specLabel = document.createElement("div");
-    specLabel.className = "tab-sub-label";
-    specLabel.textContent = "Special";
-    const specRow = document.createElement("div");
-    specRow.className = "media-grid";
-    specialNat.forEach((t) => specRow.appendChild(makeCard(t)));
-    natContent.append(specLabel, specRow);
-  }
-  contents["nat"] = natContent;
-
-  // TV, Movie, Anime, F1 tabs
-  MEDIA_CATEGORIES.forEach((cat) => {
-    const content = document.createElement("div");
-    content.className =
-      "tab-content" + (activePanelTab === cat ? " active" : "");
-    content.dataset.tab = cat;
-    const grid = document.createElement("div");
-    grid.className = "media-grid";
-    THEMES_BY_CAT[cat].forEach((t) => grid.appendChild(makeCard(t)));
-    content.appendChild(grid);
-    contents[cat] = content;
+  ThemeLib.init({
+    apply: (t) => applyTheme(t),
+    currentId: () => currentTheme.id,
+    fillMark: (el, t) => setLogoContent(el, LOGOS[t.id], () => makeFallbackLogo(t)),
+    openOverlay: () => openModal("themeLibOverlay"),
+    closeOverlay: () => closeModal("themeLibOverlay"),
   });
 
-  Object.values(contents).forEach((c) => panelRows.appendChild(c));
-
-  // ── Feature bar — 5 essential actions ────────────────────────────────
-  const featDefs: [string, string, string, () => void][] = [
-    // [id, emoji, label, action]
-    [
-      "btnSound",
-      "🎵",
-      "Sound",
-      () => {
+  mount(QuickActionDock, {
+    target: featBar,
+    props: {
+      onopenthemes: () => focusLockIntercept(toggleThemePanel),
+      onopensound: () => {
         buildSoundUI();
         openModal("soundOverlay");
       },
-    ],
-    ["btnZen", "🧘", "Zen", toggleZen],
-    ["btnSettings", "⚙️", "Settings", openSettings],
-  ];
-  featDefs.forEach(([id, emoji, label, action]) => {
-    const b = document.createElement("button");
-    b.className = "feat-btn";
-    b.id = id;
-    const iconEl = document.createElement("span");
-    iconEl.className = "feat-icon";
-    iconEl.textContent = emoji;
-    const lblEl = document.createElement("span");
-    lblEl.className = "feat-label";
-    lblEl.textContent = label;
-    b.append(iconEl, lblEl);
-    b.addEventListener("click", action);
-    featBar.appendChild(b);
+      ontogglezen: toggleZen,
+      onopensettings: openSettings,
+    },
   });
-}
 
-function switchPanelTab(id: string) {
-  activePanelTab = id;
-  document
-    .querySelectorAll<HTMLElement>(".panel-tab")
-    .forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
-  document
-    .querySelectorAll<HTMLElement>(".tab-content")
-    .forEach((c) => c.classList.toggle("active", c.dataset.tab === id));
-  // A tasteful staggered pop-in for the grid that just became visible — the
-  // CSS tabFadeIn keyframe still handles the container-level fade, this
-  // adds a per-swatch/per-card cascade on top of it.
-  const active = document.querySelector<HTMLElement>(".tab-content.active");
-  void Motion.staggerIn(active, ".nat-btn, .media-card");
+  // Keep the dock's Themes item in sync with the Theme Library overlay,
+  // whichever control opened/closed it.
+  const themeLibOverlay = $("themeLibOverlay");
+  const dockThemesBtn = $("btnDockThemes");
+  if (themeLibOverlay && dockThemesBtn) {
+    const syncDockState = () => {
+      dockThemesBtn.classList.toggle(
+        "active-tab",
+        themeLibOverlay.classList.contains("open"),
+      );
+      dockThemesBtn.setAttribute(
+        "aria-expanded",
+        String(themeLibOverlay.classList.contains("open")),
+      );
+    };
+    syncDockState();
+    new MutationObserver(syncDockState).observe(themeLibOverlay, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
@@ -1788,6 +1959,16 @@ function onModalOpened(overlay: HTMLElement) {
   }
 }
 
+// Background rendering pauses only while a dialog actually covers the app.
+// Derived from the DOM on every overlay change rather than toggled per-modal,
+// so closing one dialog while another is still open (modal chaining) can't
+// un-pause rendering early, and a minimized overlay (a small docked pill that
+// leaves the app usable) doesn't freeze the background.
+function syncModalOpen() {
+  const covering = document.querySelector(".sc-overlay.open:not(.minimized)");
+  document.body.classList.toggle("modal-open", !!covering);
+}
+
 function onModalClosed(overlay: HTMLElement) {
   if (overlay.id === "soundOverlay") stopMixerMeter();
   const ret = modalReturnFocus.get(overlay);
@@ -1803,6 +1984,10 @@ function onModalClosed(overlay: HTMLElement) {
 
 function trapModalTab(e: KeyboardEvent, overlay: HTMLElement) {
   if (e.key !== "Tab") return;
+  // Listeners live on the overlay for its whole lifetime, but a closed overlay
+  // is only faded out — trapping Tab there would cycle focus through controls
+  // nobody can see. Only an open dialog owns the keyboard.
+  if (!overlay.classList.contains("open")) return;
   const panel = modalPanel(overlay);
   const items = Array.from(
     panel.querySelectorAll<HTMLElement>(FOCUSABLE),
@@ -1829,16 +2014,48 @@ const modalObserver = new MutationObserver((records) => {
     const el = r.target as HTMLElement;
     const wasOpen = (r.oldValue ?? "").split(/\s+/).includes("open");
     const isOpen = el.classList.contains("open");
-    if (isOpen && !wasOpen) onModalOpened(el);
-    else if (!isOpen && wasOpen) onModalClosed(el);
+    if (isOpen && !wasOpen) {
+      el.removeAttribute("aria-hidden");
+      onModalOpened(el);
+    } else if (!isOpen && wasOpen) {
+      onModalClosed(el);
+      // CSS `visibility: hidden` already removes the closed panel from the
+      // Tab order; aria-hidden keeps that explicit for assistive tech.
+      if (!el.contains(document.activeElement))
+        el.setAttribute("aria-hidden", "true");
+    }
   }
+  // Covers open, close, and minimize/restore (class changes with no open flip).
+  syncModalOpen();
 });
+// Overlays created after startup (the weather page is built on first open)
+// are not in the query below, so nothing would ever tell us when they close —
+// and if one is the last dialog closed, `modal-open` would stay set and the
+// background would stay frozen. They only need the pause flag kept in sync,
+// not the full dialog lifecycle, so watch just their class list.
+const lateOverlayObserver = new MutationObserver(() => syncModalOpen());
+new MutationObserver((records) => {
+  for (const r of records) {
+    r.addedNodes.forEach((n) => {
+      if (n instanceof HTMLElement && n.classList.contains("sc-overlay")) {
+        lateOverlayObserver.observe(n, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+      }
+    });
+    // A dialog removed from the DOM while open also stops covering the app.
+    if (r.removedNodes.length) syncModalOpen();
+  }
+  syncModalOpen();
+}).observe(document.body, { childList: true });
 document.querySelectorAll<HTMLElement>(".sc-overlay").forEach((el) => {
   modalObserver.observe(el, {
     attributes: true,
     attributeFilter: ["class"],
     attributeOldValue: true,
   });
+  if (!el.classList.contains("open")) el.setAttribute("aria-hidden", "true");
   el.addEventListener("keydown", (e) => trapModalTab(e, el));
   el.addEventListener("click", (e) => {
     if (e.target === el) closeModal(el.id);
@@ -1879,7 +2096,7 @@ const SHORTCUTS: [string, string, () => void][] = [
   ],
   [
     "K",
-    "Collapse / expand panel",
+    "Open the theme library",
     () => {
       toggleThemePanel();
     },
@@ -1928,7 +2145,14 @@ document.addEventListener("keydown", (e) => {
       (key === "Space" && e.code === "Space") ||
       (key === "?" && (e.key === "?" || (e.code === "Slash" && e.shiftKey))) ||
       (key === "Escape" && e.key === "Escape") ||
-      (key.length === 1 && key.toLowerCase() === ek && key !== "?");
+      // Plain single-key shortcuts must not fire with Ctrl/Cmd/Alt held:
+      // Ctrl+K belongs to the command palette, Ctrl+R to the browser, etc.
+      (key.length === 1 &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        key.toLowerCase() === ek &&
+        key !== "?");
     if (match) {
       e.preventDefault();
       action();
@@ -2014,7 +2238,7 @@ let zenSoundStartedByZen = false;
 
 function getZenDimDelayMs(): number {
   const v = localStorage.getItem("sc_zen_dim_delay");
-  return v ? parseInt(v, 10) : 2500;
+  return v ? Number.parseInt(v, 10) : 2500;
 }
 
 function toggleZen() {
@@ -2132,8 +2356,11 @@ function setThemePanelCollapsed(collapsed: boolean) {
   DOM.themePanel.classList.toggle("collapsed", collapsed);
   document.body.classList.toggle("theme-panel-collapsed", collapsed);
 }
+// The legacy bottom panel is retired: it stays in the DOM (permanently
+// collapsed) so existing hooks keep working, and every "Themes" action opens
+// the Theme Library instead.
 function toggleThemePanel() {
-  setThemePanelCollapsed(!DOM.themePanel.classList.contains("collapsed"));
+  ThemeLib.toggle();
 }
 
 $("panelToggle").onclick = () => {
@@ -2144,7 +2371,7 @@ $("panelToggle").onclick = () => {
 
 document
   .getElementById("themesRevealBtn")
-  ?.addEventListener("click", () => setThemePanelCollapsed(false));
+  ?.addEventListener("click", () => ThemeLib.open());
 
 // ── Pomodoro UI ────────────────────────────────────────────────────────
 Pom.init({
@@ -2433,10 +2660,18 @@ function makeSoundTrack(
     });
     volWrap.append(slider, pct);
     track.append(top, volWrap);
-    toggle.addEventListener("click", () => Sound.toggleTrack(id));
+    toggle.addEventListener("click", () => {
+      if (!Sound.toggleTrack(id)) {
+        showToast("Audio isn't available in this browser");
+      }
+    });
   } else {
     track.append(top);
-    toggle.addEventListener("click", () => Sound.toggleBinaural(id));
+    toggle.addEventListener("click", () => {
+      if (!Sound.toggleBinaural(id)) {
+        showToast("Audio isn't available in this browser");
+      }
+    });
   }
 
   return track;
@@ -2477,6 +2712,7 @@ function applyMixerNightMode() {
   const btn = document.getElementById("mixerNightToggle");
   if (btn) {
     btn.classList.toggle("active", mode === "on");
+    btn.setAttribute("aria-pressed", String(mode === "on"));
     btn.title = `Night mode: ${mode}`;
   }
 }
@@ -2754,6 +2990,7 @@ function stopNowPlayingPoll() {
 function buildSoundUI() {
   const container = $("soundGrid");
   container.innerHTML = "";
+  const audioOk = Sound.isAudioAvailable();
 
   Sound.SOUNDS.forEach((s) => {
     const vol = Math.round(Sound.getTrackVolume(s.id) * 100);
@@ -2765,7 +3002,13 @@ function buildSoundUI() {
       Sound.isPlaying(s.id),
       vol,
     );
-    if (!Sound.isFileTrackSupported(s.id)) {
+    if (!audioOk) {
+      track.classList.add("track-unavailable");
+      track
+        .querySelector<HTMLButtonElement>(".track-toggle")
+        ?.setAttribute("disabled", "true");
+      track.title = "Audio isn't available in this browser";
+    } else if (!Sound.isFileTrackSupported(s.id)) {
       track.classList.add("track-unavailable");
       track
         .querySelector<HTMLButtonElement>(".track-toggle")
@@ -2789,17 +3032,23 @@ function buildSoundUI() {
   container.appendChild(binHeader);
 
   Sound.BINAURAL_PRESETS.forEach((p) => {
-    container.appendChild(
-      makeSoundTrack(
-        p.id,
-        p.icon,
-        p.name,
-        p.desc,
-        Sound.binauralPresetId === p.id,
-        100,
-        true,
-      ),
+    const track = makeSoundTrack(
+      p.id,
+      p.icon,
+      p.name,
+      p.desc,
+      Sound.binauralPresetId === p.id,
+      100,
+      true,
     );
+    if (!audioOk) {
+      track.classList.add("track-unavailable");
+      track
+        .querySelector<HTMLButtonElement>(".track-toggle")
+        ?.setAttribute("disabled", "true");
+      track.title = "Audio isn't available in this browser";
+    }
+    container.appendChild(track);
   });
 
   // ── Sound Presets ─────────────────────────────────────────────────────
@@ -2883,8 +3132,28 @@ Sound.setTrackChangeHandler(() => {
 ($("fadeSlider") as HTMLInputElement).addEventListener("input", (e) => {
   const v = +(e.target as HTMLInputElement).value;
   Sound.setFade(v);
-  $("fadeLabel").textContent = v === 0 ? "Off" : `${v}m`;
+  syncFadeLabel(v);
 });
+function syncFadeLabel(v: number) {
+  const label = $("fadeLabel");
+  if (label) label.textContent = v === 0 ? "Off" : `${v} min`;
+  document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
+    const active = +chip.dataset.fade! === v;
+    chip.classList.toggle("active", active);
+    chip.setAttribute("aria-pressed", String(active));
+  });
+}
+document.querySelectorAll<HTMLButtonElement>("#fadeChips .fade-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const v = +chip.dataset.fade!;
+    const slider = $("fadeSlider") as HTMLInputElement;
+    slider.value = String(v);
+    Sound.setFade(v);
+    syncFadeLabel(v);
+    slider.focus();
+  });
+});
+syncFadeLabel(+($("fadeSlider") as HTMLInputElement).value);
 
 // ── Custom Theme Builder — full RGB/HSL palette ───────────────────────
 const THEME_FIELDS = [
@@ -2928,12 +3197,12 @@ const rgbaToHex = (s: string): string => {
   return m
     ? "#" +
         [m[0], m[1], m[2]]
-          .map((v) => parseInt(v).toString(16).padStart(2, "0"))
+          .map((v) => Number.parseInt(v).toString(16).padStart(2, "0"))
           .join("")
     : "#ffffff";
 };
 const hexToRgb = (h: string): [number, number, number] => {
-  const v = parseInt(h.slice(1), 16);
+  const v = Number.parseInt(h.slice(1), 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 };
 const hexToHsl = (h: string): [number, number, number] => {
@@ -3255,7 +3524,7 @@ function buildColorRows() {
   );
   inputRow.appendChild(
     makeValueInput("RGB", "picker-rgb", `${ar}, ${ag_}, ${ab}`, (v) => {
-      const parts = v.split(",").map((s) => parseInt(s.trim()));
+      const parts = v.split(",").map((s) => Number.parseInt(s.trim()));
       if (
         parts.length === 3 &&
         parts.every((p) => !isNaN(p) && p >= 0 && p <= 255)
@@ -3345,6 +3614,7 @@ function previewCustomTheme() {
   cssVar("--clr-text", draft.text);
   cssVar("--clr-accent", draft.accent);
   cssVar("--clr-accent2", draft.accent2);
+  cssVar("--clr-on-accent", onAccentInk(draft.accent));
   cssVar("--clr-btn-fg", draft.btnFg);
   cssVar("--clr-panel", draft.panel);
 }
@@ -3492,1072 +3762,624 @@ function openSettings() {
   openModal("settingsOverlay");
 }
 
+let _settingsTabBarApp: ReturnType<typeof mount> | null = null;
+let _settingsContentApp: ReturnType<typeof mount> | null = null;
+
+interface SettingsFocusInfo {
+  id?: string;
+  dataTab?: string;
+  index?: number;
+}
+
+function getSettingsFocusInfo(modal: HTMLElement | null): SettingsFocusInfo | null {
+  if (!modal) return null;
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !modal.contains(active)) return null;
+  if (active.id) return { id: active.id };
+  const tab = active.getAttribute("data-tab");
+  if (tab) return { dataTab: tab };
+  const focusables = Array.from(
+    modal.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+  const index = focusables.indexOf(active);
+  return { index: index >= 0 ? index : undefined };
+}
+
+function restoreSettingsFocus(
+  info: SettingsFocusInfo | null,
+  modal: HTMLElement | null,
+): void {
+  if (!info || !modal) return;
+  try {
+    let elToFocus: HTMLElement | null = null;
+    if (info.id) {
+      elToFocus = modal.querySelector<HTMLElement>(`#${CSS.escape(info.id)}`);
+    } else if (info.dataTab) {
+      elToFocus = modal.querySelector<HTMLElement>(
+        `[data-tab="${CSS.escape(info.dataTab)}"]`,
+      );
+    } else if (info.index !== undefined) {
+      const focusables = Array.from(
+        modal.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      elToFocus = focusables[info.index] ?? null;
+    }
+    if (!elToFocus) {
+      elToFocus = modal.querySelector<HTMLElement>(
+        '.settings-tab-btn.active, button, input',
+      );
+    }
+    elToFocus?.focus();
+  } catch {
+    // ignore
+  }
+}
+
 function buildSettingsUI(activeTab = "general") {
+  const settingsModal = $("settingsOverlay");
+  const focusInfo = getSettingsFocusInfo(settingsModal);
   const tabBarEl = $("settingsTabBar");
   const el = $("settingsContent");
   if (!el || !tabBarEl) return;
-  el.innerHTML = "";
-  tabBarEl.innerHTML = "";
 
-  // Slide + fade the new pane in, direction-aware (left↔right) based on
-  // where the target tab sits relative to the one we're leaving — makes
-  // switching tabs feel like physically sliding a panel instead of a
-  // jump-cut.
   const newIndex = Math.max(0, SETTINGS_TAB_ORDER.indexOf(activeTab));
   const dir =
     newIndex === _lastSettingsTabIndex
       ? 1
       : Math.sign(newIndex - _lastSettingsTabIndex) || 1;
   _lastSettingsTabIndex = newIndex;
+  _lastSettingsTab = activeTab;
+
   el.classList.remove("pane-sliding");
   el.style.setProperty("--pane-slide-x", `${dir * 14}px`);
-  void el.offsetWidth; // reflow to restart animation
+  void el.offsetWidth;
   el.classList.add("pane-sliding");
 
-  // ── Tab definitions ───────────────────────────────────────────────────
-  // Each tab owns an accent color for its icon tile (same --int-accent
-  // pattern the Integrations tab uses) instead of a bare emoji floating
-  // in space — gives the bar the colored-glyph identity of Apple's own
-  // Settings app / Metrolist's provider tiles.
-  const tabs = [
-    { id: "general", icon: "⚙", label: "General", accent: "#8e8e93" },
-    { id: "sound", icon: "🎵", label: "Sound", accent: "#ff375f" },
-    { id: "focus", icon: "⏱", label: "Focus", accent: "#5e5ce6" },
-    { id: "display", icon: "🎨", label: "Display", accent: "#0a84ff" },
-    { id: "privacy", icon: "🔒", label: "Privacy", accent: "#30d158" },
-  ];
-
-  // Tab bar — written to #settingsTabBar (outside scroll container)
-  const tabBar = document.createElement("div");
-  tabBar.className = "settings-tab-bar";
-  tabs.forEach((t) => {
-    const btn = document.createElement("button");
-    btn.className = "settings-tab-btn" + (t.id === activeTab ? " active" : "");
-    btn.dataset.tab = t.id;
-    btn.style.setProperty("--int-accent", t.accent);
-    const ic = document.createElement("span");
-    ic.className = "stb-icon icon-tile icon-tile--sm";
-    ic.textContent = t.icon;
-    const lb = document.createElement("span");
-    lb.className = "stb-label";
-    lb.textContent = t.label;
-    btn.append(ic, lb);
-    btn.addEventListener("click", () => {
-      _lastSettingsTab = t.id;
-      buildSettingsUI(t.id);
-    });
-    tabBar.appendChild(btn);
+  // Mount Svelte SettingsTabBar
+  if (_settingsTabBarApp) {
+    unmount(_settingsTabBarApp);
+    _settingsTabBarApp = null;
+  }
+  tabBarEl.innerHTML = "";
+  _settingsTabBarApp = mount(SettingsTabBar, {
+    target: tabBarEl,
+    props: {
+      activeTab,
+      ontabchange: (tId: string) => {
+        _lastSettingsTab = tId;
+        buildSettingsUI(tId);
+      },
+    },
   });
-  tabBarEl.appendChild(tabBar);
 
-  // Pane container — scrollable body
-  const paneWrap = el; // write directly to settingsContent
+  // Mount Svelte Panel into el (#settingsContent)
+  if (_settingsContentApp) {
+    unmount(_settingsContentApp);
+    _settingsContentApp = null;
+  }
+  el.innerHTML = "";
 
-  const makeSection = (title: string) => {
-    const s = document.createElement("div");
-    s.className = "settings-section";
-    const h = document.createElement("div");
-    h.className = "settings-section-title";
-    h.textContent = title;
-    s.appendChild(h);
-    return s;
-  };
-
-  const makeRow = (
-    lText: string,
-    dText: string,
-    btnId: string,
-    on: boolean,
-    badge?: string,
-  ) => {
-    const row = document.createElement("div");
-    row.className = "settings-row";
-    const info = document.createElement("div");
-    info.className = "settings-row-info";
-    const top = document.createElement("div");
-    top.className = "settings-row-top";
-    const lbl = document.createElement("span");
-    lbl.className = "settings-row-label";
-    lbl.textContent = lText;
-    top.appendChild(lbl);
-    if (badge) {
-      const b = document.createElement("span");
-      b.className = "settings-badge";
-      b.textContent = badge;
-      top.appendChild(b);
-    }
-    const dsc = document.createElement("span");
-    dsc.className = "settings-row-desc";
-    dsc.textContent = dText;
-    info.append(top, dsc);
-    const tog = document.createElement("button");
-    tog.className = "settings-toggle" + (on ? " on" : "");
-    tog.id = btnId;
-    tog.setAttribute("role", "switch");
-    tog.setAttribute("aria-checked", String(on));
-    tog.setAttribute("aria-label", lText);
-    row.append(info, tog);
-    return row;
-  };
-
-  const wireToggle = (id: string, fn: (on: boolean) => void) => {
-    paneWrap
-      .querySelector<HTMLButtonElement>("#" + id)
-      ?.addEventListener("click", (e) => {
-        const btn = e.currentTarget as HTMLButtonElement;
-        const wasOn = btn.classList.contains("on");
-        btn.classList.toggle("on");
-        btn.setAttribute("aria-checked", String(!wasOn));
-        // Ripple animation on enable
-        if (!wasOn) {
-          const rip = document.createElement("span");
-          rip.className = "toggle-ripple";
-          btn.appendChild(rip);
-          setTimeout(() => rip.remove(), 600);
-        }
-        fn(!wasOn);
-      });
-  };
-
-  // ══ GENERAL ════════════════════════════════════════════════════════════
   if (activeTab === "general") {
-    // ── Presets — one click to bundle several settings for a use case ──
-    const PRESETS: Array<{
-      id: string;
-      icon: string;
-      accent: string;
-      label: string;
-      blurb: string;
-      work: number;
-      brk: number;
-      sound: string;
-      smartBreak: boolean;
-      idleNudge: boolean;
-      calm: boolean;
-      reminderMins: number;
-    }> = [
-      {
-        id: "student",
-        icon: "📚",
-        accent: "#bf5af2",
-        label: "Student",
-        blurb: "25/5 Pomodoro · library ambience · break reminders",
-        work: 25,
-        brk: 5,
-        sound: "library",
-        smartBreak: true,
-        idleNudge: true,
-        calm: false,
-        reminderMins: 60,
-      },
-      {
-        id: "office",
-        icon: "💼",
-        accent: "#0a84ff",
-        label: "Office Worker",
-        blurb: "50/10 sessions · café ambience · fewer nudges",
-        work: 50,
-        brk: 10,
-        sound: "cafe",
-        smartBreak: true,
-        idleNudge: false,
-        calm: false,
-        reminderMins: 90,
-      },
-      {
-        id: "deepwork",
-        icon: "🌙",
-        accent: "#5e5ce6",
-        label: "Deep Work",
-        blurb: "90/15 long blocks · brown noise · no interruptions",
-        work: 90,
-        brk: 15,
-        sound: "brown",
-        smartBreak: false,
-        idleNudge: false,
-        calm: false,
-        reminderMins: 120,
-      },
-      {
-        id: "minimal",
-        icon: "🧘",
-        accent: "#8e8e93",
-        label: "Minimalist",
-        blurb: "25/5 · silent · Calm Mode · nothing else on",
-        work: 25,
-        brk: 5,
-        sound: "",
-        smartBreak: false,
-        idleNudge: false,
-        calm: true,
-        reminderMins: 90,
-      },
-    ];
-    const presetSec = makeSection("Presets");
-    const presetHint = document.createElement("p");
-    presetHint.className = "settings-hint";
-    presetHint.textContent =
-      "Bundles Pomodoro timing, ambient sound, and a few Focus/Display settings for a use case. Anything can still be changed individually afterward.";
-    presetSec.appendChild(presetHint);
-    const presetGrid = document.createElement("div");
-    presetGrid.className = "preset-grid";
-    PRESETS.forEach((p) => {
-      const btn = document.createElement("button");
-      btn.className = "preset-card";
-      btn.style.setProperty("--int-accent", p.accent);
-      const ic = document.createElement("span");
-      ic.className = "preset-icon icon-tile";
-      ic.textContent = p.icon;
-      const lb = document.createElement("span");
-      lb.className = "preset-label";
-      lb.textContent = p.label;
-      const bl = document.createElement("span");
-      bl.className = "preset-blurb";
-      bl.textContent = p.blurb;
-      btn.append(ic, lb, bl);
-      btn.addEventListener("click", () => {
-        Pom.setWorkMins(p.work);
-        Pom.setBreakMins(p.brk);
-        Sound.stop();
-        if (p.sound) Sound.play(p.sound);
-        localStorage.setItem("sc_smart_break", p.smartBreak ? "1" : "0");
-        localStorage.setItem("sc_idle_detect", p.idleNudge ? "1" : "0");
-        wireIdleListeners(p.idleNudge);
-        localStorage.setItem("sc_break_reminder_mins", String(p.reminderMins));
-        localStorage.setItem("sc_calm_mode", p.calm ? "1" : "0");
-        document.body.classList.toggle("calm-mode", p.calm);
-        if (p.calm) {
-          localStorage.setItem("sc_reduce_motion", "1");
-          document.body.classList.add("reduced-motion");
-          localStorage.setItem("sc_parallax", "0");
-          setTier("med");
-          invalidateCache();
-        }
-        showToast(`${p.icon} ${p.label} preset applied`, 3500);
-        buildSettingsUI(_lastSettingsTab);
-      });
-      presetGrid.appendChild(btn);
-    });
-    presetSec.appendChild(presetGrid);
-    paneWrap.appendChild(presetSec);
-
-    const clockModes: {
-      mode: ClockMode;
-      label: string;
-      icon: string;
-      desc: string;
-    }[] = [
-      { mode: "digital", label: "Digital", icon: "🔢", desc: "Classic digits" },
-      { mode: "analogue", label: "Analogue", icon: "🕐", desc: "Sweep hands" },
-      { mode: "flip", label: "Flip", icon: "📅", desc: "3D card flip" },
-      { mode: "word", label: "Word", icon: "📝", desc: "It is half past" },
-      { mode: "minimal", label: "Minimal", icon: "○", desc: "Hour only, huge" },
-      { mode: "segment", label: "Segment", icon: "📟", desc: "LED 7-segment" },
-    ];
-    const clockSec = makeSection("Clock Style");
-    const grid = document.createElement("div");
-    grid.className = "clock-mode-grid";
-    clockModes.forEach(({ mode, label, icon, desc }) => {
-      const btn = document.createElement("button");
-      btn.className = "clock-mode-btn" + (clockMode === mode ? " active" : "");
-      btn.dataset.mode = mode;
-      const iEl = document.createElement("span");
-      iEl.className = "cmb-icon";
-      iEl.textContent = icon;
-      const lEl = document.createElement("span");
-      lEl.className = "cmb-label";
-      lEl.textContent = label;
-      const dEl = document.createElement("span");
-      dEl.className = "cmb-desc";
-      dEl.textContent = desc;
-      btn.append(iEl, lEl, dEl);
-      btn.addEventListener("click", () => {
-        setClockMode(mode);
-        updateClockCanvas();
-        grid
-          .querySelectorAll(".clock-mode-btn")
-          .forEach((b) =>
-            b.classList.toggle(
-              "active",
-              (b as HTMLElement).dataset.mode === mode,
-            ),
-          );
-      });
-      grid.appendChild(btn);
-    });
-    clockSec.appendChild(grid);
-    paneWrap.appendChild(clockSec);
-
-    // Quick actions
-    const actionSec = makeSection("Quick Actions");
-    const actionGrid = document.createElement("div");
-    actionGrid.className = "settings-action-grid";
-    const quickActions = [
-      {
-        label: "🎨 Custom Theme",
-        fn: () => {
-          closeModal("settingsOverlay");
-          openThemeBuilder();
-        },
-      },
-      {
-        label: "📱 QR Handoff",
-        fn: () => {
-          closeModal("settingsOverlay");
-          openQRHandoff();
-        },
-      },
-      {
-        label: "🎬 Animedoro",
-        fn: () => {
-          closeModal("settingsOverlay");
-          startAnimedoro();
-          openModal("pomOverlay");
-        },
-      },
-      {
-        label: "⛶ Kiosk Mode",
-        fn: () => {
-          closeModal("settingsOverlay");
-          toggleKiosk();
-        },
-      },
-      {
-        label: "📺 Present",
-        fn: () => {
-          closeModal("settingsOverlay");
-          togglePresent();
-        },
-      },
-      {
-        label: "🖼 Picture-in-Picture",
-        fn: async () => {
-          closeModal("settingsOverlay");
-          if (APIs.isPiPActive()) {
-            await APIs.exitPiP();
-            showToast("PiP closed");
-          } else {
-            await APIs.enterPiP(document.getElementById("clock-block-wrap")!, {
-              accent: currentTheme.accent,
-              text: currentTheme.text,
-              baseBg: currentTheme.baseBg,
-            });
-            showToast("Clock floating in PiP");
-          }
-        },
-      },
-    ];
-    quickActions.forEach(({ label, fn }) => {
-      const btn = document.createElement("button");
-      btn.className = "settings-action-btn";
-      btn.textContent = label;
-      btn.addEventListener("click", fn as () => void);
-      actionGrid.appendChild(btn);
-    });
-    actionSec.appendChild(actionGrid);
-    paneWrap.appendChild(actionSec);
-
-    // Language
-    const langSec = makeSection("Language");
-    const langBtn = document.createElement("button");
-    langBtn.className = "settings-action-btn settings-action-btn--full";
-    const curFlag = LOCALE_FLAGS[getLocale()];
-    const curName = LOCALE_NAMES[getLocale()];
-    langBtn.textContent = `${curFlag} ${curName} — Change language`;
-    langBtn.addEventListener("click", () => {
-      buildLanguageUI(document.getElementById("languageContent")!);
-      openModal("languageOverlay");
-    });
-    langSec.appendChild(langBtn);
-    paneWrap.appendChild(langSec);
-
-    // Integrations shortcut
-    const intSec = makeSection("Integrations");
-    const intBtn = document.createElement("button");
-    intBtn.className = "settings-action-btn settings-action-btn--full";
+    const curFlag = LOCALE_FLAGS[getLocale()] || "🌐";
+    const curName = LOCALE_NAMES[getLocale()] || "English";
     const connectedCount = Object.values(
       Integrations.getConnectionStatus(),
     ).filter(Boolean).length;
-    intBtn.textContent =
-      connectedCount > 0
-        ? `🔗 ${connectedCount} integration${connectedCount > 1 ? "s" : ""} connected — Manage`
-        : "🔗 Connect Spotify, Calendar, Notion, Todoist…";
-    intBtn.addEventListener("click", () => {
-      closeModal("settingsOverlay");
-      openIntegrations();
-    });
-    intSec.appendChild(intBtn);
-    paneWrap.appendChild(intSec);
-  } else if (activeTab === "sound") {
-    const audioSec = makeSection("Audio");
-    audioSec.appendChild(
-      makeRow(
-        "3D Spatial Audio",
-        "Sounds pan independently — best with headphones",
-        "toggleSpatial",
-        Sound.isSpatialEnabled(),
-        "ILD+ITD",
-      ),
-    );
-    if (Sound.isHeadTrackingAvailable()) {
-      audioSec.appendChild(
-        makeRow(
-          "Head Tracking",
-          "Turn your phone and the soundstage stays anchored in place, like AirPods spatial audio",
-          "toggleHeadTracking",
-          Sound.isHeadTrackingEnabled(),
-        ),
-      );
-    }
-    audioSec.appendChild(
-      makeRow(
-        "Box Breathing on Break",
-        "Guided breathing overlay during Pomodoro breaks",
-        "toggleBreathing",
-        breathingBreakEnabled,
-      ),
-    );
-    audioSec.appendChild(
-      makeRow(
-        "UI Sound Effects",
-        "Subtle click, chime, and interaction sounds",
-        "toggleUiSounds",
-        localStorage.getItem("sc_ui_sounds") !== "0",
-      ),
-    );
-    audioSec.appendChild(
-      makeRow(
-        "Auto-play Theme Ambience",
-        "Some themes (like Common Room) can auto-start matching ambient sounds when selected",
-        "toggleAutoThemeAmbience",
-        localStorage.getItem("sc_auto_theme_ambience") === "1",
-      ),
-    );
-    paneWrap.appendChild(audioSec);
 
-    const soundBtnSec = makeSection("Mixer");
-    soundBtnSec.appendChild(buildMixerLaunchCard());
-    paneWrap.appendChild(soundBtnSec);
-
-    const npSec = makeSection("Now Playing → Theme");
-    npSec.appendChild(
-      makeRow(
-        "Auto-switch Theme",
-        "When Spotify (or a manually-entered track) matches a soundtrack, switch to that theme",
-        "toggleNowPlayingTheme",
-        localStorage.getItem("sc_nowplaying_theme") === "1",
-      ),
-    );
-    const npRow = document.createElement("div");
-    npRow.className = "settings-row";
-    const npInput = document.createElement("input");
-    npInput.type = "text";
-    npInput.className = "np-manual-input";
-    npInput.placeholder =
-      "What's playing? (any player — song, artist, or soundtrack)";
-    npInput.setAttribute("aria-label", "What's playing");
-    npInput.value = localStorage.getItem("sc_nowplaying_manual") || "";
-    npRow.appendChild(npInput);
-    npSec.appendChild(npRow);
-    const npHint = document.createElement("p");
-    npHint.className = "settings-hint";
-    npHint.textContent = Integrations.isSpotifyConnected()
-      ? "✓ Spotify connected — this checks automatically too."
-      : "Connect Spotify in General → Integrations for automatic detection, or just type here.";
-    npSec.appendChild(npHint);
-    paneWrap.appendChild(npSec);
-
-    npInput.addEventListener("change", () => {
-      const val = npInput.value.trim();
-      localStorage.setItem("sc_nowplaying_manual", val);
-      if (!val) return;
-      tryMatchNowPlayingTheme({ title: val, artist: "" }, true);
-    });
-    npInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") npInput.blur();
-    });
-
-    wireToggle("toggleNowPlayingTheme", (on) => {
-      localStorage.setItem("sc_nowplaying_theme", on ? "1" : "0");
-      showToast(
-        on
-          ? "🎵 Now Playing theme-matching on"
-          : "Now Playing theme-matching off",
-      );
-      if (on) startNowPlayingPoll();
-      else stopNowPlayingPoll();
-    });
-
-    wireToggle("toggleSpatial", (on) => Sound.setSpatial(on));
-    if (Sound.isHeadTrackingAvailable()) {
-      wireToggle("toggleHeadTracking", async (on) => {
-        if (on && CAPS.deviceOrientationNeedsPermission) {
-          const granted = await requestMotionPermission();
-          if (!granted) {
-            showToast("Motion access declined");
-            return;
+    _settingsContentApp = mount(GeneralPanel, {
+      target: el,
+      props: {
+        activeClockMode: clockMode,
+        languageLabel: `${curFlag} ${curName} — Change language`,
+        connectedCount,
+        onselectpreset: (pId: string) => {
+          const PRESETS = [
+            {
+              id: "student",
+              icon: "📚",
+              label: "Student",
+              work: 25,
+              brk: 5,
+              sound: "library",
+              smartBreak: true,
+              idleNudge: true,
+              calm: false,
+              reminderMins: 60,
+            },
+            {
+              id: "office",
+              icon: "💼",
+              label: "Office Worker",
+              work: 50,
+              brk: 10,
+              sound: "cafe",
+              smartBreak: true,
+              idleNudge: false,
+              calm: false,
+              reminderMins: 90,
+            },
+            {
+              id: "deepwork",
+              icon: "🌙",
+              label: "Deep Work",
+              work: 90,
+              brk: 15,
+              sound: "brown",
+              smartBreak: false,
+              idleNudge: false,
+              calm: false,
+              reminderMins: 120,
+            },
+            {
+              id: "minimal",
+              icon: "🧘",
+              label: "Minimalist",
+              work: 25,
+              brk: 5,
+              sound: "",
+              smartBreak: false,
+              idleNudge: false,
+              calm: true,
+              reminderMins: 90,
+            },
+          ];
+          const p = PRESETS.find((pr) => pr.id === pId);
+          if (p) {
+            Pom.setWorkMins(p.work);
+            Pom.setBreakMins(p.brk);
+            Sound.stop();
+            if (p.sound) Sound.play(p.sound);
+            localStorage.setItem("sc_smart_break", p.smartBreak ? "1" : "0");
+            localStorage.setItem("sc_idle_detect", p.idleNudge ? "1" : "0");
+            wireIdleListeners(p.idleNudge);
+            localStorage.setItem("sc_break_reminder_mins", String(p.reminderMins));
+            localStorage.setItem("sc_calm_mode", p.calm ? "1" : "0");
+            document.body.classList.toggle("calm-mode", p.calm);
+            if (p.calm) {
+              localStorage.setItem("sc_reduce_motion", "1");
+              document.body.classList.add("reduced-motion");
+              localStorage.setItem("sc_parallax", "0");
+              setTier("med");
+              invalidateCache();
+            }
+            showToast(`${p.icon} ${p.label} preset applied`, 3500);
+            buildSettingsUI(_lastSettingsTab);
           }
-        }
-        Sound.setHeadTracking(on);
-        if (on && !Sound.isSpatialEnabled())
+        },
+        onselectclockmode: (mode: string) => {
+          setClockMode(mode as ClockMode);
+          updateClockCanvas();
+          buildSettingsUI("general");
+        },
+        onquickaction: (id: string) => {
+          closeModal("settingsOverlay");
+          if (id === "custom-theme") openThemeBuilder();
+          else if (id === "qr-handoff") void openQRHandoff();
+          else if (id === "animedoro") {
+            startAnimedoro();
+            openModal("pomOverlay");
+          } else if (id === "kiosk") toggleKiosk();
+          else if (id === "present") togglePresent();
+          else if (id === "pip") {
+            if (APIs.isPiPActive()) {
+              void APIs.exitPiP();
+              showToast("PiP closed");
+            } else {
+              void APIs.enterPiP(document.getElementById("clock-block-wrap")!, {
+                accent: currentTheme.accent,
+                text: currentTheme.text,
+                baseBg: currentTheme.baseBg,
+              });
+              showToast("Clock floating in PiP");
+            }
+          }
+        },
+        onopenlanguage: () => {
+          closeModal("settingsOverlay");
+          buildLanguageUI(document.getElementById("languageContent")!);
+          openModal("languageOverlay");
+        },
+        onopenintegrations: () => {
+          closeModal("settingsOverlay");
+          openIntegrations();
+        },
+      },
+    });
+  } else if (activeTab === "sound") {
+    _settingsContentApp = mount(SoundPanel, {
+      target: el,
+      props: {
+        spatial: Sound.isSpatialEnabled(),
+        headTracking: Sound.isHeadTrackingEnabled(),
+        headTrackingAvailable: Sound.isHeadTrackingAvailable(),
+        breathing: breathingBreakEnabled,
+        uiSounds: localStorage.getItem("sc_ui_sounds") !== "0",
+        autoThemeAmbience: localStorage.getItem("sc_auto_theme_ambience") === "1",
+        musicDeck: MusicDock.isMusicDeckEnabled(),
+        musicProvider: MusicDock.getProviderPref(),
+        nowPlayingTheme: localStorage.getItem("sc_nowplaying_theme") === "1",
+        nowPlayingManual: localStorage.getItem("sc_nowplaying_manual") || "",
+        spotifyConnected: Integrations.isSpotifyConnected(),
+        activeTracksCount: 0,
+        mixerSubtext: "Layer rain, waves, café, vinyl & more",
+        ontoggleSpatial: (val: boolean) => {
+          Sound.setSpatial(val);
+          buildSettingsUI("sound");
+        },
+        ontoggleHeadTracking: async (val: boolean) => {
+          if (val && CAPS.deviceOrientationNeedsPermission) {
+            const granted = await requestMotionPermission();
+            if (!granted) {
+              showToast("Motion access declined");
+              return;
+            }
+          }
+          Sound.setHeadTracking(val);
+          if (val && !Sound.isSpatialEnabled())
+            showToast(
+              "Head tracking on — turn on 3D Spatial Audio above to hear it move",
+            );
+          buildSettingsUI("sound");
+        },
+        ontoggleBreathing: (val: boolean) => {
+          breathingBreakEnabled = val;
+          localStorage.setItem("sc_breathing_break", val ? "1" : "0");
+          buildSettingsUI("sound");
+        },
+        ontoggleUiSounds: (val: boolean) => {
+          localStorage.setItem("sc_ui_sounds", val ? "1" : "0");
+          showToast(val ? "🔔 UI sounds on" : "🔕 UI sounds off");
+          buildSettingsUI("sound");
+        },
+        ontoggleAutoThemeAmbience: (val: boolean) => {
+          localStorage.setItem("sc_auto_theme_ambience", val ? "1" : "0");
           showToast(
-            "Head tracking on — turn on 3D Spatial Audio above to hear it move",
+            val ? "🎵 Theme ambience auto-play on" : "Theme ambience auto-play off",
           );
-      });
-    }
-    wireToggle("toggleBreathing", (on) => {
-      breathingBreakEnabled = on;
-      localStorage.setItem("sc_breathing_break", on ? "1" : "0");
-    });
-    wireToggle("toggleUiSounds", (on) => {
-      localStorage.setItem("sc_ui_sounds", on ? "1" : "0");
-      showToast(on ? "🔔 UI sounds on" : "🔕 UI sounds off");
-    });
-    wireToggle("toggleAutoThemeAmbience", (on) => {
-      localStorage.setItem("sc_auto_theme_ambience", on ? "1" : "0");
-      showToast(
-        on ? "🎵 Theme ambience auto-play on" : "Theme ambience auto-play off",
-      );
-    });
-  }
-
-  // ══ FOCUS ═════════════════════════════════════════════════════════════
-  else if (activeTab === "focus") {
-    const focusSec = makeSection("Pomodoro & Sessions");
-    focusSec.appendChild(
-      makeRow(
-        "Focus Lock Delay",
-        "3-second intentional friction before opening panels during Pomodoro",
-        "toggleFocusLockS",
-        focusLockEnabled,
-      ),
-    );
-    focusSec.appendChild(
-      makeRow(
-        "Smart Break Reminder",
-        "Nudges you with a toast + notification during long, non-Pomodoro sessions",
-        "toggleSmartBreak",
-        localStorage.getItem("sc_smart_break") !== "0",
-      ),
-    );
-
-    const intervalRow = document.createElement("div");
-    intervalRow.className = "settings-row";
-    const intInfo = document.createElement("div");
-    intInfo.className = "settings-row-info";
-    const intTop = document.createElement("div");
-    intTop.className = "settings-row-top";
-    const intLbl = document.createElement("span");
-    intLbl.className = "settings-row-label";
-    intLbl.textContent = "Remind me after";
-    intTop.appendChild(intLbl);
-    intInfo.appendChild(intTop);
-    const intSelect = document.createElement("select");
-    intSelect.className = "settings-select";
-    intSelect.setAttribute("aria-label", "Remind me after");
-    [30, 45, 60, 90, 120].forEach((m) => {
-      const opt = document.createElement("option");
-      opt.value = String(m);
-      opt.textContent = `${m} min`;
-      if (
-        parseInt(localStorage.getItem("sc_break_reminder_mins") || "90", 10) ===
-        m
-      )
-        opt.selected = true;
-      intSelect.appendChild(opt);
-    });
-    intSelect.addEventListener("change", () =>
-      localStorage.setItem("sc_break_reminder_mins", intSelect.value),
-    );
-    intervalRow.append(intInfo, intSelect);
-    focusSec.appendChild(intervalRow);
-
-    focusSec.appendChild(
-      makeRow(
-        "Idle Nudge",
-        'After 15 min with no input, a gentle "still there?" toast — never pauses or alters your timer',
-        "toggleIdleDetect",
-        localStorage.getItem("sc_idle_detect") === "1",
-      ),
-    );
-
-    paneWrap.appendChild(focusSec);
-
-    // ── Zen Mode customization ────────────────────────────────────────
-    const zenSec = makeSection("Zen Mode");
-
-    const zenSoundRow = document.createElement("div");
-    zenSoundRow.className = "settings-row";
-    const zenSoundInfo = document.createElement("div");
-    zenSoundInfo.className = "settings-row-info";
-    const zenSoundTop = document.createElement("div");
-    zenSoundTop.className = "settings-row-top";
-    const zenSoundLbl = document.createElement("span");
-    zenSoundLbl.className = "settings-row-label";
-    zenSoundLbl.textContent = "Ambient Sound";
-    zenSoundTop.appendChild(zenSoundLbl);
-    const zenSoundDesc = document.createElement("span");
-    zenSoundDesc.className = "settings-row-desc";
-    zenSoundDesc.textContent =
-      "Auto-plays when you enter Zen Mode, stops when you leave — only if nothing is already playing.";
-    zenSoundInfo.append(zenSoundTop, zenSoundDesc);
-    const zenSoundSelect = document.createElement("select");
-    zenSoundSelect.className = "settings-select";
-    zenSoundSelect.setAttribute("aria-label", "Zen Mode ambient sound");
-    const noneOpt = document.createElement("option");
-    noneOpt.value = "";
-    noneOpt.textContent = "None";
-    zenSoundSelect.appendChild(noneOpt);
-    Sound.SOUNDS.forEach((s) => {
-      // Recording-only tracks (river/waterfall/thunder/night/birds) go
-      // silent — with no toggle to notice why — on a browser that can't
-      // decode Ogg/Opus, since Zen mode has no mixer UI to grey out like
-      // buildSoundUI() does. Leave them off the list entirely here rather
-      // than let Zen mode auto-start a track that can't actually play.
-      if (!Sound.isFileTrackSupported(s.id)) return;
-      const opt = document.createElement("option");
-      opt.value = s.id;
-      opt.textContent = `${s.icon} ${s.name}`;
-      if ((localStorage.getItem("sc_zen_sound") || "") === s.id)
-        opt.selected = true;
-      zenSoundSelect.appendChild(opt);
-    });
-    zenSoundSelect.addEventListener("change", () => {
-      if (zenSoundSelect.value)
-        localStorage.setItem("sc_zen_sound", zenSoundSelect.value);
-      else localStorage.removeItem("sc_zen_sound");
-    });
-    zenSoundRow.append(zenSoundInfo, zenSoundSelect);
-    zenSec.appendChild(zenSoundRow);
-
-    const zenDelayRow = document.createElement("div");
-    zenDelayRow.className = "settings-row";
-    const zenDelayInfo = document.createElement("div");
-    zenDelayInfo.className = "settings-row-info";
-    const zenDelayTop = document.createElement("div");
-    zenDelayTop.className = "settings-row-top";
-    const zenDelayLbl = document.createElement("span");
-    zenDelayLbl.className = "settings-row-label";
-    zenDelayLbl.textContent = "Cursor Auto-Hide";
-    zenDelayTop.appendChild(zenDelayLbl);
-    const zenDelayDesc = document.createElement("span");
-    zenDelayDesc.className = "settings-row-desc";
-    zenDelayDesc.textContent =
-      "How long the cursor and a faint exit hint stay visible after you stop moving the mouse.";
-    zenDelayInfo.append(zenDelayTop, zenDelayDesc);
-    const zenDelaySelect = document.createElement("select");
-    zenDelaySelect.className = "settings-select";
-    zenDelaySelect.setAttribute(
-      "aria-label",
-      "Zen Mode cursor auto-hide delay",
-    );
-    (
-      [
-        ["1500", "Fast · 1.5s"],
-        ["2500", "Normal · 2.5s"],
-        ["4000", "Slow · 4s"],
-      ] as const
-    ).forEach(([ms, label]) => {
-      const opt = document.createElement("option");
-      opt.value = ms;
-      opt.textContent = label;
-      if ((localStorage.getItem("sc_zen_dim_delay") || "2500") === ms)
-        opt.selected = true;
-      zenDelaySelect.appendChild(opt);
-    });
-    zenDelaySelect.addEventListener("change", () =>
-      localStorage.setItem("sc_zen_dim_delay", zenDelaySelect.value),
-    );
-    zenDelayRow.append(zenDelayInfo, zenDelaySelect);
-    zenSec.appendChild(zenDelayRow);
-
-    zenSec.appendChild(
-      makeRow(
-        "Breathing Rings",
-        "The slow pulsing rings around the clock while in Zen Mode",
-        "toggleZenRings",
-        localStorage.getItem("sc_zen_rings") !== "0",
-      ),
-    );
-
-    paneWrap.appendChild(zenSec);
-    wireToggle("toggleZenRings", (on) =>
-      localStorage.setItem("sc_zen_rings", on ? "1" : "0"),
-    );
-
-    const pomBtn = document.createElement("button");
-    pomBtn.className = "settings-action-btn settings-action-btn--full";
-    pomBtn.textContent = "⏱ Pomodoro Settings";
-    pomBtn.addEventListener("click", () => {
-      closeModal("settingsOverlay");
-      openModal("pomOverlay");
-    });
-    const pomSec = makeSection("Timer");
-    pomSec.appendChild(pomBtn);
-    paneWrap.appendChild(pomSec);
-
-    wireToggle("toggleFocusLockS", () => toggleFocusLock());
-    wireToggle("toggleSmartBreak", (on) => {
-      localStorage.setItem("sc_smart_break", on ? "1" : "0");
-    });
-    wireToggle("toggleIdleDetect", (on) => applyIdleDetection(on));
-  }
-
-  // ══ DISPLAY ═══════════════════════════════════════════════════════════
-  else if (activeTab === "display") {
-    // Clock position — scoped to whichever clock style is active right now,
-    // so each style (digital, analogue, flip…) remembers its own preference.
-    const layoutSec = makeSection("Layout");
-    const clockPosRow = document.createElement("div");
-    clockPosRow.className = "settings-row";
-    const cpInfo = document.createElement("div");
-    cpInfo.className = "settings-row-info";
-    const cpTop = document.createElement("div");
-    cpTop.className = "settings-row-top";
-    const cpLbl = document.createElement("span");
-    cpLbl.className = "settings-row-label";
-    cpLbl.textContent = "Clock Position";
-    cpTop.appendChild(cpLbl);
-    const cpDesc = document.createElement("span");
-    cpDesc.className = "settings-row-desc";
-    cpDesc.textContent = `Top: classic layout. Centre: full-viewport clock. Applies to the ${clockMode} style only.`;
-    cpInfo.append(cpTop, cpDesc);
-    const cpSeg = document.createElement("div");
-    cpSeg.className = "settings-seg";
-    ["top", "center"].forEach((pos) => {
-      const btn = document.createElement("button");
-      btn.className =
-        "settings-seg-btn" +
-        (getClockPosition(clockMode) === pos ? " active" : "");
-      btn.textContent = pos === "top" ? "⊟ Top" : "⊞ Centre";
-      btn.addEventListener("click", () => {
-        applyClockPosition(pos as "top" | "center");
-        cpSeg
-          .querySelectorAll(".settings-seg-btn")
-          .forEach((b, i) =>
-            b.classList.toggle("active", i === (pos === "top" ? 0 : 1)),
+          buildSettingsUI("sound");
+        },
+        ontoggleMusicDeck: (val: boolean) => {
+          MusicDock.setMusicDeckEnabled(val);
+          if (
+            val &&
+            MusicDock.getProviderPref() !== "youtube" &&
+            Integrations.isSpotifyConnected()
+          )
+            void MusicDock.initSpotifyPlayback();
+          showToast(val ? "Music panel enabled" : "Music panel hidden");
+          buildSettingsUI("sound");
+        },
+        onchangeMusicProvider: (val: "youtube" | "spotify" | "both") => {
+          MusicDock.setProviderPref(val);
+          if (
+            MusicDock.isMusicDeckEnabled() &&
+            val !== "youtube" &&
+            Integrations.isSpotifyConnected()
+          )
+            void MusicDock.initSpotifyPlayback();
+          showToast(`Music panel: ${val}`);
+          buildSettingsUI("sound");
+        },
+        onopenmixer: () => {
+          closeModal("settingsOverlay");
+          buildSoundUI();
+          openModal("soundOverlay");
+        },
+        ontoggleNowPlayingTheme: (val: boolean) => {
+          localStorage.setItem("sc_nowplaying_theme", val ? "1" : "0");
+          showToast(
+            val
+              ? "🎵 Now Playing theme-matching on"
+              : "Now Playing theme-matching off",
           );
-      });
-      cpSeg.appendChild(btn);
+          if (val) startNowPlayingPoll();
+          else stopNowPlayingPoll();
+          buildSettingsUI("sound");
+        },
+        onchangeNowPlayingManual: (val: string) => {
+          const trimmed = val.trim();
+          localStorage.setItem("sc_nowplaying_manual", trimmed);
+          if (trimmed) tryMatchNowPlayingTheme({ title: trimmed, artist: "" }, true);
+        },
+      },
     });
-    clockPosRow.append(cpInfo, cpSeg);
-    layoutSec.appendChild(clockPosRow);
-    layoutSec.appendChild(
-      makeRow(
-        "Minimal Session Panel",
-        "In Centre mode, shrink the session timer, dock it to the side, and hide the day-progress bar and quote — keeps the clock the focal point",
-        "toggleCenterMinimal",
-        centerMinimal,
-      ),
+  } else if (activeTab === "focus") {
+    const availSounds = Sound.SOUNDS.filter((s) => Sound.isFileTrackSupported(s.id)).map(
+      (s) => ({
+        id: s.id,
+        name: s.name,
+        icon: s.icon,
+      }),
     );
-
-    // Digits — independent hide-seconds / hide-milliseconds
-    const digitsSec = makeSection("Digits");
-    digitsSec.appendChild(
-      makeRow(
-        "Hide Seconds",
-        "Drop the seconds digits/hand across every clock style — just hours and minutes",
-        "toggleHideSeconds",
-        localStorage.getItem("sc_hide_seconds") === "1",
-      ),
-    );
-    digitsSec.appendChild(
-      makeRow(
-        "Hide Milliseconds",
-        "Hide the fractional-second readout under the clock (kept even with seconds shown, unless this is on)",
-        "toggleHideMs",
-        localStorage.getItem("sc_hide_ms") === "1",
-      ),
-    );
-    digitsSec.appendChild(
-      makeRow(
-        "24-Hour Time",
-        "Show hours as 00–23 with no AM/PM — applies to Digital, Minimal, Flip and Segment styles",
-        "toggle24Hour",
-        use24Hour,
-      ),
-    );
-    paneWrap.appendChild(layoutSec);
-    paneWrap.appendChild(digitsSec);
-
-    // ── Calm Mode — one toggle that simplifies everything at once ──────
-    const calmSec = makeSection("Simplify");
-    calmSec.appendChild(
-      makeRow(
-        "Calm Mode",
-        "One switch for less visual intensity — reduces motion, turns off parallax, and lowers render quality",
-        "toggleCalmMode",
-        localStorage.getItem("sc_calm_mode") === "1",
-      ),
-    );
-    calmSec.appendChild(
-      makeRow(
-        "Focus Mode",
-        "Fades away buttons and chrome after a few idle seconds; move the mouse to bring them back",
-        "toggleFocusModeS",
-        localStorage.getItem("sc_focus_mode") === "1",
-      ),
-    );
-    paneWrap.appendChild(calmSec);
-
-    if ("documentPictureInPicture" in window) {
-      const pipBtn = document.createElement("button");
-      pipBtn.className = "settings-action-btn settings-action-btn--full";
-      pipBtn.textContent = "🪟 Pop Out Mini Clock (Always on Top)";
-      pipBtn.addEventListener("click", () => {
-        closeModal("settingsOverlay");
-        openMiniClockPiP();
-      });
-      const pipSec = makeSection("Always on Top");
-      pipSec.appendChild(pipBtn);
-      paneWrap.appendChild(pipSec);
-    }
-
-    const animSec = makeSection("Motion & Animations");
+    _settingsContentApp = mount(FocusPanel, {
+      target: el,
+      props: {
+        focusLock: focusLockEnabled,
+        smartBreak: localStorage.getItem("sc_smart_break") !== "0",
+        breakReminderMins: Number.parseInt(
+          localStorage.getItem("sc_break_reminder_mins") || "90",
+          10,
+        ),
+        idleDetect: localStorage.getItem("sc_idle_detect") === "1",
+        zenSound: localStorage.getItem("sc_zen_sound") || "",
+        zenDimDelay: localStorage.getItem("sc_zen_dim_delay") || "2500",
+        zenRings: localStorage.getItem("sc_zen_rings") !== "0",
+        availableSounds: availSounds,
+        ontoggleFocusLock: () => {
+          toggleFocusLock();
+          buildSettingsUI("focus");
+        },
+        ontoggleSmartBreak: (val: boolean) => {
+          localStorage.setItem("sc_smart_break", val ? "1" : "0");
+          buildSettingsUI("focus");
+        },
+        onchangeBreakReminderMins: (mins: number) => {
+          localStorage.setItem("sc_break_reminder_mins", String(mins));
+        },
+        ontoggleIdleDetect: (val: boolean) => {
+          applyIdleDetection(val);
+          buildSettingsUI("focus");
+        },
+        onchangeZenSound: (val: string) => {
+          if (val) localStorage.setItem("sc_zen_sound", val);
+          else localStorage.removeItem("sc_zen_sound");
+        },
+        onchangeZenDimDelay: (val: string) => {
+          localStorage.setItem("sc_zen_dim_delay", val);
+        },
+        ontoggleZenRings: (val: boolean) => {
+          localStorage.setItem("sc_zen_rings", val ? "1" : "0");
+          buildSettingsUI("focus");
+        },
+        onopenpomodoro: () => {
+          closeModal("settingsOverlay");
+          buildPomUI();
+          openModal("pomOverlay");
+        },
+      },
+    });
+  } else if (activeTab === "display") {
     const reduceMotion =
       localStorage.getItem("sc_reduce_motion") === "1" ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    animSec.appendChild(
-      makeRow(
-        "Reduce Motion",
-        "Simpler transitions, no parallax, no particle animations",
-        "toggleReduceMotion",
+
+    _settingsContentApp = mount(DisplayPanel, {
+      target: el,
+      props: {
+        clockPos: getClockPosition(clockMode),
+        clockMode,
+        centerMinimal,
+        hideSeconds,
+        hideMs,
+        use24Hour,
+        calmMode: localStorage.getItem("sc_calm_mode") === "1",
+        focusMode: localStorage.getItem("sc_focus_mode") === "1",
         reduceMotion,
-      ),
-    );
-    animSec.appendChild(
-      makeRow(
-        "Parallax Depth",
-        "Canvas layers shift with mouse/gyroscope movement",
-        "toggleParallax",
-        localStorage.getItem("sc_parallax") !== "0",
-      ),
-    );
-    if (CAPS.vibration) {
-      animSec.appendChild(
-        makeRow(
-          "Haptic Feedback",
-          "A light tap on buttons, toggles and sliders, plus session start/complete and milestones",
-          "toggleHaptics",
-          localStorage.getItem("sc_haptics") !== "0",
-        ),
-      );
-    }
-    paneWrap.appendChild(animSec);
-
-    const perfSec = makeSection("Performance");
-    const qualityRow = document.createElement("div");
-    qualityRow.className = "settings-row";
-    const qualInfo = document.createElement("div");
-    qualInfo.className = "settings-row-info";
-    const qualTop = document.createElement("div");
-    qualTop.className = "settings-row-top";
-    const qualLbl = document.createElement("span");
-    qualLbl.className = "settings-row-label";
-    qualLbl.textContent = "Render Quality";
-    const fpsBadge = document.createElement("span");
-    fpsBadge.className = "settings-badge";
-    fpsBadge.textContent = `${getFps()} fps`;
-    qualTop.append(qualLbl, fpsBadge);
-    const qualDesc = document.createElement("span");
-    qualDesc.className = "settings-row-desc";
-    qualDesc.textContent = `Auto-detected: ${getTier().toUpperCase()}`;
-    qualInfo.append(qualTop, qualDesc);
-    const qualSelect = document.createElement("select");
-    qualSelect.className = "settings-select";
-    qualSelect.setAttribute("aria-label", "Render Quality");
-    (["auto", "high", "med", "low"] as const).forEach((v) => {
-      const opt = document.createElement("option");
-      opt.value = v === "auto" ? "" : v;
-      opt.textContent =
-        v === "auto" ? "Auto" : v.charAt(0).toUpperCase() + v.slice(1);
-      const stored = localStorage.getItem("sc_quality");
-      if ((v === "auto" && !stored) || stored === v) opt.selected = true;
-      qualSelect.appendChild(opt);
-    });
-    qualSelect.addEventListener("change", () => {
-      const val = qualSelect.value as QualityTier | "";
-      if (val) setTier(val as QualityTier);
-      else setAutoQuality();
-      invalidateCache();
-      qualDesc.textContent = val
-        ? `Quality: ${getTier().toUpperCase()}`
-        : `Auto-detected: ${getTier().toUpperCase()}`;
-      fpsBadge.textContent = `${getFps()} fps`;
-      showToast(
-        val
-          ? `Quality set to ${getTier().toUpperCase()}`
-          : `Quality set to Auto (${getTier().toUpperCase()})`,
-      );
-    });
-    qualityRow.append(qualInfo, qualSelect);
-    perfSec.appendChild(qualityRow);
-    paneWrap.appendChild(perfSec);
-
-    // ── Compatibility — read-only diagnostics + one manual override for
-    // browsers/engines whose blur rendering is technically supported but
-    // slow or glitchy in practice (a real report can't always be told
-    // apart from "unsupported" by feature-detection alone). ─────────────
-    const compatSec = makeSection("Compatibility");
-    const compatInfo = document.createElement("div");
-    compatInfo.className = "settings-compat-grid";
-    platformSummary().forEach(({ label, value }) => {
-      const row = document.createElement("div");
-      row.className = "settings-compat-row";
-      const l = document.createElement("span");
-      l.className = "settings-compat-label";
-      l.textContent = label;
-      const v = document.createElement("span");
-      v.className = "settings-compat-value";
-      v.textContent = value;
-      row.append(l, v);
-      compatInfo.appendChild(row);
-    });
-    compatSec.appendChild(compatInfo);
-    compatSec.appendChild(
-      makeRow(
-        "Force Simplified Surfaces",
-        "Skip frosted-glass blur on panels/modals in favor of a plain background — useful if blur renders slow or glitchy on this device",
-        "toggleForceNoBlur",
-        document.documentElement.classList.contains("force-no-backdrop-filter"),
-      ),
-    );
-    paneWrap.appendChild(compatSec);
-
-    wireToggle("toggleForceNoBlur", (on) => {
-      document.documentElement.classList.toggle("force-no-backdrop-filter", on);
-      localStorage.setItem("sc_force_no_blur", on ? "1" : "0");
-      showToast(on ? "Simplified surfaces on" : "Frosted glass restored");
-    });
-
-    wireToggle("toggleCalmMode", (on) => applyCalmMode(on));
-    wireToggle("toggleFocusModeS", (on) => applyFocusMode(on));
-    wireToggle("toggleReduceMotion", (on) => {
-      localStorage.setItem("sc_reduce_motion", on ? "1" : "0");
-      document.body.classList.toggle("reduced-motion", on);
-      showToast(on ? "Reduced motion on" : "Full animations on");
-    });
-    wireToggle("toggleParallax", async (on) => {
-      localStorage.setItem("sc_parallax", on ? "1" : "0");
-      // iOS requires the gyroscope permission prompt to originate from this
-      // exact tap — request it here rather than at boot, where it would be
-      // silently ignored and parallax would just never work on iPhone/iPad.
-      if (on && CAPS.deviceOrientationNeedsPermission) {
-        const granted = await requestMotionPermission();
-        if (granted) attachGyroParallax();
-        else
+        parallax: localStorage.getItem("sc_parallax") !== "0",
+        haptics: localStorage.getItem("sc_haptics") !== "0",
+        hapticsAvailable: Boolean(CAPS.vibration),
+        fps: getFps(),
+        tier: getTier(),
+        quality: localStorage.getItem("sc_quality") || "",
+        forceNoBlur: localStorage.getItem("sc_force_no_blur") === "1",
+        onchangeClockPos: (pos: "center" | "top") => {
+          applyClockPosition(pos);
+          buildSettingsUI("display");
+        },
+        ontoggleCenterMinimal: (val: boolean) => {
+          centerMinimal = val;
+          localStorage.setItem("sc_center_minimal", val ? "1" : "0");
+          applyCenterMinimal(val);
+          buildSettingsUI("display");
+        },
+        ontoggleHideSeconds: (val: boolean) => {
+          applyHideSeconds(val);
+          buildSettingsUI("display");
+        },
+        ontoggleHideMs: (val: boolean) => {
+          applyHideMs(val);
+          buildSettingsUI("display");
+        },
+        ontoggle24Hour: (val: boolean) => {
+          applyUse24Hour(val);
+          updateClockCanvas();
+          buildSettingsUI("display");
+        },
+        ontoggleCalmMode: (val: boolean) => {
+          applyCalmMode(val);
+          buildSettingsUI("display");
+        },
+        ontoggleFocusMode: (val: boolean) => {
+          applyFocusMode(val);
+          buildSettingsUI("display");
+        },
+        ontoggleReduceMotion: (val: boolean) => {
+          localStorage.setItem("sc_reduce_motion", val ? "1" : "0");
+          document.body.classList.toggle("reduced-motion", val);
+          buildSettingsUI("display");
+        },
+        ontoggleParallax: async (val: boolean) => {
+          localStorage.setItem("sc_parallax", val ? "1" : "0");
+          if (val) {
+            if (CAPS.deviceOrientationNeedsPermission) {
+              await requestMotionPermission();
+            }
+            attachGyroParallax();
+          }
+          buildSettingsUI("display");
+        },
+        ontoggleHaptics: (val: boolean) => {
+          localStorage.setItem("sc_haptics", val ? "1" : "0");
+          buildSettingsUI("display");
+        },
+        onchangeQuality: (val: string) => {
+          if (val) setTier(val as QualityTier);
+          else setAutoQuality();
+          invalidateCache();
           showToast(
-            "Motion access declined — mouse parallax still works on desktop",
+            val
+              ? `Quality set to ${getTier().toUpperCase()}`
+              : `Quality set to Auto (${getTier().toUpperCase()})`,
           );
-      }
-      showToast(on ? "Parallax on" : "Parallax off");
+          buildSettingsUI("display");
+        },
+        ontoggleForceNoBlur: (val: boolean) => {
+          localStorage.setItem("sc_force_no_blur", val ? "1" : "0");
+          document.documentElement.classList.toggle(
+            "force-no-backdrop-filter",
+            val,
+          );
+          buildSettingsUI("display");
+        },
+        oncopydiagnostics: async () => {
+          const text =
+            (window as unknown as { __scDiagnosticsText?: () => string })
+              .__scDiagnosticsText?.() ?? "";
+          const ok = await copyDiagnosticsText(text);
+          showToast(
+            ok
+              ? "📋 Diagnostics copied to clipboard"
+              : "Could not copy diagnostics",
+          );
+        },
+      },
     });
-    if (CAPS.vibration) {
-      wireToggle("toggleHaptics", (on) => {
-        localStorage.setItem("sc_haptics", on ? "1" : "0");
-        if (on) haptic(15); // immediate confirmation tick so it's obvious what just changed
-        showToast(on ? "Haptic feedback on" : "Haptic feedback off");
-      });
+  } else if (activeTab === "privacy") {
+    const isPriv = isPrivacyMode();
+    const pref = getAnalyticsPreference();
+    const status = getAnalyticsStatus();
+    const autoBlocked = isAutoBlocked();
+
+    let badgeText: string | undefined;
+    let descText = t().analyticsDescNormal;
+    const isEffectivelyOn =
+      !isPriv &&
+      pref !== "off" &&
+      (status === "active" || (status === "not-attempted" && !autoBlocked));
+
+    if (isPriv) {
+      badgeText = "Off (Privacy Mode)";
+      descText = t().analyticsDescPrivacyMode;
+    } else if (pref === "off") {
+      badgeText = t().analyticsStatusDisabled;
+      descText = t().analyticsDescNormal;
+    } else if (status === "unavailable" || (pref === "auto" && autoBlocked)) {
+      badgeText = t().analyticsStatusUnavailable;
+      descText = t().analyticsDescBlocked;
+    } else if (status === "loading") {
+      badgeText = t().analyticsStatusChecking;
+      descText = t().analyticsDescNormal;
+    } else if (status === "active") {
+      badgeText =
+        pref === "auto"
+          ? t().analyticsStatusAutoOn
+          : t().analyticsStatusActive;
+      descText = t().analyticsDescNormal;
+    } else {
+      badgeText =
+        pref === "auto"
+          ? t().analyticsStatusAutoOn
+          : t().analyticsStatusActive;
     }
-    wireToggle("toggleHideSeconds", (on) => applyHideSeconds(on));
-    wireToggle("toggleHideMs", (on) => applyHideMs(on));
-    wireToggle("toggle24Hour", (on) => applyUse24Hour(on));
-    wireToggle("toggleCenterMinimal", (on) => applyCenterMinimal(on));
-  }
 
-  // ══ PRIVACY ══════════════════════════════════════════════════════════
-  else if (activeTab === "privacy") {
-    const privSec = makeSection("Privacy Mode");
-    privSec.appendChild(
-      makeRow(
-        "Privacy Mode",
-        "Disables weather, time sync & Google Fonts — local only",
-        "togglePrivacyS",
-        privacyMode,
-        privacyMode ? "On" : undefined,
-      ),
-    );
-    paneWrap.appendChild(privSec);
-
-    const sessionSec = makeSection("Sessions");
-    sessionSec.appendChild(
-      makeRow(
-        "Private Focus Log",
-        "Focus log entries stay in memory only for this tab — other settings/stats still save as usual",
-        "toggleIncognito",
-        Privacy.isIncognito(),
-      ),
-    );
-    sessionSec.appendChild(
-      makeRow(
-        "Auto-Clear on Close",
-        "Wipe session log & focus data when tab closes",
-        "toggleAutoClear",
-        Privacy.isAutoClear(),
-      ),
-    );
-    paneWrap.appendChild(sessionSec);
-
-    const dataBtnSec = makeSection("Data");
-    const dataBtn = document.createElement("button");
-    dataBtn.className = "settings-action-btn settings-action-btn--full";
-    dataBtn.textContent = "🛡 View & Manage My Data";
-    dataBtn.addEventListener("click", () => {
-      closeModal("settingsOverlay");
-      openDataPanel();
-    });
-    dataBtnSec.appendChild(dataBtn);
-    paneWrap.appendChild(dataBtnSec);
-
-    const legalSec = makeSection("Legal");
-    const privacyBtn = document.createElement("button");
-    privacyBtn.className = "settings-action-btn settings-action-btn--full";
-    privacyBtn.textContent = "📄 Privacy Policy";
-    privacyBtn.addEventListener("click", () => openLegalPanel("privacy"));
-    legalSec.appendChild(privacyBtn);
-    const termsBtn = document.createElement("button");
-    termsBtn.className = "settings-action-btn settings-action-btn--full";
-    termsBtn.textContent = "📃 Terms of Service";
-    termsBtn.addEventListener("click", () => openLegalPanel("terms"));
-    legalSec.appendChild(termsBtn);
-    paneWrap.appendChild(legalSec);
-
-    // Privacy mode toggle with lock animation
-    wireToggle("togglePrivacyS", (on) => {
-      togglePrivacy();
-      // Lock-down animation
-      if (on) {
-        document.body.classList.add("privacy-activating");
-        setTimeout(
-          () => document.body.classList.remove("privacy-activating"),
-          800,
-        );
-      }
-    });
-    wireToggle("toggleIncognito", (on) => {
-      Privacy.setIncognito(on);
-      showToast(
-        on
-          ? "🕵 Private Focus Log on — log entries not saved"
-          : "Private Focus Log off",
-      );
-    });
-    wireToggle("toggleAutoClear", (on) => {
-      Privacy.setAutoClear(on);
-      showToast(on ? "Auto-clear on close enabled" : "Auto-clear disabled");
+    _settingsContentApp = mount(PrivacyPanel, {
+      target: el,
+      props: {
+        privacyMode: isPriv,
+        analyticsTitle: t().analyticsTitle,
+        analyticsDesc: descText,
+        analyticsBadge: badgeText,
+        analyticsOn: isEffectivelyOn,
+        showRetryAnalytics:
+          !isPriv &&
+          (status === "unavailable" || autoBlocked || pref === "off"),
+        showAutoAnalytics: !isPriv && (pref !== "auto" || autoBlocked),
+        retryAnalyticsLabel: t().analyticsActionEnable,
+        autoAnalyticsLabel: t().analyticsActionAuto,
+        analyticsReassurance: t().analyticsReassurance,
+        incognito: Privacy.isIncognito(),
+        autoClear: Privacy.isAutoClear(),
+        ontogglePrivacy: (on: boolean) => {
+          togglePrivacy();
+          if (on) {
+            document.body.classList.add("privacy-activating");
+            setTimeout(
+              () => document.body.classList.remove("privacy-activating"),
+              800,
+            );
+          }
+          buildSettingsUI("privacy");
+        },
+        ontoggleAnalytics: (on: boolean) => {
+          if (!on) {
+            try {
+              sessionStorage.setItem("sc_reopen_settings", "privacy");
+            } catch {
+              // ignore
+            }
+            saveSessionState();
+          }
+          setAnalyticsPreference(on ? "on" : "off", isPrivacyMode());
+          buildSettingsUI("privacy");
+        },
+        onretryAnalytics: () => {
+          setAnalyticsPreference("on", isPrivacyMode());
+          buildSettingsUI("privacy");
+        },
+        onautoAnalytics: () => {
+          resetAnalyticsToAuto(isPrivacyMode());
+          buildSettingsUI("privacy");
+        },
+        ontoggleIncognito: (on: boolean) => {
+          Privacy.setIncognito(on);
+          showToast(
+            on
+              ? "🕵 Private Focus Log on — log entries not saved"
+              : "Private Focus Log off",
+          );
+          buildSettingsUI("privacy");
+        },
+        ontoggleAutoClear: (on: boolean) => {
+          Privacy.setAutoClear(on);
+          showToast(on ? "Auto-clear on close enabled" : "Auto-clear disabled");
+          buildSettingsUI("privacy");
+        },
+        onopendata: () => {
+          closeModal("settingsOverlay");
+          openDataPanel();
+        },
+        onopenlegal: (doc: "privacy" | "terms") => openLegalPanel(doc),
+      },
     });
   }
 
-  // Add bottom padding so last row isn't flush against modal edge
   const pad = document.createElement("div");
   pad.style.height = "12px";
   el.appendChild(pad);
 
-  void Motion.staggerIn(
-    paneWrap,
-    ".settings-section-title, .settings-row, .settings-action-btn",
-  );
+  restoreSettingsFocus(focusInfo, settingsModal);
 }
+
+function updateAnalyticsSettingsUI(): void {
+  const settingsModal = $("settingsOverlay");
+  if (
+    !settingsModal ||
+    !settingsModal.classList.contains("open") ||
+    _lastSettingsTab !== "privacy"
+  ) {
+    return;
+  }
+  const focusInfo = getSettingsFocusInfo(settingsModal);
+  buildSettingsUI("privacy");
+  restoreSettingsFocus(focusInfo, settingsModal);
+}
+onAnalyticsStatusChange(() => {
+  updateAnalyticsSettingsUI();
+});
 
 // ── QR Handoff ────────────────────────────────────────────────────────
 // drawQR is dynamically imported on first use — it's a self-contained
@@ -4632,7 +4454,7 @@ function applyHandoffState() {
     DOM.focusInput.value = task;
   }
   if (p.get("ses") === "1") {
-    const elapsed = parseInt(p.get("elapsed") ?? "0");
+    const elapsed = Number.parseInt(p.get("elapsed") ?? "0");
     sessionElapsed = elapsed;
     setTimeout(() => DOM.btnStart.click(), 800); // auto-resume
   } else if (p.get("start") === "1") {
@@ -4798,6 +4620,9 @@ function updateClockCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = canvas.height = sz * dpr;
     canvas.style.width = canvas.style.height = sz + "px";
+    // Expose which hands the renderer is allowed to draw so the clock-default
+    // regression can verify the analogue second hand, not just CSS classes.
+    canvas.dataset.secondsHidden = hideSeconds ? "1" : "0";
     block.appendChild(canvas);
   } else if (clockMode === "flip") {
     const wrap = document.createElement("div");
@@ -5132,7 +4957,7 @@ function resetMilestones() {
 let breakBadgeShown = false;
 
 function getBreakReminderMins(): number {
-  const v = parseInt(
+  const v = Number.parseInt(
     localStorage.getItem("sc_break_reminder_mins") || "90",
     10,
   );
@@ -5282,7 +5107,7 @@ function initWallpaperDrop() {
 
 function lightenHex(hex: string, amt: number): string {
   if (!hex.startsWith("#")) return hex;
-  const n = parseInt(hex.slice(1), 16);
+  const n = Number.parseInt(hex.slice(1), 16);
   const r = Math.min(255, Math.round(((n >> 16) & 0xff) + 255 * amt));
   const g = Math.min(255, Math.round(((n >> 8) & 0xff) + 255 * amt));
   const b = Math.min(255, Math.round((n & 0xff) + 255 * amt));
@@ -5291,7 +5116,7 @@ function lightenHex(hex: string, amt: number): string {
 
 function darkenHex2(hex: string, amt: number): string {
   if (!hex.startsWith("#")) return hex;
-  const n = parseInt(hex.slice(1), 16);
+  const n = Number.parseInt(hex.slice(1), 16);
   const r = Math.max(0, Math.round(((n >> 16) & 0xff) * (1 - amt)));
   const g = Math.max(0, Math.round(((n >> 8) & 0xff) * (1 - amt)));
   const b = Math.max(0, Math.round((n & 0xff) * (1 - amt)));
@@ -5916,8 +5741,8 @@ function buildPaletteCommands() {
       "egg_sidereal",
       "🔭",
       "Sidereal Time",
-      "click UTC ×7",
-      () => showToast("🔭 Click the UTC pill 7 times quickly", 4000),
+      "click the context tab ×7",
+      () => showToast("🔭 Click the context tab 7 times quickly", 4000),
     ],
     [
       "egg_matrix",
@@ -6240,10 +6065,11 @@ function init() {
   );
 
   // ── Command Palette ───────────────────────────────────────────────────
-  Palette.initPalette();
+  // The real palette is cmdpalette.ts (#cmdOverlay, wired via Cmd.initPalette
+  // below). The legacy palette.ts has no styles, and its own Ctrl+K listener
+  // used to build a second, unstyled overlay + input on every press and race
+  // the real one for focus — so it is deliberately NOT initialised here.
   buildPaletteCommands();
-  // Expose palette open for topbar button
-  window.__scPalette = Palette;
   // Expose helpers for easter.ts cross-module access
   window.__scFps = () => getFps();
   window.__scTier = () => getTier();
@@ -6278,22 +6104,9 @@ function init() {
     document.body.classList.remove("drag-over"),
   );
 
-  // PWA install prompt
-  let deferredInstall: BeforeInstallPromptEvent | null = null;
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferredInstall = e;
-    const btn = document.createElement("button");
-    btn.id = "pwaInstallBtn";
-    btn.className = "show";
-    btn.textContent = "⬇ Install App";
-    btn.addEventListener("click", () => {
-      deferredInstall?.prompt();
-      btn.remove();
-      deferredInstall = null;
-    });
-    document.body.appendChild(btn);
-  });
+  // PWA installation intentionally has no in-app prompt. The manifest and
+  // service worker remain, so browsers that support installation still offer
+  // it through their own native UI (address bar / share sheet).
 
   const kbBtn = $("btnKbShortcuts");
   if (kbBtn) kbBtn.addEventListener("click", () => openModal("kbOverlay"));
@@ -6523,12 +6336,14 @@ function init() {
 
   wireGithubCelebration();
 
+  setThemePanelCollapsed(true);
   const lastId = localStorage.getItem("sc_last_theme");
   applyTheme(
     lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0],
     true,
   );
   applyHandoffState();
+  restoreSavedSession();
 
   // Tab visibility for flow intensity
   document.addEventListener("visibilitychange", () => {
@@ -6545,9 +6360,30 @@ function init() {
     renderFrame(ts);
   });
 
-  // Reveal the app now that the theme, clock, and first frame are ready —
-  // double rAF so we wait for an actual paint, not just this callback.
-  requestAnimationFrame(() => requestAnimationFrame(hideSplash));
+  // Core wiring is complete here; the first paint still has to succeed.
+  markCoreReady();
+
+  // Reveal the app only after an actual paint (double rAF). Boot success is
+  // reported at the same point: init() returning is not proof that the first
+  // frame ran, and a renderer that degraded to static mode is still ready.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      markRendererReady();
+      window.__scBootOk?.();
+      hideSplash();
+      initAnalytics(isPrivacyMode());
+      try {
+        const reopenTab = sessionStorage.getItem("sc_reopen_settings");
+        if (reopenTab) {
+          sessionStorage.removeItem("sc_reopen_settings");
+          _lastSettingsTab = reopenTab;
+          openSettings();
+        }
+      } catch {
+        // ignore
+      }
+    }),
+  );
 
   // ── Weather overlay preference ─────────────────────────────────────
   if (localStorage.getItem("sc_weather_theme") !== "0") {
@@ -6569,12 +6405,11 @@ function init() {
   const weatherPillEl = document.getElementById("weatherPill");
   if (weatherPillEl) {
     weatherPillEl.addEventListener("click", () => {
-      openWeatherPage();
+      openWeatherPage(weatherPillEl);
     });
   }
 
   if (!privacyMode) {
-    syncTime();
     initWeather(
       $("weatherIcon"),
       $("weatherText"),
@@ -6590,8 +6425,6 @@ function init() {
         }
       },
     );
-  } else {
-    updateSyncDisplay("failed");
   }
 
   // ── Command Palette ────────────────────────────────────────────────
@@ -6643,15 +6476,30 @@ function init() {
   const countdownContent = document.getElementById("countdownContent");
   if (countdownContent) {
     Features.buildCountdownUI(countdownContent, (label, target) => {
-      Features.setCountdownTarget(label, target, (display, done) => {
-        const pill = document.getElementById("utcPill");
-        if (done) {
-          showToast(`⏳ ${display}`, 5000);
-          if (pill) pill.title = "";
-          return;
-        }
-        if (pill && !Easter.isSiderealMode()) pill.textContent = display;
-      });
+      Features.setCountdownTarget(
+        label,
+        target,
+        (display, done) => {
+          const statusEl = document.getElementById("sessionStatusLine");
+          if (done) {
+            showToast(`⏳ ${display}`, 5000);
+            Features.setStatusState(sessionRunning ? "running" : "idle", {
+              pomEnabled: Pom.isActive(),
+              pomPhase: Pom.getPhase(),
+              remainingSecs: Pom.getRemainingSeconds(),
+            });
+          } else {
+            if (statusEl) statusEl.textContent = display;
+          }
+        },
+        () => {
+          Features.setStatusState(sessionRunning ? "running" : "idle", {
+            pomEnabled: Pom.isActive(),
+            pomPhase: Pom.getPhase(),
+            remainingSecs: Pom.getRemainingSeconds(),
+          });
+        },
+      );
       showToast(`⏳ Counting down to ${label}`);
     });
   }
@@ -6675,20 +6523,25 @@ function init() {
   document.body.appendChild(sidebar);
   MusicDock.mountDock(sidebar);
   SideTasks.mountSideStack(sidebar);
-  if (Integrations.isSpotifyConnected()) MusicDock.initSpotifyPlayback();
+  if (
+    MusicDock.isMusicDeckEnabled() &&
+    MusicDock.getProviderPref() !== "youtube" &&
+    Integrations.isSpotifyConnected()
+  )
+    void MusicDock.initSpotifyPlayback();
   // Handle OAuth redirect callbacks — one handler for every provider
   // (Spotify, Notion, GitHub, Todoist, Linear, Google all land here
   // with ?code=&state=<provider>:<nonce>).
   if (window.location.search.includes("code=")) {
     Integrations.oauthHandleCallback().then((result) => {
-      if (result?.error) {
+      if (result && !result.ok) {
         // A real failure (bad/missing secret, mismatched self-hosted
         // Client ID+Secret pair, provider-side rejection, etc.) — this
         // used to fail silently with no toast and no way to tell why.
         const name =
           result.provider[0]!.toUpperCase() + result.provider.slice(1);
         showToast(`⚠️ ${name} connection failed: ${result.error}`, 6000);
-      } else if (result) {
+      } else if (result?.ok) {
         const name =
           result.provider[0]!.toUpperCase() + result.provider.slice(1);
         showToast(`✅ ${name} connected!`, 4000);
@@ -6696,8 +6549,12 @@ function init() {
         // isSpotifyConnected() check above (token lands here, after
         // the redirect) — bring it up now instead of waiting for the
         // user to reload the page themselves to see anything play.
-        if (result.provider === "spotify")
-          MusicDock.initSpotifyPlayback().then(() =>
+        if (
+          result.provider === "spotify" &&
+          MusicDock.isMusicDeckEnabled() &&
+          MusicDock.getProviderPref() !== "youtube"
+        )
+          void MusicDock.initSpotifyPlayback().then(() =>
             MusicDock.refreshDockConnectionState(),
           );
         // Same reasoning for Google: the "Connect YouTube" click that
@@ -6756,26 +6613,8 @@ function init() {
       }
     }, 3000);
 
-    // Lunar phase in UTC pill tooltip
-    setTimeout(() => {
-      const lunar = Features.getLunarPhase();
-      const utcPill = $("utcPill");
-      if (utcPill) {
-        const existing = utcPill.title;
-        if (!existing.includes(lunar.emoji)) {
-          utcPill.title = `${existing ? existing + " · " : ""}${lunar.emoji} ${lunar.name} · ${lunar.illumination}% illuminated · ${Features.getDaysToNextFullMoon()}d to full moon`;
-        }
-      }
-    }, 2000);
+    // Lunar phase in the contextual tab tooltip
   }
-
-  // Trust indicator — update when sync completes
-  window.__onSyncComplete = (rtt: number) => {
-    Features.setSyncTrust("ntp");
-  };
-  window.__onSyncFail = () => {
-    Features.setSyncTrust("offline");
-  };
 
   // Voice timer — initialise if browser supports it
   const voiceSupported = Features.initVoiceTimer(
@@ -7096,11 +6935,11 @@ function buildCommandPalette() {
       id: "sidereal-time",
       name: "Local Sidereal Time",
       icon: "🔭",
-      desc: "Click the UTC pill 7× → switches display to astronomical sidereal time",
-      keywords: "sidereal time astronomy telescope UTC pill",
+      desc: "Click the top-bar context tab 7× → switches display to astronomical sidereal time",
+      keywords: "sidereal time astronomy telescope context tab",
       action: () =>
         showToast(
-          "🔭 Click the UTC pill 7 times to activate sidereal time mode",
+          "🔭 Click the context tab 7 times to activate sidereal time mode",
           5000,
         ),
     },
@@ -7627,6 +7466,30 @@ function buildCommandPalette() {
           ),
         ),
     ],
+    [
+      "sidereal-time",
+      "🔭 Toggle Sidereal Time",
+      "Astronomical time measure",
+      () => {
+        const on = Easter.toggleSiderealMode();
+        const statusEl = document.getElementById("sessionStatusLine");
+        if (on) {
+          const lat = (window as unknown as { __scLat?: number }).__scLat ?? 0;
+          if (statusEl) statusEl.textContent = Easter.getSiderealTime(lat);
+        } else {
+          Features.setStatusState(sessionRunning ? "running" : "idle", {
+            pomEnabled: Pom.isActive(),
+            pomPhase: Pom.getPhase(),
+            remainingSecs: Pom.getRemainingSeconds(),
+          });
+        }
+        showToast(
+          on
+            ? "🔭 Sidereal time mode — for astronomers"
+            : "Local status restored",
+        );
+      },
+    ],
   ];
   settingsList.forEach(([id, name, desc, action]) => {
     items.push({
@@ -7646,10 +7509,21 @@ function buildCommandPalette() {
 // through used to leave a half-wired app (the splash watchdog then revealed
 // it anyway). Now a throw is reported to the boot guard in index.html, which
 // shows a Reload / Reset screen, and hideSplash() refuses to reveal the app.
+// `__scBootOk()` is deliberately NOT called here: it runs after the first
+// paint in init(), so boot success cannot precede the first rendered frame.
 try {
   init();
-  window.__scBootOk?.();
 } catch (err) {
+  readiness.bootStage = "boot-failed";
+  window.__bootStage = "boot-failed";
+  diagnostics.record({
+    subsystem: "boot",
+    kind: "error",
+    message: "init() threw",
+    error: err,
+    stage: "boot",
+    details: { coreReady: readiness.coreReady },
+  });
   console.error("Session Clock failed to start:", err);
   const reason = err instanceof Error ? err.message : String(err);
   if (window.__scBootFail) window.__scBootFail(reason, true);

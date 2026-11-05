@@ -285,6 +285,40 @@ export async function countUp(
 }
 
 /**
+ * Theme Finder — "frame-to-world" selection reveal.
+ *
+ * A dedicated transition for choosing a theme in the library, deliberately
+ * separate from the generic popIn/staggerIn/bounceIn helpers above. The
+ * chosen card's accent expands as a soft iris from the point that was
+ * clicked while the renderer's own theme transition runs underneath, so the
+ * two never compete for control of the same element.
+ *
+ * Applying the theme is never awaited on this: the caller invokes
+ * `applyTheme` immediately and this purely decorative layer removes itself.
+ * Under reduced motion it is skipped entirely (the theme still applies).
+ */
+export function themeFinderReveal(
+  origin: DOMRect | null,
+  accent: string,
+): void {
+  if (reducedMotion()) return;
+  const layer = document.createElement("div");
+  layer.className = "tl-reveal";
+  const x = origin ? origin.left + origin.width / 2 : window.innerWidth / 2;
+  const y = origin ? origin.top + origin.height / 2 : window.innerHeight / 2;
+  layer.style.setProperty("--tl-reveal-x", `${x}px`);
+  layer.style.setProperty("--tl-reveal-y", `${y}px`);
+  layer.style.setProperty("--tl-reveal-accent", accent);
+  document.body.appendChild(layer);
+  // Two frames so the browser commits the starting style before the class
+  // flips — otherwise the animation can be skipped in some engines.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => layer.classList.add("is-active"));
+  });
+  window.setTimeout(() => layer.remove(), 700);
+}
+
+/**
  * Press-and-hold-to-confirm for destructive actions — replaces a native
  * confirm() dialog (jarring, and trivially misclicked through) with a
  * deliberate hold gesture: a fill sweeps across the button while held,

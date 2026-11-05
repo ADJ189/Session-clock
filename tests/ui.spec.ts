@@ -1,7 +1,7 @@
 import { test, expect, waitForBoot } from "./fixtures";
 
 test.describe("command palette", () => {
-  test("Ctrl+K opens, Escape closes", async ({ page }) => {
+  test("Ctrl+K opens, Escape closes @smoke", async ({ page }) => {
     await page.goto("/");
     await waitForBoot(page);
     await page.keyboard.press("Control+k");

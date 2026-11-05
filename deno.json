@@ -1,0 +1,19 @@
+{
+  "nodeModulesDir": "manual",
+  "tasks": {
+    "dev": "deno run -A node_modules/vite/bin/vite.js",
+    "build": "deno run -A node_modules/typescript/bin/tsc --noEmit && deno run -A node_modules/vite/bin/vite.js build",
+    "preview": "deno run -A node_modules/vite/bin/vite.js preview",
+    "typecheck": "deno run -A node_modules/typescript/bin/tsc --noEmit",
+    "typecheck:unit": "deno run -A node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+    "typecheck:e2e": "deno run -A node_modules/typescript/bin/tsc -p tests/tsconfig.json",
+    "lint": "deno run -A node_modules/oxlint/bin/oxlint .",
+    "test": "deno test -A --no-check tests-unit",
+    "test:unit": "deno test -A --no-check tests-unit",
+    "test:e2e": "deno run -A node_modules/@playwright/test/cli.js test",
+    "test:e2e:chromium": "deno run -A node_modules/@playwright/test/cli.js test --project=desktop-chromium",
+    "test:e2e:firefox": "deno run -A node_modules/@playwright/test/cli.js test --project=desktop-firefox",
+    "test:e2e:webkit": "deno run -A node_modules/@playwright/test/cli.js test --project=desktop-webkit",
+    "test:e2e:mobile": "deno run -A node_modules/@playwright/test/cli.js test --config=playwright.mobile.config.ts"
+  }
+}

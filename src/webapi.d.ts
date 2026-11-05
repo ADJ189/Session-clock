@@ -53,14 +53,8 @@ interface Navigator {
   readonly deviceMemory?: number;
 }
 
-/** Chromium `beforeinstallprompt` (PWA install). */
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>;
-}
-
-interface WindowEventMap {
-  beforeinstallprompt: BeforeInstallPromptEvent;
-}
+/** Chromium `beforeinstallprompt` is no longer used by the app: PWA
+ *  installation is left to the browser's own native UI. */
 
 /** Web Speech API — `SpeechRecognition` is absent from the DOM lib. Named
  *  *Like so a future lib.dom addition can't collide with these. */
@@ -114,6 +108,24 @@ interface Window {
   __bootCompleted?: boolean;
   __scRealStorage?: { localStorage?: Storage; sessionStorage?: Storage };
   __bootFailed?: boolean;
+  __bootStage?: string;
+  /** Truthful readiness split; each may become true independently. */
+  __scReady?: {
+    coreReady: boolean;
+    rendererReady: boolean;
+    audioReady: boolean;
+    optionalFeaturesReady: boolean;
+    bootStage: string;
+  };
+  __coreReady?: boolean;
+  __rendererReady?: boolean;
+  __audioReady?: boolean;
+  __scMarkAudioReady?: () => void;
+  /** Failures captured by the inline boot guard before diagnostics loaded. */
+  __scPreBootEvents?: Array<Record<string, unknown>>;
+  __scDiagnosticsText?: () => string;
+  __scDiagnosticsSnapshot?: () => unknown;
+  __scDiagnostics?: unknown;
   __scBootFail?: (reason: string, isFatal?: boolean) => void;
   __scBootOk?: () => void;
   __scLat?: number;
@@ -128,8 +140,6 @@ interface Window {
   __scIncognito?: () => boolean;
   __scPalette?: typeof import("./palette");
   __zenMoveHandler?: EventListener;
-  __onSyncComplete?: (rttMs: number) => void;
-  __onSyncFail?: () => void;
   /** Namespace used by inline handlers in index.html. */
   SC?: Record<string, unknown>;
   SpeechRecognition?: SpeechRecognitionCtor;
@@ -166,6 +176,7 @@ interface SpotifyPlayerLike {
     cb: (s: SpotifyPlaybackStateLike | null) => void,
   ): void;
   connect(): Promise<boolean>;
+  disconnect(): void;
   togglePlay(): Promise<void>;
   nextTrack(): Promise<void>;
   previousTrack(): Promise<void>;
@@ -185,6 +196,8 @@ interface YtPlayerLike {
   getPlayerState?(): number;
   playVideo?(): void;
   pauseVideo?(): void;
+  stopVideo?(): void;
+  destroy?(): void;
   nextVideo?(): void;
   previousVideo?(): void;
   seekTo?(seconds: number, allowSeekAhead: boolean): void;

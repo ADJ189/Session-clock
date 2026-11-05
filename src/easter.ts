@@ -43,7 +43,6 @@ export function initEaster(
   setupMidnightWatch();
   setupDeviceShake();
   setupHyperfocusHold();
-  setupUTCPillSecret();
   check100Sessions();
 }
 
@@ -732,34 +731,12 @@ function setupHyperfocusHold() {
   });
 }
 
-// ── 7. UTC pill 7× → Sidereal Time ────────────────────────────────────
-let utcClickCount = 0;
-let utcClickTimer = 0;
+// ── 7. Sidereal Time ─────────────────────────────────
 let siderealMode = false;
 
-function setupUTCPillSecret() {
-  const pill = document.getElementById("utcPill");
-  if (!pill) return;
-  pill.addEventListener("click", () => {
-    utcClickCount++;
-    clearTimeout(utcClickTimer);
-    if (utcClickCount >= 7) {
-      utcClickCount = 0;
-      siderealMode = !siderealMode;
-      pill.title = siderealMode
-        ? "Local Sidereal Time — astronomical measure"
-        : "";
-      _showToast(
-        siderealMode
-          ? "🔭 Sidereal time mode — for astronomers"
-          : "UTC mode restored",
-        3500,
-      );
-    }
-    utcClickTimer = window.setTimeout(() => {
-      utcClickCount = 0;
-    }, 1500);
-  });
+export function toggleSiderealMode(): boolean {
+  siderealMode = !siderealMode;
+  return siderealMode;
 }
 
 export function isSiderealMode() {

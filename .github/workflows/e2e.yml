@@ -39,11 +39,11 @@ jobs:
       fail-fast: false # one engine failing must not hide the others
       matrix:
         include:
-          - { project: chromium,      browser: chromium } # Blink
-          - { project: firefox,       browser: firefox }  # Gecko
-          - { project: webkit,        browser: webkit }   # WebKit
-          - { project: mobile-chrome, browser: chromium } # Blink, Pixel 7
-          - { project: mobile-safari, browser: webkit }   # WebKit, iPhone 13
+          - { project: desktop-chromium,          browser: chromium } # Blink
+          - { project: desktop-firefox,           browser: firefox }  # Gecko
+          - { project: desktop-webkit,            browser: webkit }   # WebKit
+          - { project: mobile-chromium-emulation, browser: chromium } # Blink, Pixel 7
+          - { project: mobile-webkit-emulation,   browser: webkit }   # WebKit, iPhone 13
     steps:
       - name: Checkout
         uses: actions/checkout@v7

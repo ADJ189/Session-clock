@@ -1,12 +1,12 @@
 # Privacy Policy
 
-**Last updated: 2026-08-28**
+**Last updated: 2026-11-03**
 
 > This document is mirrored inside the app itself — Settings → Privacy → Legal → Privacy Policy (`src/legal.ts`). If you edit one, please update the other.
 
 ## The short version
 
-Session Clock is a local-first app. Your session log, streaks, theme choices, sound presets, and every other setting are stored only in your browser's `localStorage`, on your own device. Nothing about how you use the app — what you time, when, or for how long — is sent to any server we run, tracked, or sold. There is no analytics script and no ad network anywhere in this app.
+Session Clock is a local-first app. Your session log, streaks, theme choices, sound presets, and every other setting are stored only in your browser's `localStorage`, on your own device. Nothing about what you time, when, or for how long is tracked, profiled, or sold. The app includes an optional, privacy-first usage analytics integration powered by Cloudflare Web Analytics, which measures aggregated page-usage and Web Vitals performance without using cookies, localStorage, or cross-site tracking. You have full control in Settings → Privacy to turn analytics on, off, or keep it on automatic. If your browser, network, or an ad blocker blocks the analytics script, Session Clock continues to work completely normally with zero feature degradation.
 
 ## What is stored, and where
 
@@ -27,7 +27,7 @@ Some features are entirely opt-in and only activate if you explicitly connect th
 
 When you do connect one, authentication uses the provider's standard OAuth flow (PKCE where supported). For providers that require a client secret (Notion, GitHub, Todoist, Linear), the token exchange is relayed through a small, stateless Cloudflare Pages Function (`functions/api/oauth/token.ts`, `functions/api/notion/[[path]].ts`) that we run — it passes the exchange through and does not log, store, or retain your tokens or any response data. Access tokens themselves are then kept only in your browser's local storage, the same as everything else.
 
-Enabling **Privacy Mode** in Settings disables weather lookups, time sync, and Google Fonts loading, so the app runs fully offline-capable with zero outbound requests beyond loading the app itself.
+Enabling **Privacy Mode** in Settings disables weather lookups, Google Fonts loading, and Cloudflare analytics, so the app runs fully offline-capable with zero outbound requests beyond loading the app itself.
 
 ## Incognito sessions & auto-clear
 
@@ -35,10 +35,11 @@ Turning on **Incognito Sessions** keeps that session's data in memory only — i
 
 ## Cookies & tracking
 
-Session Clock does not use cookies, does not run any analytics or telemetry SDK, does not use fingerprinting, and does not share or sell data to anyone — because it does not collect any data centrally to begin with. The only network requests the app makes are:
+Session Clock does not use cookies, user accounts, or cross-site tracking SDKs, and does not sell or profile your data. The only network requests the app makes are:
 
-- Loading the app itself and its assets
-- The optional weather/city-search lookup
+- Loading the app itself and its static assets
+- Optional usage analytics via [Cloudflare Web Analytics](https://www.cloudflare.com/privacypolicy/) (measures coarse page views and Web Vitals without cookies or persistent storage; disabled entirely in Privacy Mode or when turned off in Settings)
+- The optional weather/city-search lookup (skipped entirely in Privacy Mode)
 - Optional Google Fonts (skipped entirely in Privacy Mode)
 - The optional third-party integrations described above, only after you connect them
 

@@ -29,7 +29,7 @@ let pomCount = 0;
 
 // External refs set by main
 let sessionRunning = () => false;
-let getSessionStart = () => 0;
+let _getSessionStart = () => 0;
 let onPhaseChange: ((pill: string) => void) | null = null;
 let timerEl: HTMLElement | null = null;
 let ringArc: SVGCircleElement | null = null;
@@ -48,7 +48,7 @@ export function init(opts: {
   onPhase: (text: string) => void;
 }) {
   sessionRunning = opts.isRunning;
-  getSessionStart = opts.getStart;
+  _getSessionStart = opts.getStart;
   timerEl = opts.timer;
   ringArc = opts.arc;
   ringEl = opts.ring;
@@ -261,4 +261,52 @@ export function setWorkMins(mins: number) {
 export function setBreakMins(mins: number) {
   settings.breakMins = Math.max(1, Math.min(60, mins));
   persist();
+}
+
+export interface PomodoroSnapshot {
+  active: boolean;
+  phase: PomPhase;
+  phaseElapsed: number;
+  pomCount: number;
+}
+
+export function getSessionSnapshot(): PomodoroSnapshot {
+  const currentElapsed =
+    phaseElapsedBeforeSegment +
+    (phaseStart && sessionRunning() ? performance.now() - phaseStart : 0);
+  return {
+    active,
+    phase,
+    phaseElapsed: currentElapsed,
+    pomCount,
+  };
+}
+
+export function restoreSessionSnapshot(snap: Partial<PomodoroSnapshot>): void {
+  if (typeof snap.active === "boolean") {
+    setActive(snap.active);
+  }
+  if (snap.phase) {
+    phase = snap.phase;
+  }
+  if (typeof snap.pomCount === "number") {
+    pomCount = snap.pomCount;
+  }
+  if (typeof snap.phaseElapsed === "number") {
+    phaseElapsedBeforeSegment = snap.phaseElapsed;
+    phaseStart = 0;
+  }
+  const labels: Record<PomPhase, string> = {
+    work: "🍅 Work",
+    break: "☕ Break",
+    longBreak: "💤 Long Break",
+  };
+  pillEl && (pillEl.textContent = labels[phase]);
+  const tot = totalMs();
+  const rem = Math.max(0, tot - phaseElapsedBeforeSegment);
+  updateRing(rem, tot);
+  const ms = rem;
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  if (timerEl) timerEl.textContent = "00:" + p2(m) + ":" + p2(s % 60);
 }

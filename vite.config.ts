@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -12,6 +13,10 @@ const STATIC_PRECACHE_FILES = [
   "splash-base.png",
   "splash-triangle.png",
 ];
+
+// Public files that change service-worker behaviour and therefore must feed
+// the build version, even though they are not precached entries themselves.
+const SW_SUPPORT_FILES = ["sw-core.js"];
 
 // Emits dist/precache-manifest.json listing every built JS/CSS/asset file
 // (Finding SW4 — the service worker's hand-written PRECACHE list only
@@ -68,6 +73,10 @@ function precacheManifestPlugin() {
         const p = resolve(distDir, name);
         if (existsSync(p)) hash.update(readFileSync(p));
       }
+      for (const name of SW_SUPPORT_FILES) {
+        const p = resolve(distDir, name);
+        if (existsSync(p)) hash.update(readFileSync(p));
+      }
       const version = hash.digest("hex").slice(0, 12);
 
       writeFileSync(
@@ -89,14 +98,18 @@ function precacheManifestPlugin() {
       // actually changed, which is what triggers the update.
       const src = readFileSync(swPath, "utf8");
       if (src.startsWith("// build:")) return; // already stamped this run
-      writeFileSync(swPath, `// build:${version}\n${src}`);
+      // The worker derives its cache name from this constant on every event,
+      // so it survives worker termination and restarts. Replace before
+      // prefixing the build stamp.
+      const stamped = src.split("__SC_BUILD_VERSION__").join(version);
+      writeFileSync(swPath, `// build:${version}\n${stamped}`);
     },
   };
 }
 
 export default defineConfig({
   publicDir: "public",
-  plugins: [precacheManifestPlugin()],
+  plugins: [svelte(), precacheManifestPlugin()],
   build: {
     outDir: "dist",
     // Chrome 87+, Firefox 78+, Safari 14+, Edge 88+

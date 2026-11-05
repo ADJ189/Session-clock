@@ -36,6 +36,12 @@ jobs:
       - name: Typecheck E2E tests
         run: npm run typecheck:e2e
 
+      - name: Typecheck unit tests
+        run: npm run typecheck:unit
+
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: Lint
         run: npm run lint
 

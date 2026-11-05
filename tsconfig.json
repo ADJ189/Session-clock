@@ -8,11 +8,12 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "outDir": "dist",
-    "rootDir": "src",
+    "types": ["node"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "sourceMap": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte"],
+  "include": ["src/**/*.ts", "tests-unit/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
