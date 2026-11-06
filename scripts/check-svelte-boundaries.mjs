@@ -14,7 +14,12 @@ function check() {
   // Rule 5: Check for duplicate IDs in index.html
   // Tokenize tags and their attributes so data-id and quoted attribute text
   // cannot masquerade as an id. Skip comments and raw-text elements.
-  const noComments = indexHtml.replace(/<!--[\s\S]*?-->/g, "");
+  let noComments = indexHtml;
+  let prev;
+  do {
+    prev = noComments;
+    noComments = noComments.replace(/<!--[\s\S]*?-->/g, "");
+  } while (noComments !== prev);
   const cleanHtml = noComments.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
   const tagRegex = /<([a-z][a-z0-9-]*)\b([^>]*)>/gi;
   const idRegex = /\b([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s/>]+)))?/g;
