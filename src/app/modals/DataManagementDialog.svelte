@@ -8,7 +8,7 @@
   let autoClear = $state(Privacy.isAutoClear());
   let revision = $state(0);
 
-  function refresh() {
+  export function refresh() {
     incognito = Privacy.isIncognito();
     autoClear = Privacy.isAutoClear();
     revision++;
