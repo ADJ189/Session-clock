@@ -4574,9 +4574,9 @@ body.reduced-motion .zen-ring { animation: none; }
   image-rendering: auto;
 }
 
-/* Main UI — layout isolation so repaints don't propagate */
+/* Main UI — layout isolation so repaints don't propagate (style-only so fixed children anchor to viewport) */
 #mainUI {
-  contain: layout style;
+  contain: style;
   will-change: auto;
 }
 
