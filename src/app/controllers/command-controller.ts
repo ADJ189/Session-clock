@@ -83,6 +83,13 @@ export function highlightSegments(text: string, query: string): HighlightSegment
   return res;
 }
 
+const TAG_SORT_ORDER: Record<string, number> = {
+  action: 0,
+  theme: 1,
+  setting: 2,
+  egg: 3,
+};
+
 export function filterAndGroup(
   items: CmdItem[],
   query: string,
@@ -102,8 +109,7 @@ export function filterAndGroup(
       const sa = score(a, q),
         sb = score(b, q);
       if (sa !== sb) return sb - sa;
-      const order = { action: 0, theme: 1, setting: 2, egg: 3 };
-      return (order[a.tag] ?? 9) - (order[b.tag] ?? 9);
+      return (TAG_SORT_ORDER[a.tag] ?? 9) - (TAG_SORT_ORDER[b.tag] ?? 9);
     })
     .slice(0, 48);
 
