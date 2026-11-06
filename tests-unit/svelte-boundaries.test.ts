@@ -14,7 +14,9 @@ function check(files: Record<string, string>) {
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, content);
     }
-    return spawnSync(process.execPath, [checker], { cwd: dir, encoding: "utf8" });
+    const isDeno = typeof (globalThis as { Deno?: unknown }).Deno !== "undefined";
+    const args = isDeno ? ["run", "-A", checker] : [checker];
+    return spawnSync(process.execPath, args, { cwd: dir, encoding: "utf8" });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
