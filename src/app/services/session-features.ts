@@ -44,7 +44,7 @@ export function initSessionFeatures(context: SessionFeaturesContext) {
   ctx = context;
 
   if (bc) {
-    bc.onmessage = (e) => {
+    bc.addEventListener("message", (e: MessageEvent) => {
       const { type } = e.data;
       if (type === "theme" && e.data.id !== ctx.getCurrentTheme()?.id) {
         ctx.applyTheme(THEME_BY_ID[e.data.id] ?? ctx.getCurrentTheme(), true);
@@ -57,7 +57,7 @@ export function initSessionFeatures(context: SessionFeaturesContext) {
         const pomPill = document.getElementById("pomModePill");
         if (pomPill) pomPill.textContent = e.data.pill;
       }
-    };
+    });
   }
 }
 
@@ -397,11 +397,12 @@ export function triggerTheaterMode(breakMins: number) {
   theaterTimer = window.setInterval(tick, 1000);
 
   const skipBtn = document.getElementById("theaterSkip");
-  if (skipBtn)
-    skipBtn.onclick = () => {
+  if (skipBtn) {
+    skipBtn.addEventListener("click", () => {
       overlay.classList.remove("visible");
       if (theaterTimer) clearInterval(theaterTimer);
-    };
+    });
+  }
 }
 
 // ── Share focus card ──────────────────────────────────────────────────

@@ -231,7 +231,6 @@ export function isZenOn(): boolean {
   return zenOn;
 }
 let zenHintTimer: number | null = null;
-let zenMouseTimer: number | null = null;
 let zenSoundStartedByZen = false;
 
 export function getZenDimDelayMs(): number {
@@ -259,7 +258,6 @@ export function toggleZen() {
     } else {
       zenSoundStartedByZen = false;
     }
-    zenMouseTimer = window.setTimeout(() => {}, 0);
     const onMove = () => {
       document.body.classList.add("zen-hinting");
       if (zenHintTimer) clearTimeout(zenHintTimer);
