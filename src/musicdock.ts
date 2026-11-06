@@ -623,14 +623,14 @@ async function mountYouTubePlayer(
   target.appendChild(mount);
   const YT = window.YT;
   if (!YT) return;
-  const player: YtPlayerLike = new YT.Player(mount, {
+  const ytPlayer: YtPlayerLike = new YT.Player(mount, {
     height: "100%",
     width: "100%",
     videoId: listId ? undefined : videoId,
     playerVars: listId ? { listType: "playlist", list: listId } : {},
     events: {
       onReady: () => {
-        const data = player.getVideoData?.() ?? {};
+        const data = ytPlayer.getVideoData?.() ?? {};
         ytNowPlaying.set(root, {
           title: data.title ?? "",
           channel: data.author ?? "",
@@ -640,7 +640,7 @@ async function mountYouTubePlayer(
         renderYtBanner(root);
       },
       onStateChange: (e) => {
-        const data = player.getVideoData?.() ?? {};
+        const data = ytPlayer.getVideoData?.() ?? {};
         const YTState = YT.PlayerState;
         ytNowPlaying.set(root, {
           title: data.title ?? "",
@@ -655,7 +655,7 @@ async function mountYouTubePlayer(
       },
     },
   });
-  ytPlayers.set(root, player);
+  ytPlayers.set(root, ytPlayer);
 }
 
 /** Advances the local queue (see ytQueue above) by `delta` and loads
