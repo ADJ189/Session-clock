@@ -29,6 +29,15 @@ test("boundary checker counts only actual id attributes", () => {
   assert.match(result.stderr, /Duplicate ID.*same.*2 times/);
 });
 
+test("boundary checker ignores raw-text element bodies", () => {
+  assert.equal(
+    check({
+      "index.html": `<style>.x{content:"<i id='same'>"}</style><textarea><i id='same'></i></textarea><title><i id='same'></i></title><div id='same'></div>`,
+    }).status,
+    0,
+  );
+});
+
 test("boundary checker detects builder declarations with varied whitespace", () => {
   for (const declaration of ["function\nbuildSoundUI () {}", "const buildSoundUI=()=>{}", "let\tbuildSoundUI = () => {}", "function*buildSoundUI() {}"] ) {
     const result = check({ "src/main.ts": declaration });
