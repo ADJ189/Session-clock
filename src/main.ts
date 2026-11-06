@@ -13,11 +13,4 @@ function handleBootFailure(err: unknown) {
   }
 }
 
-try {
-  const bootPromise = bootSessionClock();
-  if (bootPromise && typeof bootPromise.catch === "function") {
-    bootPromise.catch(handleBootFailure);
-  }
-} catch (err) {
-  handleBootFailure(err);
-}
+bootSessionClock().catch(handleBootFailure);
