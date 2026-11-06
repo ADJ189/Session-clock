@@ -45,6 +45,7 @@ export class SessionController {
     this.resetMilestonesCallback = options.resetMilestones;
 
     setBeforeAnalyticsReload(() => this.saveSessionState());
+    window.addEventListener("beforeunload", () => this.saveSessionState());
   }
 
   private getDom(): SessionDomRefs {
@@ -59,6 +60,10 @@ export class SessionController {
 
   isRunning(): boolean {
     return this.sessionRunning;
+  }
+
+  getStart(): number {
+    return this.sessionStart;
   }
 
   getElapsed(): number {
@@ -94,8 +99,8 @@ export class SessionController {
     Intel.onSessionStart();
     Intel.onFlowInterrupt();
     this.broadcast("session", { running: true });
-    APIs.requestNotifications();
-    APIs.acquireWakeLock();
+    void APIs.requestNotifications();
+    void APIs.acquireWakeLock();
   }
 
   pauseTimer(): void {

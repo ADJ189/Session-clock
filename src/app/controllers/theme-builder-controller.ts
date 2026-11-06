@@ -168,7 +168,7 @@ export class ThemeBuilderController {
     const parts = val.split(",").map((s) => Number.parseInt(s.trim()));
     if (
       parts.length === 3 &&
-      parts.every((p) => !isNaN(p) && p >= 0 && p <= 255)
+      parts.every((p) => !Number.isNaN(p) && p >= 0 && p <= 255)
     ) {
       const hex =
         "#" + parts.map((p) => p.toString(16).padStart(2, "0")).join("");
@@ -182,10 +182,10 @@ export class ThemeBuilderController {
     const parts = val
       .replace(/%/g, "")
       .split(",")
-      .map((s) => parseFloat(s.trim()));
+      .map((s) => Number.parseFloat(s.trim()));
     if (
       parts.length === 3 &&
-      !parts.some(isNaN) &&
+      !parts.some((p) => Number.isNaN(p)) &&
       parts[0] >= 0 &&
       parts[0] <= 360 &&
       parts[1] >= 0 &&

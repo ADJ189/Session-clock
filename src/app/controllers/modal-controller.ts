@@ -155,17 +155,39 @@ export const ensureKbModal = async () => {
 };
 
 let pomApp: any = null;
-export const ensurePomModal = async () => {
+let pomPending: Promise<void> | null = null;
+export const ensurePomModal = async (): Promise<void> => {
   const container = document.getElementById("pomOverlay");
-  if (!container || pomApp) return;
-  const { mount } = await import("svelte");
-  const PomodoroDialog = (await import("../modals/PomodoroDialog.svelte")).default;
-  pomApp = mount(PomodoroDialog, {
-    target: container,
-    props: {
-      onClose: () => closeModal("pomOverlay"),
-    },
-  });
+  if (!container) return;
+  if (pomApp) {
+    if (typeof pomApp.refresh === "function") {
+      pomApp.refresh();
+    }
+    return;
+  }
+  if (pomPending) {
+    await pomPending;
+    if (pomApp && typeof pomApp.refresh === "function") {
+      pomApp.refresh();
+    }
+    return;
+  }
+  pomPending = (async () => {
+    try {
+      const { mount } = await import("svelte");
+      const PomodoroDialog = (await import("../modals/PomodoroDialog.svelte")).default;
+      container.innerHTML = "";
+      pomApp = mount(PomodoroDialog, {
+        target: container,
+        props: {
+          onClose: () => closeModal("pomOverlay"),
+        },
+      });
+    } finally {
+      pomPending = null;
+    }
+  })();
+  await pomPending;
 };
 
 export function buildPomUI(): void {
@@ -175,13 +197,17 @@ export function buildPomUI(): void {
 let dataPanelApp: any = null;
 export async function openDataPanel(): Promise<void> {
   const target = document.getElementById("dataOverlay");
-  if (target && !dataPanelApp) {
-    target.innerHTML = "";
-    const { mount } = await import("svelte");
-    const { default: DataManagementDialog } = await import(
-      "../modals/DataManagementDialog.svelte"
-    );
-    dataPanelApp = mount(DataManagementDialog, { target });
+  if (target) {
+    if (!dataPanelApp) {
+      target.innerHTML = "";
+      const { mount } = await import("svelte");
+      const { default: DataManagementDialog } = await import(
+        "../modals/DataManagementDialog.svelte"
+      );
+      dataPanelApp = mount(DataManagementDialog, { target });
+    } else if (typeof dataPanelApp.refresh === "function") {
+      dataPanelApp.refresh();
+    }
   }
   openModal("dataOverlay");
 }

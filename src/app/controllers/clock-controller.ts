@@ -1,5 +1,5 @@
 // Clock presentation & positioning controller for Session Clock
-import { safeGet } from "../../storage";
+import { safeGet, safeSet, safeJsonGet, safeJsonSet } from "../../storage";
 
 export type ClockMode =
   | "digital"
@@ -9,7 +9,26 @@ export type ClockMode =
   | "minimal"
   | "segment";
 
-export type ClockPosMap = Partial<Record<ClockMode, "top" | "center">>;
+export type ClockPos = "top" | "center";
+
+export type ClockPosMap = Partial<Record<ClockMode, ClockPos>>;
+
+const VALID_CLOCK_MODES = new Set<ClockMode>([
+  "digital",
+  "analogue",
+  "flip",
+  "word",
+  "minimal",
+  "segment",
+]);
+
+function isValidClockMode(mode: unknown): mode is ClockMode {
+  return typeof mode === "string" && VALID_CLOCK_MODES.has(mode as ClockMode);
+}
+
+function isValidClockPos(pos: unknown): pos is ClockPos {
+  return pos === "top" || pos === "center";
+}
 
 export class ClockController {
   private clockMode: ClockMode = "digital";
@@ -17,8 +36,8 @@ export class ClockController {
   private centerMinimal = true;
 
   constructor() {
-    this.clockMode =
-      (localStorage.getItem("sc_clock_mode") as ClockMode) || "digital";
+    const rawMode = safeGet("sc_clock_mode");
+    this.clockMode = isValidClockMode(rawMode) ? rawMode : "digital";
     this.clockPosMap = this.loadClockPosMap();
     this.centerMinimal = safeGet("sc_center_minimal") !== "0";
   }
@@ -34,30 +53,43 @@ export class ClockController {
   }
 
   setClockMode(m: ClockMode): void {
-    this.clockMode = m;
-    localStorage.setItem("sc_clock_mode", m);
+    const validMode: ClockMode = isValidClockMode(m) ? m : "digital";
+    this.clockMode = validMode;
+    safeSet("sc_clock_mode", validMode);
     this.updateClockModeDOM();
-    this.applyClockPosition(this.getClockPosition(m), m);
+    this.applyClockPosition(this.getClockPosition(validMode), validMode);
   }
 
-  getClockPosition(mode: ClockMode = this.clockMode): "top" | "center" {
-    return this.clockPosMap[mode] ?? "top";
+  getClockPosition(mode: ClockMode = this.clockMode): ClockPos {
+    const validMode: ClockMode = isValidClockMode(mode) ? mode : "digital";
+    return this.clockPosMap[validMode] ?? "top";
   }
 
   applyClockPosition(
     pos: "top" | "center",
     mode: ClockMode = this.clockMode,
   ): void {
-    this.clockPosMap[mode] = pos;
-    localStorage.setItem("sc_clock_pos_map", JSON.stringify(this.clockPosMap));
-    if (mode !== this.clockMode) return;
+    const validPos: ClockPos = isValidClockPos(pos) ? pos : "top";
+    const validMode: ClockMode = isValidClockMode(mode) ? mode : "digital";
 
-    document.body.classList.toggle("clock-top", pos === "top");
-    document.body.classList.toggle("clock-center", pos === "center");
+    if (
+      validMode === ("__proto__" as unknown) ||
+      validMode === ("constructor" as unknown) ||
+      validMode === ("prototype" as unknown)
+    ) {
+      return;
+    }
+
+    this.clockPosMap[validMode] = validPos;
+    safeJsonSet("sc_clock_pos_map", this.clockPosMap);
+    if (validMode !== this.clockMode) return;
+
+    document.body.classList.toggle("clock-top", validPos === "top");
+    document.body.classList.toggle("clock-center", validPos === "center");
 
     document.querySelectorAll(".clock-pos-pill").forEach((el) => {
-      (el as HTMLElement).classList.toggle("center-active", pos === "center");
-      (el as HTMLElement).textContent = pos === "center" ? "⊞ Centred" : "⊟ Top";
+      (el as HTMLElement).classList.toggle("center-active", validPos === "center");
+      (el as HTMLElement).textContent = validPos === "center" ? "⊞ Centred" : "⊟ Top";
     });
   }
 
@@ -73,7 +105,7 @@ export class ClockController {
 
   applyCenterMinimal(on: boolean): void {
     this.centerMinimal = on;
-    localStorage.setItem("sc_center_minimal", on ? "1" : "0");
+    safeSet("sc_center_minimal", on ? "1" : "0");
     document.body.classList.toggle("center-minimal", on);
   }
 
@@ -89,17 +121,24 @@ export class ClockController {
   }
 
   private loadClockPosMap(): ClockPosMap {
-    try {
-      const raw = localStorage.getItem("sc_clock_pos_map");
-      if (raw) return JSON.parse(raw);
-    } catch {
-      /* ignore */
+    const map: ClockPosMap = {};
+    const raw = safeJsonGet<Record<string, unknown> | null>("sc_clock_pos_map", null);
+    if (raw && typeof raw === "object") {
+      for (const [key, value] of Object.entries(raw)) {
+        if (
+          key !== "__proto__" &&
+          key !== "constructor" &&
+          key !== "prototype" &&
+          isValidClockMode(key) &&
+          isValidClockPos(value)
+        ) {
+          map[key] = value;
+        }
+      }
+      return map;
     }
-    const legacy = localStorage.getItem("sc_clock_pos") as
-      | "top"
-      | "center"
-      | null;
-    if (legacy === "top" || legacy === "center") {
+    const legacy = safeGet("sc_clock_pos");
+    if (isValidClockPos(legacy)) {
       return {
         digital: legacy,
         analogue: legacy,

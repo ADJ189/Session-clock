@@ -2,6 +2,8 @@
 import { mount, unmount } from "svelte";
 import SettingsDialog from "../settings/SettingsDialog.svelte";
 import type { ClockMode } from "./clock-controller";
+import type { Theme } from "../../types";
+import * as APIs from "../../apis";
 import * as Sound from "../../sound";
 import * as Pom from "../../pomodoro";
 import * as Integrations from "../../integrations";
@@ -19,6 +21,7 @@ import {
   resetAnalyticsToAuto,
   getAnalyticsStatus,
   isAutoBlocked,
+  onAnalyticsStatusChange,
 } from "../../analytics";
 import {
   CAPS,
@@ -48,6 +51,7 @@ export interface SettingsCallbacks {
   openPomodoro: () => void;
   openDataPanel: () => void;
   openLegalPanel: (doc: "privacy" | "terms") => void;
+  getCurrentTheme: () => Theme;
 
   getClockMode: () => ClockMode;
   setClockMode: (mode: ClockMode) => void;
@@ -88,6 +92,9 @@ export class SettingsController {
 
   init(callbacks: SettingsCallbacks): void {
     this.callbacks = callbacks;
+    onAnalyticsStatusChange(() => {
+      this.updateAnalyticsUI();
+    });
   }
 
   getActiveTab(): string {
@@ -197,6 +204,7 @@ export class SettingsController {
       activeTab: this.activeTab,
       ontabchange: (tId: string) => {
         this.activeTab = tId;
+        this.mountOrUpdate();
       },
       onclose: () => {
         this.closeSettings();
@@ -251,7 +259,16 @@ export class SettingsController {
         } else if (id === "kiosk") cb.toggleKiosk();
         else if (id === "present") cb.togglePresent();
         else if (id === "pip") {
-          cb.showToast("Clock floating in PiP");
+          const clockEl = document.getElementById("clock-block-wrap") || document.body;
+          const theme = cb.getCurrentTheme();
+          if (APIs.isPiPActive()) {
+            void APIs.exitPiP();
+            cb.showToast("PiP closed");
+          } else {
+            void APIs.enterPiP(clockEl, theme)
+              .then(() => cb.showToast("Clock floating in PiP"))
+              .catch(() => cb.showToast("PiP not supported or blocked"));
+          }
         }
       },
       onopenlanguage: () => {
@@ -531,6 +548,21 @@ export class SettingsController {
     const target = document.getElementById("settingsOverlay");
     if (!target) return;
 
+    const activeEl = document.activeElement as HTMLElement | null;
+    let focusSelector: string | null = null;
+    if (activeEl && target.contains(activeEl)) {
+      if (activeEl.id) {
+        focusSelector = `#${activeEl.id}`;
+      } else if (activeEl.dataset.tab) {
+        focusSelector = `[data-tab="${activeEl.dataset.tab}"]`;
+      } else if (activeEl.dataset.mode) {
+        focusSelector = `[data-mode="${activeEl.dataset.mode}"]`;
+      } else if (activeEl.className) {
+        const firstClass = activeEl.className.trim().split(/\s+/)[0];
+        if (firstClass) focusSelector = `.${firstClass}`;
+      }
+    }
+
     if (this.appInstance) {
       unmount(this.appInstance);
       this.appInstance = null;
@@ -542,6 +574,17 @@ export class SettingsController {
       target,
       props,
     });
+
+    if (focusSelector) {
+      const el = target.querySelector<HTMLElement>(focusSelector);
+      if (el) {
+        try {
+          el.focus();
+        } catch {
+          // ignore focus error
+        }
+      }
+    }
   }
 }
 
