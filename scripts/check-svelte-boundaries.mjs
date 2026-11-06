@@ -12,25 +12,71 @@ function check() {
   const indexHtml = fs.readFileSync(indexHtmlPath, "utf8");
 
   // Rule 5: Check for duplicate IDs in index.html
-  // Tokenize tags and their attributes so data-id and quoted attribute text
-  // cannot masquerade as an id. Skip comments and raw-text elements.
-  let noComments = indexHtml;
-  let prev;
-  do {
-    prev = noComments;
-    noComments = noComments.replace(/<!--[\s\S]*?-->/g, "");
-  } while (noComments !== prev);
-  const cleanHtml = noComments.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
-  const tagRegex = /<([a-z][a-z0-9-]*)\b([^>]*)>/gi;
+  // Walk the markup directly so comments and raw-text element bodies cannot
+  // masquerade as attributes. Parsing instead of regex-stripping avoids
+  // incomplete multi-character sanitization: deleting a matched script/style
+  // block can splice its own delimiters back into a new tag.
   const idRegex = /\b([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s/>]+)))?/g;
+  const rawTextElements = new Set(["script", "style", "textarea", "title"]);
   const ids = new Map();
-  let match;
-  while ((match = tagRegex.exec(cleanHtml)) !== null) {
-    const attributes = match[2];
+  let pos = 0;
+  while (pos < indexHtml.length) {
+    const start = indexHtml.indexOf("<", pos);
+    if (start === -1) break;
+
+    if (indexHtml.startsWith("<!--", start)) {
+      const end = indexHtml.indexOf("-->", start + 4);
+      pos = end === -1 ? indexHtml.length : end + 3;
+      continue;
+    }
+
+    const marker = indexHtml[start + 1];
+    if (marker === "!" || marker === "?" || marker === "/") {
+      const end = indexHtml.indexOf(">", start + 2);
+      pos = end === -1 ? indexHtml.length : end + 1;
+      continue;
+    }
+
+    let nameEnd = start + 1;
+    while (nameEnd < indexHtml.length && /[a-z0-9-]/i.test(indexHtml[nameEnd])) {
+      nameEnd++;
+    }
+    if (nameEnd === start + 1) {
+      pos = start + 1;
+      continue;
+    }
+    const tagName = indexHtml.slice(start + 1, nameEnd).toLowerCase();
+
+    // Find the end of the opening tag without treating ">" inside a quoted
+    // attribute value as the tag terminator.
+    let attrEnd = nameEnd;
+    let quote = null;
+    while (attrEnd < indexHtml.length) {
+      const ch = indexHtml[attrEnd];
+      if (quote) {
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      } else if (ch === ">") {
+        break;
+      }
+      attrEnd++;
+    }
+    if (attrEnd >= indexHtml.length) break;
+
+    const attributes = indexHtml.slice(nameEnd, attrEnd);
     for (const attribute of attributes.matchAll(idRegex)) {
       if (attribute[1].toLowerCase() !== "id") continue;
       const id = attribute[2] ?? attribute[3] ?? attribute[4] ?? "";
       ids.set(id, (ids.get(id) || 0) + 1);
+    }
+
+    pos = attrEnd + 1;
+    if (rawTextElements.has(tagName)) {
+      const closing = new RegExp(`</${tagName}\\s*>`, "i");
+      const rest = indexHtml.slice(pos);
+      const found = closing.exec(rest);
+      pos = found ? pos + found.index + found[0].length : indexHtml.length;
     }
   }
 
