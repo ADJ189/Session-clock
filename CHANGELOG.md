@@ -4,7 +4,7 @@ All notable changes to Session Clock are documented here.
 
 Session Clock uses standard three-part semantic versioning (`MAJOR.MINOR.PATCH`).
 
-## [Unreleased]
+## [2.1.0] Patches for v2
 
 ### Fixed
 
