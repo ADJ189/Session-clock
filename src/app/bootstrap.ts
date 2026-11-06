@@ -429,8 +429,12 @@ export async function bootSessionClock(): Promise<void> {
     setThemePanelCollapsed: (col) => setThemePanelCollapsed(col),
   });
 
-  await soundMixerController.mount();
-  await themeBuilderController.mount();
+  await soundMixerController.mount().catch((err) => {
+    console.warn("Sound mixer dialog mount failed:", err);
+  });
+  await themeBuilderController.mount().catch((err) => {
+    console.warn("Theme builder dialog mount failed:", err);
+  });
 
   const matchThemeFromTrack = (
     track: { title: string; artist?: string },
