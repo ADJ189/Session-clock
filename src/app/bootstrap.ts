@@ -91,7 +91,6 @@ import {
   openQRHandoff,
   applyHandoffState,
   startAnimedoro,
-  openShareCard,
   bcBroadcast,
   checkSmartBreak,
   fireMilestoneConfetti,
@@ -653,7 +652,7 @@ export async function bootSessionClock(): Promise<void> {
   window.__scAudioNodes = () => {
     try {
       const a = new AudioContext();
-      const n = a.destination.channelCount;
+      void a.destination.channelCount;
       void a.close();
       return "ok";
     } catch {
@@ -701,9 +700,9 @@ export async function bootSessionClock(): Promise<void> {
 
   const panelToggle = document.getElementById("panelToggle");
   if (panelToggle) {
-    panelToggle.onclick = () => {
+    panelToggle.addEventListener("click", () => {
       focusLockIntercept(toggleThemePanel);
-    };
+    });
   }
 
   document
