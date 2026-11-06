@@ -14,22 +14,18 @@ function check() {
   // Rule 5: Check for duplicate IDs in index.html
   // Tokenize tags and their attributes so data-id and quoted attribute text
   // cannot masquerade as an id. Skip comments and raw-text elements.
-  const tagRegex = /<!--[\s\S]*?-->|<([a-z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
-  const idRegex = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+  const noComments = indexHtml.replace(/<!--[\s\S]*?-->/g, "");
+  const cleanHtml = noComments.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
+  const tagRegex = /<([a-z][a-z0-9-]*)\b([^>]*)>/gi;
+  const idRegex = /\b([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s/>]+)))?/g;
   const ids = new Map();
   let match;
-  while ((match = tagRegex.exec(indexHtml)) !== null) {
-    if (!match[1]) continue;
-    const attributes = match[0].slice(match[1].length + 1, -1);
+  while ((match = tagRegex.exec(cleanHtml)) !== null) {
+    const attributes = match[2];
     for (const attribute of attributes.matchAll(idRegex)) {
       if (attribute[1].toLowerCase() !== "id") continue;
       const id = attribute[2] ?? attribute[3] ?? attribute[4] ?? "";
       ids.set(id, (ids.get(id) || 0) + 1);
-    }
-    if (/^(script|style)$/i.test(match[1])) {
-      const end = new RegExp(`</${match[1]}\\s*>`, "gi");
-      end.lastIndex = tagRegex.lastIndex;
-      if (end.exec(indexHtml)) tagRegex.lastIndex = end.lastIndex;
     }
   }
 
@@ -75,7 +71,8 @@ function check() {
     if (fs.existsSync(ef)) {
       const content = fs.readFileSync(ef, "utf8");
       if (content.includes(".svelte")) {
-        errors.push(`Engine file "${path.relative(rootDir, ef)}" imports a .svelte component`);
+        const rel = path.relative(rootDir, ef).replace(/\\/g, "/");
+        errors.push(`Engine file "${rel}" imports a .svelte component`);
       }
     }
   }
