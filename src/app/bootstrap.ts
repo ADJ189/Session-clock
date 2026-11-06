@@ -710,6 +710,9 @@ export async function bootSessionClock(): Promise<void> {
     ?.addEventListener("click", () => ThemeLib.open());
 
   wireGithubCelebration();
+  if (localStorage.getItem("sc_parallax") !== "0") {
+    attachGyroParallax();
+  }
   setThemePanelCollapsed(true);
 
   const lastId = localStorage.getItem("sc_last_theme");
