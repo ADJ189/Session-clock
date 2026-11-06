@@ -550,16 +550,28 @@ export class SettingsController {
 
     const activeEl = document.activeElement as HTMLElement | null;
     let focusSelector: string | null = null;
+    let focusIndex = -1;
+    const esc =
+      typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape
+        : (s: string) => s.replace(/["\\]/g, "\\$&");
+
     if (activeEl && target.contains(activeEl)) {
       if (activeEl.id) {
-        focusSelector = `#${activeEl.id}`;
+        focusSelector = `#${esc(activeEl.id)}`;
       } else if (activeEl.dataset.tab) {
-        focusSelector = `[data-tab="${activeEl.dataset.tab}"]`;
+        focusSelector = `[data-tab="${esc(activeEl.dataset.tab)}"]`;
       } else if (activeEl.dataset.mode) {
-        focusSelector = `[data-mode="${activeEl.dataset.mode}"]`;
-      } else if (activeEl.className) {
-        const firstClass = activeEl.className.trim().split(/\s+/)[0];
-        if (firstClass) focusSelector = `.${firstClass}`;
+        focusSelector = `[data-mode="${esc(activeEl.dataset.mode)}"]`;
+      } else if (activeEl.getAttribute("aria-label")) {
+        focusSelector = `[aria-label="${esc(activeEl.getAttribute("aria-label")!)}"]`;
+      } else {
+        const focusable = Array.from(
+          target.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        focusIndex = focusable.indexOf(activeEl);
       }
     }
 
@@ -580,6 +592,19 @@ export class SettingsController {
       if (el) {
         try {
           el.focus();
+        } catch {
+          // ignore focus error
+        }
+      }
+    } else if (focusIndex >= 0) {
+      const focusable = Array.from(
+        target.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable[focusIndex]) {
+        try {
+          focusable[focusIndex].focus();
         } catch {
           // ignore focus error
         }

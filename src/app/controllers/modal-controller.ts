@@ -217,15 +217,20 @@ export async function openLegalPanel(doc: "privacy" | "terms"): Promise<void> {
   const container = document.getElementById("legalOverlay");
   if (!container) return;
   if (!legalApp) {
-    const { mount } = await import("svelte");
-    const LegalDialog = (await import("../modals/LegalDialog.svelte")).default;
-    legalApp = mount(LegalDialog, {
-      target: container,
-      props: {
-        initialDoc: doc,
-        onClose: () => closeModal("legalOverlay"),
-      },
-    });
+    try {
+      const { mount } = await import("svelte");
+      const LegalDialog = (await import("../modals/LegalDialog.svelte")).default;
+      legalApp = mount(LegalDialog, {
+        target: container,
+        props: {
+          initialDoc: doc,
+          onClose: () => closeModal("legalOverlay"),
+        },
+      });
+    } catch {
+      showToast("Couldn't load this page. Please try again.");
+      return;
+    }
   } else {
     legalApp.setDoc?.(doc);
   }
