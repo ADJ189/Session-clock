@@ -4,6 +4,13 @@ All notable changes to Session Clock are documented here.
 
 Session Clock uses standard three-part semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [Unreleased]
+
+### Fixed
+
+- **Desktop parallax responds to the mouse again.** Parallax targets are now fed by one `attachMouseParallax()` listener through `setTargetParallax()`; the gyroscope subscription is additive and no longer suppresses mouse movement on desktops that merely expose the `DeviceOrientationEvent` API without sensor data.
+- **Architecture checker no longer uses regex sanitization.** `scripts/check-svelte-boundaries.mjs` parses tags directly and skips comments plus raw-text element bodies (`script`, `style`, `textarea`, `title`), clearing the CodeQL incomplete multi-character sanitization alert while still detecting real duplicate IDs. Added unit coverage for raw-text bodies.
+
 ## [2.0.0] — 2026-11-04
 
 Session Clock 2.0.0 marks the launch of the V2 generation: introducing a searchable Theme Library, floating action dock, calmer clock defaults, a redesigned Center-mode session panel, and comprehensive audio engine, OAuth integration, and platform stability fixes.

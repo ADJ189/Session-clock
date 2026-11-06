@@ -110,6 +110,11 @@ Prefer a new module for a self-contained feature instead of growing
 - **Clock defaults are calm.** New visitors see `HH:MM` (seconds and
   milliseconds hidden). Only default when a storage key is absent; a saved
   value always wins. See `hideSeconds` / `hideMs` in `src/main.ts`.
+- **Parallax has one mouse source.** `attachMouseParallax()` owns the
+  `mousemove` listener and feeds `setTargetParallax()`; `attachGyroParallax()`
+  adds orientation on top. Do not gate mouse movement on the presence of
+  `DeviceOrientationEvent` — desktop browsers expose the API without sensor
+  data, so a "gyro attached" flag alone would freeze desktop parallax.
 - **PWA install is native-only.** There is no in-app Install button. Keep
   `public/manifest.json` and `public/sw.js` working; browsers expose their own
   install affordance.
