@@ -63,22 +63,14 @@ export function initDisplayService(options: {
   document.body.classList.toggle("hide-ms", hideSeconds || hideMs);
   document.body.classList.toggle("use-24h", use24Hour);
 
-  if (CAPS.deviceOrientation && !CAPS.deviceOrientationNeedsPermission) {
-    attachGyroParallax();
+  // Mouse parallax works on every desktop; the gyroscope is an optional
+  // addition on devices that expose orientation data.
+  if (localStorage.getItem("sc_parallax") !== "0") {
+    attachMouseParallax();
+    if (CAPS.deviceOrientation && !CAPS.deviceOrientationNeedsPermission) {
+      attachGyroParallax();
+    }
   }
-
-  window.addEventListener(
-    "mousemove",
-    (e) => {
-      if (gyroAttached) return;
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      const nx = (e.clientX - cx) / (cx || 1);
-      const ny = (e.clientY - cy) / (cy || 1);
-      setTargetParallax(nx * PARALLAX_STRENGTH, ny * PARALLAX_STRENGTH);
-    },
-    { passive: true },
-  );
 
   // Cross-browser fullscreenchange sync
   [
