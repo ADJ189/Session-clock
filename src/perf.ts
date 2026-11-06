@@ -213,6 +213,10 @@ export function getFps() {
   return fps;
 }
 
+export function getFrameCount(): number {
+  return frameCount;
+}
+
 // ── Visibility API ────────────────────────────────────────────────────
 function setupVisibilityAPI() {
   document.addEventListener("visibilitychange", () => {

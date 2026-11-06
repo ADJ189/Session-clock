@@ -184,21 +184,21 @@ export function movementPan(
 }
 
 export function positionForProfile(
-  profile: SpatialProfile,
+  targetProfile: SpatialProfile,
   elapsedSeconds: number,
   phaseOffset: number,
 ): CartesianPosition {
-  if (profile.mode === "bypass") {
-    return sphericalToCartesian(0, 0, profile.position.distanceM);
+  if (targetProfile.mode === "bypass") {
+    return sphericalToCartesian(0, 0, targetProfile.position.distanceM);
   }
-  const movement = movementPan(profile.movement, elapsedSeconds, phaseOffset);
-  const width = profile.movement.kind === "fixed"
+  const movement = movementPan(targetProfile.movement, elapsedSeconds, phaseOffset);
+  const width = targetProfile.movement.kind === "fixed"
     ? 0
-    : profile.movement.widthDeg;
-  const azimuth = profile.position.azimuthDeg + movement * width;
+    : targetProfile.movement.widthDeg;
+  const azimuth = targetProfile.position.azimuthDeg + movement * width;
   return sphericalToCartesian(
     clampFinite(azimuth, -180, 180),
-    profile.position.elevationDeg,
-    profile.position.distanceM,
+    targetProfile.position.elevationDeg,
+    targetProfile.position.distanceM,
   );
 }

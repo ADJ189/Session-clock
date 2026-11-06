@@ -4,6 +4,13 @@ All notable changes to Session Clock are documented here.
 
 Session Clock uses standard three-part semantic versioning (`MAJOR.MINOR.PATCH`).
 
+## [Unreleased]
+
+### Fixed
+
+- **Desktop parallax responds to the mouse again.** Parallax targets are now fed by one `attachMouseParallax()` listener through `setTargetParallax()`; the gyroscope subscription is additive and no longer suppresses mouse movement on desktops that merely expose the `DeviceOrientationEvent` API without sensor data.
+- **Architecture checker no longer uses regex sanitization.** `scripts/check-svelte-boundaries.mjs` parses tags directly and skips comments plus raw-text element bodies (`script`, `style`, `textarea`, `title`), clearing the CodeQL incomplete multi-character sanitization alert while still detecting real duplicate IDs. Added unit coverage for raw-text bodies.
+
 ## [2.0.0] — 2026-11-04
 
 Session Clock 2.0.0 marks the launch of the V2 generation: introducing a searchable Theme Library, floating action dock, calmer clock defaults, a redesigned Center-mode session panel, and comprehensive audio engine, OAuth integration, and platform stability fixes.
@@ -28,6 +35,7 @@ Session Clock 2.0.0 marks the launch of the V2 generation: introducing a searcha
 - **First-run welcome**: content-led height, a vector stopwatch mark, shorter copy, feature hints, a visible step label, and accessible progress/skip controls. All welcome copy and action labels now come from `src/i18n.ts` in all eight locales.
 - **Themes in the dock**: the floating dock now includes a Themes action alongside the top-bar button. The "K" shortcut and the Themes buttons open the Theme Library; the old bottom panel stays in the DOM, collapsed.
 - **Theme Finder UI**: the gallery chrome (header, search, sort, collection nav, current-theme spotlight, recent rail, wall heading, empty state) is now a Svelte 5 component under `src/app/components/theme-finder/`. `themelib.ts` remains the framework-free controller, and the card wall stays imperative so filtering still re-attaches cached nodes instead of rebuilding ~100 previews per keystroke. Selectors, classes, ARIA and storage keys are unchanged.
+- **Full Svelte 5 UI Migration**: All application UI structure (App shell, workspace surfaces, unified settings dialog, and modal dialogs including Sound Mixer, Theme Builder, Data Management, Legal, Language, Shortcuts, Pomodoro, and Command Palette) now renders declaratively via Svelte 5 runes components. `src/main.ts` is reduced from 7,531 lines to a 23-line entry point delegating to `src/app/bootstrap.ts` and headless controllers. Core audio/DSP, Pomodoro state machines, OAuth, storage, and canvas render loops remain framework-free TypeScript modules.
 - **Theme Finder internals**: the theme→CSS-variable mapping, star glyph path and preview URL are shared helpers instead of being duplicated between the Svelte component and the imperative card wall. Unused snapshot/prop fields and dead exports were removed.
 - **Docs**: README default-UX copy now notes the opt-in music deck; CONTRIBUTING testing instructions and the privacy policy no longer describe network time sync. `AGENTS.md` documents the project for future agents/contributors.
 - **OAuth internals**: provider config, credential storage, PKCE state, login and callback handling now live in `src/auth.ts`, which imports no Svelte component. That makes the real callback path unit-testable (previously it could only be reached through `integrations.ts`, which imports `.svelte`). `src/integrations.ts` re-exports the same functions, so callers and storage keys are unchanged.

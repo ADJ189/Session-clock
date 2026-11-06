@@ -4,6 +4,7 @@
     "dev": "deno run -A node_modules/vite/bin/vite.js",
     "build": "deno run -A node_modules/typescript/bin/tsc --noEmit && deno run -A node_modules/vite/bin/vite.js build",
     "preview": "deno run -A node_modules/vite/bin/vite.js preview",
+    "check:architecture": "deno run -A scripts/check-svelte-boundaries.mjs",
     "typecheck": "deno run -A node_modules/typescript/bin/tsc --noEmit",
     "typecheck:unit": "deno run -A node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
     "typecheck:e2e": "deno run -A node_modules/typescript/bin/tsc -p tests/tsconfig.json",

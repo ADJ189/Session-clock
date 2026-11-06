@@ -238,7 +238,7 @@ test.describe("audio and optional-subsystem resilience", () => {
     await showSeconds(page);
     // The legal text is intentionally a lazy chunk; aborting it must produce
     // the user-facing retry toast, not an uncaught rejection.
-    await page.route("**/*legal*.js", (route) => route.abort());
+    await page.route(/.*legal.*\.js/i, (route) => route.abort());
     await page.goto("/");
     await waitForBoot(page);
 
