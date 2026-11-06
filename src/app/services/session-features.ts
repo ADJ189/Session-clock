@@ -8,6 +8,7 @@ import { p2 } from "../../utils";
 import { THEME_BY_ID } from "../../themes";
 import type { Theme } from "../../types";
 import type { ClockMode } from "../controllers/clock-controller";
+import { sessionController } from "../controllers/session-controller";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -342,6 +343,7 @@ export function applyHandoffState() {
   }
   if (p.get("ses") === "1") {
     const elapsed = Number.parseInt(p.get("elapsed") ?? "0");
+    sessionController.setElapsed(Number.isNaN(elapsed) ? 0 : elapsed);
     (window as any).__sessionHandoffElapsed = elapsed;
     setTimeout(() => {
       const btn = document.getElementById("btnStart");

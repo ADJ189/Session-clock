@@ -16,10 +16,22 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 // Hide seconds / ms / 24h
 const savedHideSeconds = safeGet("sc_hide_seconds");
 const savedHideMs = safeGet("sc_hide_ms");
-export let hideSeconds = savedHideSeconds === null ? true : savedHideSeconds === "1";
-export let hideMs = savedHideMs === null ? true : savedHideMs === "1";
-export let use24Hour = safeGet("sc_24h") === "1";
-export let privacyMode = safeGet("sc_privacy") === "1";
+let hideSeconds = savedHideSeconds === null ? true : savedHideSeconds === "1";
+let hideMs = savedHideMs === null ? true : savedHideMs === "1";
+let use24Hour = safeGet("sc_24h") === "1";
+let privacyMode = safeGet("sc_privacy") === "1";
+
+export function isHideSeconds(): boolean {
+  return hideSeconds;
+}
+
+export function isHideMs(): boolean {
+  return hideMs;
+}
+
+export function isUse24Hour(): boolean {
+  return use24Hour;
+}
 
 let onUpdateClockCanvas: () => void = () => {};
 let onSaveSessionState: () => void = () => {};
@@ -54,6 +66,19 @@ export function initDisplayService(options: {
   if (CAPS.deviceOrientation && !CAPS.deviceOrientationNeedsPermission) {
     attachGyroParallax();
   }
+
+  window.addEventListener(
+    "mousemove",
+    (e) => {
+      if (gyroAttached) return;
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      const nx = (e.clientX - cx) / (cx || 1);
+      const ny = (e.clientY - cy) / (cy || 1);
+      setTargetParallax(nx * PARALLAX_STRENGTH, ny * PARALLAX_STRENGTH);
+    },
+    { passive: true },
+  );
 
   // Cross-browser fullscreenchange sync
   [
@@ -123,7 +148,7 @@ export function togglePrivacy() {
     showToast("🔒 Privacy Mode: fonts, weather & analytics disabled");
   } else {
     syncAnalytics(false);
-    initWeather(
+    void initWeather(
       $("weatherIcon"),
       $("weatherText"),
       $("weatherPill"),
@@ -200,7 +225,11 @@ export function isPresentOn(): boolean {
 }
 
 // ── Zen Mode ──────────────────────────────────────────────────────────
-export let zenOn = false;
+let zenOn = false;
+
+export function isZenOn(): boolean {
+  return zenOn;
+}
 let zenHintTimer: number | null = null;
 let zenMouseTimer: number | null = null;
 let zenSoundStartedByZen = false;
@@ -255,7 +284,7 @@ export function toggleZen() {
 }
 
 // ── Focus Lock ────────────────────────────────────────────────────────
-export let focusLockEnabled = safeGet("sc_focus_lock") === "1";
+let focusLockEnabled = safeGet("sc_focus_lock") === "1";
 let focusLockTimer: number | null = null;
 let focusLockBar: HTMLElement | null = null;
 
@@ -415,16 +444,17 @@ export function applyIdleDetection(on: boolean) {
 }
 
 // ── Parallax ──────────────────────────────────────────────────────────
-export let parallaxX = 0;
-export let parallaxY = 0;
-export let targetPX = 0;
-export let targetPY = 0;
+let parallaxX = 0;
+let parallaxY = 0;
+let targetPX = 0;
+let targetPY = 0;
 const PARALLAX_STRENGTH = 18;
 let gyroAttached = false;
 
-export function setParallaxCoords(px: number, py: number) {
-  parallaxX = px;
-  parallaxY = py;
+export function stepParallax(factor = 0.06): { px: number; py: number } {
+  parallaxX += (targetPX - parallaxX) * factor;
+  parallaxY += (targetPY - parallaxY) * factor;
+  return { px: parallaxX, py: parallaxY };
 }
 
 export function setTargetParallax(tx: number, ty: number) {
@@ -451,6 +481,22 @@ export function attachGyroParallax() {
 
 // ── Now Playing Poll ──────────────────────────────────────────────────
 let nowPlayingPollTimer = 0;
+let nowPlayingMatcher: ((track: { title: string; artist?: string }, manual?: boolean) => void) | null = null;
+
+export function setNowPlayingThemeMatcher(
+  fn: (track: { title: string; artist?: string }, manual?: boolean) => void,
+) {
+  nowPlayingMatcher = fn;
+}
+
+export function tryMatchNowPlayingTheme(
+  track: { title: string; artist?: string },
+  manual = false,
+) {
+  if (nowPlayingMatcher) {
+    nowPlayingMatcher(track, manual);
+  }
+}
 
 export function startNowPlayingPoll() {
   stopNowPlayingPoll();
@@ -462,8 +508,8 @@ export function startNowPlayingPoll() {
     if (!Integrations.isSpotifyConnected()) return;
     try {
       const np = await Integrations.spotifyNowPlaying();
-      if (np && np.playing) {
-        // Will match theme if registered
+      if (np && np.playing && np.track) {
+        tryMatchNowPlayingTheme({ title: np.track, artist: np.artist }, false);
       }
     } catch {
       // transient network error
