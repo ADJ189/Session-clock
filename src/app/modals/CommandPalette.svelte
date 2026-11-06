@@ -37,29 +37,29 @@
     }
   });
 
-  $effect(() => {
-    function onGlobalKeydown(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        if (commandController.getIsOpen()) {
-          commandController.close();
-        } else {
-          commandController.open();
-        }
-      }
-      if (e.key === "/" && document.activeElement === document.body) {
-        e.preventDefault();
-        commandController.open("/");
-      }
-    }
-
-    function onCaptureEscape(e: KeyboardEvent) {
-      if (!commandController.getIsOpen() || e.key !== "Escape") return;
+  function onGlobalKeydown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
       e.preventDefault();
-      e.stopImmediatePropagation();
-      commandController.close();
+      if (commandController.getIsOpen()) {
+        commandController.close();
+      } else {
+        commandController.open();
+      }
     }
+    if (e.key === "/" && document.activeElement === document.body) {
+      e.preventDefault();
+      commandController.open("/");
+    }
+  }
 
+  function onCaptureEscape(e: KeyboardEvent) {
+    if (!commandController.getIsOpen() || e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    commandController.close();
+  }
+
+  $effect(() => {
     window.addEventListener("keydown", onGlobalKeydown);
     document.addEventListener("keydown", onCaptureEscape, true);
 
