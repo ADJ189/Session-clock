@@ -5,7 +5,7 @@ import * as Sound from "../../sound";
 import * as Pom from "../../pomodoro";
 import * as Integrations from "../../integrations";
 import * as Motion from "../../motion";
-import { setTier, getTier } from "../../perf";
+import { setTier } from "../../perf";
 import { invalidateCache } from "../../renderer";
 import { CAPS, subscribeOrientation } from "../../platform";
 import { stopWeather, initWeather, getWeatherOverlay } from "../../weather";
@@ -448,6 +448,7 @@ let targetPX = 0;
 let targetPY = 0;
 const PARALLAX_STRENGTH = 18;
 let gyroAttached = false;
+let mouseAttached = false;
 
 export function stepParallax(factor = 0.06): { px: number; py: number } {
   parallaxX += (targetPX - parallaxX) * factor;
@@ -460,18 +461,48 @@ export function setTargetParallax(tx: number, ty: number) {
   targetPY = ty;
 }
 
+export function attachMouseParallax() {
+  if (mouseAttached || typeof window === "undefined") return;
+  mouseAttached = true;
+  window.addEventListener(
+    "mousemove",
+    (e: MouseEvent) => {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      if (cx > 0 && cy > 0) {
+        const nx = (e.clientX - cx) / cx;
+        const ny = (e.clientY - cy) / cy;
+        setTargetParallax(
+          Math.max(
+            -PARALLAX_STRENGTH,
+            Math.min(PARALLAX_STRENGTH, nx * PARALLAX_STRENGTH),
+          ),
+          Math.max(
+            -PARALLAX_STRENGTH,
+            Math.min(PARALLAX_STRENGTH, ny * PARALLAX_STRENGTH),
+          ),
+        );
+      }
+    },
+    { passive: true },
+  );
+}
+
 export function attachGyroParallax() {
+  attachMouseParallax();
   if (gyroAttached || !CAPS.deviceOrientation) return;
   gyroAttached = true;
   subscribeOrientation((o) => {
     if (o.gamma != null && o.beta != null) {
-      targetPX = Math.max(
-        -PARALLAX_STRENGTH,
-        Math.min(PARALLAX_STRENGTH, o.gamma / 2),
-      );
-      targetPY = Math.max(
-        -PARALLAX_STRENGTH,
-        Math.min(PARALLAX_STRENGTH, (o.beta - 45) / 2),
+      setTargetParallax(
+        Math.max(
+          -PARALLAX_STRENGTH,
+          Math.min(PARALLAX_STRENGTH, o.gamma / 2),
+        ),
+        Math.max(
+          -PARALLAX_STRENGTH,
+          Math.min(PARALLAX_STRENGTH, (o.beta - 45) / 2),
+        ),
       );
     }
   });
