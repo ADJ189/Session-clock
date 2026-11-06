@@ -12,12 +12,25 @@ function check() {
   const indexHtml = fs.readFileSync(indexHtmlPath, "utf8");
 
   // Rule 5: Check for duplicate IDs in index.html
-  const idRegex = /\bid=["']([^"']+)["']/g;
+  // Tokenize tags and their attributes so data-id and quoted attribute text
+  // cannot masquerade as an id. Skip comments and raw-text elements.
+  const tagRegex = /<!--[\s\S]*?-->|<([a-z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
+  const idRegex = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
   const ids = new Map();
   let match;
-  while ((match = idRegex.exec(indexHtml)) !== null) {
-    const id = match[1];
-    ids.set(id, (ids.get(id) || 0) + 1);
+  while ((match = tagRegex.exec(indexHtml)) !== null) {
+    if (!match[1]) continue;
+    const attributes = match[0].slice(match[1].length + 1, -1);
+    for (const attribute of attributes.matchAll(idRegex)) {
+      if (attribute[1].toLowerCase() !== "id") continue;
+      const id = attribute[2] ?? attribute[3] ?? attribute[4] ?? "";
+      ids.set(id, (ids.get(id) || 0) + 1);
+    }
+    if (/^(script|style)$/i.test(match[1])) {
+      const end = new RegExp(`</${match[1]}\\s*>`, "gi");
+      end.lastIndex = tagRegex.lastIndex;
+      if (end.exec(indexHtml)) tagRegex.lastIndex = end.lastIndex;
+    }
   }
 
   for (const [id, count] of ids.entries()) {
@@ -34,7 +47,7 @@ function check() {
   }
   const bannedBuilders = ["buildSoundUI", "buildColorRows", "buildDataPanel", "buildLegalPanel", "buildLanguageUI", "buildSettingsUI"];
   for (const b of bannedBuilders) {
-    if (mainTs.includes(`function ${b}`) || mainTs.includes(`const ${b} =`)) {
+    if (new RegExp(`\\b(?:function(?:\\s+|\\s*\\*\\s*)${b}\\s*\\(|(?:const|let)\\s+${b}\\b)`).test(mainTs)) {
       errors.push(`src/main.ts still contains banned builder: ${b}`);
     }
   }
@@ -48,6 +61,16 @@ function check() {
     path.join(rootDir, "src", "storage.ts"),
     path.join(rootDir, "src", "platform.ts"),
   ];
+  function collectAudioFiles(dir) {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) collectAudioFiles(file);
+      else if (entry.name.endsWith(".ts")) engineFiles.push(file);
+    }
+  }
+  collectAudioFiles(path.join(rootDir, "src", "audio"));
+  engineFiles.push(path.join(rootDir, "src", "app", "renderer", "canvas-engine.ts"));
   for (const ef of engineFiles) {
     if (fs.existsSync(ef)) {
       const content = fs.readFileSync(ef, "utf8");

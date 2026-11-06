@@ -7,6 +7,9 @@ import * as Cmd from "../../cmdpalette";
 import { THEMES, THEME_BY_ID } from "../../themes";
 import type { Theme } from "../../types";
 import * as Sound from "../../sound";
+import * as Pom from "../../pomodoro";
+import * as Features from "../../features";
+import { isZenOn } from "../services/display-service";
 import * as Easter from "../../easter";
 
 export interface CommandRegistryContext {
@@ -209,6 +212,12 @@ function registerCmdPaletteItems(ctx: CommandRegistryContext) {
       undefined, undefined, undefined, undefined,
       () => {
         ctx.toggleZen();
+        if (!ctx.sessionRunning()) {
+          Pom.setWorkMins(50);
+          Pom.reset();
+          Pom.setActive(true);
+          ctx.startSession();
+        }
         Sound.toggleTrack("brown");
         Sound.playBinaural("gamma");
         ctx.showToast("🎯 Super focus protocol engaged");
@@ -219,7 +228,18 @@ function registerCmdPaletteItems(ctx: CommandRegistryContext) {
     ["cabin-snow", "❄️", "Winter Cabin", 'Type "snow" → switches to Snowy theme with fireplace + wind ambience', "snow winter cabin fireplace wind cozy", "snow", ["fire", "wind"], undefined, "❄️ Cozy cabin session"],
     ["zen-garden", "🎋", "Zen Garden", 'Type "garden" → switches to Bonsai theme with stream water + birds ambience', "garden zen bonsai stream water birds peace", "bonsai", ["stream", "birds"], undefined, "🎋 Peace in the garden"],
     ["rainy-study", "🌧️", "Rainy Afternoon Study", 'Type "rainy" → switches to Rainy Window theme with heavy rain + thunder', "rainy study afternoon window heavy thunder", "rain", ["rain", "thunder"], undefined, "🌧️ Rain on the window"],
-    ["power-nap", "💤", "20-Min Power Nap", 'Type "nap" → sets 20-min timer with delta sleep waves, darkens screen', "nap power sleep delta rest recharge", undefined, undefined, "delta", "💤 20-min power nap initiated"],
+    ["power-nap", "💤", "20-Min Power Nap", 'Type "nap" → sets 20-min timer with delta sleep waves, darkens screen', "nap power sleep delta rest recharge", undefined, undefined, undefined, undefined,
+      () => {
+        Features.setCountdownTarget("20-Min Power Nap", new Date(Date.now() + 20 * 60_000), (display, done) => {
+          const status = document.getElementById("sessionStatusLine");
+          if (status) status.textContent = display;
+          if (done) ctx.showToast(display, 5000);
+        });
+        if (!isZenOn()) ctx.toggleZen();
+        Sound.playBinaural("delta");
+        ctx.showToast("💤 20-min power nap initiated");
+      },
+    ],
   ];
 
   eggs.forEach(([id, icon, name, desc, keywords, theme, tracks, binaural, toast, custom]) => {
@@ -245,8 +265,8 @@ function registerCmdPaletteItems(ctx: CommandRegistryContext) {
 
   type CmdActionTuple = [id: string, icon: string, name: string, desc: string, action: () => void];
   const actions: CmdActionTuple[] = [
-    ["start", "▶", "Start Session Timer", "Begin tracking focus time (Space)", () => ctx.startSession()],
-    ["pause", "⏸", "Pause Session Timer", "Temporarily pause the timer (Space)", () => ctx.pauseSession()],
+    ["start", "▶", "Start Session Timer", "Begin tracking focus time (Space)", () => { if (!ctx.sessionRunning()) ctx.startSession(); }],
+    ["pause", "⏸", "Pause Session Timer", "Temporarily pause the timer (Space)", () => { if (ctx.sessionRunning()) ctx.pauseSession(); }],
     ["reset", "↺", "Reset Session Timer", "Zero the timer and session count (R)", () => ctx.resetSession()],
     ["pom-toggle", "🍅", "Toggle Pomodoro Mode", "Switch between stopwatch & interval timer (P)", () => ctx.togglePomodoro()],
     ["zen-toggle", "🧘", "Zen Mode", "Distraction-free study with breathing rings (Z)", () => ctx.toggleZen()],

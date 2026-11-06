@@ -69,6 +69,7 @@ export function applyTheme(theme: Theme, instant = false) {
 
   const doApply = () => {
     if (myGeneration !== themeGeneration) return;
+    const previousTheme = currentTheme;
     currentTheme = theme;
     invalidateCache();
     buildParticles(theme);
@@ -101,9 +102,7 @@ export function applyTheme(theme: Theme, instant = false) {
     cssVar("--lb-h", theme.isMedia && theme.lb ? "3.8vh" : "0px");
 
     document.body.classList.toggle("light-theme", !!theme.light);
-    document.body.className = document.body.className
-      .replace(/\btheme-\S+/g, "")
-      .trim();
+    document.body.classList.remove(`theme-${previousTheme.id}`);
     document.body.classList.add(`theme-${theme.id}`);
 
     const overlayEl = $("overlay");
@@ -401,7 +400,9 @@ export function renderFrame(ts: number) {
           const entry = litClockData[key];
           if (entry) {
             quoteText.style.opacity = "0";
+            const quoteGeneration = themeGeneration;
             setTimeout(() => {
+              if (quoteGeneration !== themeGeneration) return;
               quoteText.textContent = `"${entry.quote}"`;
               if (litMeta) litMeta.textContent = entry.source;
               quoteText.style.opacity = ".55";
@@ -531,6 +532,7 @@ const WORDS: Record<string, [number, number, number][]> = {
   TEN: [[3, 5, 7]],
   TO: [[3, 9, 10]],
   PAST: [[4, 0, 3]],
+  NINE: [[4, 7, 10]],
   ONE: [[5, 0, 2]],
   SIX: [[5, 3, 5]],
   THREE: [[5, 6, 10]],
@@ -562,7 +564,7 @@ const HOUR_WORDS = [
 export function getWordClockWords(hr: number, min: number): Set<string> {
   const lit = new Set<string>(["IT", "IS"]);
   const m5 = Math.round(min / 5) * 5;
-  if (m5 === 0) {
+  if (m5 === 0 || m5 === 60) {
     lit.add("OCLOCK");
   } else if (m5 === 5) {
     lit.add("FIVE");
@@ -609,7 +611,7 @@ export function getWordClockWords(hr: number, min: number): Set<string> {
 
 let wordPrevKey = "";
 export function renderWord(hr: number, min: number) {
-  const key = `${hr}:${Math.floor(min / 5)}`;
+  const key = String(Math.round((hr * 60 + min) / 5) * 5);
   if (key === wordPrevKey) return;
   wordPrevKey = key;
   const lit = getWordClockWords(hr, min);
