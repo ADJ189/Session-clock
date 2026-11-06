@@ -24,14 +24,9 @@ import {
 } from "../../perf";
 import { clockController } from "../controllers/clock-controller";
 import {
-  hideSeconds,
-  hideMs,
-  use24Hour,
-  parallaxX,
-  parallaxY,
-  targetPX,
-  targetPY,
-  setParallaxCoords,
+  isHideSeconds,
+  isUse24Hour,
+  stepParallax,
 } from "../services/display-service";
 import {
   bcBroadcast,
@@ -42,7 +37,7 @@ import {
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-export let currentTheme: Theme = THEMES[0];
+let currentTheme: Theme = THEMES[0];
 export function getCurrentTheme(): Theme {
   return currentTheme;
 }
@@ -205,10 +200,14 @@ let litClockLoading = false;
 export function ensureLitClockLoaded() {
   if (litClockData || litClockLoading) return;
   litClockLoading = true;
-  import("../../litclock").then((m) => {
-    litClockData = m.LIT_CLOCK;
-    litClockLoading = false;
-  });
+  void import("../../litclock")
+    .then((m) => {
+      litClockData = m.LIT_CLOCK;
+      litClockLoading = false;
+    })
+    .catch(() => {
+      litClockLoading = false;
+    });
 }
 
 export function tickDigit(el: HTMLElement, val: string) {
@@ -276,9 +275,7 @@ export function renderFrame(ts: number) {
     localStorage.getItem("sc_parallax") !== "0" &&
     !document.body.classList.contains("reduced-motion");
   if (tier !== "low" && parallaxEnabled) {
-    const px = parallaxX + (targetPX - parallaxX) * 0.06;
-    const py = parallaxY + (targetPY - parallaxY) * 0.06;
-    setParallaxCoords(px, py);
+    const { px, py } = stepParallax(0.06);
     setParallax(px, py);
   } else {
     setParallax(0, 0);
@@ -298,7 +295,7 @@ export function renderFrame(ts: number) {
     min = now.getMinutes(),
     hr = now.getHours();
   const hr12 = hr % 12 || 12;
-  const is24 = use24Hour || currentTheme.id === "terminal";
+  const is24 = isUse24Hour() || currentTheme.id === "terminal";
   const hrStr = p2(is24 ? hr : hr12),
     minStr = p2(min),
     secStr = p2(sec);
@@ -413,7 +410,7 @@ export function renderFrame(ts: number) {
         }
       } else {
         const qs = currentTheme.quotes?.length ? currentTheme.quotes : NAT_QUOTES;
-        const qi = (((hr * 60 + min) / 5) | 0) % qs.length;
+        const qi = Math.trunc((hr * 60 + min) / 5) % qs.length;
         const qKey = String(qi);
         if (qKey !== lastQKey) {
           lastQKey = qKey;
@@ -481,7 +478,7 @@ export function renderAnalogue(hr: number, min: number, sec: number, ms: number)
 
   drawHand(hrAngle, R * 0.55, 3.5, currentTheme.text);
   drawHand(minAngle, R * 0.78, 2.2, currentTheme.text);
-  if (!hideSeconds) drawHand(secAngle, R * 0.88, 1.2, acc);
+  if (!isHideSeconds()) drawHand(secAngle, R * 0.88, 1.2, acc);
 
   ctx2.beginPath();
   ctx2.arc(cx, cy, 4, 0, Math.PI * 2);
@@ -642,7 +639,7 @@ export function renderWord(hr: number, min: number) {
 }
 
 export function renderMinimal(hr12: number, hr: number) {
-  const is24 = use24Hour || currentTheme.id === "terminal";
+  const is24 = isUse24Hour() || currentTheme.id === "terminal";
   const el = document.getElementById("minimalHr");
   const ap = document.getElementById("minimalAP");
   if (el) el.textContent = String(is24 ? hr : hr12);
@@ -720,16 +717,17 @@ export function renderSegment(hr: string, min: string, sec: string) {
     colonW = 18 * scale;
   const dotR = 3 * scale;
 
-  const digits = hideSeconds
+  const secondsHidden = isHideSeconds();
+  const digits = secondsHidden
     ? [hr[0]!, hr[1]!, min[0]!, min[1]!]
     : [hr[0]!, hr[1]!, min[0]!, min[1]!, sec[0]!, sec[1]!];
-  const colonCount = hideSeconds ? 1 : 2;
+  const colonCount = secondsHidden ? 1 : 2;
   const totalW =
     digits.length * dw + (digits.length - 1) * gap + colonCount * colonW;
   let ox = (el.width - totalW) / 2,
     oy = (el.height - dh) / 2;
   digits.forEach((d, i) => {
-    if (i === 2 || (!hideSeconds && i === 4)) {
+    if (i === 2 || (!secondsHidden && i === 4)) {
       ctx2.fillStyle = Math.floor(Date.now() / 500) % 2 === 0 ? acc : dim;
       ctx2.beginPath();
       ctx2.arc(ox + colonW / 2, oy + dh * 0.33, dotR, 0, Math.PI * 2);
@@ -783,13 +781,13 @@ export function updateClockCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = canvas.height = sz * dpr;
     canvas.style.width = canvas.style.height = sz + "px";
-    canvas.dataset.secondsHidden = hideSeconds ? "1" : "0";
+    canvas.dataset.secondsHidden = isHideSeconds() ? "1" : "0";
     block.appendChild(canvas);
   } else if (clockMode === "flip") {
     const wrap = document.createElement("div");
     wrap.id = "flipClockWrap";
     wrap.className = "flip-clock-wrap";
-    const parts = hideSeconds ? ["Hr", "Min"] : ["Hr", "Min", "Sec"];
+    const parts = isHideSeconds() ? ["Hr", "Min"] : ["Hr", "Min", "Sec"];
     parts.forEach((part, i) => {
       if (i > 0) {
         const sep = document.createElement("span");
