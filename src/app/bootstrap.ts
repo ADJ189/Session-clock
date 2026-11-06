@@ -70,7 +70,7 @@ import {
   toggleKiosk,
   togglePresent,
   toggleZen,
-  zenOn,
+  isZenOn,
   toggleFocusLock,
   focusLockIntercept,
   isFocusLockEnabled,
@@ -79,11 +79,12 @@ import {
   wireGithubCelebration,
   startNowPlayingPoll,
   stopNowPlayingPoll,
+  setNowPlayingThemeMatcher,
   isPrivacyMode,
   togglePrivacy,
-  hideSeconds,
-  hideMs,
-  use24Hour,
+  isHideSeconds,
+  isHideMs,
+  isUse24Hour,
 } from "./services/display-service";
 import {
   initSessionFeatures,
@@ -98,7 +99,6 @@ import {
   resetMilestones,
 } from "./services/session-features";
 import {
-  currentTheme,
   getCurrentTheme,
   applyTheme,
   updateClockCanvas,
@@ -204,9 +204,9 @@ function hideSplash() {
   const fontsGraceTimeout = new Promise((resolve) =>
     setTimeout(resolve, SPLASH_FONT_GRACE_MS),
   );
-  Promise.race([fontsReady, fontsGraceTimeout]).then(() =>
-    finishHideSplash(el, t0),
-  );
+  void Promise.race([fontsReady, fontsGraceTimeout])
+    .then(() => finishHideSplash(el, t0))
+    .catch(() => finishHideSplash(el, t0));
 }
 
 function finishHideSplash(el: HTMLElement, t0: number) {
@@ -369,6 +369,38 @@ export async function bootSessionClock(): Promise<void> {
     resetMilestones: () => resetMilestones(),
   });
 
+  Pom.init({
+    isRunning: () => sessionController.isRunning(),
+    getStart: () => sessionController.getStart(),
+    timer: document.getElementById("sessionTimer") as HTMLElement,
+    arc: document.getElementById("pomRingArc") as unknown as SVGCircleElement,
+    ring: document.getElementById("pomRingSvg") as unknown as SVGSVGElement,
+    pill: document.getElementById("pomModePill") as HTMLElement,
+    label: document.getElementById("sessionLabel") as HTMLElement,
+    onPhase: (text: string) => {
+      const btn = document.getElementById("btnStart") as HTMLButtonElement | null;
+      if (btn) {
+        Features.updateButtonLabels(
+          sessionController.isRunning() ? "running" : "idle",
+          Pom.getPhase(),
+          Pom.isActive(),
+          btn,
+        );
+      }
+      Features.setStatusState(
+        sessionController.isRunning() ? "running" : "idle",
+        { pomEnabled: Pom.isActive() },
+      );
+      showToast(text, 3500);
+    },
+  });
+
+  themeBuilderController.init({
+    onReset: () => {
+      applyTheme(getCurrentTheme(), true);
+    },
+  });
+
   setSessionRunningCheck(
     () => sessionController.isRunning(),
     () => sessionController.getElapsed(),
@@ -397,8 +429,36 @@ export async function bootSessionClock(): Promise<void> {
     setThemePanelCollapsed: (col) => setThemePanelCollapsed(col),
   });
 
-  soundMixerController.mount();
-  themeBuilderController.mount();
+  await soundMixerController.mount();
+  await themeBuilderController.mount();
+
+  const matchThemeFromTrack = (
+    track: { title: string; artist?: string },
+    manual = false,
+  ) => {
+    const query = `${track.title} ${track.artist ?? ""}`
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ");
+    const tokens = query.split(/\s+/).filter(Boolean);
+    if (!tokens.length) return;
+
+    const match = THEMES.find((t) => {
+      const tName = t.name.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+      const tId = t.id.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+      if (query.includes(tName) || query.includes(tId)) return true;
+      const nameWords = tName.split(/\s+/).filter((w) => w.length > 2);
+      return nameWords.length > 0 && nameWords.every((w) => query.includes(w));
+    });
+
+    if (match) {
+      applyTheme(match);
+      showToast(`🎵 Matched theme: ${match.name}`);
+    } else if (manual) {
+      showToast(`No matching theme for "${track.title}"`);
+    }
+  };
+
+  setNowPlayingThemeMatcher((track, manual) => matchThemeFromTrack(track, manual));
 
   settingsController.init({
     closeModal: (id) => closeModal(id),
@@ -421,6 +481,7 @@ export async function bootSessionClock(): Promise<void> {
     },
     openDataPanel: () => openDataPanel(),
     openLegalPanel: (doc) => openLegalPanel(doc),
+    getCurrentTheme: () => getCurrentTheme(),
 
     getClockMode: () => clockController.getMode(),
     setClockMode: (mode) => clockController.setClockMode(mode),
@@ -428,11 +489,11 @@ export async function bootSessionClock(): Promise<void> {
     applyClockPosition: (pos) => clockController.applyClockPosition(pos),
     isCenterMinimal: () => clockController.isCenterMinimal(),
     applyCenterMinimal: (val) => clockController.applyCenterMinimal(val),
-    getHideSeconds: () => hideSeconds,
+    getHideSeconds: () => isHideSeconds(),
     applyHideSeconds: (val) => applyHideSeconds(val),
-    getHideMs: () => hideMs,
+    getHideMs: () => isHideMs(),
     applyHideMs: (val) => applyHideMs(val),
-    getUse24Hour: () => use24Hour,
+    getUse24Hour: () => isUse24Hour(),
     applyUse24Hour: (val) => applyUse24Hour(val),
     applyCalmMode: (val) => applyCalmMode(val),
     applyFocusMode: (val) => applyFocusMode(val),
@@ -441,7 +502,7 @@ export async function bootSessionClock(): Promise<void> {
     applyIdleDetection: (val) => applyIdleDetection(val),
     startNowPlayingPoll: () => startNowPlayingPoll(),
     stopNowPlayingPoll: () => stopNowPlayingPoll(),
-    tryMatchNowPlayingTheme: () => {},
+    tryMatchNowPlayingTheme: (track, manual) => matchThemeFromTrack(track, manual),
     attachGyroParallax: () => attachGyroParallax(),
     togglePrivacy: () => togglePrivacy(),
     isPrivacyMode: () => isPrivacyMode(),
@@ -452,8 +513,10 @@ export async function bootSessionClock(): Promise<void> {
       (window as unknown as { __scDiagnosticsText?: () => string })
         .__scDiagnosticsText?.() ?? "",
     wireIdleListeners: (n) => wireIdleListeners(n),
-    isBreathingBreakEnabled: () => false,
-    setBreathingBreakEnabled: () => {},
+    isBreathingBreakEnabled: () => localStorage.getItem("sc_breathing_break") !== "0",
+    setBreathingBreakEnabled: (val) => {
+      localStorage.setItem("sc_breathing_break", val ? "1" : "0");
+    },
   });
 
   initModals();
@@ -476,7 +539,7 @@ export async function bootSessionClock(): Promise<void> {
     },
     toggleThemePanel: () => toggleThemePanel(),
     toggleZen: () => toggleZen(),
-    isZenOn: () => zenOn,
+    isZenOn: () => isZenOn(),
   });
 
   // 6. Theme Finder Controller
@@ -545,15 +608,17 @@ export async function bootSessionClock(): Promise<void> {
   initPerf();
   Motion.preloadAnime();
 
-  APIs.initBattery().then(() => {
-    APIs.onBatteryChange((level, charging) => {
-      if (!charging && level < 0.2 && getTier() !== "low") {
-        setTier("low");
-        showToast("🔋 Battery saver: quality reduced to Low");
-      }
-    });
-  });
-  APIs.acquireWakeLock();
+  void APIs.initBattery()
+    .then(() => {
+      APIs.onBatteryChange((level, charging) => {
+        if (!charging && level < 0.2 && getTier() !== "low") {
+          setTier("low");
+          showToast("🔋 Battery saver: quality reduced to Low");
+        }
+      });
+    })
+    .catch(() => {});
+  void APIs.acquireWakeLock();
 
   resize();
   window.addEventListener("resize", () => {
@@ -585,7 +650,7 @@ export async function bootSessionClock(): Promise<void> {
     try {
       const a = new AudioContext();
       const n = a.destination.channelCount;
-      a.close();
+      void a.close();
       return "ok";
     } catch {
       return "?";
@@ -609,18 +674,6 @@ export async function bootSessionClock(): Promise<void> {
     document.body.classList.remove("drag-over"),
   );
 
-  const kbBtn = document.getElementById("btnKbShortcuts");
-  if (kbBtn) kbBtn.addEventListener("click", () => openModal("kbOverlay"));
-  const cmdBtn = document.getElementById("btnCmdPalette");
-  if (cmdBtn) cmdBtn.addEventListener("click", () => Cmd.open());
-  const secretsBtn = document.getElementById("cmdSecretsBtn");
-  if (secretsBtn) secretsBtn.addEventListener("click", () => Cmd.open("/"));
-
-  const posPill = document.getElementById("clockPosPill");
-  if (posPill) {
-    posPill.addEventListener("click", () => clockController.toggleClockPosition());
-  }
-
   // Ripple position tracking
   document.addEventListener(
     "mousedown",
@@ -641,13 +694,6 @@ export async function bootSessionClock(): Promise<void> {
 
   // UI sounds wiring
   initUiSounds();
-
-  const topbarThemesBtn = document.getElementById("topbarThemesBtn");
-  if (topbarThemesBtn) {
-    topbarThemesBtn.addEventListener("click", () => {
-      focusLockIntercept(toggleThemePanel);
-    });
-  }
 
   const panelToggle = document.getElementById("panelToggle");
   if (panelToggle) {
@@ -706,7 +752,7 @@ export async function bootSessionClock(): Promise<void> {
     const wText = document.getElementById("weatherText");
     const wPill = document.getElementById("weatherPill");
     if (wIcon && wText && wPill) {
-      initWeather(wIcon, wText, wPill, isPrivacyMode, (_code, _temp, _desc) => {
+      void initWeather(wIcon, wText, wPill, isPrivacyMode, (_code, _temp, _desc) => {
         if (localStorage.getItem("sc_weather_theme") !== "0") {
           const overlay = getWeatherOverlay();
           const all = ["clear", "rain", "snow", "thunder", "fog", "cloudy"];
@@ -727,13 +773,6 @@ export async function bootSessionClock(): Promise<void> {
   const btnStartEl = document.getElementById("btnStart") as HTMLButtonElement | null;
   if (btnStartEl) {
     Features.updateButtonLabels("idle", "work", false, btnStartEl);
-  }
-
-  const distractionBtn = document.getElementById("btnDistraction");
-  if (distractionBtn) {
-    distractionBtn.addEventListener("click", () => {
-      sessionController.logDistraction();
-    });
   }
 
   const templatesContent = document.getElementById("templatesContent");
@@ -811,32 +850,36 @@ export async function bootSessionClock(): Promise<void> {
   }
 
   if (window.location.search.includes("code=")) {
-    Integrations.oauthHandleCallback().then((result) => {
-      if (result && !result.ok) {
-        const name =
-          result.provider[0]!.toUpperCase() + result.provider.slice(1);
-        showToast(`⚠️ ${name} connection failed: ${result.error}`, 6000);
-      } else if (result?.ok) {
-        const name =
-          result.provider[0]!.toUpperCase() + result.provider.slice(1);
-        showToast(`✅ ${name} connected!`, 4000);
-        if (
-          result.provider === "spotify" &&
-          MusicDock.isMusicDeckEnabled() &&
-          MusicDock.getProviderPref() !== "youtube"
-        ) {
-          void MusicDock.initSpotifyPlayback().then(() =>
-            MusicDock.refreshDockConnectionState(),
-          );
+    void Integrations.oauthHandleCallback()
+      .then((result) => {
+        if (result && !result.ok) {
+          const name =
+            result.provider[0]!.toUpperCase() + result.provider.slice(1);
+          showToast(`⚠️ ${name} connection failed: ${result.error}`, 6000);
+        } else if (result?.ok) {
+          const name =
+            result.provider[0]!.toUpperCase() + result.provider.slice(1);
+          showToast(`✅ ${name} connected!`, 4000);
+          if (
+            result.provider === "spotify" &&
+            MusicDock.isMusicDeckEnabled() &&
+            MusicDock.getProviderPref() !== "youtube"
+          ) {
+            void MusicDock.initSpotifyPlayback().then(() =>
+              MusicDock.refreshDockConnectionState(),
+            );
+          }
+          if (result.provider === "google") {
+            MusicDock.refreshYouTubeConnectionState();
+            void SideTasks.refreshNow();
+          }
         }
-        if (result.provider === "google") {
-          MusicDock.refreshYouTubeConnectionState();
-          SideTasks.refreshNow();
-        }
-      }
-      if (intContent)
-        Integrations.buildIntegrationsPanel(intContent, { showToast });
-    });
+        if (intContent)
+          Integrations.buildIntegrationsPanel(intContent, { showToast });
+      })
+      .catch((err) => {
+        console.error("OAuth callback error:", err);
+      });
   }
 
   if (Features.shouldShowOnboarding()) {
@@ -896,7 +939,7 @@ export async function bootSessionClock(): Promise<void> {
           break;
         case "zen":
           toggleZen();
-          showToast("🎙 Zen Mode " + (zenOn ? "on" : "off"));
+          showToast("🎙 Zen Mode " + (isZenOn() ? "on" : "off"));
           break;
         case "theme": {
           const name = cmd.themeName?.toLowerCase() ?? "";
