@@ -12,6 +12,7 @@ import {
   isTabVisible,
 } from "./perf";
 import { reducedMotion } from "./motion";
+import { motionScale } from "./animation-clock";
 import { readFocusLog } from "./focuslog";
 import { rendererHealth, type RendererFailure } from "./rendererHealth";
 
@@ -120,6 +121,12 @@ let poolN = 0;
 export let W = 0,
   H = 0;
 export let tick = 0;
+
+// Elapsed 60 Hz-frame equivalents for the current draw. Theme particle
+// systems were authored as per-frame increments; multiplying by this keeps
+// their speed identical at 60 Hz and correct at every other refresh rate.
+// drawBgInner() refreshes it once per frame before any theme draw runs.
+let _motionScale = 1;
 
 const bgCanvas = document.getElementById("bgCanvas") as HTMLCanvasElement | null;
 const tCanvas = document.getElementById("transCanvas") as HTMLCanvasElement | null;
@@ -293,17 +300,46 @@ export function setBreathing(active: boolean) {
   breathingStart = active ? performance.now() / 1000 : 0;
 }
 
+let _canvasDpr = 1;
+export function getCanvasDpr(): number {
+  return _canvasDpr;
+}
+
 export function resize() {
   W = window.innerWidth;
   H = window.innerHeight;
+  const rawDpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  const tier = getTier();
+  const maxDpr = tier === "low" ? 1 : tier === "med" ? 1.5 : 2.0;
+  _canvasDpr = Math.max(1, Math.min(rawDpr, maxDpr));
+
+  const pixelW = Math.round(W * _canvasDpr);
+  const pixelH = Math.round(H * _canvasDpr);
+
   if (bgCanvas) {
-    bgCanvas.width = W;
-    bgCanvas.height = H;
+    if (bgCanvas.width !== pixelW || bgCanvas.height !== pixelH) {
+      bgCanvas.width = pixelW;
+      bgCanvas.height = pixelH;
+    }
   }
   if (tCanvas) {
-    tCanvas.width = W;
-    tCanvas.height = H;
+    if (tCanvas.width !== pixelW || tCanvas.height !== pixelH) {
+      tCanvas.width = pixelW;
+      tCanvas.height = pixelH;
+    }
   }
+
+  try {
+    bgCtx?.setTransform(_canvasDpr, 0, 0, _canvasDpr, 0, 0);
+  } catch {
+    // Ignore in unsupported environments
+  }
+  try {
+    transCtx?.setTransform(_canvasDpr, 0, 0, _canvasDpr, 0, 0);
+  } catch {
+    // Ignore in unsupported environments
+  }
+
   invalidateCache();
 }
 
@@ -380,8 +416,15 @@ function drawBgInner(dt: number, theme: Theme, flowIntensity = 0) {
   if (reducedMotion()) dt = 0;
 
   tick += dt;
+  _motionScale = motionScale(dt);
   const bt = theme.bgType;
   const bg = theme.baseBg;
+
+  try {
+    c.setTransform(_canvasDpr, 0, 0, _canvasDpr, 0, 0);
+  } catch {
+    // Unsupported context
+  }
 
   // Apply parallax via canvas transform
   c.save();
@@ -883,14 +926,14 @@ function drawParticles(dt: number, t: Theme) {
   c.fillStyle = accent;
   for (let i = 0; i < poolN; i += step) {
     const o = i * PSTRIDE;
-    // `step` is a quality-tier multiplier (perf.ts), not a motion clock —
-    // it never went through the `dt` freeze drawBg() applies for
-    // prefers-reduced-motion, so particles kept drifting every draw call
-    // regardless. dt === 0 is drawBg()'s reduced-motion signal; skip the
-    // position update (but still draw the current, static positions) then.
+    // `step` is only the quality-tier stride that decides how many particles
+    // are visited; motion uses the shared elapsed-time scale so low tiers do
+    // not also slow the particles down. dt === 0 is drawBg()'s
+    // reduced-motion signal: skip the position update but still draw the
+    // current, static positions.
     if (dt > 0) {
-      p[o] += p[o + 2] * step;
-      p[o + 1] += p[o + 3] * step;
+      p[o] += p[o + 2] * _motionScale;
+      p[o + 1] += p[o + 3] * _motionScale;
       if (p[o] < -5) p[o] = W + 5;
       else if (p[o] > W + 5) p[o] = -5;
       if (p[o + 1] < -5) p[o + 1] = H + 5;
@@ -1019,8 +1062,8 @@ function drawCabinSnow(t: Theme) {
   c.fillStyle = "rgba(255,255,255,.55)";
   for (let i = 0; i < poolN; i++) {
     const o = i * PSTRIDE;
-    p[o + 1] += 0.4 + p[o + 4]! * 0.3;
-    p[o] += Math.sin(tick * 0.6 + i) * 0.2;
+    p[o + 1] += (0.4 + p[o + 4]! * 0.3) * _motionScale;
+    p[o] += Math.sin(tick * 0.6 + i) * 0.2 * _motionScale;
     if (p[o + 1] > H + 5) {
       p[o + 1] = -5;
       p[o] = rnd(W);
@@ -1054,7 +1097,7 @@ function drawCoffeeRain(t: Theme) {
   c.lineWidth = 1;
   for (let i = 0; i < poolN; i++) {
     const o = i * PSTRIDE;
-    p[o + 1] += 2.2 + p[o + 4]! * 0.6;
+    p[o + 1] += (2.2 + p[o + 4]! * 0.6) * _motionScale;
     if (p[o + 1] > H + 5) {
       p[o + 1] = -5;
       p[o] = rnd(W);
@@ -1073,8 +1116,8 @@ function drawGhibli(t: Theme) {
   const p = pool;
   for (let i = 0; i < poolN; i += 2) {
     const o = i * PSTRIDE;
-    p[o + 1] -= 0.15;
-    p[o] += Math.sin(tick * 0.5 + i) * 0.3;
+    p[o + 1] -= 0.15 * _motionScale;
+    p[o] += Math.sin(tick * 0.5 + i) * 0.3 * _motionScale;
     if (p[o + 1] < -5) {
       p[o + 1] = H + 5;
       p[o] = rnd(W);
@@ -1113,8 +1156,8 @@ function drawLavaLamp(t: Theme) {
   const p = pool;
   for (let i = 0; i < poolN; i += 2) {
     const o = i * PSTRIDE;
-    p[o + 1] -= 0.5 + Math.sin(tick * 0.4 + i) * 0.3;
-    p[o] += Math.sin(tick * 0.25 + i * 1.7) * 0.5;
+    p[o + 1] -= (0.5 + Math.sin(tick * 0.4 + i) * 0.3) * _motionScale;
+    p[o] += Math.sin(tick * 0.25 + i * 1.7) * 0.5 * _motionScale;
     if (p[o + 1] < -20) {
       p[o + 1] = H + 20;
       p[o] = rnd(W);
@@ -1135,8 +1178,8 @@ function drawMidnightLibrary(t: Theme) {
   const p = pool;
   for (let i = 0; i < poolN; i += 3) {
     const o = i * PSTRIDE;
-    p[o + 1] -= 0.2;
-    p[o] += Math.sin(tick * 0.4 + i) * 0.25;
+    p[o + 1] -= 0.2 * _motionScale;
+    p[o] += Math.sin(tick * 0.4 + i) * 0.25 * _motionScale;
     if (p[o + 1] < -10) {
       p[o + 1] = H + 10;
       p[o] = rnd(W);
@@ -1253,8 +1296,8 @@ function drawMidnight(dt: number, t: Theme) {
     c.moveTo(s.x, s.y);
     c.lineTo(ex, ey);
     c.stroke();
-    s.x += Math.cos(s.angle) * s.speed * 0.7;
-    s.y += Math.sin(s.angle) * s.speed * 0.7;
+    s.x += Math.cos(s.angle) * s.speed * 0.7 * _motionScale;
+    s.y += Math.sin(s.angle) * s.speed * 0.7 * _motionScale;
     if (s.life >= s.maxLife || s.x > W + 50 || s.y > H + 50)
       shootingStars.splice(i, 1);
   }
@@ -1600,8 +1643,8 @@ function drawCommonRoom(t: Theme) {
   // Floating ember particles
   for (let i = 0; i < poolN; i++) {
     const o = i * PSTRIDE;
-    pool[o] += pool[o + 2] * 0.4 + Math.sin(tick * 0.8 + i) * 0.3;
-    pool[o + 1] -= 0.6 + pool[o + 4] * 0.3;
+    pool[o] += (pool[o + 2] * 0.4 + Math.sin(tick * 0.8 + i) * 0.3) * _motionScale;
+    pool[o + 1] -= (0.6 + pool[o + 4] * 0.3) * _motionScale;
     if (pool[o + 1] < -8) {
       pool[o + 1] = H + 8;
       pool[o] = rnd(W);
@@ -1749,7 +1792,7 @@ function drawMatrix(dt: number, t: Theme) {
     // it never read `tick` or `dt` at all — so the rain kept falling at
     // full speed even with the shared animation clock frozen.
     if (dt > 0) {
-      pool[o + 1] += (3 + pool[o + 4]!) * speedBoost;
+      pool[o + 1] += (3 + pool[o + 4]!) * speedBoost * _motionScale;
       if (pool[o + 1] > H + 200) pool[o + 1] = 0;
     }
     const brightness = Math.round(230 + _flowIntensity * 25); // 230→255
@@ -1785,8 +1828,8 @@ function drawF1Streaks(t: Theme, speedMult: number) {
   const p = pool;
   for (let i = 0; i < poolN; i++) {
     const o = i * PSTRIDE;
-    p[o] += p[o + 2] * speedMult * 1.8;
-    p[o + 1] += p[o + 3] * 0.3;
+    p[o] += p[o + 2] * speedMult * 1.8 * _motionScale;
+    p[o + 1] += p[o + 3] * 0.3 * _motionScale;
     if (p[o] > W + 20) {
       p[o] = -20;
       p[o + 1] = rnd(H);
@@ -3111,10 +3154,10 @@ function drawPhoenix(dt: number, t: Theme) {
   // Draw and age embers
   for (let i = embers.length - 1; i >= 0; i--) {
     const e = embers[i]!;
-    e.x += e.vx;
-    e.y += e.vy;
-    e.vy -= 0.04;
-    e.alpha -= 0.008;
+    e.x += e.vx * _motionScale;
+    e.y += e.vy * _motionScale;
+    e.vy -= 0.04 * _motionScale;
+    e.alpha -= 0.008 * _motionScale;
     if (e.alpha <= 0 || e.y < -20) {
       embers.splice(i, 1);
       continue;
@@ -3208,7 +3251,7 @@ function drawCyberpunk(dt: number, t: Theme) {
   // Rain
   if (shouldRenderFull()) {
     cyberRain.forEach((d) => {
-      d.y += d.speed;
+      d.y += d.speed * _motionScale;
       if (d.y - d.len > H) {
         d.y = -d.len;
         d.x = rnd(W);
@@ -3436,8 +3479,8 @@ function drawTenet(dt: number, t: Theme) {
   if (!shouldRenderFull()) return;
 
   tenetParticles.forEach((p) => {
-    p.x += p.vx;
-    p.y += p.vy;
+    p.x += p.vx * _motionScale;
+    p.y += p.vy * _motionScale;
     // Wrap
     if (p.x < -5) p.x = W + 5;
     if (p.x > W + 5) p.x = -5;
@@ -3536,10 +3579,10 @@ function drawDragonFire(dt: number, t: Theme) {
   // Draw smoke first (behind flames)
   for (let i = dragonSmoke.length - 1; i >= 0; i--) {
     const s = dragonSmoke[i]!;
-    s.x += s.vx;
-    s.y += s.vy;
-    s.size += 0.4;
-    s.alpha -= 0.001;
+    s.x += s.vx * _motionScale;
+    s.y += s.vy * _motionScale;
+    s.size += 0.4 * _motionScale;
+    s.alpha -= 0.001 * _motionScale;
     if (s.alpha <= 0) {
       dragonSmoke.splice(i, 1);
       continue;
@@ -3553,11 +3596,11 @@ function drawDragonFire(dt: number, t: Theme) {
   // Draw flames
   for (let i = dragonFlames.length - 1; i >= 0; i--) {
     const f = dragonFlames[i]!;
-    f.x += f.vx;
-    f.y += f.vy;
-    f.vy += 0.06; // gravity pull
-    f.size *= 0.97;
-    f.alpha -= 0.018;
+    f.x += f.vx * _motionScale;
+    f.y += f.vy * _motionScale;
+    f.vy += 0.06 * _motionScale; // gravity pull
+    f.size *= Math.pow(0.97, _motionScale);
+    f.alpha -= 0.018 * _motionScale;
     if (f.alpha <= 0 || f.size < 0.5 || f.y > H * 0.88) {
       dragonFlames.splice(i, 1);
       continue;
@@ -3667,8 +3710,8 @@ function drawMoonKnight(dt: number, t: Theme) {
   // Silver sand/dust particles rising
   if (shouldRenderFull()) {
     moonDust.forEach((p) => {
-      p.x += p.vx;
-      p.y += p.vy;
+      p.x += p.vx * _motionScale;
+      p.y += p.vy * _motionScale;
       if (p.y < -5) {
         p.y = H + 5;
         p.x = rnd(W);
@@ -3698,8 +3741,8 @@ function drawMoonKnight(dt: number, t: Theme) {
   c.fillStyle = t.accent2; // gold
   for (let i = hieroChars.length - 1; i >= 0; i--) {
     const h = hieroChars[i]!;
-    h.y += h.vy;
-    h.alpha -= 0.001;
+    h.y += h.vy * _motionScale;
+    h.alpha -= 0.001 * _motionScale;
     if (h.y < -30 || h.alpha <= 0) {
       hieroChars.splice(i, 1);
       continue;
@@ -3836,10 +3879,10 @@ function drawOnePiece(dt: number, t: Theme) {
   // Seagulls soaring
   if (shouldRenderFull()) {
     seagulls.forEach((s) => {
-      s.x += s.vx;
+      s.x += s.vx * _motionScale;
       s.phase += dt * 2.5;
       s.vy = Math.sin(s.phase) * 0.4;
-      s.y += s.vy;
+      s.y += s.vy * _motionScale;
       if (s.x > W + 20) s.x = -20;
       // Simple M-shape wing
       const wb = s.size;
@@ -3914,8 +3957,8 @@ function drawAttackOnTitan(dt: number, t: Theme) {
   // Dust particles blowing right (battlefield atmosphere)
   if (shouldRenderFull()) {
     aotDust.forEach((d) => {
-      d.x += d.vx;
-      d.y += d.vy;
+      d.x += d.vx * _motionScale;
+      d.y += d.vy * _motionScale;
       if (d.x > W + 5) {
         d.x = -5;
         d.y = H * 0.3 + rnd(H * 0.6);
@@ -4008,8 +4051,8 @@ function drawDeathNote(dt: number, t: Theme) {
   c.font = `italic bold clamp(9px,1.4vw,14px) 'Playfair Display',serif`;
   for (let i = dnLetters.length - 1; i >= 0; i--) {
     const d = dnLetters[i]!;
-    d.y += d.vy;
-    d.alpha -= 0.0008;
+    d.y += d.vy * _motionScale;
+    d.alpha -= 0.0008 * _motionScale;
     if (d.y > H + 20 || d.alpha <= 0) {
       dnLetters.splice(i, 1);
       continue;
@@ -4136,7 +4179,7 @@ function drawHailMary(dt: number, t: Theme) {
   if (shouldDrawGlow()) {
     astrophages.forEach((a) => {
       a.phase += dt * 0.8;
-      a.x += a.drift;
+      a.x += a.drift * _motionScale;
       if (a.x < -20) a.x = W + 20;
       if (a.x > W + 20) a.x = -20;
       const pulse = 0.6 + Math.sin(a.phase) * 0.35;
@@ -4260,7 +4303,7 @@ function drawAkira(dt: number, t: Theme) {
     c.strokeStyle = "rgba(80,80,160,.25)";
     c.lineWidth = 0.8;
     akiraRain.forEach((d) => {
-      d.y += d.speed;
+      d.y += d.speed * _motionScale;
       if (d.y > H + d.len) {
         d.y = -d.len;
         d.x = rnd(W);
@@ -4362,7 +4405,7 @@ function drawBetterCallSaul(dt: number, t: Theme) {
   c.fillStyle = `rgba(210,170,40,0.55)`;
   for (let i = 0; i < 120; i++) {
     const o = i * 4;
-    bcsDust[o] += bcsDust[o + 2];
+    bcsDust[o] += bcsDust[o + 2] * _motionScale;
     bcsDust[o + 1] -= dt * 8;
     if (bcsDust[o + 1] < -4) {
       bcsDust[o + 1] = H + 4;
@@ -4429,7 +4472,7 @@ function drawTheWire(dt: number, t: Theme) {
     c.lineWidth = 0.8;
     for (let i = 0; i < 60; i++) {
       const o = i * 3;
-      wireRain[o + 1] += wireRain[o + 2]!;
+      wireRain[o + 1] += wireRain[o + 2]! * _motionScale;
       if (wireRain[o + 1] > H) {
         wireRain[o + 1] = -10;
         wireRain[o] = rnd(W);
@@ -4558,9 +4601,9 @@ function drawShogun(dt: number, t: Theme) {
   // Sakura petals
   c.fillStyle = "rgba(240,150,160,0.55)";
   sakuraPetals.forEach((p) => {
-    p.x += p.vx + Math.sin(tick * 0.4 + p.rot) * 0.3;
-    p.y += p.vy;
-    p.rot += p.vrot;
+    p.x += (p.vx + Math.sin(tick * 0.4 + p.rot) * 0.3) * _motionScale;
+    p.y += p.vy * _motionScale;
+    p.rot += p.vrot * _motionScale;
     if (p.y > H + 10) {
       p.y = -10;
       p.x = rnd(W);
@@ -4625,7 +4668,7 @@ function drawFuturama(dt: number, t: Theme) {
   // Warp stars
   for (let i = 0; i < 200; i++) {
     const o = i * 3;
-    futStars[o + 1] += futStars[o + 2]! * (1 + getRendererFlowIntensity() * 3);
+    futStars[o + 1] += futStars[o + 2]! * (1 + getRendererFlowIntensity() * 3) * _motionScale;
     if (futStars[o + 1]! > H) {
       futStars[o + 1] = 0;
       futStars[o] = rnd(W);
@@ -4747,8 +4790,8 @@ function drawRickMorty(dt: number, t: Theme) {
   c.fillStyle = "rgba(0,230,100,0.4)";
   for (let i = 0; i < 60; i++) {
     const o = i * 4;
-    rmParticles[o] += rmParticles[o + 2]!;
-    rmParticles[o + 1] += rmParticles[o + 3]!;
+    rmParticles[o] += rmParticles[o + 2]! * _motionScale;
+    rmParticles[o + 1] += rmParticles[o + 3]! * _motionScale;
     if (rmParticles[o]! < 0 || rmParticles[o]! > W)
       rmParticles[o + 2] = rmParticles[o + 2]! * -1;
     if (rmParticles[o + 1]! < 0 || rmParticles[o + 1]! > H)
@@ -4818,8 +4861,8 @@ function drawSouthPark(dt: number, t: Theme) {
   c.fillStyle = "rgba(200,220,255,0.55)";
   for (let i = 0; i < 150; i++) {
     const o = i * 3;
-    spSnow[o + 1] += spSnow[o + 2]!;
-    spSnow[o] += Math.sin(tick + i) * 0.4;
+    spSnow[o + 1] += spSnow[o + 2]! * _motionScale;
+    spSnow[o] += Math.sin(tick + i) * 0.4 * _motionScale;
     if (spSnow[o + 1]! > H) {
       spSnow[o + 1] = -4;
       spSnow[o] = rnd(W);
@@ -4970,11 +5013,23 @@ function drawBobsBurgers(dt: number, t: Theme) {
 // few frames' worth instead of skipping the theme-swap callback window.
 const FRAME_MS = 1000 / 60;
 let _transLastTs = 0;
+let _transFrameTs = 0;
+let _transScaleTs = 0;
+let _transScale = 1;
 function frameScale(): number {
-  const now = performance.now();
+  // `transitionFrame` records the rAF timestamp for the frame currently
+  // running. Using it (instead of a fresh performance.now() per call) means
+  // every particle update inside one transition frame gets the same scale,
+  // and `_transLastTs` advances exactly once per frame rather than once per
+  // call. Without this, the second call in a frame would measure the time
+  // spent by the first and collapse to the 0.25 clamp.
+  const now = _transFrameTs || performance.now();
+  if (now === _transScaleTs) return _transScale;
   const dt = _transLastTs ? now - _transLastTs : FRAME_MS;
   _transLastTs = now;
-  return Math.min(4, Math.max(0.25, dt / FRAME_MS));
+  _transScaleTs = now;
+  _transScale = Math.min(4, Math.max(0.25, dt / FRAME_MS));
+  return _transScale;
 }
 
 let _transOnError: ((error: unknown) => void) | null = null;
@@ -5000,6 +5055,7 @@ function clearTransitionGuard() {
  */
 function transitionFrame(fn: FrameRequestCallback) {
   requestAnimationFrame((now) => {
+    _transFrameTs = now;
     try {
       fn(now);
     } catch (error) {
@@ -5186,9 +5242,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(5,4,0,${Math.min(0.96, p * 1.35)})`;
       tc.fillRect(0, 0, W, H);
       ws.forEach((w) => {
-        w.x += w.vx;
-        w.y += w.vy;
-        w.r += 0.45;
+        w.x += w.vx * frameScale();
+        w.y += w.vy * frameScale();
+        w.r += 0.45 * frameScale();
         const wg = tc.createRadialGradient(w.x, w.y, 0, w.x, w.y, w.r);
         wg.addColorStop(0, `rgba(80,65,30,${Math.max(0, 0.07 - p * 0.04)})`);
         wg.addColorStop(1, "transparent");
@@ -5347,8 +5403,8 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(20,12,0,${Math.min(0.94, p * 1.35)})`;
       tc.fillRect(0, 0, W, H);
       gr.forEach((g) => {
-        g.x += g.vx * (1 + p * 2);
-        g.y += g.vy;
+        g.x += g.vx * (1 + p * 2) * frameScale();
+        g.y += g.vy * frameScale();
         if (g.x > W + 5) {
           g.x = -5;
           g.y = rnd(H);
@@ -5382,7 +5438,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillRect(0, 0, W, H);
       tc.font = "13px monospace";
       drops.forEach((d, i) => {
-        d.y += d.spd;
+        d.y += d.spd * frameScale();
         const x = i * 14;
         for (let j = 0; j < 22; j++) {
           const y = d.y - j * 14;
@@ -5419,7 +5475,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(4,2,0,${Math.min(0.96, p * 1.35)})`;
       tc.fillRect(0, 0, W, H);
       drops.forEach((d) => {
-        d.y += d.vy;
+        d.y += d.vy * frameScale();
         if (d.y > H + 60) {
           d.y = -60;
           d.x = rnd(W);
@@ -5493,9 +5549,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(1,1,0,${Math.min(0.96, p * 1.35)})`;
       tc.fillRect(0, 0, W, H);
       pts.forEach((pt) => {
-        pt.y += pt.vy;
-        pt.x += pt.vx;
-        pt.rot += pt.rv;
+        pt.y += pt.vy * frameScale();
+        pt.x += pt.vx * frameScale();
+        pt.rot += pt.rv * frameScale();
         tc.save();
         tc.translate(pt.x, pt.y);
         tc.rotate(pt.rot);
@@ -5736,7 +5792,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(0,0,0,${Math.min(0.92, p * 1.2)})`;
       tc.fillRect(0, 0, W, H);
       pts.forEach((pt) => {
-        pt.y += pt.vy;
+        pt.y += pt.vy * frameScale();
         const a = Math.max(0, 0.8 - pt.y / H);
         if (a > 0) {
           tc.beginPath();
@@ -5838,7 +5894,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(6,5,0,${Math.min(0.92, p * 1.4)})`;
       tc.fillRect(0, 0, W, H);
       particles.forEach((pt) => {
-        pt.x += pt.vx;
+        pt.x += pt.vx * frameScale();
         if (pt.x < W) {
           tc.beginPath();
           tc.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
@@ -6026,8 +6082,8 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(6,2,0,${Math.min(0.93, p * 1.35)})`;
       tc.fillRect(0, 0, W, H);
       petals.forEach((pt) => {
-        pt.x += pt.vx;
-        pt.y += pt.vy;
+        pt.x += pt.vx * frameScale();
+        pt.y += pt.vy * frameScale();
         tc.fillStyle = `rgba(240,150,160,${0.5 * (1 - p * 0.7)})`;
         tc.beginPath();
         tc.ellipse(pt.x, pt.y, 4, 2.5, p * 4, 0, Math.PI * 2);
@@ -6080,7 +6136,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       angle = 0;
     const go = () => {
       p += 0.018 * frameScale();
-      angle += 0.15;
+      angle += 0.15 * frameScale();
       tc.fillStyle = `rgba(2,10,0,${Math.min(0.93, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       const r = Math.max(0, (1 - p * 1.3) * Math.min(W, H) * 0.35);
@@ -6189,8 +6245,8 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(235,240,250,${Math.min(0.9, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       flakes.forEach((f) => {
-        f.y += f.vy;
-        f.x += f.vx;
+        f.y += f.vy * frameScale();
+        f.x += f.vx * frameScale();
         tc.beginPath();
         tc.arc(f.x, f.y, f.r, 0, Math.PI * 2);
         tc.fillStyle = "rgba(255,255,255,.9)";
@@ -6432,9 +6488,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(10,5,0,${Math.min(0.93, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       ws.forEach((w) => {
-        w.x += w.vx;
-        w.y += w.vy;
-        w.r += 0.4;
+        w.x += w.vx * frameScale();
+        w.y += w.vy * frameScale();
+        w.r += 0.4 * frameScale();
         const wg = tc.createRadialGradient(w.x, w.y, 0, w.x, w.y, w.r);
         wg.addColorStop(0, `rgba(232,120,28,${Math.max(0, 0.1 - p * 0.05)})`);
         wg.addColorStop(1, "transparent");
@@ -6463,7 +6519,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(0,3,4,${Math.min(0.94, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       drops.forEach((d) => {
-        d.y += d.vy;
+        d.y += d.vy * frameScale();
         if (d.y > H + 40) {
           d.y = -40;
           d.x = rnd(W);
@@ -6532,7 +6588,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(4,8,10,${Math.min(0.92, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       fog.forEach((f) => {
-        f.x += f.vx;
+        f.x += f.vx * frameScale();
         const fg = tc.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
         fg.addColorStop(0, `rgba(140,170,190,${0.08 * (1 - p * 0.4)})`);
         fg.addColorStop(1, "transparent");
@@ -6589,8 +6645,8 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(10,6,2,${Math.min(0.92, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       fog.forEach((f) => {
-        f.x += f.vx;
-        f.y += f.vy;
+        f.x += f.vx * frameScale();
+        f.y += f.vy * frameScale();
         const fg = tc.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
         fg.addColorStop(0, `rgba(232,138,42,${0.09 * (1 - p * 0.4)})`);
         fg.addColorStop(1, "transparent");
@@ -6711,7 +6767,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(14,10,6,${Math.min(0.9, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       drops.forEach((d) => {
-        d.y += d.vy;
+        d.y += d.vy * frameScale();
         if (d.y > H) {
           d.y = 0;
           d.x = rnd(W);
@@ -6737,7 +6793,7 @@ const TRANS: Record<string, (cb: () => void) => void> = {
     let ang = 0;
     const go = () => {
       p += 0.018 * frameScale();
-      ang += 0.2;
+      ang += 0.2 * frameScale();
       tc.fillStyle = `rgba(10,6,2,${Math.min(0.93, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       const r = Math.min(W, H) * 0.32 * Math.min(1, p * 1.6);
@@ -6818,9 +6874,9 @@ const TRANS: Record<string, (cb: () => void) => void> = {
       tc.fillStyle = `rgba(10,4,16,${Math.min(0.92, p * 1.3)})`;
       tc.fillRect(0, 0, W, H);
       blobs.forEach((b, i) => {
-        b.x += b.vx;
-        b.y += b.vy;
-        b.r = Math.min(b.r + 0.6, 90);
+        b.x += b.vx * frameScale();
+        b.y += b.vy * frameScale();
+        b.r = Math.min(b.r + 0.6 * frameScale(), 90);
         const bg = tc.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
         bg.addColorStop(
           0,
