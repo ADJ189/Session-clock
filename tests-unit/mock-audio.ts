@@ -12,7 +12,8 @@ export interface ParamEvent {
     | "exponential"
     | "target"
     | "curve"
-    | "cancel";
+    | "cancel"
+    | "hold";
   value: number;
   time: number;
 }
@@ -62,6 +63,11 @@ export class MockAudioParam {
 
   cancelScheduledValues(time: number): MockAudioParam {
     this.events.push({ type: "cancel", value: this.value, time });
+    return this;
+  }
+
+  cancelAndHoldAtTime(time: number): MockAudioParam {
+    this.events.push({ type: "hold", value: this.value, time });
     return this;
   }
 }
