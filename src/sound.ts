@@ -2,7 +2,21 @@ import type { SoundDef } from "./types";
 import { CAPS, subscribeOrientation } from "./platform";
 import { makeFileTrack, isFileTrackSupported } from "./soundfiles";
 import { makeSynthTrack } from "./soundsynth";
-import { safeGet } from "./storage";
+import { safeGet, safeSet } from "./storage";
+import {
+  clampFadeMinutes,
+  clampGain,
+  clampMasterGain,
+  DEFAULT_MASTER_GAIN,
+  DEFAULT_TRACK_GAIN,
+  FADE_MINUTES_MAX,
+  FADE_MINUTES_MIN,
+} from "./audio/settings";
+import {
+  curveParam,
+  equalPowerCurve,
+  rampParam,
+} from "./audio/automation";
 import {
   getSpatialProfile,
   positionForProfile,
@@ -304,14 +318,28 @@ SOUND_ACCENT.theta = "#bf5af2";
 SOUND_ACCENT.delta = "#5e5ce6";
 
 let ctx: AudioContext | null = null;
+// Signal graph (all sources meet at the analyser, which acts as the mix bus):
+//
+//   track gain → optional spatial rig ─┐
+//   binaural gain ─────────────────────┴→ analyser (mix meter) → masterGain
+//     → duckGain (temporary focus duck) → fadeGain (timed fade-out)
+//     → compressor → destination
+//
+// The analyser sits before the user master, duck and fade stages, so the
+// mixer meter shows the combined programme mix even when master is low or a
+// timed fade has finished. UI copy says "combined level of the tracks".
+// The three post-mix stages multiply instead of overwriting one another:
+// master is the user's setting, duck is temporary, fade is the timer.
 let masterGain: GainNode | null = null;
+let duckGain: GainNode | null = null;
+let fadeGain: GainNode | null = null;
 let analyser: AnalyserNode | null = null;
 let analyserData: Uint8Array<ArrayBuffer> | null = null;
 
 const trackNodes: Record<string, { nodes: AudioNode[]; gain: GainNode }> = {};
 const trackVols: Record<string, number> = {};
 SOUNDS.forEach((s) => {
-  trackVols[s.id] = 0.8;
+  trackVols[s.id] = DEFAULT_TRACK_GAIN;
 });
 
 let binauralNodes: {
@@ -322,9 +350,13 @@ let binauralNodes: {
 } | null = null;
 export let binauralPresetId: string | null = null;
 
-let masterVol = 0.7;
-let fadeMinutes = 0;
+let masterVol = DEFAULT_MASTER_GAIN;
+// Fade duration is persisted (sc_sound_fade, whole minutes 0..60). 0 means no
+// automatic fade-out. Changing it while tracks play reschedules from now;
+// setting 0 cancels any pending fade.
+let fadeMinutes = clampFadeMinutes(safeGet("sc_sound_fade"));
 let fadeTimer = 0;
+let fadeGeneration = 0;
 let onTrackChange: (() => void) | null = null;
 export function setTrackChangeHandler(fn: () => void) {
   onTrackChange = fn;
@@ -340,6 +372,10 @@ function ensureCtx() {
 
     masterGain = ctx.createGain();
     masterGain.gain.value = masterVol;
+    duckGain = ctx.createGain();
+    duckGain.gain.value = 1;
+    fadeGain = ctx.createGain();
+    fadeGain.gain.value = 1;
 
     // DynamicsCompressor prevents clipping at high volumes (200% boost)
     const comp = ctx.createDynamicsCompressor();
@@ -349,9 +385,10 @@ function ensureCtx() {
     comp.attack.value = 0.003;
     comp.release.value = 0.25;
 
-    // Chain: tracks → analyser → masterGain → compressor → destination
     analyser.connect(masterGain);
-    masterGain.connect(comp);
+    masterGain.connect(duckGain);
+    duckGain.connect(fadeGain);
+    fadeGain.connect(comp);
     comp.connect(ctx.destination);
   }
   if (ctx.state === "suspended") ctx.resume().catch(() => {});
@@ -475,13 +512,13 @@ const MAKERS: Record<
 export { isFileTrackSupported };
 
 // ── Public API ────────────────────────────────────────────────────────
-export function playTrack(id: string): boolean {
+function startTrack(id: string, startGain: number): boolean {
   if (trackNodes[id]) return true;
   if (!ensureCtxSafe()) return false;
   const made = MAKERS[id]?.();
   if (!made) return false;
   const g = ctx!.createGain();
-  g.gain.value = trackVols[id] ?? 0.8;
+  g.gain.value = clampGain(startGain);
   made.out.connect(g);
   g.connect(analyser!);
   made.nodes.forEach((n) => {
@@ -499,12 +536,19 @@ export function playTrack(id: string): boolean {
   });
   trackNodes[id] = { nodes: made.nodes, gain: g };
   if (spatialEnabled) attachSpatialRig(id, g);
-  onTrackChange?.();
-  if (fadeMinutes > 0) {
-    clearTimeout(fadeTimer);
-    fadeTimer = window.setTimeout(fadeAll, fadeMinutes * 60_000);
+  // A new sound cancels a fade-out that was already running so the user
+  // hears what they just started. The fade stage is independent of master.
+  fadeGeneration++;
+  if (fadeGain) {
+    rampParam(fadeGain.gain, 1, ctx!.currentTime, 0.02);
   }
+  onTrackChange?.();
+  scheduleFadeTimer();
   return true;
+}
+
+export function playTrack(id: string): boolean {
+  return startTrack(id, trackVols[id] ?? DEFAULT_TRACK_GAIN);
 }
 
 export function stopTrack(id: string) {
@@ -528,6 +572,7 @@ export function stopTrack(id: string) {
     t.gain.disconnect();
   } catch {}
   delete trackNodes[id];
+  if (!SOUNDS.some((s) => trackNodes[s.id])) clearFadeTimer();
   onTrackChange?.();
 }
 
@@ -542,21 +587,52 @@ export function isPlaying(id: string) {
   return !!trackNodes[id];
 }
 export function setTrackVolume(id: string, v: number) {
-  trackVols[id] = v;
-  if (trackNodes[id]) trackNodes[id].gain.gain.value = v;
+  const gain = clampGain(v, trackVols[id] ?? DEFAULT_TRACK_GAIN);
+  trackVols[id] = gain;
+  const node = trackNodes[id];
+  if (node && ctx) {
+    rampParam(node.gain.gain, gain, ctx.currentTime, 0.04);
+  }
 }
 export function getTrackVolume(id: string) {
-  return trackVols[id] ?? 0.8;
+  return trackVols[id] ?? DEFAULT_TRACK_GAIN;
 }
 export function setMasterVolume(v: number) {
-  masterVol = v;
-  if (masterGain) masterGain.gain.value = v;
+  masterVol = clampMasterGain(v, masterVol);
+  if (masterGain && ctx) {
+    // Ramps the user master only; the duck and fade stages are separate and
+    // a pending duck timer can never restore a stale master value.
+    rampParam(masterGain.gain, masterVol, ctx.currentTime, 0.04);
+  }
 }
 export function getMasterVolume() {
   return masterVol;
 }
 export function setFade(v: number) {
-  fadeMinutes = v;
+  fadeMinutes = clampFadeMinutes(v);
+  safeSet("sc_sound_fade", String(fadeMinutes));
+  scheduleFadeTimer();
+}
+export function getFade(): number {
+  return fadeMinutes;
+}
+export function getFadeRange(): { min: number; max: number } {
+  return { min: FADE_MINUTES_MIN, max: FADE_MINUTES_MAX };
+}
+
+function clearFadeTimer() {
+  if (!fadeTimer) return;
+  clearTimeout(fadeTimer);
+  fadeTimer = 0;
+}
+
+/** (Re)start the timed fade-out from now. No timer runs when fade is 0 or
+ *  nothing is playing; changing the setting while playing reschedules. */
+function scheduleFadeTimer() {
+  clearFadeTimer();
+  if (fadeMinutes <= 0) return;
+  if (!SOUNDS.some((s) => trackNodes[s.id])) return;
+  fadeTimer = window.setTimeout(fadeAll, fadeMinutes * 60_000);
 }
 
 // ── Spatial 3D audio — native HRTF per track ───────────────────────────
@@ -944,31 +1020,42 @@ export function setHeadTracking(v: boolean): void {
 }
 
 // ── Binaural Beats ────────────────────────────────────────────────────
+// The binaural pair is mixed into the same analyser/mix bus as every other
+// source, so the mixer meter represents the whole audible programme. It
+// deliberately bypasses the per-track spatial rig: HRTF would destroy the
+// exact left/right frequency split the effect depends on.
+let binauralStopTimer = 0;
+
 export function playBinaural(presetId: string): boolean {
   stopBinaural();
   if (!ensureCtxSafe()) return false;
   const preset = BINAURAL_PRESETS.find((p) => p.id === presetId);
   if (!preset) return false;
+  const ac = ctx!;
 
-  const merger = ctx!.createChannelMerger(2);
-  const gain = ctx!.createGain();
-  gain.gain.value = 0.15;
-  const left = ctx!.createOscillator();
-  const right = ctx!.createOscillator();
+  const merger = ac.createChannelMerger(2);
+  const gain = ac.createGain();
+  const left = ac.createOscillator();
+  const right = ac.createOscillator();
   left.type = right.type = "sine";
   left.frequency.value = preset.carrier;
   right.frequency.value = preset.carrier + preset.beat;
 
-  const lg = ctx!.createGain();
+  const lg = ac.createGain();
   lg.gain.value = 1;
-  const rg = ctx!.createGain();
+  const rg = ac.createGain();
   rg.gain.value = 1;
   left.connect(lg);
   lg.connect(merger, 0, 0);
   right.connect(rg);
   rg.connect(merger, 0, 1);
   merger.connect(gain);
-  gain.connect(masterGain!);
+  gain.connect(analyser!);
+
+  // Short fade-in avoids the click of two oscillators starting at full gain.
+  const now = ac.currentTime;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.15, now + 0.25);
 
   left.start();
   right.start();
@@ -979,19 +1066,26 @@ export function playBinaural(presetId: string): boolean {
 }
 
 export function stopBinaural() {
-  if (!binauralNodes) return;
-  try {
-    binauralNodes.left.stop();
-  } catch {}
-  try {
-    binauralNodes.right.stop();
-  } catch {}
-  try {
-    binauralNodes.gain.disconnect();
-    binauralNodes.merger.disconnect();
-  } catch {}
+  const nodes = binauralNodes;
+  if (!nodes) return;
   binauralNodes = null;
   binauralPresetId = null;
+  clearTimeout(binauralStopTimer);
+  if (ctx) rampParam(nodes.gain.gain, 0, ctx.currentTime, 0.2);
+  // The ramp is the audible stop; this timer only tears the graph down. It
+  // may run late in a background tab without leaving audible output behind.
+  binauralStopTimer = window.setTimeout(() => {
+    try {
+      nodes.left.stop();
+    } catch {}
+    try {
+      nodes.right.stop();
+    } catch {}
+    try {
+      nodes.gain.disconnect();
+      nodes.merger.disconnect();
+    } catch {}
+  }, 240);
   onTrackChange?.();
 }
 
@@ -1004,21 +1098,28 @@ export function toggleBinaural(presetId: string): boolean {
 }
 
 // ── Adaptive audio ────────────────────────────────────────────────────
+// Ducking lives on its own gain stage after the user master, so the timer
+// only ever restores duckGain to 1. It can never write a stale value back
+// over a master-volume change the user made during the duck window.
+const DUCK_FACTOR = 0.78;
+const DUCK_HOLD_MS = 8000;
 let adaptiveDuckTimer = 0;
+
 export function adaptOnWorkStart() {
-  if (!masterGain) return;
-  const orig = masterGain.gain.value;
-  masterGain.gain.value = orig * 0.78;
+  if (!ctx || !duckGain) return;
   clearTimeout(adaptiveDuckTimer);
+  rampParam(duckGain.gain, DUCK_FACTOR, ctx.currentTime, 0.25);
   adaptiveDuckTimer = window.setTimeout(() => {
-    if (masterGain) masterGain.gain.value = orig;
-  }, 8000);
+    if (ctx && duckGain) {
+      rampParam(duckGain.gain, 1, ctx.currentTime, 0.5);
+    }
+  }, DUCK_HOLD_MS);
 }
 export function adaptOnBreak() {
   clearTimeout(adaptiveDuckTimer);
-  if (masterGain) masterGain.gain.value = masterVol;
-  if (trackNodes["fire"])
-    trackNodes["fire"].gain.gain.value = trackVols["fire"] ?? 0.8;
+  if (ctx && duckGain) {
+    rampParam(duckGain.gain, 1, ctx.currentTime, 0.4);
+  }
 }
 
 export function autoStartCommonRoom() {
@@ -1029,121 +1130,123 @@ export function autoStartCommonRoom() {
 }
 
 // ── Crossfade ─────────────────────────────────────────────────────────
-// Smoothly ramps out currently-playing tracks not in `toIds` while
-// ramping in (or starting) the tracks in `toIds`, instead of an abrupt
-// stop/start cut. Operates on each track's own per-track GainNode, so
-// master volume and other tracks are untouched.
+// Smoothly ramps out currently-playing tracks not in the target map while
+// ramping in (or starting) the tracks in it. Operates on each track's own
+// per-track GainNode, so master, duck and fade stages are untouched.
 //
-// Equal-power (cosine/sine) curve rather than a linear ramp — same
-// reasoning and 128-point resolution as the gapless-loop crossfade in
-// soundfiles.ts: a linear fade dips in perceived loudness partway through
-// because the two curves don't sum back to unity, while cos/sin holds
-// roughly constant loudness across the transition. Falls back to a
-// manual rAF-driven fade if scheduling the curve throws (overlapping
-// AudioParam automation occasionally does) — same escape hatch used
-// there.
+// Target levels and live gains are kept separate: a scene passes its
+// validated target map here, this function stores those targets in
+// `trackVols` and schedules the actual gain transition from whatever the
+// track is currently playing at. It never writes the target to the live gain
+// before the ramp, which used to erase the transition.
+//
+// Equal-power (cosine/sine) curves are used when a track enters or leaves,
+// because two overlapping signals then hold roughly constant loudness. A
+// track that stays in the mix gets a short linear ramp to its new target.
+// All scheduling is on the AudioContext clock, so it finishes while the tab
+// is backgrounded. If the engine rejects curve automation, the linear
+// AudioParam fallback is still audio-clock scheduled (never rAF-driven).
 const CROSSFADE_STEPS = 128;
-function equalPowerCurve(from: "out" | "in", peak: number): Float32Array {
-  const curve = new Float32Array(CROSSFADE_STEPS);
-  for (let i = 0; i < CROSSFADE_STEPS; i++) {
-    const t = (i / (CROSSFADE_STEPS - 1)) * (Math.PI / 2);
-    curve[i] = peak * (from === "out" ? Math.cos(t) : Math.sin(t));
+
+export type CrossfadeTargets = Record<string, number> | readonly string[];
+
+let crossfadeGeneration = 0;
+
+function normalizeTargets(targets: CrossfadeTargets): Record<string, number> {
+  const map: Record<string, number> = {};
+  const known = new Set(SOUNDS.map((s) => s.id));
+  if (Array.isArray(targets)) {
+    for (const id of targets) {
+      if (typeof id !== "string" || !known.has(id)) continue;
+      map[id] = clampGain(trackVols[id] ?? DEFAULT_TRACK_GAIN);
+    }
+    return map;
   }
-  return curve;
+  if (!targets || typeof targets !== "object") return map;
+  for (const [id, value] of Object.entries(targets)) {
+    if (!known.has(id)) continue;
+    if (typeof value !== "number" || !Number.isFinite(value)) continue;
+    map[id] = clampGain(value);
+  }
+  return map;
 }
 
-export function crossfadeTo(toIds: string[], durationMs = 2500) {
+export function crossfadeTo(
+  targets: CrossfadeTargets,
+  durationMs = 2500,
+): void {
   if (!ensureCtxSafe()) return;
   const seconds = Math.max(0.05, durationMs / 1000);
   const now = ctx!.currentTime;
+  const targetMap = normalizeTargets(targets);
+  const generation = ++crossfadeGeneration;
 
-  const fadeParam = (
-    param: AudioParam,
-    curve: Float32Array,
-    currentVal: number,
-  ) => {
-    param.cancelScheduledValues(now);
-    param.setValueAtTime(Math.max(0.0001, currentVal), now);
-    try {
-      param.setValueCurveAtTime(curve, now, seconds);
-      return true;
-    } catch {
-      return false; // overlapping automation threw — caller falls back to a manual fade
-    }
-  };
+  // Target levels are the new stored fader values; live gains are scheduled
+  // separately below.
+  for (const [id, gain] of Object.entries(targetMap)) trackVols[id] = gain;
 
-  const fallbackFade = (
-    id: string,
-    calcValue: (p: number) => number,
-  ) => {
-    const startedAt = performance.now();
-    const step = () => {
-      const tn = trackNodes[id];
-      if (!tn) return;
-      const p = Math.min(1, (performance.now() - startedAt) / (seconds * 1000));
-      try {
-        tn.gain.gain.value = calcValue(p);
-      } catch {
-        return;
-      }
-      if (p < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  };
-
-  // Ramp out anything playing that isn't in the target set
-  Object.keys(trackNodes).forEach((id) => {
-    if (toIds.includes(id)) return;
-    const t = trackNodes[id];
-    if (!t) return;
-    const startVal = Math.max(0.0001, t.gain.gain.value);
-    const scheduled = fadeParam(
-      t.gain.gain,
-      equalPowerCurve("out", startVal),
-      startVal,
+  // Fade out anything playing that is not in the target set.
+  for (const id of Object.keys(trackNodes)) {
+    if (id in targetMap) continue;
+    const track = trackNodes[id];
+    if (!track) continue;
+    const startVal = Math.max(0, track.gain.gain.value);
+    const scheduled = curveParam(
+      track.gain.gain,
+      equalPowerCurve("out", startVal, CROSSFADE_STEPS),
+      now,
+      seconds,
     );
-    if (!scheduled) {
-      fallbackFade(id, (p) => startVal * Math.cos(p * (Math.PI / 2)));
-    }
-    // Only actually stop it if nothing re-raised it in the meantime
-    // (guards against a second crossfadeTo() call racing this one).
-    setTimeout(() => {
+    if (!scheduled) rampParam(track.gain.gain, 0, now, seconds);
+    window.setTimeout(() => {
+      // A newer transition owns the graph now; do not tear down a track it
+      // may have re-admitted.
+      if (generation !== crossfadeGeneration) return;
       const tn = trackNodes[id];
       if (tn && tn.gain.gain.value < 0.01) stopTrack(id);
-    }, durationMs + 60);
-  });
+    }, durationMs + 80);
+  }
 
-  // Start (if needed) and ramp in the target tracks
-  toIds.forEach((id) => {
-    const target = trackVols[id] ?? 0.8;
-    if (!trackNodes[id]) playTrack(id);
-    const t = trackNodes[id];
-    if (!t) return;
-    const startVal = Math.max(0.0001, t.gain.gain.value);
-    const scheduled = fadeParam(
-      t.gain.gain,
-      equalPowerCurve("in", target),
-      startVal,
-    );
-    if (!scheduled) {
-      fallbackFade(id, (p) => target * Math.sin(p * (Math.PI / 2)));
+  // Start (if needed) and ramp in the target tracks.
+  for (const [id, target] of Object.entries(targetMap)) {
+    if (!trackNodes[id] && !startTrack(id, 0)) continue;
+    const track = trackNodes[id];
+    if (!track) continue;
+    const startVal = Math.max(0, track.gain.gain.value);
+    if (startVal <= 0.001) {
+      const scheduled = curveParam(
+        track.gain.gain,
+        equalPowerCurve("in", target, CROSSFADE_STEPS),
+        now,
+        seconds,
+      );
+      if (!scheduled) rampParam(track.gain.gain, target, now, seconds);
+    } else {
+      rampParam(track.gain.gain, target, now, seconds);
     }
-  });
+  }
   onTrackChange?.();
 }
 
+// Timed fade-out. The audible ramp is on the AudioParam timeline; the timer
+// below only disconnects the finished tracks. If the browser throttles the
+// timer, output is already silent because fadeGain reached 0.
+const FADE_OUT_SECONDS = 1.5;
+
 function fadeAll() {
-  if (!masterGain) return;
-  const start = masterGain.gain.value;
-  let t = 0;
-  const step = setInterval(() => {
-    t += 0.05;
-    masterGain!.gain.value = Math.max(0, start * (1 - t));
-    if (t >= 1) {
-      SOUNDS.forEach((s) => stopTrack(s.id));
-      clearInterval(step);
+  fadeTimer = 0;
+  if (!ctx || !fadeGain) return;
+  const generation = ++fadeGeneration;
+  rampParam(fadeGain.gain, 0, ctx.currentTime, FADE_OUT_SECONDS);
+  window.setTimeout(() => {
+    if (generation !== fadeGeneration) return;
+    SOUNDS.forEach((s) => stopTrack(s.id));
+    // Re-arm the stage for the next playback. Tracks are already stopped, so
+    // this cannot produce an audible jump.
+    if (ctx && fadeGain) {
+      rampParam(fadeGain.gain, 1, ctx.currentTime, 0.01);
     }
-  }, 100);
+  }, FADE_OUT_SECONDS * 1000 + 80);
 }
 
 export function playChime() {

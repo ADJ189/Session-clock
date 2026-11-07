@@ -11,7 +11,7 @@ import {
 } from "../platform";
 import { installDiagnostics, copyDiagnosticsText } from "../diagnostics";
 import { rendererHealth } from "../rendererHealth";
-import { initPerf, getTier, setTier, getFps } from "../perf";
+import { initPerf, getTier, setTier, getFps, applyBatterySaver } from "../perf";
 import * as Motion from "../motion";
 import * as Sound from "../sound";
 import * as Pom from "../pomodoro";
@@ -614,9 +614,12 @@ export async function bootSessionClock(): Promise<void> {
   void APIs.initBattery()
     .then(() => {
       APIs.onBatteryChange((level, charging) => {
-        if (!charging && level < 0.2 && getTier() !== "low") {
-          setTier("low");
-          showToast("🔋 Battery saver: quality reduced to Low");
+        if (!charging && level < 0.2) {
+          if (applyBatterySaver(true)) {
+            showToast("🔋 Battery saver: quality reduced to Low");
+          }
+        } else {
+          applyBatterySaver(false);
         }
       });
     })
@@ -624,9 +627,14 @@ export async function bootSessionClock(): Promise<void> {
   void APIs.acquireWakeLock();
 
   resize();
+  let resizeRaf: number | null = null;
   window.addEventListener("resize", () => {
-    resize();
-    updatePanelHeight();
+    if (resizeRaf !== null) return;
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = null;
+      resize();
+      updatePanelHeight();
+    });
   });
 
   updatePanelHeight();
