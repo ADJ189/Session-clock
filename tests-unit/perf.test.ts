@@ -2,7 +2,6 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   detectTier,
-  initPerf,
   getTier,
   setTier,
   setAutoQuality,
