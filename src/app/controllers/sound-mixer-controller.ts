@@ -2,6 +2,19 @@ import * as Sound from "../../sound";
 import * as APIs from "../../apis";
 import { showToast } from "../ui/toast";
 import { mount, unmount } from "svelte";
+import { safeGet, safeSet } from "../../storage";
+import {
+  clampFadeMinutes,
+  normalizePreset,
+  parsePresets,
+  parseScene,
+  serializePresets,
+  serializeScene,
+  type MixScene,
+  type SoundPreset,
+} from "../../audio/settings";
+
+export type { MixScene, SoundPreset };
 
 export interface SoundTrackState {
   id: string;
@@ -26,16 +39,6 @@ export interface BinauralTrackState {
   unavailableTitle: string;
 }
 
-export interface SoundPreset {
-  name: string;
-  tracks: Record<string, number>;
-  master: number;
-}
-
-export interface MixScene {
-  tracks: Record<string, number>;
-}
-
 export interface SoundMixerSnapshot {
   tracks: SoundTrackState[];
   binauralPresets: BinauralTrackState[];
@@ -48,13 +51,13 @@ export interface SoundMixerSnapshot {
 }
 
 const PRESETS_KEY = "sc_sound_presets";
+const TRACK_IDS: ReadonlySet<string> = new Set(Sound.SOUNDS.map((s) => s.id));
 
 export class SoundMixerController {
   private subscribers = new Set<(snapshot: SoundMixerSnapshot) => void>();
   private appInstance: Record<string, any> | null = null;
   private mixerMeterRaf = 0;
   private trackChangeListeners = new Set<() => void>();
-  private fade = 0;
 
   constructor() {
     Sound.setTrackChangeHandler(() => {
@@ -118,7 +121,7 @@ export class SoundMixerController {
   }
 
   getNightMode(): "auto" | "on" | "off" {
-    const mode = localStorage.getItem("sc_mixer_night");
+    const mode = safeGet("sc_mixer_night");
     if (mode === "on" || mode === "off" || mode === "auto") return mode;
     return "auto";
   }
@@ -131,7 +134,7 @@ export class SoundMixerController {
   toggleNightMode(): void {
     const cur = this.getNightMode();
     const next = cur === "auto" ? "on" : cur === "on" ? "off" : "auto";
-    localStorage.setItem("sc_mixer_night", next);
+    safeSet("sc_mixer_night", next);
     this.notify();
     showToast(`🌙 Mixer night mode: ${next}`);
   }
@@ -141,11 +144,10 @@ export class SoundMixerController {
   }
 
   getSoundPresets(): SoundPreset[] {
-    try {
-      return JSON.parse(localStorage.getItem(PRESETS_KEY) || "[]");
-    } catch {
-      return [];
-    }
+    // Validated at the storage boundary: unknown tracks, non-finite gains and
+    // over-long names are dropped; corrupt JSON yields [] and never blocks the
+    // mixer from opening.
+    return parsePresets(safeGet(PRESETS_KEY), TRACK_IDS);
   }
 
   savePreset(name: string): void {
@@ -161,13 +163,13 @@ export class SoundMixerController {
       tracks,
       master: Sound.getMasterVolume(),
     };
-    const idx = presets.findIndex((p) => p.name === trimmed);
+    const idx = presets.findIndex((p) => p.name === preset.name);
     if (idx >= 0) presets[idx] = preset;
     else presets.push(preset);
-    if (presets.length > 5) presets.shift();
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+    while (presets.length > 5) presets.shift();
+    safeSet(PRESETS_KEY, serializePresets(presets));
     this.notify();
-    showToast(`Saved "${trimmed}" mix`);
+    showToast(`Saved "${preset.name}" mix`);
   }
 
   promptSavePreset(): void {
@@ -178,18 +180,22 @@ export class SoundMixerController {
   }
 
   loadPreset(preset: SoundPreset): void {
-    Sound.setMasterVolume(preset.master);
+    // Re-validate even though getSoundPresets() already did: a caller can
+    // pass a hand-built object. Engine setters clamp again.
+    const safe = normalizePreset(preset, TRACK_IDS);
+    if (!safe) return;
+    Sound.setMasterVolume(safe.master);
     Sound.SOUNDS.forEach((s) => {
-      const vol = preset.tracks[s.id];
+      const vol = safe.tracks[s.id];
       if (vol !== undefined) Sound.setTrackVolume(s.id, vol);
     });
     this.notify();
-    showToast(`Loaded "${preset.name}"`);
+    showToast(`Loaded "${safe.name}"`);
   }
 
   deletePreset(name: string): void {
     const presets = this.getSoundPresets().filter((pr) => pr.name !== name);
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+    safeSet(PRESETS_KEY, serializePresets(presets));
     this.notify();
   }
 
@@ -207,32 +213,28 @@ export class SoundMixerController {
       showToast("Play a mix first, then save it as a scene");
       return;
     }
-    localStorage.setItem(`sc_scene_${key}`, JSON.stringify(scene));
+    safeSet(`sc_scene_${key}`, serializeScene(scene));
     showToast(
       `Saved current mix as ${key === "focus" ? "Focus" : "Break"} scene`,
     );
   }
 
   getScene(key: "focus" | "break"): MixScene | null {
-    try {
-      return JSON.parse(localStorage.getItem(`sc_scene_${key}`) || "null");
-    } catch {
-      return null;
-    }
+    return parseScene(safeGet(`sc_scene_${key}`), TRACK_IDS);
   }
 
   crossfadeToScene(key: "focus" | "break"): void {
-    if (localStorage.getItem("sc_mixer_autofade") !== "1") return;
+    if (safeGet("sc_mixer_autofade") !== "1") return;
     const scene = this.getScene(key);
     if (!scene) return;
-    Object.entries(scene.tracks).forEach(([id, v]) =>
-      Sound.setTrackVolume(id, v),
-    );
-    Sound.crossfadeTo(Object.keys(scene.tracks), 2500);
+    // Pass the validated target map straight to the engine. Setting live
+    // gains first would make the crossfade start from the target and remove
+    // the ramp. An empty map is a valid silence scene: it fades all out.
+    Sound.crossfadeTo(scene.tracks, 2500);
   }
 
   setAutoCrossfade(enabled: boolean): void {
-    localStorage.setItem("sc_mixer_autofade", enabled ? "1" : "0");
+    safeSet("sc_mixer_autofade", enabled ? "1" : "0");
     this.notify();
   }
 
@@ -247,12 +249,12 @@ export class SoundMixerController {
   }
 
   getFade(): number {
-    return this.fade;
+    // Single source of truth: the engine owns the persisted value.
+    return Sound.getFade();
   }
 
   setFade(minutes: number): void {
-    this.fade = minutes;
-    Sound.setFade(minutes);
+    Sound.setFade(clampFadeMinutes(minutes));
     this.notify();
   }
 
@@ -361,7 +363,7 @@ export class SoundMixerController {
       fade: this.getFade(),
       nightMode: this.getNightMode(),
       nightActive: this.isNightActive(),
-      autoCrossfade: localStorage.getItem("sc_mixer_autofade") === "1",
+      autoCrossfade: safeGet("sc_mixer_autofade") === "1",
     };
   }
 
