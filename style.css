@@ -494,6 +494,7 @@ body.light-theme .session-card {
 #pomRingWrap { position: relative; display: flex; align-items: center; justify-content: center; }
 #pomRingSvg  { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; }
 .pom-mode-pill {
+  border: 0; font: inherit; cursor: pointer;
   font-size: .52rem; letter-spacing: .16em; text-transform: uppercase; font-weight: 800;
   padding: 3px 10px; border-radius: 99px;
   background: var(--clr-btn-bg); color: var(--clr-btn-fg);
