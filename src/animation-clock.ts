@@ -43,12 +43,16 @@ export function motionScale(dtSeconds: number, maxFrames = 4): number {
  * advances in whole steps and carries the remainder forward.
  */
 export class FixedStepAccumulator {
+  readonly stepSeconds: number;
+  readonly maxSteps: number;
   private accumulator = 0;
 
   constructor(
-    readonly stepSeconds: number,
-    readonly maxSteps = 5,
+    stepSeconds: number,
+    maxSteps = 5,
   ) {
+    this.stepSeconds = stepSeconds;
+    this.maxSteps = maxSteps;
     if (!Number.isFinite(stepSeconds) || stepSeconds <= 0) {
       throw new RangeError("stepSeconds must be a positive finite number");
     }
