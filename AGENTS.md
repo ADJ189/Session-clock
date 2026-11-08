@@ -154,6 +154,18 @@ Prefer a new module for a self-contained feature instead of growing
   reproduces selected generator choices (e.g. drop/wave parameters), not event
   timing (`Math.random()` in `scheduler.ts`) or noise sample data
   (`noise.ts` / `dsp.ts`). Do not claim bit-identical audio output from a seed.
+- **Canvas motion and DPR scaling.** Canvas animations use `_motionScale` (`frameScale()`)
+  rather than raw per-frame pixel increments to ensure consistent animation speeds across
+  60Hz, 120Hz, 144Hz, and variable-rate displays. Backing store is DPR-scaled capped
+  by hardware tier (`_canvasDpr`), and resize listeners are coalesced via `requestAnimationFrame`.
+- **Quality and battery saver are non-persisted.** `detectTier()` defaults to `high`;
+  hardware constraints (RAM <= 1.5GB, cores <= 2) only downgrade severely constrained hardware.
+  Temporary battery saving (`applyBatterySaver`) dynamically adjusts quality without
+  overwriting the user's saved `sc_quality` preference in `localStorage`.
+- **Playwright and sandbox networking.** Playwright tests require loopback TCP socket access
+  for local preview serving (`http://127.0.0.1:4173`) and browser CDP IPC. In environments where
+  sandbox isolation blocks local loopback sockets (`os error 10013`), bypass-sandbox execution
+  is required to run Playwright tests.
 
 ## Testing
 

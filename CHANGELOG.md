@@ -4,12 +4,29 @@ All notable changes to Session Clock are documented here.
 
 Session Clock uses standard three-part semantic versioning (`MAJOR.MINOR.PATCH`).
 
-## [2.1.0] Patches for v2
+## [Unreleased]
+
+### Added
+
+- **Frame Metrics & Adaptive Performance Tracking (`src/frame-metrics.ts`)**: Bounded frame-time ring buffer computing P50, P95, and P99 percentiles, dropped frame ratio, rolling FPS, and `PerformanceObserver` integration for `longtask` tracking with fallback. Wired into the canvas render loop and adaptive quality manager.
+- **Theme Library Vector Logos**: Added complete typed vector SVG logos for all 103 themes in `src/app/themes/theme-logos.ts` with `getThemeLogo()` deterministic fallback.
+- **Theme Library Gallery Enhancements**:
+  - Portrait 3:4 aspect ratio cards with 300×400 preview images and CSS fallback gradients.
+  - Desktop 200px vertical rail navigation inside `.tl-body`.
+  - Accessible card hover and focus lift (`transform: translateY(-4px)`, shadow lift, `:focus-visible` outline) with reduced-motion support.
+  - Consolidated responsive CSS rules and updated preview capture script `scripts/gen-theme-previews.mjs`.
+
+### Changed
+
+- **Renderer Delta Scaling (`_motionScale`)**: Converted all animated themes and transition wipes (`bebopSmoke`, `ghostrain`, `vikingmist`, `mysteryfog`, `windowrain`, `vinylspin`, `lavablob`) to use `frameScale()`, ensuring consistent animation speeds across 60Hz, 120Hz, 144Hz, and variable refresh rate screens.
+- **DPR-Aware Backing Store & Resize Coalescing**: Backing-store canvas pixels are now scaled by device pixel ratio capped by hardware tier (`_canvasDpr`), ensuring crisp Retina/HiDPI rendering while maintaining layout coordinates via 2D transforms. Window resize events are now throttled and coalesced via `requestAnimationFrame`.
+- **Adaptive Performance Tier & Transient Battery Saver**: Rewrote `detectTier()` to default to `high` tier, penalizing only severely constrained hardware (RAM <= 1.5GB, cores <= 2). Added non-persisted `applyBatterySaver()` that temporarily lowers quality during battery saver without overwriting the user's stored quality setting in `localStorage`. Added 8-second frame-time hysteresis, recovery thresholds, and diagnostic event tracking on tier transitions.
 
 ### Fixed
 
 - **Desktop parallax responds to the mouse again.** Parallax targets are now fed by one `attachMouseParallax()` listener through `setTargetParallax()`; the gyroscope subscription is additive and no longer suppresses mouse movement on desktops that merely expose the `DeviceOrientationEvent` API without sensor data.
 - **Architecture checker no longer uses regex sanitization.** `scripts/check-svelte-boundaries.mjs` parses tags directly and skips comments plus raw-text element bodies (`script`, `style`, `textarea`, `title`), clearing the CodeQL incomplete multi-character sanitization alert while still detecting real duplicate IDs. Added unit coverage for raw-text bodies.
+- **Fixed-step animation accumulator precision.** Added epsilon tolerance to `FixedStepAccumulator.advance()` to prevent early loop exits caused by floating-point precision loss.
 
 ## [2.0.0] — 2026-11-04
 
