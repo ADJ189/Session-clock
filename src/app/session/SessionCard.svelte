@@ -31,9 +31,9 @@
 </script>
 
 <div class="session-card">
-  <div class="pom-mode-pill" id="pomModePill" onclick={ontogglepom}>
+  <button type="button" class="pom-mode-pill" id="pomModePill" onclick={ontogglepom}>
     🍅 Pomodoro
-  </div>
+  </button>
   <div class="session-label" id="sessionLabel">{sessionLabel}</div>
   <div id="pomRingWrap">
     <svg

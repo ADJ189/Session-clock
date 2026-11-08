@@ -1,6 +1,6 @@
 // Canvas and clock rendering engine: frame loop, clock renderers, theme application
 import type { Theme, TimeString, LitEntry } from "../../types";
-import { THEMES, THEME_BY_ID, NAT_QUOTES } from "../../themes";
+import { THEMES, NAT_QUOTES } from "../../themes";
 import { p2, p3, fmtSession, DAYS, MONTHS, GREETS } from "../../utils";
 import * as Sound from "../../sound";
 import * as Pom from "../../pomodoro";
@@ -232,6 +232,8 @@ export function startRenderLoop() {
   });
 }
 
+let lastDrawDurationMs = 0;
+
 export function renderFrame(ts: number) {
   if (!isTabVisible()) {
     requestAnimationFrame(renderFrame);
@@ -267,7 +269,7 @@ export function renderFrame(ts: number) {
       fpsPaused = false;
       resetFpsSampling(ts);
     }
-    tickFps(ts);
+    tickFps(ts, lastDrawDurationMs);
   }
 
   const parallaxEnabled =
@@ -281,7 +283,9 @@ export function renderFrame(ts: number) {
   }
 
   if (!document.body.classList.contains("modal-open")) {
+    const drawStart = performance.now();
     drawBg(dt, currentTheme, Intel.getFlowIntensity());
+    lastDrawDurationMs = performance.now() - drawStart;
   }
 
   const sessionRunning = isSessionRunningFn();

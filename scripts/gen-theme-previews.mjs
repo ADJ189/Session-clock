@@ -7,8 +7,9 @@
 //   ONLY=aurora,mrrobot npm run previews     # just these ids
 //   BASE_URL=http://127.0.0.1:5173 CHROME_PATH=/path/to/chrome npm run previews
 //
-// Output: public/theme-previews/<id>.webp (400×225). Nothing here runs at
-// app startup; commit the generated files and review them as a contact sheet.
+// Output: public/theme-previews/<id>.webp (300×400 portrait 3:4). If thumbnails
+// have not been pre-rendered, the gallery cleanly renders designed CSS/Canvas
+// scene fallbacks. Commit generated files and review them as a contact sheet.
 
 import { chromium } from "@playwright/test";
 import { mkdirSync, writeFileSync, statSync } from "node:fs";
@@ -19,8 +20,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "public", "theme-previews");
 const base = process.env.BASE_URL ?? "http://127.0.0.1:5173";
 const only = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
-const W = 400;
-const H = 225;
+// 3:4 portrait card aspect ratio
+const W = 300;
+const H = 400;
 
 mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({
@@ -68,7 +70,7 @@ for (const id of ids) {
         out.width = w;
         out.height = h;
         const c = out.getContext("2d");
-        // Cover-crop the viewport-sized canvas to 16:9.
+        // Cover-crop the viewport-sized canvas to 3:4 portrait.
         const s = Math.max(w / src.width, h / src.height);
         const dw = src.width * s;
         const dh = src.height * s;

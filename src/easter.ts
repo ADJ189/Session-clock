@@ -23,7 +23,6 @@ let konamiIdx = 0;
 let konamiActive = false;
 type ThemeApplier = (id: string) => void;
 type ToastFn = (msg: string, dur?: number) => void;
-type SoundPlayer = (id: string) => void;
 
 let _applyThemeById: ThemeApplier = () => {};
 let _showToast: ToastFn = () => {};

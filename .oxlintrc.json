@@ -31,7 +31,12 @@
     // All 8 existing uses are `new Array(n).fill(...)`, the safe/intentional
     // pattern this rule exists to distinguish from the sparse-array footgun
     // `new Array(n)` alone — not worth blocking CI over.
-    "unicorn/no-new-array": "warn"
+    "unicorn/no-new-array": "warn",
+    // Playwright tests and preview scripts intentionally await sequential steps
+    // inside loops to avoid overwhelming browser instances.
+    "no-await-in-loop": "off",
+    // Inlined closures in canvas renderers and test helpers are idiomatic in this project.
+    "unicorn/consistent-function-scoping": "off"
   },
   "ignorePatterns": [
     "dist",

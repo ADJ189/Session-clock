@@ -144,7 +144,7 @@ function addPreviewArt(parent: HTMLElement, t: Theme) {
   scene.setAttribute("aria-hidden", "true");
   parent.appendChild(scene);
   if (PREVIEW_IDS.has(t.id)) {
-    const img = new Image(640, 360);
+    const img = new Image(300, 400);
     img.className = "tl-img";
     img.alt = "";
     img.loading = "lazy";

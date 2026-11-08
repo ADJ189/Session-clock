@@ -702,7 +702,7 @@ function renderDuration(
   body: HTMLElement,
   nav: HTMLElement,
   onPick: (m: number) => void,
-  finish: (s?: string) => void,
+  _finish: (s?: string) => void,
 ) {
   body.append(obH(t().sessionLengthQ), obP(t().sessionLengthHint));
   const grid = obGrid(3);
@@ -730,7 +730,7 @@ function renderThemePick(
   body: HTMLElement,
   nav: HTMLElement,
   onPick: (id: string) => void,
-  finish: (s?: string) => void,
+  _finish: (s?: string) => void,
 ) {
   body.append(obH(t().chooseThemeQ), obP(t().chooseThemeHint));
   const grid = obGrid(3);
@@ -759,7 +759,7 @@ function renderSoundPick(
   body: HTMLElement,
   nav: HTMLElement,
   onPick: (id: string) => void,
-  finish: (s?: string) => void,
+  _finish: (s?: string) => void,
 ) {
   body.append(obH(t().soundQ), obP(t().soundHint));
   const grid = obGrid(3);
