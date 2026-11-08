@@ -160,13 +160,13 @@ export function formatHour(h: number): string {
 // actually running (see onSessionStart/onSessionPause below); pausing
 // freezes it exactly like Pomodoro's own phaseElapsedBeforeSegment
 // pattern in pomodoro.ts freezes phase progress across a pause.
-let sessionStartTs = 0;
+let _sessionStartTs = 0;
 let breakSuggested = false;
 let focusedMsSinceBreak = 0;
 let runSegmentStart = 0; // performance.now() when the current running segment began; 0 while not running
 
 export function onSessionStart() {
-  sessionStartTs = Date.now();
+  _sessionStartTs = Date.now();
   breakSuggested = false;
   runSegmentStart = performance.now();
 }

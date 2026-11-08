@@ -467,7 +467,6 @@ function drawBgInner(dt: number, theme: Theme, flowIntensity = 0) {
     // Subtle accent bloom at centre that grows with focus
     const fr = Math.min(W, H) * (0.3 + _flowIntensity * 0.5);
     const fg = c.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, fr);
-    const fa = (_flowIntensity * 0.06).toFixed(3);
     fg.addColorStop(
       0,
       `${theme.accent}${Math.round(_flowIntensity * 22)
