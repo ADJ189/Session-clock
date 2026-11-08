@@ -1,5 +1,9 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { installDomStubs } from "./dom-stubs.ts";
+
+installDomStubs();
+
 import {
   detectTier,
   getTier,

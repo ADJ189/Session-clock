@@ -11,7 +11,7 @@ test("contract: index.html has no duplicate IDs", () => {
     const id = match[1];
     ids.set(id, (ids.get(id) || 0) + 1);
   }
-  const duplicates = [...ids.entries()].filter(([_, count]) => count > 1);
+  const duplicates = [...ids.entries()].filter(([, count]) => count > 1);
   assert.deepStrictEqual(duplicates, [], `Found duplicate IDs: ${JSON.stringify(duplicates)}`);
 });
 
