@@ -11,7 +11,7 @@ import {
 } from "../platform";
 import { installDiagnostics, copyDiagnosticsText } from "../diagnostics";
 import { rendererHealth } from "../rendererHealth";
-import { initPerf, getTier, setTier, getFps, applyBatterySaver } from "../perf";
+import { initPerf, getTier, getFps, applyBatterySaver } from "../perf";
 import * as Motion from "../motion";
 import * as Sound from "../sound";
 import * as Pom from "../pomodoro";
