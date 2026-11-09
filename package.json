@@ -31,10 +31,10 @@
     "previews": "node scripts/gen-theme-previews.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.1",
+    "@playwright/test": "^1.65.0",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@types/node": "^26.6.5",
-    "oxlint": "^1.89.0",
+    "oxlint": "^1.91.0",
     "svelte": "^5.57.3",
     "typescript": "^7.0.2",
     "vite": "^6.4.5"
