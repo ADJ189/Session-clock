@@ -27,6 +27,7 @@ import * as MusicDock from "../musicdock";
 import * as SideTasks from "../sidetasks";
 import * as ThemeLib from "../themelib";
 import { THEMES, THEME_BY_ID } from "../themes";
+import { safeGet, safeSet } from "../storage";
 import { resize } from "../renderer";
 import {
   initWeather,
@@ -112,7 +113,7 @@ import {
 import { initWallpaperDrop } from "./services/wallpaper-service";
 import { startInfoStrip } from "./services/info-strip";
 
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.0.5";
 const SPLASH_MIN_MS = 1000;
 const SPLASH_FONT_GRACE_MS = 800;
 
@@ -301,7 +302,7 @@ export async function bootSessionClock(): Promise<void> {
   window.__scMarkAudioReady = markAudioReady;
   document.documentElement.classList.toggle(
     "force-no-backdrop-filter",
-    localStorage.getItem("sc_force_no_blur") === "1",
+    safeGet("sc_force_no_blur") === "1",
   );
 
   // 3. Audio autoplay-policy unlock
@@ -388,7 +389,11 @@ export async function bootSessionClock(): Promise<void> {
       }
       Features.setStatusState(
         sessionController.isRunning() ? "running" : "idle",
-        { pomEnabled: Pom.isActive() },
+        {
+          pomEnabled: Pom.isActive(),
+          pomPhase: Pom.getPhase(),
+          remainingSecs: Pom.getRemainingSeconds(),
+        },
       );
       showToast(text, 3500);
     },
@@ -516,9 +521,9 @@ export async function bootSessionClock(): Promise<void> {
       (window as unknown as { __scDiagnosticsText?: () => string })
         .__scDiagnosticsText?.() ?? "",
     wireIdleListeners: (n) => wireIdleListeners(n),
-    isBreathingBreakEnabled: () => localStorage.getItem("sc_breathing_break") !== "0",
+    isBreathingBreakEnabled: () => safeGet("sc_breathing_break") !== "0",
     setBreathingBreakEnabled: (val) => {
-      localStorage.setItem("sc_breathing_break", val ? "1" : "0");
+      safeSet("sc_breathing_break", val ? "1" : "0");
     },
   });
 
@@ -718,12 +723,12 @@ export async function bootSessionClock(): Promise<void> {
     ?.addEventListener("click", () => ThemeLib.open());
 
   wireGithubCelebration();
-  if (localStorage.getItem("sc_parallax") !== "0") {
+  if (safeGet("sc_parallax") !== "0") {
     attachGyroParallax();
   }
   setThemePanelCollapsed(true);
 
-  const lastId = localStorage.getItem("sc_last_theme");
+  const lastId = safeGet("sc_last_theme");
   applyTheme(
     lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0]!,
     true,
@@ -741,12 +746,12 @@ export async function bootSessionClock(): Promise<void> {
   }, 60_000);
 
   // Weather overlay preference
-  if (localStorage.getItem("sc_weather_theme") !== "0") {
+  if (safeGet("sc_weather_theme") !== "0") {
     document.body.classList.add("weather-overlay-on");
   }
 
   setWeatherPageCallbacks(isPrivacyMode, (_code, _temp, _desc) => {
-    if (localStorage.getItem("sc_weather_theme") !== "0") {
+    if (safeGet("sc_weather_theme") !== "0") {
       const overlay = getWeatherOverlay();
       const all = ["clear", "rain", "snow", "thunder", "fog", "cloudy"];
       all.forEach((c) => document.body.classList.remove(`weather-${c}`));
@@ -767,7 +772,7 @@ export async function bootSessionClock(): Promise<void> {
     const wPill = document.getElementById("weatherPill");
     if (wIcon && wText && wPill) {
       void initWeather(wIcon, wText, wPill, isPrivacyMode, (_code, _temp, _desc) => {
-        if (localStorage.getItem("sc_weather_theme") !== "0") {
+        if (safeGet("sc_weather_theme") !== "0") {
           const overlay = getWeatherOverlay();
           const all = ["clear", "rain", "snow", "thunder", "fog", "cloudy"];
           all.forEach((c) => document.body.classList.remove(`weather-${c}`));
@@ -863,7 +868,10 @@ export async function bootSessionClock(): Promise<void> {
     void MusicDock.initSpotifyPlayback();
   }
 
-  if (window.location.search.includes("code=")) {
+  if (
+    window.location.search.includes("code=") ||
+    window.location.search.includes("error=")
+  ) {
     void Integrations.oauthHandleCallback()
       .then((result) => {
         if (result && !result.ok) {
