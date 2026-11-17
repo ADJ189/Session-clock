@@ -127,7 +127,7 @@ export function filterAndGroup(
   tagOrder.forEach((tag) => {
     const groupItems = groupsMap.get(tag);
     if (!groupItems?.length) return;
-    const items: GroupedCmdItem[] = groupItems.map((item) => ({
+    const groupedItems: GroupedCmdItem[] = groupItems.map((item) => ({
       item,
       globalIndex: globalIdx++,
       nameSegments: highlightSegments(item.name, q),
@@ -135,7 +135,7 @@ export function filterAndGroup(
     groups.push({
       tag,
       label: TAG_LABELS[tag] ?? tag,
-      items,
+      items: groupedItems,
     });
   });
 
