@@ -56,7 +56,14 @@
         connected={provider.connected}
         open={openCardId === provider.id}
         ontoggle={() => ontogglecard(provider.id)}
-      />
+      >
+        {#if renderForm}
+          {@const formSnippet = renderForm(provider.id)}
+          {#if formSnippet}
+            {@render formSnippet()}
+          {/if}
+        {/if}
+      </ProviderCard>
     {/each}
   </div>
 </ModalShell>

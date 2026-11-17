@@ -139,19 +139,30 @@ export function initModals(): void {
 }
 
 let kbApp: any = null;
+let kbPending: Promise<void> | null = null;
 export const ensureKbModal = async () => {
   const container = document.getElementById("kbOverlay");
   if (!container || kbApp) return;
-  const { mount } = await import("svelte");
-  const KeyboardShortcutsDialog = (
-    await import("../modals/KeyboardShortcutsDialog.svelte")
-  ).default;
-  kbApp = mount(KeyboardShortcutsDialog, {
-    target: container,
-    props: {
-      onClose: () => closeModal("kbOverlay"),
-    },
-  });
+  if (kbPending) return kbPending;
+  kbPending = (async () => {
+    try {
+      const { mount } = await import("svelte");
+      const KeyboardShortcutsDialog = (
+        await import("../modals/KeyboardShortcutsDialog.svelte")
+      ).default;
+      if (!kbApp) {
+        kbApp = mount(KeyboardShortcutsDialog, {
+          target: container,
+          props: {
+            onClose: () => closeModal("kbOverlay"),
+          },
+        });
+      }
+    } finally {
+      kbPending = null;
+    }
+  })();
+  return kbPending;
 };
 
 let pomApp: any = null;
@@ -195,16 +206,28 @@ export function buildPomUI(): void {
 }
 
 let dataPanelApp: any = null;
+let dataPanelPending: Promise<void> | null = null;
 export async function openDataPanel(): Promise<void> {
   const target = document.getElementById("dataOverlay");
   if (target) {
-    if (!dataPanelApp) {
-      target.innerHTML = "";
-      const { mount } = await import("svelte");
-      const { default: DataManagementDialog } = await import(
-        "../modals/DataManagementDialog.svelte"
-      );
-      dataPanelApp = mount(DataManagementDialog, { target });
+    if (!dataPanelApp && !dataPanelPending) {
+      dataPanelPending = (async () => {
+        try {
+          target.innerHTML = "";
+          const { mount } = await import("svelte");
+          const { default: DataManagementDialog } = await import(
+            "../modals/DataManagementDialog.svelte"
+          );
+          if (!dataPanelApp) {
+            dataPanelApp = mount(DataManagementDialog, { target });
+          }
+        } finally {
+          dataPanelPending = null;
+        }
+      })();
+      await dataPanelPending;
+    } else if (dataPanelPending) {
+      await dataPanelPending;
     } else if (typeof dataPanelApp.refresh === "function") {
       dataPanelApp.refresh();
     }
@@ -213,24 +236,34 @@ export async function openDataPanel(): Promise<void> {
 }
 
 let legalApp: any = null;
+let legalPending: Promise<void> | null = null;
 export async function openLegalPanel(doc: "privacy" | "terms"): Promise<void> {
   const container = document.getElementById("legalOverlay");
   if (!container) return;
-  if (!legalApp) {
-    try {
-      const { mount } = await import("svelte");
-      const LegalDialog = (await import("../modals/LegalDialog.svelte")).default;
-      legalApp = mount(LegalDialog, {
-        target: container,
-        props: {
-          initialDoc: doc,
-          onClose: () => closeModal("legalOverlay"),
-        },
-      });
-    } catch {
-      showToast("Couldn't load this page. Please try again.");
-      return;
-    }
+  if (!legalApp && !legalPending) {
+    legalPending = (async () => {
+      try {
+        const { mount } = await import("svelte");
+        const LegalDialog = (await import("../modals/LegalDialog.svelte")).default;
+        if (!legalApp) {
+          legalApp = mount(LegalDialog, {
+            target: container,
+            props: {
+              initialDoc: doc,
+              onClose: () => closeModal("legalOverlay"),
+            },
+          });
+        }
+      } catch {
+        showToast("Couldn't load this page. Please try again.");
+      } finally {
+        legalPending = null;
+      }
+    })();
+    await legalPending;
+  } else if (legalPending) {
+    await legalPending;
+    legalApp?.setDoc?.(doc);
   } else {
     legalApp.setDoc?.(doc);
   }
@@ -238,18 +271,30 @@ export async function openLegalPanel(doc: "privacy" | "terms"): Promise<void> {
 }
 
 let languageApp: any = null;
+let languagePending: Promise<void> | null = null;
 export async function openLanguageModal(): Promise<void> {
   const container = document.getElementById("languageOverlay");
   if (!container) return;
-  if (!languageApp) {
-    const { mount } = await import("svelte");
-    const LanguageDialog = (await import("../modals/LanguageDialog.svelte")).default;
-    languageApp = mount(LanguageDialog, {
-      target: container,
-      props: {
-        onClose: () => closeModal("languageOverlay"),
-      },
-    });
+  if (!languageApp && !languagePending) {
+    languagePending = (async () => {
+      try {
+        const { mount } = await import("svelte");
+        const LanguageDialog = (await import("../modals/LanguageDialog.svelte")).default;
+        if (!languageApp) {
+          languageApp = mount(LanguageDialog, {
+            target: container,
+            props: {
+              onClose: () => closeModal("languageOverlay"),
+            },
+          });
+        }
+      } finally {
+        languagePending = null;
+      }
+    })();
+    await languagePending;
+  } else if (languagePending) {
+    await languagePending;
   }
   openModal("languageOverlay");
 }
@@ -329,13 +374,16 @@ export function setupKeyboardShortcuts(ctx: KeyboardShortcutsContext) {
       "Escape",
       "Close any open panel",
       () => {
+        const openOverlays =
+          document.querySelectorAll<HTMLElement>(".sc-overlay.open");
+        if (openOverlays.length > 0) {
+          openOverlays.forEach((el) => closeModal(el.id));
+          return;
+        }
         if (ctx.isZenOn()) {
           ctx.toggleZen();
           return;
         }
-        document
-          .querySelectorAll<HTMLElement>(".sc-overlay.open")
-          .forEach((el) => closeModal(el.id));
       },
     ],
   ];
