@@ -469,12 +469,26 @@ test("public/_headers CSP allows Spotify OAuth and Web Playback SDK origins", as
     .find((l) => l.trim().startsWith("Content-Security-Policy:"));
   assert.ok(cspLine, "Content-Security-Policy header must exist");
 
-  const csp = cspLine.trim();
-  // connect-src must allow Spotify direct token exchange and SDK websockets/APIs
-  assert.ok(csp.includes("https://accounts.spotify.com"), "accounts.spotify.com in connect-src");
-  assert.ok(csp.includes("https://*.spotify.com"), "*.spotify.com in connect-src");
-  assert.ok(csp.includes("wss://*.spotify.com"), "wss://*.spotify.com in connect-src");
+  const cspValue = cspLine.replace(/^Content-Security-Policy:\s*/i, "").trim();
+  const directives = cspValue
+    .split(";")
+    .map((d) => d.trim())
+    .filter(Boolean);
 
+  const getDirectiveSources = (name: string): Set<string> => {
+    const directive = directives.find((d) => d.startsWith(`${name} `) || d === name);
+    assert.ok(directive, `${name} directive must exist`);
+    const [, ...sources] = directive.split(/\s+/);
+    return new Set(sources);
+  };
+
+  const connectSrc = getDirectiveSources("connect-src");
+  // connect-src must allow Spotify direct token exchange and SDK websockets/APIs
+  assert.ok(connectSrc.has("https://accounts.spotify.com"), "accounts.spotify.com in connect-src");
+  assert.ok(connectSrc.has("https://*.spotify.com"), "*.spotify.com in connect-src");
+  assert.ok(connectSrc.has("wss://*.spotify.com"), "wss://*.spotify.com in connect-src");
+
+  const frameSrc = getDirectiveSources("frame-src");
   // frame-src must allow Spotify SDK iframe
-  assert.ok(csp.includes("https://sdk.scdn.co"), "sdk.scdn.co in frame-src");
+  assert.ok(frameSrc.has("https://sdk.scdn.co"), "sdk.scdn.co in frame-src");
 });
