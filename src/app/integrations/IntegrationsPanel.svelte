@@ -194,7 +194,7 @@
           const orig = btn.textContent;
           btn.textContent = "Connecting…";
           try {
-            await service.googleLogin(service.defaultGoogleClientId);
+            await service.googleLogin(service.defaultGoogleClientId, "youtube");
           } finally {
             btn.textContent = orig;
           }
@@ -241,7 +241,7 @@
           const orig = btn.textContent;
           btn.textContent = "Connecting…";
           try {
-            await service.googleLogin(id);
+            await service.googleLogin(id, "youtube");
           } finally {
             btn.textContent = orig;
           }
@@ -282,7 +282,7 @@
           const orig = btn.textContent;
           btn.textContent = "Connecting…";
           try {
-            await service.googleLogin(service.defaultGoogleClientId);
+            await service.googleLogin(service.defaultGoogleClientId, "gcal");
           } finally {
             btn.textContent = orig;
           }
