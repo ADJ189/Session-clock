@@ -23,16 +23,32 @@ export function isNotifEnabled() {
 
 export function sendNotification(title: string, body: string, tag = "sc") {
   if (!isNotifEnabled()) return;
-  const n = new Notification(title, {
-    body,
-    tag, // prevents duplicate stacking
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
-    silent: false,
-    requireInteraction: false,
-  });
-  // Auto-close after 6 seconds
-  setTimeout(() => n.close(), 6000);
+  try {
+    const n = new Notification(title, {
+      body,
+      tag, // prevents duplicate stacking
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      silent: false,
+      requireInteraction: false,
+    });
+    // Auto-close after 6 seconds
+    setTimeout(() => n.close(), 6000);
+  } catch {
+    // Mobile browsers (Chrome Android) throw TypeError on new Notification()
+    navigator.serviceWorker?.ready
+      ?.then((reg) => {
+        reg.showNotification(title, {
+          body,
+          tag,
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+        });
+      })
+      .catch(() => {
+        /* notifications blocked or unavailable */
+      });
+  }
 }
 
 // ── MediaSession ──────────────────────────────────────────────────────
@@ -87,6 +103,16 @@ export function clearMediaSession() {
   if (!("mediaSession" in navigator)) return;
   navigator.mediaSession.metadata = null;
   navigator.mediaSession.playbackState = "none";
+  try {
+    navigator.mediaSession.setActionHandler("play", null);
+    navigator.mediaSession.setActionHandler("pause", null);
+    navigator.mediaSession.setActionHandler("stop", null);
+  } catch {
+    /* action handlers unsupported */
+  }
+  _onMediaPlay = null;
+  _onMediaPause = null;
+  _onMediaStop = null;
   _mediaSessionActive = false;
 }
 
@@ -141,10 +167,14 @@ let _pipWindow: Window | null = null;
 let _pipVideo: HTMLVideoElement | null = null;
 let _pipCanvas: HTMLCanvasElement | null = null;
 let _pipCtx: CanvasRenderingContext2D | null = null;
+let _pipStream: MediaStream | null = null;
 let _pipRafId = 0;
 
 export function isPiPActive() {
-  return _pipWindow !== null || document.pictureInPictureElement !== null;
+  return (
+    (_pipWindow !== null && !_pipWindow.closed) ||
+    document.pictureInPictureElement !== null
+  );
 }
 
 export async function enterPiP(
@@ -266,9 +296,9 @@ async function enterCanvasPiP(theme: {
     return;
   } // canvas 2D context unavailable — nothing to draw into
 
-  const stream = _pipCanvas.captureStream(30);
+  _pipStream = _pipCanvas.captureStream(30);
   _pipVideo = document.createElement("video");
-  _pipVideo.srcObject = stream;
+  _pipVideo.srcObject = _pipStream;
   _pipVideo.muted = true;
   await _pipVideo.play();
 
@@ -315,6 +345,8 @@ async function enterCanvasPiP(theme: {
     await _pipVideo.requestPictureInPicture();
     _pipVideo.addEventListener("leavepictureinpicture", () => {
       cancelAnimationFrame(_pipRafId);
+      _pipStream?.getTracks().forEach((t) => t.stop());
+      _pipStream = null;
       _pipVideo?.remove();
       _pipVideo = null;
       _pipCanvas = null;
@@ -322,6 +354,8 @@ async function enterCanvasPiP(theme: {
     });
   } catch {
     cancelAnimationFrame(_pipRafId);
+    _pipStream?.getTracks().forEach((t) => t.stop());
+    _pipStream = null;
     _pipVideo = null;
     _pipCanvas = null;
     _pipCtx = null;
@@ -330,6 +364,8 @@ async function enterCanvasPiP(theme: {
 
 export async function exitPiP(): Promise<void> {
   cancelAnimationFrame(_pipRafId);
+  _pipStream?.getTracks().forEach((t) => t.stop());
+  _pipStream = null;
   if (_pipWindow && !_pipWindow.closed) {
     try {
       _pipWindow.close();
