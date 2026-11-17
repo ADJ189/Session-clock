@@ -2,12 +2,9 @@
   "version": "5",
   "specifiers": {
     "npm:@lhci/cli@*": "0.16.0_@types+node@26.6.5",
-    "npm:@playwright/test@^1.65.0": "1.65.1",
     "npm:@sveltejs/vite-plugin-svelte@^6.2.4": "6.2.4_svelte@5.57.3_vite@6.4.5_@types+node@26.6.5",
-    "npm:@types/node@^26.6.5": "26.6.5",
     "npm:animejs@^4.5.0": "4.5.0",
     "npm:lighthouse@*": "13.6.0_proxy-agent@6.5.0",
-    "npm:oxlint@^1.91.0": "1.93.0",
     "npm:svelte@^5.57.3": "5.57.3",
     "npm:typescript@*": "7.0.2",
     "npm:typescript@^7.0.2": "7.0.2",
@@ -2544,11 +2541,11 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@playwright/test@^1.65.0",
+        "npm:@playwright/test@^1.64.1",
         "npm:@sveltejs/vite-plugin-svelte@^6.2.4",
-        "npm:@types/node@^26.6.5",
+        "npm:@types/node@^26.6.6",
         "npm:animejs@^4.5.0",
-        "npm:oxlint@^1.91.0",
+        "npm:oxlint@^1.90.0",
         "npm:svelte@^5.57.3",
         "npm:typescript@^7.0.2",
         "npm:vite@^6.4.5"
