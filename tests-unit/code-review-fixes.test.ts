@@ -130,17 +130,83 @@ test("Review Fix 6: restoreSavedSession is bypassed and discarded when URL hando
     JSON.stringify({ task: "saved-old-task", elapsed: 99999, running: false }),
   );
 
-  // Set handoff query parameters
+  // Set actionable session handoff query parameters
   g.location = { search: "?theme=midnight&ses=1" };
   g.window.location = g.location;
 
   sessionController.setElapsed(0);
   sessionController.restoreSavedSession();
 
-  // Saved session in storage should have been cleared
+  // Actionable session in storage should have been cleared
   assert.strictEqual(g.sessionStorage.getItem("sc_saved_session"), null);
   // Elapsed time should NOT have been overwritten with 99999
   assert.strictEqual(sessionController.getElapsed(), 0);
+});
+
+test("Review Fix 8: theme-only or ineffective handoff URLs do not delete saved session and allow restoration", () => {
+  const g = globalThis as any;
+  const mem = new Map<string, string>();
+  g.sessionStorage = {
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => mem.set(k, String(v)),
+    removeItem: (k: string) => mem.delete(k),
+    clear: () => mem.clear(),
+  };
+
+  // 1. Theme-only URL: ?theme=nord
+  g.sessionStorage.setItem(
+    "sc_saved_session",
+    JSON.stringify({ task: "important-task", elapsed: 42000, running: false }),
+  );
+  g.location = { search: "?theme=nord" };
+  g.window.location = g.location;
+
+  sessionController.setElapsed(0);
+  sessionController.restoreSavedSession();
+
+  // Saved session should have been restored, setting elapsed to 42000
+  assert.strictEqual(sessionController.getElapsed(), 42000);
+
+  // 2. Ineffective handoff URL: ?ses=0&start=0
+  g.sessionStorage.setItem(
+    "sc_saved_session",
+    JSON.stringify({ task: "important-task", elapsed: 55000, running: false }),
+  );
+  g.location = { search: "?theme=midnight&ses=0&start=0" };
+  g.window.location = g.location;
+
+  sessionController.setElapsed(0);
+  sessionController.restoreSavedSession();
+
+  // Saved session should have been restored, setting elapsed to 55000
+  assert.strictEqual(sessionController.getElapsed(), 55000);
+});
+
+test("Review Fix 9: Pomodoro updateSettings preserves custom longBreak settings when handoff fields are omitted", () => {
+  // Receiver has configured custom long break settings
+  Pom.updateSettings({
+    workMins: 25,
+    breakMins: 5,
+    longBreakMins: 45,
+    longBreakAfter: 6,
+  });
+
+  assert.strictEqual(Pom.getSettings().longBreakMins, 45);
+  assert.strictEqual(Pom.getSettings().longBreakAfter, 6);
+
+  // An older handoff link that only specifies pw and pb must not overwrite longBreakMins or longBreakAfter
+  const patch: Partial<import("../src/types.ts").PomodoroSettings> = {};
+  patch.workMins = 30;
+  patch.breakMins = 7;
+  // plb and pla omitted from patch
+  Pom.updateSettings(patch);
+
+  const updated = Pom.getSettings();
+  assert.strictEqual(updated.workMins, 30);
+  assert.strictEqual(updated.breakMins, 7);
+  // Custom long break settings preserved
+  assert.strictEqual(updated.longBreakMins, 45);
+  assert.strictEqual(updated.longBreakAfter, 6);
 });
 
 test("Review Fix 7: modal-controller guards prevent opening overlay when panel fails to mount", async () => {
