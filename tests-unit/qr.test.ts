@@ -117,3 +117,157 @@ test("QR versions 7+ carry the required version information", () => {
   }
   assert.strictEqual(versionInfo, 0b000111110010010100);
 });
+
+test("QR mask 2 round-trip decodes v1, v2, v7, and v10 payloads", () => {
+  function decodePayload(matrix: boolean[][], version: number): string {
+    const size = matrix.length;
+    const fixed: boolean[][] = Array.from({ length: size }, () =>
+      Array.from({ length: size }).fill(false) as boolean[],
+    );
+    const setFixed = (r: number, c: number) => {
+      if (r >= 0 && r < size && c >= 0 && c < size) fixed[r]![c] = true;
+    };
+    const placeFinder = (top: number, left: number) => {
+      for (let r = -1; r <= 7; r++) {
+        for (let c = -1; c <= 7; c++) {
+          setFixed(top + r, left + c);
+        }
+      }
+    };
+    placeFinder(0, 0);
+    placeFinder(0, size - 7);
+    placeFinder(size - 7, 0);
+
+    for (let i = 8; i < size - 8; i++) {
+      setFixed(6, i);
+      setFixed(i, 6);
+    }
+    setFixed(size - 8, 8);
+
+    // Format info cells
+    for (let i = 0; i < 15; i++) {
+      if (i < 6) setFixed(i, 8);
+      else if (i < 8) setFixed(i + 1, 8);
+      else setFixed(size - 15 + i, 8);
+
+      if (i < 8) setFixed(8, size - 1 - i);
+      else if (i < 9) setFixed(8, 15 - i - 1 + 1);
+      else setFixed(8, 15 - i - 1);
+    }
+
+    const alignCoords: Record<number, number[]> = {
+      1: [],
+      2: [6, 18],
+      7: [6, 22, 38],
+      10: [6, 28, 50],
+    };
+    const coords = alignCoords[version] ?? [];
+    for (const r of coords) {
+      for (const c of coords) {
+        if (
+          (r === 6 && c === 6) ||
+          (r === 6 && c === size - 7) ||
+          (r === size - 7 && c === 6)
+        )
+          continue;
+        for (let dr = -2; dr <= 2; dr++) {
+          for (let dc = -2; dc <= 2; dc++) {
+            fixed[r + dr]![c + dc] = true;
+          }
+        }
+      }
+    }
+
+    if (version >= 7) {
+      for (let i = 0; i < 18; i++) {
+        fixed[Math.floor(i / 3)]![size - 11 + (i % 3)] = true;
+        fixed[size - 11 + (i % 3)]![Math.floor(i / 3)] = true;
+      }
+    }
+
+    const bits: number[] = [];
+    let col = size - 1;
+    let goUp = true;
+    while (col >= 0) {
+      if (col === 6) col--;
+      for (let ii = 0; ii < size; ii++) {
+        const r = goUp ? size - 1 - ii : ii;
+        for (let dc = 0; dc < 2; dc++) {
+          const c = col - dc;
+          if (c < 0 || fixed[r]![c]) continue;
+          const bit = matrix[r]![c] ? 1 : 0;
+          const unmasked = c % 3 === 0 ? bit ^ 1 : bit;
+          bits.push(unmasked);
+        }
+      }
+      col -= 2;
+      goUp = !goUp;
+    }
+
+    const dataBlockSpecs: Record<number, number[]> = {
+      1: [16],
+      2: [28],
+      7: [31, 31, 31, 31],
+      10: [43, 43, 43, 43, 44],
+    };
+    const blocks = dataBlockSpecs[version] ?? [16];
+    const totalDataCodewords = blocks.reduce((a, b) => a + b, 0);
+
+    // Read all codewords from data area (8 bits per codeword)
+    let bi = 0;
+    const allCodewords: number[] = [];
+    for (let i = 0; i < totalDataCodewords; i++) {
+      let b = 0;
+      for (let j = 0; j < 8; j++) {
+        b = (b << 1) | bits[bi++]!;
+      }
+      allCodewords.push(b);
+    }
+
+    // De-interleave blocks
+    const deinterleaved: number[][] = blocks.map(() => []);
+    let ci = 0;
+    const maxLen = Math.max(...blocks);
+    for (let i = 0; i < maxLen; i++) {
+      for (let b = 0; b < blocks.length; b++) {
+        if (i < blocks[b]!) {
+          deinterleaved[b]!.push(allCodewords[ci++]!);
+        }
+      }
+    }
+    const dataStream = deinterleaved.flat();
+
+    // Now parse mode and char count from dataStream bits
+    let bitIdx = 0;
+    const readStreamBits = (len: number) => {
+      let val = 0;
+      for (let i = 0; i < len; i++) {
+        const byte = dataStream[bitIdx >> 3]!;
+        const bit = (byte >> (7 - (bitIdx & 7))) & 1;
+        val = (val << 1) | bit;
+        bitIdx++;
+      }
+      return val;
+    };
+
+    assert.strictEqual(readStreamBits(4), 0b0100, "byte mode expected");
+    const count = readStreamBits(version <= 9 ? 8 : 16);
+    const bytes: number[] = [];
+    for (let i = 0; i < count; i++) {
+      bytes.push(readStreamBits(8));
+    }
+    return new TextDecoder().decode(new Uint8Array(bytes));
+  }
+
+  const v1Text = "hello world!";
+  assert.strictEqual(decodePayload(buildMatrix(v1Text), 1), v1Text);
+
+  const v2Text = "v2 payload test 123456";
+  assert.strictEqual(decodePayload(buildMatrix(v2Text), 2), v2Text);
+
+  const v7Text = payload(107, "v");
+  assert.strictEqual(decodePayload(buildMatrix(v7Text), 7), v7Text);
+
+  const v10Text = payload(210, "x");
+  assert.strictEqual(decodePayload(buildMatrix(v10Text), 10), v10Text);
+});

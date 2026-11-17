@@ -64,75 +64,70 @@ const {
 } = await import("../src/integrations.ts");
 const { saveCredentials, loadCredentials } = await import("../src/auth.ts");
 
-test("Calendar disconnect clears shared Google credential when no YouTube connection exists", () => {
+function setupConnected(options: {
+  googleToken?: string;
+  youtube?: boolean;
+  gcalOAuth?: boolean;
+}) {
   localData.clear();
   sessionData.clear();
+  if (options.googleToken) {
+    saveCredentials("google", { token: options.googleToken });
+  }
+  if (options.youtube) {
+    saveCredentials("youtube", { connected: "true" });
+  }
+  if (options.gcalOAuth) {
+    saveCredentials("gcal", { oauth: "true" });
+  }
+}
 
-  // Simulate Calendar-only login: Google token exists, and GCal has oauth: true
-  saveCredentials("google", { token: "google-token-123" });
-  saveCredentials("gcal", { oauth: "true" });
+function assertConnectionState(expected: {
+  google: boolean;
+  youtube: boolean;
+  gcal: boolean;
+}) {
+  assert.strictEqual(isGoogleConnected(), expected.google);
+  assert.strictEqual(isYouTubeConnected(), expected.youtube);
+  assert.strictEqual(isGCalConnected(), expected.gcal);
+}
 
-  assert.strictEqual(isGoogleConnected(), true);
-  assert.strictEqual(isGCalConnected(), true);
-  assert.strictEqual(isYouTubeConnected(), false);
+test("Calendar disconnect clears shared Google credential when no YouTube connection exists", () => {
+  setupConnected({ googleToken: "google-token-123", gcalOAuth: true });
+  assertConnectionState({ google: true, youtube: false, gcal: true });
 
-  // Disconnect GCal
   disconnectAll("gcal");
-
-  // Displayed connection state and stored credential must agree
-  assert.strictEqual(isGCalConnected(), false);
-  assert.strictEqual(isGoogleConnected(), false);
-  assert.strictEqual(isYouTubeConnected(), false);
+  assertConnectionState({ google: false, youtube: false, gcal: false });
 });
 
 test("Calendar disconnect preserves shared Google credential when YouTube is independently connected", () => {
-  localData.clear();
-  sessionData.clear();
+  setupConnected({
+    googleToken: "google-token-123",
+    youtube: true,
+    gcalOAuth: true,
+  });
+  assertConnectionState({ google: true, youtube: true, gcal: true });
 
-  // Simulate both connected
-  saveCredentials("google", { token: "google-token-123" });
-  saveCredentials("youtube", { connected: "true" });
-  saveCredentials("gcal", { oauth: "true" });
-
-  assert.strictEqual(isGoogleConnected(), true);
-  assert.strictEqual(isYouTubeConnected(), true);
-  assert.strictEqual(isGCalConnected(), true);
-
-  // Disconnect GCal
   disconnectAll("gcal");
+  assertConnectionState({ google: true, youtube: true, gcal: false });
 
-  // GCal is disconnected
-  assert.strictEqual(isGCalConnected(), false);
-  // YouTube remains connected and keeps Google credential
-  assert.strictEqual(isYouTubeConnected(), true);
-  assert.strictEqual(isGoogleConnected(), true);
-
-  // Now disconnect YouTube
   disconnectAll("youtube");
-
-  // Both are disconnected, Google credential cleared
-  assert.strictEqual(isYouTubeConnected(), false);
-  assert.strictEqual(isGoogleConnected(), false);
+  assertConnectionState({ google: false, youtube: false, gcal: false });
 });
 
 test("YouTube disconnect preserves shared Google credential when Calendar is independently connected", () => {
-  localData.clear();
-  sessionData.clear();
-
-  saveCredentials("google", { token: "google-token-123" });
-  saveCredentials("youtube", { connected: "true" });
-  saveCredentials("gcal", { oauth: "true" });
+  setupConnected({
+    googleToken: "google-token-123",
+    youtube: true,
+    gcalOAuth: true,
+  });
+  assertConnectionState({ google: true, youtube: true, gcal: true });
 
   disconnectAll("youtube");
-
-  assert.strictEqual(isYouTubeConnected(), false);
-  assert.strictEqual(isGCalConnected(), true);
-  assert.strictEqual(isGoogleConnected(), true);
+  assertConnectionState({ google: true, youtube: false, gcal: true });
 
   disconnectAll("gcal");
-
-  assert.strictEqual(isGCalConnected(), false);
-  assert.strictEqual(isGoogleConnected(), false);
+  assertConnectionState({ google: false, youtube: false, gcal: false });
 });
 
 test("GCal API key disconnect works and does not affect Google or YouTube", () => {
@@ -164,43 +159,24 @@ test("googleLogin sets auth target for gcal and youtube", async () => {
 });
 
 test("disconnectGoogle cleans up google, youtube, and gcal oauth credentials", () => {
-  localData.clear();
-  sessionData.clear();
-
-  saveCredentials("google", { token: "token" });
-  saveCredentials("youtube", { connected: "true" });
-  saveCredentials("gcal", { oauth: "true" });
-
+  setupConnected({ googleToken: "token", youtube: true, gcalOAuth: true });
   disconnectGoogle();
-
-  assert.strictEqual(isGoogleConnected(), false);
-  assert.strictEqual(isYouTubeConnected(), false);
-  assert.strictEqual(isGCalConnected(), false);
+  assertConnectionState({ google: false, youtube: false, gcal: false });
 });
 
 test("legacy Google token backfills YouTube and Calendar markers once", () => {
-  localData.clear();
-  sessionData.clear();
-
-  // Upgrade case: the only saved OAuth credential is the old shared record.
-  saveCredentials("google", { token: "legacy-google-token" });
-
-  assert.strictEqual(isGoogleConnected(), true);
-  assert.strictEqual(isYouTubeConnected(), true);
-  assert.strictEqual(isGCalConnected(), true);
+  setupConnected({ googleToken: "legacy-google-token" });
+  assertConnectionState({ google: true, youtube: true, gcal: true });
   assert.strictEqual(loadCredentials("youtube")?.connected, "true");
   assert.strictEqual(loadCredentials("gcal")?.oauth, "true");
   assert.strictEqual(localData.get(LEGACY_GOOGLE_MIGRATION_KEY), "1");
 
   // The one-time marker prevents a later explicit disconnect being undone.
   disconnectAll("youtube");
-  assert.strictEqual(isYouTubeConnected(), false);
-  // Calendar still owns the shared token through its OAuth marker.
-  assert.strictEqual(isGoogleConnected(), true);
+  assertConnectionState({ google: true, youtube: false, gcal: true });
 
   disconnectAll("gcal");
-  assert.strictEqual(isGCalConnected(), false);
-  assert.strictEqual(isGoogleConnected(), false);
+  assertConnectionState({ google: false, youtube: false, gcal: false });
 });
 
 test("legacy migration preserves existing Calendar API-key data", () => {

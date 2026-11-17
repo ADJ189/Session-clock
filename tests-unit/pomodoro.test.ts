@@ -72,7 +72,7 @@ test("stored pomodoro settings are sanitized on load", () => {
   );
   boot();
   assert.deepStrictEqual(Pom.getSettings(), {
-    workMins: 120,
+    workMins: 180,
     breakMins: 1,
     longBreakMins: 15,
     longBreakAfter: 12,
@@ -86,11 +86,11 @@ test("pomodoro setters and updateSettings enforce the shared bounds", () => {
   Pom.setWorkMins(0);
   assert.strictEqual(Pom.getSettings().workMins, 1);
   Pom.setWorkMins(999);
-  assert.strictEqual(Pom.getSettings().workMins, 120);
+  assert.strictEqual(Pom.getSettings().workMins, 180);
   Pom.setBreakMins(0);
   assert.strictEqual(Pom.getSettings().breakMins, 1);
   Pom.setBreakMins(999);
-  assert.strictEqual(Pom.getSettings().breakMins, 60);
+  assert.strictEqual(Pom.getSettings().breakMins, 90);
 
   // Invalid (non-finite) values fall back to the defaults rather than being
   // clamped to an edge.
