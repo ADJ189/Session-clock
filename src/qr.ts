@@ -1,5 +1,7 @@
-// ── Minimal QR code generator (Version 2-M, byte mode) ───────────────
-// Pure TS, zero deps. Generates 25×25 matrix for URLs up to ~20 chars.
+// ── Minimal QR code generator (byte mode, EC level M, versions 1–10) ───
+// Pure TS, zero deps. The version is chosen from the payload size (14–213
+// UTF-8 bytes); an oversized payload throws instead of being truncated, so a
+// scan never silently opens a URL with parameters missing.
 
 // GF(256) arithmetic using number arrays (avoids Uint8Array<ArrayBuffer> issues)
 const GF_EXP: number[] = Array.from<number>({ length: 512 }).fill(0);
@@ -42,25 +44,84 @@ function rsEncode(data: number[], nEC: number): number[] {
   return msg.slice(data.length);
 }
 
-function encodeBytes(text: string): number[] {
-  const rawBytes = Array.from(new TextEncoder().encode(text));
-  // Version 2-M has 28 total data codewords (224 bits).
-  // Mode (4) + Length (8) + Terminator (4) = 16 bits overhead -> 208 bits = 26 data bytes max.
-  const enc = rawBytes.slice(0, 26);
+// ── Version table (error correction level M) ──────────────────────────
+// dataBlocks lists each block's data-codeword count. ecPerBlock is the same
+// for every block in a version. Alignment centres come from the QR spec.
+interface QrSpec {
+  version: number;
+  ecPerBlock: number;
+  dataBlocks: number[];
+  alignment: number[];
+}
+
+const QR_SPECS: QrSpec[] = [
+  { version: 1,  ecPerBlock: 10, dataBlocks: [16],             alignment: [] },
+  { version: 2,  ecPerBlock: 16, dataBlocks: [28],             alignment: [6, 18] },
+  { version: 3,  ecPerBlock: 26, dataBlocks: [44],             alignment: [6, 22] },
+  { version: 4,  ecPerBlock: 18, dataBlocks: [32, 32],         alignment: [6, 26] },
+  { version: 5,  ecPerBlock: 24, dataBlocks: [43, 43],         alignment: [6, 30] },
+  { version: 6,  ecPerBlock: 16, dataBlocks: [27, 27, 27, 27], alignment: [6, 34] },
+  { version: 7,  ecPerBlock: 18, dataBlocks: [31, 31, 31, 31], alignment: [6, 22, 38] },
+  { version: 8,  ecPerBlock: 22, dataBlocks: [38, 38, 39, 39], alignment: [6, 24, 42] },
+  { version: 9,  ecPerBlock: 22, dataBlocks: [36, 36, 36, 37, 37], alignment: [6, 26, 46] },
+  { version: 10, ecPerBlock: 26, dataBlocks: [43, 43, 43, 43, 44], alignment: [6, 28, 50] },
+];
+
+const dataCodewords = (spec: QrSpec): number =>
+  spec.dataBlocks.reduce((total, n) => total + n, 0);
+
+/** Byte-mode character-count field width: 8 bits for v1–9, 16 bits for v10+. */
+const charCountBits = (version: number): number => (version <= 9 ? 8 : 16);
+
+function byteCapacity(spec: QrSpec): number {
+  const bits = dataCodewords(spec) * 8;
+  return Math.floor((bits - 4 - charCountBits(spec.version)) / 8);
+}
+
+const MAX_SPEC = QR_SPECS[QR_SPECS.length - 1]!;
+/** Largest UTF-8 payload this encoder accepts (Version 10-M, byte mode). */
+export const QR_MAX_BYTES: number = byteCapacity(MAX_SPEC);
+
+function specForLength(length: number): QrSpec | null {
+  return QR_SPECS.find((spec) => length <= byteCapacity(spec)) ?? null;
+}
+
+/** Version that will be used for `text`, or 0 when it does not fit. */
+export function qrVersionFor(text: string): number {
+  const length = new TextEncoder().encode(text).length;
+  return specForLength(length)?.version ?? 0;
+}
+
+function pushBits(bits: number[], value: number, length: number): void {
+  for (let i = length - 1; i >= 0; i--) bits.push((value >> i) & 1);
+}
+
+function encodeCodewords(bytes: number[], spec: QrSpec): number[] {
+  const capacity = dataCodewords(spec);
+  const capacityBits = capacity * 8;
+  const countBits = charCountBits(spec.version);
+  const maxBytes = byteCapacity(spec);
+  if (bytes.length > maxBytes) {
+    throw new RangeError(
+      `QR payload is ${bytes.length} bytes; maximum is ${maxBytes}`,
+    );
+  }
+
   const bits: number[] = [];
-  const push = (val: number, len: number) => {
-    for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
-  };
-  push(0b0100, 4);          // byte mode
-  push(enc.length, 8);      // length matches sliced byte count
-  enc.forEach(b => push(b, 8));
-  for (let i = 0; i < 4 && bits.length < 28 * 8; i++) bits.push(0); // terminator
-  while (bits.length % 8) bits.push(0); // byte boundary
+  pushBits(bits, 0b0100, 4); // byte mode
+  pushBits(bits, bytes.length, countBits);
+  bytes.forEach((b) => pushBits(bits, b, 8));
+
+  // Terminator: up to four zero bits, then pad to a whole byte.
+  for (let i = 0; i < 4 && bits.length < capacityBits; i++) bits.push(0);
+  while (bits.length % 8 !== 0) bits.push(0);
+
   const pads = [0b11101100, 0b00010001];
   let p = 0;
-  while (bits.length < 28 * 8) { push(pads[p++ % 2]!, 8); }
+  while (bits.length < capacityBits) pushBits(bits, pads[p++ % 2]!, 8);
+
   const data: number[] = [];
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < capacity; i++) {
     let b = 0;
     for (let j = 0; j < 8; j++) b = (b << 1) | (bits[i * 8 + j] ?? 0);
     data.push(b);
@@ -68,77 +129,192 @@ function encodeBytes(text: string): number[] {
   return data;
 }
 
-const SIZE = 25;
+/** Split into RS blocks, then interleave data and EC codewords per the spec. */
+function interleaveCodewords(data: number[], spec: QrSpec): number[] {
+  const blocks: number[][] = [];
+  let offset = 0;
+  for (const length of spec.dataBlocks) {
+    blocks.push(data.slice(offset, offset + length));
+    offset += length;
+  }
+  const ecBlocks = blocks.map((block) => rsEncode(block, spec.ecPerBlock));
 
-export function buildMatrix(text: string): boolean[][] {
-  const data = encodeBytes(text);
-  const ec = rsEncode(data, 16);
-  const all = [...data, ...ec];
+  const out: number[] = [];
+  const longestData = Math.max(...spec.dataBlocks);
+  for (let i = 0; i < longestData; i++)
+    for (const block of blocks) if (i < block.length) out.push(block[i]!);
+  for (let i = 0; i < spec.ecPerBlock; i++)
+    for (const block of ecBlocks) out.push(block[i]!);
+  return out;
+}
 
-  const grid: number[][] = Array.from({length: SIZE}, () => Array.from<number>({ length: SIZE }).fill(-1));
-  const fixed: boolean[][] = Array.from({length: SIZE}, () => Array.from<boolean>({ length: SIZE }).fill(false));
+/** 15-bit format information (EC level M, given mask) with its BCH check. */
+function formatBits(mask: number): number[] {
+  const data = mask & 0b111; // EC level M is 00, so the top two bits stay zero
+  let rem = data << 10;
+  for (let i = 14; i >= 10; i--)
+    if ((rem >> i) & 1) rem ^= 0x537 << (i - 10);
+  const value = ((data << 10) | rem) ^ 0x5412;
+  // Placement is bit 0 first.
+  return Array.from({ length: 15 }, (_, i) => (value >> i) & 1);
+}
 
-  const set = (r: number, c: number, dark: boolean, fix = false) => {
+/** 18-bit version information for versions 7+ (no mask is applied). */
+function versionBits(version: number): number {
+  let rem = version << 12;
+  for (let i = 17; i >= 12; i--)
+    if ((rem >> i) & 1) rem ^= 0x1f25 << (i - 12);
+  return (version << 12) | rem;
+}
+
+function drawMatrix(bytes: number[], spec: QrSpec): boolean[][] {
+  const SIZE = 17 + spec.version * 4;
+  const data = encodeCodewords(bytes, spec);
+  const all = interleaveCodewords(data, spec);
+
+  const grid: number[][] = Array.from({ length: SIZE }, () =>
+    Array.from<number>({ length: SIZE }).fill(-1),
+  );
+  const fixed: boolean[][] = Array.from({ length: SIZE }, () =>
+    Array.from<boolean>({ length: SIZE }).fill(false),
+  );
+
+  const set = (r: number, c: number, dark: boolean, fix = false): void => {
     if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return;
-    grid[r][c] = dark ? 1 : 0; if (fix) fixed[r][c] = true;
+    grid[r]![c] = dark ? 1 : 0;
+    if (fix) fixed[r]![c] = true;
   };
 
-  // Finder patterns
-  for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) {
-    const d = i === 0 || i === 6 || j === 0 || j === 6 || (i >= 2 && i <= 4 && j >= 2 && j <= 4);
-    set(i, j, d, true); set(i, SIZE-7+j, d, true); set(SIZE-7+i, j, d, true);
-  }
-  // Separators
-  for (let i = 0; i < 8; i++) {
-    set(7,i,false,true); set(i,7,false,true);
-    set(7,SIZE-1-i,false,true); set(i,SIZE-8,false,true);
-    set(SIZE-8,i,false,true); set(SIZE-1-i,7,false,true);
-  }
-  // Timing
-  for (let i = 8; i < SIZE-8; i++) { set(6,i,i%2===0,true); set(i,6,i%2===0,true); }
-  // Dark module
-  set(13,8,true,true);
-  // Alignment (v2 at 18,18)
-  for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++)
-    set(18+i, 18+j, Math.abs(i)===2||Math.abs(j)===2||(i===0&&j===0), true);
+  // Finder patterns + separators.
+  const placeFinder = (top: number, left: number): void => {
+    for (let r = -1; r <= 7; r++)
+      for (let c = -1; c <= 7; c++) {
+        const inFinder = r >= 0 && r <= 6 && c >= 0 && c <= 6;
+        const dark =
+          inFinder &&
+          (r === 0 ||
+            r === 6 ||
+            c === 0 ||
+            c === 6 ||
+            (r >= 2 && r <= 4 && c >= 2 && c <= 4));
+        set(top + r, left + c, dark, true);
+      }
+  };
+  placeFinder(0, 0);
+  placeFinder(0, SIZE - 7);
+  placeFinder(SIZE - 7, 0);
 
-  // Format (EC=M, mask=2)
-  const FMT = 0b000000001011010;
-  const fb = Array.from({length:15},(_,i)=>(FMT>>(14-i))&1);
-  [[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[7,8],[8,8],[8,7],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0]].forEach(([r,c],i)=>set(r!,c!,fb[i]===1,true));
-  [[8,SIZE-1],[8,SIZE-2],[8,SIZE-3],[8,SIZE-4],[8,SIZE-5],[8,SIZE-6],[8,SIZE-7],[SIZE-8,8],[SIZE-7,8],[SIZE-6,8],[SIZE-5,8],[SIZE-4,8],[SIZE-3,8],[SIZE-2,8],[SIZE-1,8]].forEach(([r,c],i)=>set(r!,c!,fb[i]===1,true));
+  // Timing patterns.
+  for (let i = 8; i < SIZE - 8; i++) {
+    set(6, i, i % 2 === 0, true);
+    set(i, 6, i % 2 === 0, true);
+  }
 
-  // Place data in zigzag
-  let bi = 0; const tot = all.length * 8;
-  let col = SIZE-1, goUp = true;
+  // Alignment patterns (all centre combinations except the finder corners).
+  for (const row of spec.alignment)
+    for (const col of spec.alignment) {
+      if (
+        (row === 6 && col === 6) ||
+        (row === 6 && col === SIZE - 7) ||
+        (row === SIZE - 7 && col === 6)
+      )
+        continue;
+      for (let dr = -2; dr <= 2; dr++)
+        for (let dc = -2; dc <= 2; dc++)
+          set(
+            row + dr,
+            col + dc,
+            Math.abs(dr) === 2 ||
+              Math.abs(dc) === 2 ||
+              (dr === 0 && dc === 0),
+            true,
+          );
+    }
+
+  // Dark module.
+  set(SIZE - 8, 8, true, true);
+
+  // Format information, mask 2: (row + column) % 3 === 0.
+  const fmt = formatBits(2);
+  for (let i = 0; i < 15; i++) {
+    const bit = fmt[i] === 1;
+    if (i < 6) set(i, 8, bit, true);
+    else if (i < 8) set(i + 1, 8, bit, true);
+    else set(SIZE - 15 + i, 8, bit, true);
+
+    if (i < 8) set(8, SIZE - 1 - i, bit, true);
+    else if (i < 9) set(8, 15 - i - 1 + 1, bit, true);
+    else set(8, 15 - i - 1, bit, true);
+  }
+
+  // Version information (v7+).
+  if (spec.version >= 7) {
+    const vbits = versionBits(spec.version);
+    for (let i = 0; i < 18; i++) {
+      const bit = ((vbits >> i) & 1) === 1;
+      set(Math.floor(i / 3), SIZE - 11 + (i % 3), bit, true);
+      set(SIZE - 11 + (i % 3), Math.floor(i / 3), bit, true);
+    }
+  }
+
+  // Place data in zigzag, skipping the timing column and fixed modules.
+  let bi = 0;
+  const totalBits = all.length * 8;
+  let col = SIZE - 1;
+  let goUp = true;
   while (col >= 0) {
     if (col === 6) col--;
     for (let ii = 0; ii < SIZE; ii++) {
-      const r2 = goUp ? SIZE-1-ii : ii;
+      const r = goUp ? SIZE - 1 - ii : ii;
       for (let dc = 0; dc < 2; dc++) {
-        const c2 = col - dc;
-        if (c2 < 0 || fixed[r2]![c2]) continue;
-        const bit = bi < tot ? (all[bi>>3]!>>(7-(bi&7)))&1 : 0;
-        const masked = (r2 + c2) % 3 === 0 ? bit^1 : bit; // mask 2
-        set(r2, c2, masked===1); bi++;
+        const c = col - dc;
+        if (c < 0 || fixed[r]![c]) continue;
+        const bit =
+          bi < totalBits ? (all[bi >> 3]! >> (7 - (bi & 7))) & 1 : 0;
+        const masked = (r + c) % 3 === 0 ? bit ^ 1 : bit;
+        set(r, c, masked === 1);
+        bi++;
       }
     }
-    col -= 2; goUp = !goUp;
+    col -= 2;
+    goUp = !goUp;
   }
 
-  return grid.map(row => row.map(v => v === 1));
+  return grid.map((row) => row.map((v) => v === 1));
 }
 
-export function drawQR(canvas: HTMLCanvasElement, text: string, fg: string, bg: string): boolean {
+/** Smallest version that fits, building the matrix. Throws when too long. */
+export function buildMatrix(text: string): boolean[][] {
+  const bytes = Array.from(new TextEncoder().encode(text));
+  const spec = specForLength(bytes.length);
+  if (!spec) {
+    throw new RangeError(
+      `QR payload is ${bytes.length} bytes; maximum is ${QR_MAX_BYTES}`,
+    );
+  }
+  return drawMatrix(bytes, spec);
+}
+
+export function drawQR(
+  canvas: HTMLCanvasElement,
+  text: string,
+  fg: string,
+  bg: string,
+): boolean {
   try {
     const matrix = buildMatrix(text);
-    const ctx2 = canvas.getContext('2d')!;
-    const cell = canvas.width / SIZE;
-    ctx2.fillStyle = bg; ctx2.fillRect(0,0,canvas.width,canvas.height);
+    const ctx2 = canvas.getContext("2d");
+    if (!ctx2) return false;
+    const size = matrix.length;
+    const cell = canvas.width / size;
+    ctx2.fillStyle = bg;
+    ctx2.fillRect(0, 0, canvas.width, canvas.height);
     ctx2.fillStyle = fg;
-    for (let r = 0; r < SIZE; r++)
-      for (let c = 0; c < SIZE; c++)
-        if (matrix[r]![c]) ctx2.fillRect(c*cell, r*cell, cell, cell);
+    for (let r = 0; r < size; r++)
+      for (let c = 0; c < size; c++)
+        if (matrix[r]![c]) ctx2.fillRect(c * cell, r * cell, cell, cell);
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }

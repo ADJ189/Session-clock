@@ -12,6 +12,7 @@ import {
   getHourlyForecast,
   getDailyForecast,
   getSunTimes,
+  getSunMinuteOfDay,
   getWMOInfo,
   setManualLocation,
   getStoredLocation,
@@ -635,8 +636,8 @@ function renderSunArc(overlay: HTMLElement) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Elapsed arc (bright)
-  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+  // Elapsed arc (bright) — compare in the same offset used for the sun times.
+  const nowMins = getSunMinuteOfDay(new Date(), sun.tzOffsetMins);
   const pct = Math.max(
     0,
     Math.min(1, (nowMins - sun.rise) / (sun.set - sun.rise)),

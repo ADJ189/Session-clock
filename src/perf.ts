@@ -156,8 +156,11 @@ export function shouldRenderFull(): boolean {
   frameSkipCounter++;
   const activeTier = getTier();
   if (activeTier === "high") return true;
-  if (activeTier === "med") return frameSkipCounter % 2 === 0; // 30fps for expensive ops
-  return frameSkipCounter % 3 === 0; // 20fps for expensive ops on low tier
+  // Low tier is already throttled by the renderer's outer frame skip
+  // (canvas-engine renderFrame). Skipping again here would compound the two
+  // into ~6–7 fps, so every frame that reaches the draw code is full work.
+  if (activeTier === "low") return true;
+  return frameSkipCounter % 2 === 0; // 30fps for expensive ops on med tier
 }
 
 // Separate skip for audio analysis (slightly less aggressive)

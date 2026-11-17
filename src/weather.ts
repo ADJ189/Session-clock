@@ -47,11 +47,19 @@ let refreshTimer = 0;
 let weatherRequestId = 0;
 
 // ── Circadian sun math ────────────────────────────────────────────────
+export interface SunTimes {
+  rise: number;
+  set: number;
+  noon: number;
+  /** Offset used to build these clock minutes (forecast location, or browser). */
+  tzOffsetMins: number;
+}
+
 export function calcSunTimes(
   lat: number,
   lon: number,
   tzOffsetMins?: number,
-): { rise: number; set: number; noon: number } {
+): SunTimes {
   const now = new Date();
   const dayOfYear = Math.floor(
     (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000,
@@ -61,26 +69,41 @@ export function calcSunTimes(
     9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
   const decl = (23.45 * Math.sin(B) * Math.PI) / 180;
   const latRad = (lat * Math.PI) / 180;
-  const cosHa = -Math.tan(latRad) * Math.tan(decl);
-  if (cosHa < -1) return { rise: 0, set: 1440, noon: 720 };
-  if (cosHa > 1) return { rise: 720, set: 720, noon: 720 };
-  const ha = (Math.acos(cosHa) * 180) / Math.PI;
   const tzOffset = tzOffsetMins ?? -now.getTimezoneOffset();
+  const cosHa = -Math.tan(latRad) * Math.tan(decl);
+  if (cosHa < -1) return { rise: 0, set: 1440, noon: 720, tzOffsetMins: tzOffset };
+  if (cosHa > 1) return { rise: 720, set: 720, noon: 720, tzOffsetMins: tzOffset };
+  const ha = (Math.acos(cosHa) * 180) / Math.PI;
   const solarNoon = 720 - 4 * lon - eqTime + tzOffset;
   return {
     rise: solarNoon - 4 * ha,
     set: solarNoon + 4 * ha,
     noon: solarNoon,
+    tzOffsetMins: tzOffset,
   };
 }
 
-export function getCircadianWarmth(sunTimes: {
-  rise: number;
-  set: number;
-  noon: number;
-}): number {
-  const now = new Date();
-  const minuteOfDay = now.getHours() * 60 + now.getMinutes();
+/**
+ * Minutes since midnight for the same clock the sun times were calculated in.
+ * When a forecast location offset is available, convert the current instant
+ * to that offset instead of assuming the browser's timezone.
+ */
+export function getSunMinuteOfDay(
+  now: Date = new Date(),
+  tzOffsetMins?: number,
+): number {
+  if (typeof tzOffsetMins === "number" && Number.isFinite(tzOffsetMins)) {
+    const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    return ((utcMinutes + tzOffsetMins) % 1440 + 1440) % 1440;
+  }
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+export function getCircadianWarmth(
+  sunTimes: Pick<SunTimes, "rise" | "set"> & { tzOffsetMins?: number },
+  now: Date = new Date(),
+): number {
+  const minuteOfDay = getSunMinuteOfDay(now, sunTimes.tzOffsetMins);
   const { rise, set } = sunTimes;
   if (minuteOfDay < rise || minuteOfDay > set) return 1;
   if (minuteOfDay < rise + 90) return 1 - (minuteOfDay - rise) / 90;
@@ -90,7 +113,7 @@ export function getCircadianWarmth(sunTimes: {
 }
 
 // Stored for external access
-let sunTimes: { rise: number; set: number; noon: number } | null = null;
+let sunTimes: SunTimes | null = null;
 let _currentWeatherCode: number | null = null;
 let _currentTemp: number | null = null;
 let _currentLocation: { lat: number; lon: number; name?: string } | null = null;

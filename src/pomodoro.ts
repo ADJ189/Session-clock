@@ -110,22 +110,21 @@ function load() {
         recovered = true;
       }
       // Only drop the stray key once its recovered value (if any) is
-      // safely persisted under the canonical one. persist() is inside
-      // this try block (unlike a prior version of this fix) specifically
-      // so that if it throws — storage quota, private-browsing
-      // restrictions — the removeItem below never runs and the stray
-      // key survives for another migration attempt on the next load,
-      // instead of being deleted with nothing successfully saved in its
-      // place and an uncaught error breaking Pomodoro init.
-      if (recovered) persist();
-      localStorage.removeItem("sc_pom_settings");
+      // safely persisted under the canonical one. persist() reports success,
+      // so a blocked/quota-full write leaves the stray key in place for
+      // another migration attempt instead of deleting the only remaining copy.
+      const saved = !recovered || persist();
+      if (saved) localStorage.removeItem("sc_pom_settings");
     }
   } catch {}
 }
-function persist() {
+function persist(): boolean {
   try {
     localStorage.setItem(KEY, JSON.stringify(settings));
-  } catch {}
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function totalMs() {
@@ -241,8 +240,37 @@ export function getSettings() {
   return { ...settings };
 }
 
+function clampMinutes(
+  value: number,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
 export function updateSettings(patch: Partial<PomodoroSettings>) {
-  Object.assign(settings, patch);
+  // All public settings writes use the same bounds as setWorkMins/setBreakMins,
+  // so a restored snapshot or handoff URL cannot persist an impossible timer.
+  settings = {
+    workMins:
+      patch.workMins === undefined
+        ? settings.workMins
+        : clampMinutes(patch.workMins, 1, 120, defaults.workMins),
+    breakMins:
+      patch.breakMins === undefined
+        ? settings.breakMins
+        : clampMinutes(patch.breakMins, 1, 60, defaults.breakMins),
+    longBreakMins:
+      patch.longBreakMins === undefined
+        ? settings.longBreakMins
+        : clampMinutes(patch.longBreakMins, 1, 120, defaults.longBreakMins),
+    longBreakAfter:
+      patch.longBreakAfter === undefined
+        ? settings.longBreakAfter
+        : clampMinutes(patch.longBreakAfter, 1, 12, defaults.longBreakAfter),
+  };
   persist();
 }
 
@@ -262,11 +290,11 @@ export function getRemainingSeconds(): number {
   return Math.max(0, Math.round((totalMs() - elapsed) / 1000));
 }
 export function setWorkMins(mins: number) {
-  settings.workMins = Math.max(1, Math.min(120, mins));
+  settings.workMins = clampMinutes(mins, 1, 120, defaults.workMins);
   persist();
 }
 export function setBreakMins(mins: number) {
-  settings.breakMins = Math.max(1, Math.min(60, mins));
+  settings.breakMins = clampMinutes(mins, 1, 60, defaults.breakMins);
   persist();
 }
 

@@ -333,6 +333,10 @@ let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let duckGain: GainNode | null = null;
 let fadeGain: GainNode | null = null;
+// Alerts (the Pomodoro chime) bypass the ambient master/duck/fade stages but
+// still pass through the limiter. A quiet mixer setting or a timer fade must
+// not silence a timer-completion cue.
+let alertGain: GainNode | null = null;
 let analyser: AnalyserNode | null = null;
 let analyserData: Uint8Array<ArrayBuffer> | null = null;
 
@@ -378,6 +382,8 @@ function ensureCtx() {
     duckGain.gain.value = 1;
     fadeGain = ctx.createGain();
     fadeGain.gain.value = 1;
+    alertGain = ctx.createGain();
+    alertGain.gain.value = 1;
 
     // DynamicsCompressor prevents clipping at high volumes (200% boost)
     const comp = ctx.createDynamicsCompressor();
@@ -391,6 +397,7 @@ function ensureCtx() {
     masterGain.connect(duckGain);
     duckGain.connect(fadeGain);
     fadeGain.connect(comp);
+    alertGain.connect(comp);
     comp.connect(ctx.destination);
   }
   if (ctx.state === "suspended") ctx.resume().catch(() => {});
@@ -1274,7 +1281,7 @@ export function playChime() {
       osc.frequency.value = freq;
       g.gain.value = 0.22;
       osc.connect(g);
-      g.connect(masterGain ?? ac.destination);
+      g.connect(alertGain ?? ac.destination);
       osc.addEventListener("ended", () => {
         try {
           osc.disconnect();
