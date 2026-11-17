@@ -50,6 +50,7 @@ let weatherRequestId = 0;
 export function calcSunTimes(
   lat: number,
   lon: number,
+  tzOffsetMins?: number,
 ): { rise: number; set: number; noon: number } {
   const now = new Date();
   const dayOfYear = Math.floor(
@@ -64,7 +65,7 @@ export function calcSunTimes(
   if (cosHa < -1) return { rise: 0, set: 1440, noon: 720 };
   if (cosHa > 1) return { rise: 720, set: 720, noon: 720 };
   const ha = (Math.acos(cosHa) * 180) / Math.PI;
-  const tzOffset = -now.getTimezoneOffset();
+  const tzOffset = tzOffsetMins ?? -now.getTimezoneOffset();
   const solarNoon = 720 - 4 * lon - eqTime + tzOffset;
   return {
     rise: solarNoon - 4 * ha,
@@ -210,6 +211,7 @@ export async function getCityName(lat: number, lon: number): Promise<string> {
 // ── Main weather fetch ─────────────────────────────────────────────────
 /** The subset of the Open-Meteo /v1/forecast response this module reads. */
 interface WeatherData {
+  utc_offset_seconds?: number;
   current: {
     weathercode: number;
     temperature_2m: number;
@@ -323,6 +325,7 @@ export async function initWeather(
     if (privacyCheck()) return;
     sunTimes = calcSunTimes(lat, lon);
     window.__scLat = lat;
+    window.__scLon = lon;
     _currentLocation = { lat, lon, name: _currentLocation?.name };
     _lastFetchFailed = false;
     // Guards against the user switching location again (GPS, then a quick
@@ -333,7 +336,10 @@ export async function initWeather(
 
     try {
       const data = await fetchWeatherDataWithRetry(lat, lon);
-      if (myRequestId !== weatherRequestId) return; // a newer location fetch has since started
+      if (myRequestId !== weatherRequestId || privacyCheck()) return; // a newer location fetch or privacy mode started
+      if (typeof data.utc_offset_seconds === "number") {
+        sunTimes = calcSunTimes(lat, lon, data.utc_offset_seconds / 60);
+      }
       const cur = data.current;
       _currentWeatherCode = cur.weathercode;
       _currentTemp = Math.round(cur.temperature_2m);
@@ -346,14 +352,15 @@ export async function initWeather(
 
       // Parse hourly (next 24h)
       const hourly = data.hourly;
-      const nowIdx =
+      const rawIdx =
         hourly?.time?.findIndex((t: string) => new Date(t) > new Date()) ?? 0;
+      const nowIdx = rawIdx >= 0 ? rawIdx : 0;
       _hourlyForecast = hourly
         ? hourly.time
             .slice(nowIdx, nowIdx + 24)
             .map((t: string, i: number) => ({
               time: t,
-              temp: Math.round(hourly.temperature_2m[nowIdx + i]),
+              temp: Math.round(hourly.temperature_2m[nowIdx + i] ?? 0),
               code: hourly.weathercode[nowIdx + i],
             }))
         : [];

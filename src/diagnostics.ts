@@ -185,7 +185,7 @@ export class DiagnosticsStore {
     const parts = input.error !== undefined
       ? errorParts(input.error)
       : { message: input.message, stack: input.stack };
-    const message = sanitizeText(input.message || parts.message);
+    const message = sanitizeText(parts.message || input.message || "Unknown error");
     const event: DiagnosticEvent = {
       seq: ++this.seq,
       at: this.now(),

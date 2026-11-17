@@ -43,13 +43,16 @@ function rsEncode(data: number[], nEC: number): number[] {
 }
 
 function encodeBytes(text: string): number[] {
-  const enc = Array.from(new TextEncoder().encode(text));
+  const rawBytes = Array.from(new TextEncoder().encode(text));
+  // Version 2-M has 28 total data codewords (224 bits).
+  // Mode (4) + Length (8) + Terminator (4) = 16 bits overhead -> 208 bits = 26 data bytes max.
+  const enc = rawBytes.slice(0, 26);
   const bits: number[] = [];
   const push = (val: number, len: number) => {
     for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
   };
   push(0b0100, 4);          // byte mode
-  push(enc.length, 8);      // length (version 2: 8 bits)
+  push(enc.length, 8);      // length matches sliced byte count
   enc.forEach(b => push(b, 8));
   for (let i = 0; i < 4 && bits.length < 28 * 8; i++) bits.push(0); // terminator
   while (bits.length % 8) bits.push(0); // byte boundary
@@ -68,7 +71,7 @@ function encodeBytes(text: string): number[] {
 const SIZE = 25;
 
 export function buildMatrix(text: string): boolean[][] {
-  const data = encodeBytes(text.slice(0, 20)); // max ~20 bytes for v2-M
+  const data = encodeBytes(text);
   const ec = rsEncode(data, 16);
   const all = [...data, ...ec];
 

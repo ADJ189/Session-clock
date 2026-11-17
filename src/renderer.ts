@@ -1832,7 +1832,12 @@ function drawF1Streaks(t: Theme, speedMult: number) {
     if (p[o] > W + 20) {
       p[o] = -20;
       p[o + 1] = rnd(H);
+    } else if (p[o] < -20) {
+      p[o] = W + 20;
+      p[o + 1] = rnd(H);
     }
+    if (p[o + 1] < -20) p[o + 1] = H + 20;
+    else if (p[o + 1] > H + 20) p[o + 1] = -20;
     const len = p[o + 4] * 22;
     const gr = c.createLinearGradient(p[o] - len, 0, p[o], 0);
     gr.addColorStop(0, "transparent");
@@ -5105,7 +5110,7 @@ export function runTransition(type: string, cb: () => void) {
   // without throwing (for example, a silent abort after a tab switch).
   _transWatchdog = setTimeout(
     () => fail(new Error("Transition watchdog expired")),
-    4000,
+    6500,
   );
 
   try {

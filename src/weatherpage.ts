@@ -340,7 +340,7 @@ function buildWeatherPageDOM(): HTMLElement {
 
   // GPS
   overlay.querySelector("#weatherLocGPS")!.addEventListener("click", () => {
-    if (!navigator.geolocation) return;
+    if (_privacyCheck() || !navigator.geolocation) return;
     const btn = overlay.querySelector("#weatherLocGPS") as HTMLButtonElement;
     btn.innerHTML =
       `<span class="weather-loc-icon">${GPS_SVG}</span><span><span class="weather-loc-btn-label" data-weather-text="weatherLocating">${t().weatherLocating}</span><span class="weather-loc-btn-sub" data-weather-text="weatherPleaseWait">${t().weatherPleaseWait}</span></span>`;
@@ -366,6 +366,7 @@ function buildWeatherPageDOM(): HTMLElement {
   let searchTimer = 0;
   searchInput.addEventListener("input", () => {
     clearTimeout(searchTimer);
+    if (_privacyCheck()) return;
     const q = searchInput.value.trim();
     if (q.length < 2) {
       // Bump the token even on this short-circuit path — otherwise a
@@ -428,6 +429,7 @@ interface NominatimResult {
 }
 
 async function searchCity(query: string, overlay: HTMLElement) {
+  if (_privacyCheck()) return;
   const results = overlay.querySelector("#weatherLocResults") as HTMLElement;
   results.innerHTML = `<div class="weather-loc-loading">${t().weatherSearching}</div>`;
   const myRequestId = ++searchRequestId;

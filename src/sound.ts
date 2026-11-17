@@ -345,6 +345,8 @@ SOUNDS.forEach((s) => {
 let binauralNodes: {
   left: OscillatorNode;
   right: OscillatorNode;
+  lg: GainNode;
+  rg: GainNode;
   merger: ChannelMergerNode;
   gain: GainNode;
 } | null = null;
@@ -848,7 +850,7 @@ export function isSpatialEnabled(): boolean {
 
 export function setSpatial(v: boolean): void {
   spatialEnabled = v;
-  localStorage.setItem("sc_spatial", v ? "1" : "0");
+  safeSet("sc_spatial", v ? "1" : "0");
   Object.keys(trackNodes).forEach((id) => {
     const node = trackNodes[id];
     if (!node) return;
@@ -1009,7 +1011,7 @@ export function isHeadTrackingAvailable(): boolean {
  *  requestMotionPermission(). */
 export function setHeadTracking(v: boolean): void {
   headTrackingEnabled = v;
-  localStorage.setItem("sc_head_tracking", v ? "1" : "0");
+  safeSet("sc_head_tracking", v ? "1" : "0");
   if (v && !unsubscribeHeadTracking) {
     unsubscribeHeadTracking = subscribeOrientation(onOrientationSample);
   } else if (!v && unsubscribeHeadTracking) {
@@ -1059,7 +1061,7 @@ export function playBinaural(presetId: string): boolean {
 
   left.start();
   right.start();
-  binauralNodes = { left, right, merger, gain };
+  binauralNodes = { left, right, lg, rg, merger, gain };
   binauralPresetId = presetId;
   onTrackChange?.();
   return true;
@@ -1082,6 +1084,10 @@ export function stopBinaural() {
       nodes.right.stop();
     } catch {}
     try {
+      nodes.left.disconnect();
+      nodes.right.disconnect();
+      nodes.lg.disconnect();
+      nodes.rg.disconnect();
       nodes.gain.disconnect();
       nodes.merger.disconnect();
     } catch {}
@@ -1241,6 +1247,7 @@ function fadeAll() {
   window.setTimeout(() => {
     if (generation !== fadeGeneration) return;
     SOUNDS.forEach((s) => stopTrack(s.id));
+    stopBinaural();
     // Re-arm the stage for the next playback. Tracks are already stopped, so
     // this cannot produce an audible jump.
     if (ctx && fadeGain) {
@@ -1260,21 +1267,25 @@ export function playChime() {
     ] as [number, number][]
   ).forEach(([freq, delay]) => {
     setTimeout(() => {
+      if (!ctx) return;
       const osc = ac.createOscillator();
       const g = ac.createGain();
       osc.type = "sine";
       osc.frequency.value = freq;
       g.gain.value = 0.22;
       osc.connect(g);
-      g.connect(ac.destination);
-      osc.start();
-      g.gain.setValueAtTime(0.22, ac.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.8);
-      setTimeout(() => {
+      g.connect(masterGain ?? ac.destination);
+      osc.onended = () => {
         try {
-          osc.stop();
+          osc.disconnect();
+          g.disconnect();
         } catch {}
-      }, 2000);
+      };
+      const startTime = ac.currentTime;
+      osc.start(startTime);
+      g.gain.setValueAtTime(0.22, startTime);
+      g.gain.exponentialRampToValueAtTime(0.001, startTime + 1.8);
+      osc.stop(startTime + 1.85);
     }, delay);
   });
 }
@@ -1282,6 +1293,7 @@ export function playChime() {
 // Legacy compat
 export function stop() {
   SOUNDS.forEach((s) => stopTrack(s.id));
+  stopBinaural();
 }
 export function play(id: string) {
   playTrack(id);

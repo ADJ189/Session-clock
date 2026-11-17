@@ -123,7 +123,9 @@ function load() {
   } catch {}
 }
 function persist() {
-  localStorage.setItem(KEY, JSON.stringify(settings));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(settings));
+  } catch {}
 }
 
 function totalMs() {
@@ -185,7 +187,9 @@ export function tick(now: number) {
   const ms = rem;
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
-  if (timerEl) timerEl.textContent = "00:" + p2(m) + ":" + p2(s % 60);
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  if (timerEl) timerEl.textContent = p2(h) + ":" + p2(remM) + ":" + p2(s % 60);
   if (rem <= 0 && sessionRunning()) nextPhase();
 }
 
@@ -206,6 +210,7 @@ export function onStart() {
 export function onPause() {
   if (!active || !phaseStart) return;
   phaseElapsedBeforeSegment += performance.now() - phaseStart;
+  phaseStart = 0;
 }
 
 export function reset() {
@@ -250,8 +255,10 @@ export function getPhase(): import("./types").PomPhase {
   return phase;
 }
 export function getRemainingSeconds(): number {
-  if (!active || !phaseStart) return 0;
-  const elapsed = phaseElapsedBeforeSegment + (performance.now() - phaseStart);
+  if (!active) return 0;
+  const elapsed =
+    phaseElapsedBeforeSegment +
+    (phaseStart && sessionRunning() ? performance.now() - phaseStart : 0);
   return Math.max(0, Math.round((totalMs() - elapsed) / 1000));
 }
 export function setWorkMins(mins: number) {
@@ -308,5 +315,7 @@ export function restoreSessionSnapshot(snap: Partial<PomodoroSnapshot>): void {
   const ms = rem;
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
-  if (timerEl) timerEl.textContent = "00:" + p2(m) + ":" + p2(s % 60);
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  if (timerEl) timerEl.textContent = p2(h) + ":" + p2(remM) + ":" + p2(s % 60);
 }

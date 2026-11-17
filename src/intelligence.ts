@@ -30,9 +30,19 @@ function loadLog(): LogEntry[] {
 export function getStreak(): StreakData {
   const fallback: StreakData = { current: 0, best: 0, lastDate: "" };
   const v = safeJsonGet<unknown>(STREAK_KEY, null);
-  return v && typeof v === "object" && !Array.isArray(v)
-    ? { ...fallback, ...(v as Partial<StreakData>) }
-    : fallback;
+  const data: StreakData =
+    v && typeof v === "object" && !Array.isArray(v)
+      ? { ...fallback, ...(v as Partial<StreakData>) }
+      : fallback;
+  if (!data.lastDate) return data;
+  const today = new Date().toDateString();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yday = yesterday.toDateString();
+  if (data.lastDate !== today && data.lastDate !== yday) {
+    return { ...data, current: 0 };
+  }
+  return data;
 }
 
 export function updateStreak(): StreakData {

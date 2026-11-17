@@ -6,6 +6,7 @@
 // JS call sites use the exported CAPS/helpers instead of re-detecting.
 
 import "./globals";
+import { safeGet } from "./storage";
 
 export type OSFamily =
   | "ios"
@@ -41,11 +42,16 @@ function detectOS(): OSFamily {
 
 function detectEngine(): Engine {
   const ua = navigator.userAgent;
+  // iOS forces all browsers (Safari, Chrome CriOS, Firefox FxiOS, etc.) to WebKit
+  if (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  ) {
+    return "webkit";
+  }
   if (/Firefox\//.test(ua)) return "gecko";
   // Chrome/Edge/Opera/Samsung Internet UAs all also contain "Safari", so
-  // Blink has to be checked before WebKit or every Chromium browser on iOS
-  // (which itself is *forced* to use WebKit under the hood, App Store rule)
-  // would misreport. On iOS this correctly still resolves to 'webkit'.
+  // Blink has to be checked before WebKit.
   if (/CriOS\/|Chrome\/|Chromium\/|Edg\/|OPR\/|SamsungBrowser\//.test(ua))
     return "blink";
   if (/Safari\//.test(ua) || /AppleWebKit\//.test(ua)) return "webkit";
@@ -105,7 +111,7 @@ function detectFeatureFlags() {
       typeof window !== "undefined" && "requestIdleCallback" in window,
     hasSafeArea:
       (typeof CSS !== "undefined" &&
-        CSS.supports?.("padding: env(safe-area-inset-top)")) ??
+        CSS.supports?.("padding", "env(safe-area-inset-top)")) ??
       false,
   };
 }
@@ -237,7 +243,7 @@ export function platformSummary(): { label: string; value: string }[] {
  */
 export function haptic(pattern: number | number[] = 12): void {
   if (!CAPS.vibration) return;
-  if (localStorage.getItem("sc_haptics") === "0") return;
+  if (safeGet("sc_haptics") === "0") return;
   try {
     navigator.vibrate(pattern);
   } catch {
@@ -329,19 +335,29 @@ export interface OrientationSample {
 type OrientationCB = (o: OrientationSample) => void;
 const orientationSubs = new Set<OrientationCB>();
 let orientationAttached = false;
+
+function onOrientationEvent(e: DeviceOrientationEvent): void {
+  if (orientationSubs.size === 0) return;
+  const sample: OrientationSample = {
+    alpha: e.alpha,
+    beta: e.beta,
+    gamma: e.gamma,
+  };
+  orientationSubs.forEach((cb) => cb(sample));
+}
+
 function attachOrientationListener(): void {
   if (orientationAttached || !CAPS.deviceOrientation) return;
   orientationAttached = true;
-  window.addEventListener("deviceorientation", (e: DeviceOrientationEvent) => {
-    if (orientationSubs.size === 0) return;
-    const sample: OrientationSample = {
-      alpha: e.alpha,
-      beta: e.beta,
-      gamma: e.gamma,
-    };
-    orientationSubs.forEach((cb) => cb(sample));
-  });
+  window.addEventListener("deviceorientation", onOrientationEvent);
 }
+
+function detachOrientationListener(): void {
+  if (!orientationAttached) return;
+  window.removeEventListener("deviceorientation", onOrientationEvent);
+  orientationAttached = false;
+}
+
 /**
  * Subscribe to raw device-orientation samples. Caller must have already
  * obtained permission via requestMotionPermission() where required (iOS).
@@ -350,7 +366,12 @@ function attachOrientationListener(): void {
 export function subscribeOrientation(cb: OrientationCB): () => void {
   attachOrientationListener();
   orientationSubs.add(cb);
-  return () => orientationSubs.delete(cb);
+  return () => {
+    orientationSubs.delete(cb);
+    if (orientationSubs.size === 0) {
+      detachOrientationListener();
+    }
+  };
 }
 
 /** Introspection for diagnostics/tests: how many orientation consumers are live. */

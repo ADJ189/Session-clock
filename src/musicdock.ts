@@ -538,10 +538,15 @@ function renderYtBanner(root: HTMLElement): void {
   const playBtn = banner.querySelector<HTMLElement>('[data-role="yt-play"]');
   // hqdefault.jpg is YouTube's own public thumbnail CDN for the video ID —
   // same URL pattern <iframe>/oEmbed markup already exposes, not scraped.
-  if (art)
-    art.style.backgroundImage = info.videoId
-      ? `url(https://i.ytimg.com/vi/${info.videoId}/hqdefault.jpg)`
+  if (art) {
+    const validId =
+      info.videoId && /^[a-zA-Z0-9_-]+$/.test(info.videoId)
+        ? info.videoId
+        : null;
+    art.style.backgroundImage = validId
+      ? `url("https://i.ytimg.com/vi/${validId}/hqdefault.jpg")`
       : "";
+  }
   if (title) title.textContent = info.title || "Loading…";
   if (channel) channel.textContent = info.channel || "";
   if (playBtn) playBtn.textContent = info.isPlaying ? "⏸" : "▶";
@@ -1132,8 +1137,13 @@ function renderDock(): void {
   for (const root of roots) {
     const { art, title, artist, fill, playBtn } =
       dockRefs.get(root) ?? cacheDockRefs(root);
-    if (art)
-      art.style.backgroundImage = state.artUrl ? `url(${state.artUrl})` : "";
+    if (art) {
+      const validUrl =
+        state.artUrl && state.artUrl.startsWith("https://")
+          ? encodeURI(state.artUrl)
+          : null;
+      art.style.backgroundImage = validUrl ? `url("${validUrl}")` : "";
+    }
     if (title && state.title) title.textContent = state.title;
     if (artist && state.title) artist.textContent = state.artist;
     if (fill && state.durationMs)

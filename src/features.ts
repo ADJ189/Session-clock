@@ -900,6 +900,11 @@ export function tickCountdown() {
   _countdownCb(`⏳ ${_countdownLabel} — ${parts.join(" ")}`, false);
 }
 
+function toLocalDatetimeString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function buildCountdownUI(
   container: HTMLElement,
   onSet: (label: string, target: Date) => void,
@@ -926,7 +931,7 @@ export function buildCountdownUI(
   // Default to end of today
   const now = new Date();
   now.setHours(23, 59, 0, 0);
-  dateInput.value = now.toISOString().slice(0, 16);
+  dateInput.value = toLocalDatetimeString(now);
 
   // Quick presets
   const presets = document.createElement("div");
@@ -953,7 +958,7 @@ export function buildCountdownUI(
       } else {
         t.setMinutes(t.getMinutes() + mins);
       }
-      dateInput.value = t.toISOString().slice(0, 16);
+      dateInput.value = toLocalDatetimeString(t);
       if (!labelInput.value) labelInput.value = label;
     });
     presets.appendChild(btn);
@@ -1217,6 +1222,7 @@ export interface VoiceCommand {
 
 let _voiceActive = false;
 let _voiceRecog: SpeechRecognitionLike | null = null;
+let _voiceOnStateChange: ((active: boolean) => void) | null = null;
 
 export function isVoiceActive() {
   return _voiceActive;
@@ -1266,22 +1272,27 @@ export function initVoiceTimer(
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return false;
 
+  _voiceOnStateChange = onStateChange;
   _voiceRecog = new SR();
   _voiceRecog.continuous = false;
   _voiceRecog.interimResults = false;
   _voiceRecog.lang = "en-US";
 
+  _voiceRecog.onstart = () => {
+    _voiceActive = true;
+    _voiceOnStateChange?.(true);
+  };
   _voiceRecog.onresult = (e) => {
     const transcript = e.results[0]?.[0]?.transcript ?? "";
     if (transcript) onCommand(parseVoiceCommand(transcript));
   };
   _voiceRecog.onerror = () => {
     _voiceActive = false;
-    onStateChange(false);
+    _voiceOnStateChange?.(false);
   };
   _voiceRecog.onend = () => {
     _voiceActive = false;
-    onStateChange(false);
+    _voiceOnStateChange?.(false);
   };
   return true;
 }
@@ -1291,8 +1302,10 @@ export function startVoiceListening() {
   try {
     _voiceRecog.start();
     _voiceActive = true;
+    _voiceOnStateChange?.(true);
   } catch {
     _voiceActive = false;
+    _voiceOnStateChange?.(false);
   }
 }
 
@@ -1302,6 +1315,7 @@ export function stopVoiceListening() {
     _voiceRecog.stop();
   } catch {}
   _voiceActive = false;
+  _voiceOnStateChange?.(false);
 }
 
 // ─────────────────────────────────────────────────────────────────────

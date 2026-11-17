@@ -153,7 +153,7 @@ export async function spotifyNowPlaying(): Promise<{
         headers: { Authorization: `Bearer ${token}` },
       },
     );
-    if (res.status === 204) return null;
+    if (!res.ok || res.status === 204) return null;
     const d = await res.json();
     return {
       track: d.item?.name ?? "—",
@@ -384,7 +384,7 @@ export async function getNotionTasks(): Promise<NotionTask[]> {
         Authorization: `Bearer ${creds.token}`,
       },
       body: JSON.stringify({
-        filter: { property: "Status", checkbox: { equals: false } },
+        filter: { property: "Done", checkbox: { equals: false } },
         sorts: [{ property: "Priority", direction: "descending" }],
         page_size: 10,
       }),
@@ -528,7 +528,9 @@ export function disconnectAll(id: IntegrationId) {
   }
   if (id === "gcal") {
     clear("gcal");
-    disconnectGoogle();
+    if (!isYouTubeConnected()) {
+      disconnectGoogle();
+    }
     return;
   }
   clear(id);
