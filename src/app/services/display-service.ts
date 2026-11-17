@@ -330,7 +330,6 @@ export function focusLockIntercept(action: () => void): void {
       focusLockBar = null;
     }
     focusLockTimer = null;
-    action();
   }, 3000);
 }
 
@@ -342,6 +341,7 @@ export function applyCalmMode(on: boolean) {
     localStorage.setItem("sc_reduce_motion", "1");
     document.body.classList.add("reduced-motion");
     localStorage.setItem("sc_parallax", "0");
+    detachParallax();
     setTier("med");
     invalidateCache();
   }
@@ -441,6 +441,8 @@ let targetPY = 0;
 const PARALLAX_STRENGTH = 18;
 let gyroAttached = false;
 let mouseAttached = false;
+let unsubscribeGyro: (() => void) | null = null;
+let mouseMoveHandler: ((e: MouseEvent) => void) | null = null;
 
 export function stepParallax(factor = 0.06): { px: number; py: number } {
   parallaxX += (targetPX - parallaxX) * factor;
@@ -453,38 +455,51 @@ export function setTargetParallax(tx: number, ty: number) {
   targetPY = ty;
 }
 
+export function detachParallax() {
+  if (unsubscribeGyro) {
+    unsubscribeGyro();
+    unsubscribeGyro = null;
+    gyroAttached = false;
+  }
+  if (mouseMoveHandler && typeof window !== "undefined") {
+    window.removeEventListener("mousemove", mouseMoveHandler);
+    mouseMoveHandler = null;
+    mouseAttached = false;
+  }
+  setTargetParallax(0, 0);
+  parallaxX = 0;
+  parallaxY = 0;
+}
+
 export function attachMouseParallax() {
   if (mouseAttached || typeof window === "undefined") return;
   mouseAttached = true;
-  window.addEventListener(
-    "mousemove",
-    (e: MouseEvent) => {
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      if (cx > 0 && cy > 0) {
-        const nx = (e.clientX - cx) / cx;
-        const ny = (e.clientY - cy) / cy;
-        setTargetParallax(
-          Math.max(
-            -PARALLAX_STRENGTH,
-            Math.min(PARALLAX_STRENGTH, nx * PARALLAX_STRENGTH),
-          ),
-          Math.max(
-            -PARALLAX_STRENGTH,
-            Math.min(PARALLAX_STRENGTH, ny * PARALLAX_STRENGTH),
-          ),
-        );
-      }
-    },
-    { passive: true },
-  );
+  mouseMoveHandler = (e: MouseEvent) => {
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    if (cx > 0 && cy > 0) {
+      const nx = (e.clientX - cx) / cx;
+      const ny = (e.clientY - cy) / cy;
+      setTargetParallax(
+        Math.max(
+          -PARALLAX_STRENGTH,
+          Math.min(PARALLAX_STRENGTH, nx * PARALLAX_STRENGTH),
+        ),
+        Math.max(
+          -PARALLAX_STRENGTH,
+          Math.min(PARALLAX_STRENGTH, ny * PARALLAX_STRENGTH),
+        ),
+      );
+    }
+  };
+  window.addEventListener("mousemove", mouseMoveHandler, { passive: true });
 }
 
 export function attachGyroParallax() {
   attachMouseParallax();
   if (gyroAttached || !CAPS.deviceOrientation) return;
   gyroAttached = true;
-  subscribeOrientation((o) => {
+  unsubscribeGyro = subscribeOrientation((o) => {
     if (o.gamma != null && o.beta != null) {
       setTargetParallax(
         Math.max(

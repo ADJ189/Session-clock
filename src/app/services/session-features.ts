@@ -9,6 +9,7 @@ import { THEME_BY_ID } from "../../themes";
 import type { Theme } from "../../types";
 import type { ClockMode } from "../controllers/clock-controller";
 import { sessionController } from "../controllers/session-controller";
+import { setApplyingRemoteTheme } from "../renderer/canvas-engine";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -45,9 +46,17 @@ export function initSessionFeatures(context: SessionFeaturesContext) {
 
   if (bc) {
     bc.addEventListener("message", (e: MessageEvent) => {
-      const { type } = e.data;
-      if (type === "theme" && e.data.id !== ctx.getCurrentTheme()?.id) {
-        ctx.applyTheme(THEME_BY_ID[e.data.id] ?? ctx.getCurrentTheme(), true);
+      const { type } = e.data ?? {};
+      if (type === "theme" && e.data?.id && e.data.id !== ctx.getCurrentTheme()?.id) {
+        const targetTheme = THEME_BY_ID[e.data.id];
+        if (targetTheme) {
+          setApplyingRemoteTheme(true);
+          try {
+            ctx.applyTheme(targetTheme, true);
+          } finally {
+            setApplyingRemoteTheme(false);
+          }
+        }
       }
       if (type === "session") {
         if (e.data.running && !ctx.isSessionRunning()) ctx.startSessionTimer();
@@ -340,6 +349,18 @@ export function applyHandoffState() {
   const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
   if (task && focusInput) {
     focusInput.value = task;
+  }
+  if (p.get("pom") === "1") {
+    const pw = Number.parseInt(p.get("pw") ?? "25");
+    const pb = Number.parseInt(p.get("pb") ?? "5");
+    Pom.updateSettings({
+      workMins: Number.isNaN(pw) ? 25 : pw,
+      breakMins: Number.isNaN(pb) ? 5 : pb,
+    });
+    if (!Pom.isActive()) {
+      Pom.setActive(true);
+      ctx?.buildPomUI();
+    }
   }
   if (p.get("ses") === "1") {
     const elapsed = Number.parseInt(p.get("elapsed") ?? "0");
