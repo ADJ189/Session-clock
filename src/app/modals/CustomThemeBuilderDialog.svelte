@@ -5,7 +5,7 @@
     QUICK_PICKS,
     type ThemeBuilderSnapshot,
   } from "../controllers/theme-builder-controller";
-  import { hslToHex } from "../utils/color";
+  import { hslToHex, hslToHsv } from "../utils/color";
   import { showToast } from "../ui/toast";
 
   let snapshot = $state<ThemeBuilderSnapshot>(
@@ -54,12 +54,13 @@
     ctx.fillStyle = litGrad;
     ctx.fillRect(0, 0, W, H);
 
-    // Draw current position cursor
-    const cx = (sat / 100) * W;
-    const cy = (1 - lit / 100) * H;
+    // Draw current position cursor in the picker's own HSV space.
+    const hsv = hslToHsv(sat, lit);
+    const cx = hsv.s * W;
+    const cy = (1 - hsv.v) * H;
     ctx.beginPath();
     ctx.arc(cx, cy, 7, 0, Math.PI * 2);
-    ctx.strokeStyle = lit > 50 ? "rgba(0,0,0,.6)" : "rgba(255,255,255,.9)";
+    ctx.strokeStyle = hsv.v > 0.5 ? "rgba(0,0,0,.6)" : "rgba(255,255,255,.9)";
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.beginPath();

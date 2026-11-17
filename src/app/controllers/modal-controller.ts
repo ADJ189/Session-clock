@@ -313,7 +313,11 @@ export function openSettings(tab = lastSettingsTab): void {
 
 export function openIntegrations(): void {
   const el = document.getElementById("integrationsContent");
-  if (el) Integrations.buildIntegrationsPanel(el, { showToast });
+  if (el) {
+    void Integrations.buildIntegrationsPanel(el, { showToast }).catch((error) => {
+      console.error("Integrations panel failed:", error);
+    });
+  }
   document.getElementById("integrationsOverlay")?.classList.remove("minimized");
   openModal("integrationsOverlay");
 }

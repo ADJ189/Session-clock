@@ -10,6 +10,13 @@ import type { Theme } from "../../types";
 import type { ClockMode } from "../controllers/clock-controller";
 import { sessionController } from "../controllers/session-controller";
 import { setApplyingRemoteTheme } from "../renderer/canvas-engine";
+import {
+  BREAK_MINUTES,
+  WORK_MINUTES,
+  isPomPhase,
+  parseHandoffElapsed,
+  parseHandoffMinutes,
+} from "../utils/handoff";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -309,6 +316,10 @@ export async function openQRHandoff() {
     const s = Pom.getSettings();
     state.pw = String(s.workMins);
     state.pb = String(s.breakMins);
+    // Preserve where the receiver should resume, not just the durations.
+    const snap = Pom.getSessionSnapshot();
+    state.pp = snap.phase;
+    state.pe = String(Math.round(snap.phaseElapsed));
   }
   const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
   if (focusInput?.value.trim()) {
@@ -324,14 +335,14 @@ export async function openQRHandoff() {
 
   const fg = currentTheme.text;
   const bg = currentTheme.baseBg[1] ?? currentTheme.baseBg[0];
-  const { drawQR } = await import("../../qr");
-  drawQR(canvas, url, fg, bg);
+  const { drawQR, QR_MAX_BYTES } = await import("../../qr");
+  const encoded = drawQR(canvas, url, fg, bg);
 
-  if (label)
-    label.textContent =
-      url.length > 77
-        ? "URL too long for QR — shorten task name"
-        : "Scan to continue this session on another device";
+  if (label) {
+    label.textContent = encoded
+      ? "Scan to continue this session on another device"
+      : `URL too long for QR (${new TextEncoder().encode(url).length}/${QR_MAX_BYTES} bytes) — shorten task name`;
+  }
 
   ctx.openModal("qrOverlay");
 }
@@ -352,20 +363,23 @@ export function applyHandoffState() {
     focusInput.value = task;
   }
   if (p.get("pom") === "1") {
-    const pw = Number.parseInt(p.get("pw") ?? "25");
-    const pb = Number.parseInt(p.get("pb") ?? "5");
-    Pom.updateSettings({
-      workMins: Number.isNaN(pw) ? 25 : pw,
-      breakMins: Number.isNaN(pb) ? 5 : pb,
-    });
+    // Same bounds as setWorkMins/setBreakMins: 1–120 and 1–60 minutes.
+    const pw = parseHandoffMinutes(p.get("pw"), 25, WORK_MINUTES);
+    const pb = parseHandoffMinutes(p.get("pb"), 5, BREAK_MINUTES);
+    Pom.updateSettings({ workMins: pw, breakMins: pb });
     if (!Pom.isActive()) {
       Pom.setActive(true);
       ctx?.buildPomUI();
     }
+    const phase = p.get("pp");
+    const phaseElapsed = parseHandoffElapsed(p.get("pe"), 0);
+    if (isPomPhase(phase)) {
+      Pom.restoreSessionSnapshot({ active: true, phase, phaseElapsed });
+    }
   }
   if (p.get("ses") === "1") {
-    const elapsed = Number.parseInt(p.get("elapsed") ?? "0");
-    sessionController.setElapsed(Number.isNaN(elapsed) ? 0 : elapsed);
+    const elapsed = parseHandoffElapsed(p.get("elapsed"), 0);
+    sessionController.setElapsed(elapsed);
     (window as any).__sessionHandoffElapsed = elapsed;
     setTimeout(() => {
       const btn = document.getElementById("btnStart");

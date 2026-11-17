@@ -271,6 +271,16 @@ function wireIntegrationsMinimize(): void {
   });
 }
 
+/** Fire-and-forget refresh; the panel builder handles its own load failures,
+ *  and this catch keeps an unexpected rejection from becoming unhandled. */
+function refreshIntegrationsPanel(target: HTMLElement): void {
+  void Integrations.buildIntegrationsPanel(target, { showToast }).catch(
+    (error) => {
+      console.error("Integrations panel failed:", error);
+    },
+  );
+}
+
 export async function bootSessionClock(): Promise<void> {
   // 1. Platform classes & haptics
   applyPlatformClasses();
@@ -851,7 +861,7 @@ export async function bootSessionClock(): Promise<void> {
 
   const intContent = document.getElementById("integrationsContent");
   if (intContent) {
-    Integrations.buildIntegrationsPanel(intContent, { showToast });
+    refreshIntegrationsPanel(intContent);
   }
   wireIntegrationsMinimize();
 
@@ -897,7 +907,7 @@ export async function bootSessionClock(): Promise<void> {
           }
         }
         if (intContent)
-          Integrations.buildIntegrationsPanel(intContent, { showToast });
+          refreshIntegrationsPanel(intContent);
       })
       .catch((err) => {
         console.error("OAuth callback error:", err);
