@@ -7,8 +7,8 @@ export interface MinuteBounds {
   readonly max: number;
 }
 
-export const WORK_MINUTES: MinuteBounds = { min: 1, max: 120 };
-export const BREAK_MINUTES: MinuteBounds = { min: 1, max: 60 };
+export const WORK_MINUTES: MinuteBounds = { min: 1, max: 180 };
+export const BREAK_MINUTES: MinuteBounds = { min: 1, max: 90 };
 export const LONG_BREAK_MINUTES: MinuteBounds = { min: 1, max: 120 };
 export const LONG_BREAK_AFTER: MinuteBounds = { min: 1, max: 12 };
 

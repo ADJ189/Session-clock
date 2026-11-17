@@ -234,7 +234,7 @@ function drawMatrix(bytes: number[], spec: QrSpec): boolean[][] {
   // Dark module.
   set(SIZE - 8, 8, true, true);
 
-  // Format information, mask 2: (row + column) % 3 === 0.
+  // Format information, mask 2: column % 3 === 0.
   const fmt = formatBits(2);
   for (let i = 0; i < 15; i++) {
     const bit = fmt[i] === 1;
@@ -271,7 +271,7 @@ function drawMatrix(bytes: number[], spec: QrSpec): boolean[][] {
         if (c < 0 || fixed[r]![c]) continue;
         const bit =
           bi < totalBits ? (all[bi >> 3]! >> (7 - (bi & 7))) & 1 : 0;
-        const masked = (r + c) % 3 === 0 ? bit ^ 1 : bit;
+        const masked = c % 3 === 0 ? bit ^ 1 : bit;
         set(r, c, masked === 1);
         bi++;
       }
