@@ -1275,12 +1275,12 @@ export function playChime() {
       g.gain.value = 0.22;
       osc.connect(g);
       g.connect(masterGain ?? ac.destination);
-      osc.onended = () => {
+      osc.addEventListener("ended", () => {
         try {
           osc.disconnect();
           g.disconnect();
         } catch {}
-      };
+      }, { once: true });
       const startTime = ac.currentTime;
       osc.start(startTime);
       g.gain.setValueAtTime(0.22, startTime);

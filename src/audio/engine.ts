@@ -183,7 +183,7 @@ class VoiceScope {
       this.nodes.delete(source);
     };
     try {
-      source.onended = release;
+      source.addEventListener("ended", release, { once: true });
     } catch {
       // Older engines may not expose onended; stop() still disconnects.
     }
