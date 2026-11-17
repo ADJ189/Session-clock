@@ -265,8 +265,9 @@ export async function openLegalPanel(doc: "privacy" | "terms"): Promise<void> {
     await legalPending;
     legalApp?.setDoc?.(doc);
   } else {
-    legalApp.setDoc?.(doc);
+    legalApp?.setDoc?.(doc);
   }
+  if (!legalApp) return;
   openModal("legalOverlay");
 }
 
