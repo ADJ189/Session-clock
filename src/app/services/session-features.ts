@@ -19,6 +19,7 @@ let bc: BroadcastChannel | null =
     : null;
 
 export function bcBroadcast(type: string, payload: Record<string, unknown> = {}) {
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin
   bc?.postMessage({ type, ...payload });
 }
 
