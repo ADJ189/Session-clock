@@ -37,14 +37,14 @@ export function sendNotification(title: string, body: string, tag = "sc") {
   } catch {
     // Mobile browsers (Chrome Android) throw TypeError on new Notification()
     navigator.serviceWorker?.ready
-      ?.then((reg) => {
+      ?.then((reg) =>
         reg.showNotification(title, {
           body,
           tag,
           icon: "/icon-192.png",
           badge: "/icon-192.png",
-        });
-      })
+        })
+      )
       .catch(() => {
         /* notifications blocked or unavailable */
       });

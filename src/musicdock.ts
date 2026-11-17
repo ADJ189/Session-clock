@@ -890,7 +890,7 @@ async function loadYouTubeLibrary(root: HTMLElement): Promise<void> {
       return;
     }
     if (connectBtn) connectBtn.textContent = "Connecting…";
-    await Integrations.googleLogin(clientId); // redirects away — nothing after this line runs
+    await Integrations.googleLogin(clientId, "youtube"); // redirects away — nothing after this line runs
     return;
   }
 

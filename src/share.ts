@@ -197,7 +197,7 @@ function darkenHex(hex: string, amount: number): string {
   if (raw.length === 4) {
     raw = '#' + raw[1] + raw[1] + raw[2] + raw[2] + raw[3] + raw[3];
   }
-  const n = parseInt(raw.slice(1), 16);
+  const n = Number.parseInt(raw.slice(1), 16);
   if (Number.isNaN(n)) return hex;
   const r = Math.max(0, Math.round(((n >> 16) & 0xff) * (1 - amount)));
   const g = Math.max(0, Math.round(((n >> 8)  & 0xff) * (1 - amount)));

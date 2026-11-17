@@ -69,7 +69,6 @@ import {
   DEFAULT_GOOGLE_CLIENT_ID,
 } from "./authconfig";
 import { mount, unmount } from "svelte";
-import IntegrationsPanel from "./app/integrations/IntegrationsPanel.svelte";
 import type { IntegrationsService } from "./app/integrations/types";
 import {
   clearCredentials as clear,
@@ -77,7 +76,9 @@ import {
   GOOGLE_CLIENT_ID_KEY,
   loadCredentials as load,
   OAUTH_PROVIDERS,
+  oauthHandleCallback as authHandleCallback,
   oauthLogin,
+  type OAuthCallbackResult,
   redirectUri,
   saveCredentials as save,
 } from "./auth";
@@ -86,7 +87,6 @@ import {
 // Re-export it so existing `Integrations.*` call sites keep working.
 export {
   ensureFreshToken,
-  oauthHandleCallback,
   oauthLogin,
   type OAuthCallbackResult,
 } from "./auth";
@@ -176,13 +176,51 @@ export async function spotifyNowPlaying(): Promise<{
 // provider. Callers that need to resume something afterward (the
 // YouTube library panel, the calendar side-card) do it in main.ts's
 // oauthHandleCallback().then() handler, not inline after the call.
-export const googleLogin = (clientId: string) => oauthLogin("google", clientId);
+export const GOOGLE_AUTH_TARGET_KEY = "sc_google_auth_target";
+
+export async function googleLogin(
+  clientId: string,
+  target: "youtube" | "gcal" = "youtube",
+): Promise<void> {
+  try {
+    sessionStorage.setItem(GOOGLE_AUTH_TARGET_KEY, target);
+  } catch {
+    /* private browsing / quota */
+  }
+  return oauthLogin("google", clientId);
+}
+
+export async function oauthHandleCallback(): Promise<OAuthCallbackResult | null> {
+  const result = await authHandleCallback();
+  if (result && result.ok && result.provider === "google") {
+    let target: string | null = null;
+    try {
+      target = sessionStorage.getItem(GOOGLE_AUTH_TARGET_KEY);
+      sessionStorage.removeItem(GOOGLE_AUTH_TARGET_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (target === "gcal") {
+      const existing = load("gcal") ?? {};
+      save("gcal", { ...existing, oauth: "true" });
+    } else {
+      save("youtube", { connected: "true" });
+    }
+  }
+  return result;
+}
+
 export function isGoogleConnected(): boolean {
   return !!load("google")?.token;
 }
 
 export function disconnectGoogle() {
   clear("google");
+  clear("youtube");
+  const gcal = load("gcal");
+  if (gcal?.oauth) {
+    clear("gcal");
+  }
   localStorage.removeItem(GOOGLE_CLIENT_ID_KEY);
   localStorage.removeItem(LEGACY_GOOGLE_CLIENT_SECRET_KEY); // see comment on the const above
 }
@@ -199,7 +237,8 @@ function ensureFreshGoogleToken(): Promise<string | null> {
 // 2. YOUTUBE (via the shared Google connection above)
 // ─────────────────────────────────────────────────────────────────────
 export function isYouTubeConnected(): boolean {
-  return isGoogleConnected();
+  if (!isGoogleConnected()) return false;
+  return load("youtube")?.connected === "true";
 }
 
 // Signed-in user's own YouTube library, via the official YouTube Data
@@ -287,8 +326,11 @@ export async function youtubeGetMyPlaylists(
 export function saveGCalCredentials(apiKey: string, calendarId = "primary") {
   save("gcal", { apiKey, calendarId });
 }
-export function isGCalConnected() {
-  return !!load("gcal")?.apiKey || isGoogleConnected();
+export function isGCalConnected(): boolean {
+  const gcal = load("gcal");
+  if (gcal?.apiKey) return true;
+  if (gcal?.oauth === "true" && isGoogleConnected()) return true;
+  return false;
 }
 
 export interface CalEvent {
@@ -307,9 +349,10 @@ export async function getUpcomingEvents(maxResults = 5): Promise<CalEvent[]> {
   try {
     let url: string;
     let headers: Record<string, string> = {};
-    const oauthToken = isGoogleConnected()
-      ? await ensureFreshGoogleToken()
-      : null;
+    const oauthToken =
+      load("gcal")?.oauth === "true" && isGoogleConnected()
+        ? await ensureFreshGoogleToken()
+        : null;
     if (oauthToken) {
       url = `https://www.googleapis.com/calendar/v3/calendars/${calId}/events?timeMin=${now}&timeMax=${future}&maxResults=${maxResults}&singleEvents=true&orderBy=startTime`;
       headers = { Authorization: `Bearer ${oauthToken}` };
@@ -523,7 +566,10 @@ export function getConnectionStatus(): Record<IntegrationId, boolean> {
 
 export function disconnectAll(id: IntegrationId) {
   if (id === "youtube") {
-    disconnectGoogle();
+    clear("youtube");
+    if (!isGCalConnected()) {
+      disconnectGoogle();
+    }
     return;
   }
   if (id === "gcal") {
@@ -547,7 +593,7 @@ export interface IntegrationPanelCallbacks {
 
 let activeIntMount: ReturnType<typeof mount> | null = null;
 
-export function buildIntegrationsPanel(
+export async function buildIntegrationsPanel(
   container: HTMLElement,
   cb: IntegrationPanelCallbacks,
 ) {
@@ -585,6 +631,9 @@ export function buildIntegrationsPanel(
     googleClientIdKey: GOOGLE_CLIENT_ID_KEY,
   };
 
+  const { default: IntegrationsPanel } = await import(
+    "./app/integrations/IntegrationsPanel.svelte"
+  );
   activeIntMount = mount(IntegrationsPanel, {
     target: container,
     props: { service },
