@@ -40,11 +40,12 @@ interface Env {
   GOOGLE_CLIENT_SECRET?: string;
 }
 
-const PROVIDERS: Record<string, { tokenUrl: string; basicAuth?: boolean }> = {
+const PROVIDERS: Record<string, { tokenUrl: string; basicAuth?: boolean; jsonBody?: boolean }> = {
   // Notion expects client credentials as HTTP Basic auth, not form fields.
   notion: {
     tokenUrl: "https://api.notion.com/v1/oauth/token",
     basicAuth: true,
+    jsonBody: true,
   },
   github: { tokenUrl: "https://github.com/login/oauth/access_token" },
   todoist: { tokenUrl: "https://todoist.com/oauth/access_token" },
@@ -125,12 +126,30 @@ function buildHeaders(
 }
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+  const ct = ctx.request.headers.get("content-type") || "";
+  if (!ct.toLowerCase().includes("application/json")) {
+    return json({ error: "unsupported_media_type" }, 415);
+  }
+
   const body = await parseBody(ctx.request);
   if (!body) return json({ error: "invalid_request" }, 400);
 
   const provider = body.provider ?? "";
   const cfg = PROVIDERS[provider];
   if (!cfg) return json({ error: "unknown_provider" }, 400);
+
+  // Validate allowed grant types and sanity check token parameter lengths
+  const grantType = body.grant_type ?? "authorization_code";
+  if (!["authorization_code", "refresh_token"].includes(grantType)) {
+    return json({ error: "unsupported_grant_type" }, 400);
+  }
+  if (
+    (body.code && body.code.length > 2048) ||
+    (body.refresh_token && body.refresh_token.length > 2048) ||
+    (body.code_verifier && body.code_verifier.length > 512)
+  ) {
+    return json({ error: "invalid_parameter_length" }, 400);
+  }
 
   const creds = resolveCredentials(ctx.env, provider);
   if (!creds) {
@@ -145,14 +164,35 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     );
   }
 
-  const params = buildTokenParams(body);
-  const headers = buildHeaders(cfg, creds.clientId, creds.clientSecret, params);
+  let requestBody: string | URLSearchParams;
+  let headers: Record<string, string>;
+
+  if (cfg.jsonBody) {
+    headers = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+    if (cfg.basicAuth) {
+      headers["Authorization"] = `Basic ${btoa(`${creds.clientId}:${creds.clientSecret}`)}`;
+    }
+    const jsonPayload: Record<string, string> = {
+      grant_type: grantType,
+    };
+    if (body.code) jsonPayload.code = body.code;
+    if (body.redirect_uri) jsonPayload.redirect_uri = body.redirect_uri;
+    if (body.refresh_token) jsonPayload.refresh_token = body.refresh_token;
+    requestBody = JSON.stringify(jsonPayload);
+  } else {
+    const params = buildTokenParams(body);
+    headers = buildHeaders(cfg, creds.clientId, creds.clientSecret, params);
+    requestBody = params;
+  }
 
   try {
     const upstream = await fetch(cfg.tokenUrl, {
       method: "POST",
       headers,
-      body: params,
+      body: requestBody,
     });
     const data = await upstream.json();
     return json(data, upstream.status);
