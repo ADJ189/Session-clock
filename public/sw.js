@@ -64,7 +64,12 @@ async function buildPrecacheList() {
       throw new Error("bad manifest");
     }
     return [...SHELL_FILES, ...manifest.files];
-  } catch {
+  } catch (err) {
+    // In dev/local, fall back to shell files only. In production (stamped
+    // build version), fail the install so the existing working cache stays.
+    if (CACHE_VERSION !== "__SC_BUILD_VERSION__") {
+      throw err;
+    }
     return SHELL_FILES.slice();
   }
 }
@@ -176,15 +181,17 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(
       fetch(req)
         .then((r) => {
-          const clone = r.clone();
-          e.waitUntil(
-            caches
-              .open(name)
-              .then((c) => c.put(req, clone))
-              .catch(() => {
-                // Navigation still succeeds if the cache is unavailable.
-              }),
-          );
+          if (CORE.isCacheableResponse(r)) {
+            const clone = r.clone();
+            e.waitUntil(
+              caches
+                .open(name)
+                .then((c) => c.put(req, clone))
+                .catch(() => {
+                  // Navigation still succeeds if the cache is unavailable.
+                }),
+            );
+          }
           return r;
         })
         .catch(() =>
