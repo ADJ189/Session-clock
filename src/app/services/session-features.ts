@@ -328,6 +328,7 @@ export async function openQRHandoff() {
 
   const params = new URLSearchParams(state).toString();
   const url = `${location.origin}${location.pathname}?${params}`;
+  const urlBytes = new TextEncoder().encode(url).length;
 
   if (urlEl) {
     urlEl.textContent = url.length > 60 ? url.slice(0, 57) + "…" : url;
@@ -335,13 +336,22 @@ export async function openQRHandoff() {
 
   const fg = currentTheme.text;
   const bg = currentTheme.baseBg[1] ?? currentTheme.baseBg[0];
-  const { drawQR, QR_MAX_BYTES } = await import("../../qr");
-  const encoded = drawQR(canvas, url, fg, bg);
+  let encoded = false;
+  let maxBytes = 0;
+  try {
+    const { drawQR, QR_MAX_BYTES } = await import("../../qr");
+    maxBytes = QR_MAX_BYTES;
+    encoded = drawQR(canvas, url, fg, bg);
+  } catch (error) {
+    console.error("QR handoff generation failed:", error);
+  }
 
   if (label) {
     label.textContent = encoded
       ? "Scan to continue this session on another device"
-      : `URL too long for QR (${new TextEncoder().encode(url).length}/${QR_MAX_BYTES} bytes) — shorten task name`;
+      : maxBytes > 0 && urlBytes > maxBytes
+        ? `URL too long for QR (${urlBytes}/${maxBytes} bytes) — shorten task name`
+        : "Couldn't create the QR code — please try again";
   }
 
   ctx.openModal("qrOverlay");
@@ -349,7 +359,8 @@ export async function openQRHandoff() {
 
 export function applyHandoffState() {
   const p = new URLSearchParams(location.search);
-  if (!p.has("theme") && !p.has("ses") && !p.has("start")) return;
+  if (!p.has("theme") && !p.has("ses") && !p.has("start") && !p.has("pom"))
+    return;
   const themeId = p.get("theme");
   if (themeId && THEME_BY_ID[themeId]) ctx.applyTheme(THEME_BY_ID[themeId], true);
   const cm = p.get("clock") as ClockMode | null;
@@ -363,9 +374,17 @@ export function applyHandoffState() {
     focusInput.value = task;
   }
   if (p.get("pom") === "1") {
-    // Same bounds as setWorkMins/setBreakMins: 1–120 and 1–60 minutes.
-    const pw = parseHandoffMinutes(p.get("pw"), 25, WORK_MINUTES);
-    const pb = parseHandoffMinutes(p.get("pb"), 5, BREAK_MINUTES);
+    // Same bounds and defaults as setWorkMins/setBreakMins/updateSettings.
+    const pw = parseHandoffMinutes(
+      p.get("pw"),
+      Pom.POMODORO_DEFAULTS.workMins,
+      WORK_MINUTES,
+    );
+    const pb = parseHandoffMinutes(
+      p.get("pb"),
+      Pom.POMODORO_DEFAULTS.breakMins,
+      BREAK_MINUTES,
+    );
     Pom.updateSettings({ workMins: pw, breakMins: pb });
     if (!Pom.isActive()) {
       Pom.setActive(true);

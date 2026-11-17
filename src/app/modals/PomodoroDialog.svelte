@@ -1,5 +1,10 @@
 <script lang="ts">
   import * as Pom from "../../pomodoro";
+  import {
+    BREAK_MINUTES,
+    LONG_BREAK_MINUTES,
+    WORK_MINUTES,
+  } from "../../pomodoro-limits";
 
   interface Props {
     onClose?: () => void;
@@ -154,11 +159,17 @@
           <input
             type="number"
             id="pomCustomWork"
-            min="1"
-            max="180"
+            min={WORK_MINUTES.min}
+            max={WORK_MINUTES.max}
             step="1"
             value={settings.workMins}
-            onchange={(e) => handleCustomInput("workMins", e.currentTarget.value, 1, 180)}
+            onchange={(e) =>
+              handleCustomInput(
+                "workMins",
+                e.currentTarget.value,
+                WORK_MINUTES.min,
+                WORK_MINUTES.max,
+              )}
           /><em>min</em>
         </span>
       </label>
@@ -168,11 +179,17 @@
           <input
             type="number"
             id="pomCustomBreak"
-            min="1"
-            max="90"
+            min={BREAK_MINUTES.min}
+            max={BREAK_MINUTES.max}
             step="1"
             value={settings.breakMins}
-            onchange={(e) => handleCustomInput("breakMins", e.currentTarget.value, 1, 90)}
+            onchange={(e) =>
+              handleCustomInput(
+                "breakMins",
+                e.currentTarget.value,
+                BREAK_MINUTES.min,
+                BREAK_MINUTES.max,
+              )}
           /><em>min</em>
         </span>
       </label>
@@ -182,11 +199,17 @@
           <input
             type="number"
             id="pomCustomLong"
-            min="1"
-            max="120"
+            min={LONG_BREAK_MINUTES.min}
+            max={LONG_BREAK_MINUTES.max}
             step="1"
             value={settings.longBreakMins}
-            onchange={(e) => handleCustomInput("longBreakMins", e.currentTarget.value, 1, 120)}
+            onchange={(e) =>
+              handleCustomInput(
+                "longBreakMins",
+                e.currentTarget.value,
+                LONG_BREAK_MINUTES.min,
+                LONG_BREAK_MINUTES.max,
+              )}
           /><em>min</em>
         </span>
       </label>

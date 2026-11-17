@@ -10,6 +10,12 @@ import type { Theme } from "../../types";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+/** Fire-and-forget lazy imports still need a rejection handler. */
+function reportPanelLoadFailure(label: string, error: unknown): void {
+  console.error(`${label} failed to load:`, error);
+  showToast("Couldn't load this page. Please try again.");
+}
+
 const modalReturnFocus = new Map<HTMLElement, HTMLElement | null>();
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -158,6 +164,8 @@ export const ensureKbModal = async () => {
           },
         });
       }
+    } catch (error) {
+      reportPanelLoadFailure("Keyboard shortcuts", error);
     } finally {
       kbPending = null;
     }
@@ -194,6 +202,8 @@ export const ensurePomModal = async (): Promise<void> => {
           onClose: () => closeModal("pomOverlay"),
         },
       });
+    } catch (error) {
+      reportPanelLoadFailure("Pomodoro panel", error);
     } finally {
       pomPending = null;
     }
@@ -221,6 +231,8 @@ export async function openDataPanel(): Promise<void> {
           if (!dataPanelApp) {
             dataPanelApp = mount(DataManagementDialog, { target });
           }
+        } catch (error) {
+          reportPanelLoadFailure("Data panel", error);
         } finally {
           dataPanelPending = null;
         }
@@ -254,8 +266,8 @@ export async function openLegalPanel(doc: "privacy" | "terms"): Promise<void> {
             },
           });
         }
-      } catch {
-        showToast("Couldn't load this page. Please try again.");
+      } catch (error) {
+        reportPanelLoadFailure("Legal panel", error);
       } finally {
         legalPending = null;
       }
@@ -289,6 +301,8 @@ export async function openLanguageModal(): Promise<void> {
             },
           });
         }
+      } catch (error) {
+        reportPanelLoadFailure("Language panel", error);
       } finally {
         languagePending = null;
       }

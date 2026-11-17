@@ -1,24 +1,29 @@
 // Pure validation for the QR/session handoff URL. Keeping this separate from
 // the DOM controller makes the bounds easy to unit test and guarantees the
-// handoff path uses the same 1–120 / 1–60 minute limits as the settings
-// setters instead of writing unchecked values straight into storage.
+// handoff path uses the same limits as the regular settings setters instead of
+// writing unchecked values straight into storage.
 import type { PomPhase } from "../../types";
+import {
+  BREAK_MINUTES,
+  WORK_MINUTES,
+  clampPomodoroSetting,
+  type MinuteBounds,
+} from "../../pomodoro-limits";
+
+export { BREAK_MINUTES, WORK_MINUTES };
 
 export const POM_PHASES: readonly PomPhase[] = ["work", "break", "longBreak"];
-
-export const WORK_MINUTES = { min: 1, max: 120 } as const;
-export const BREAK_MINUTES = { min: 1, max: 60 } as const;
 
 /** Parse a handoff duration: finite integer, clamped to the setter bounds. */
 export function parseHandoffMinutes(
   raw: string | null,
   fallback: number,
-  bounds: { min: number; max: number },
+  bounds: MinuteBounds,
 ): number {
   if (raw === null || raw.trim() === "") return fallback;
   const value = Number(raw);
   if (!Number.isInteger(value)) return fallback;
-  return Math.max(bounds.min, Math.min(bounds.max, value));
+  return clampPomodoroSetting(value, fallback, bounds);
 }
 
 /** Parse an elapsed-time value (milliseconds): finite, non-negative integer. */
