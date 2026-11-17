@@ -51,6 +51,27 @@ test("QR long payloads encode all bytes without silent truncation", () => {
   assert.notStrictEqual(a, b);
 });
 
+test("a realistic handoff URL encodes without truncation", () => {
+  // A real handoff carries theme, session, Pomodoro phase/progress and a task
+  // name — far above the old fixed 26-byte V2 payload, so a fixed-size encoder
+  // silently dropped every query parameter after the host.
+  const url =
+    "https://sessionclock.app/?theme=midnight&ses=1&start=1&pom=1&pw=25&pb=5&pp=work&pe=45000&task=Finish%20the%20quarterly%20report";
+  const bytes = new TextEncoder().encode(url).length;
+  assert.ok(bytes > 26, `expected payload above the old 26-byte cap, got ${bytes}`);
+  assert.ok(bytes <= QR_MAX_BYTES, `payload must fit the encoder, got ${bytes}`);
+
+  const version = qrVersionFor(url);
+  assert.ok(version >= 5 && version <= 10, `expected v5-v10, got v${version}`);
+  const matrix = buildMatrix(url);
+  assert.strictEqual(matrix.length, 17 + 4 * version);
+
+  // Two URLs that share the first 26 bytes still produce different matrices,
+  // proving the tail (task name) is encoded rather than truncated.
+  const other = url.replace("quarterly", "annual");
+  assert.notStrictEqual(JSON.stringify(matrix), JSON.stringify(buildMatrix(other)));
+});
+
 test("QR finder patterns, timing, and format info are well formed", () => {
   const matrix = buildMatrix("hello");
   const size = matrix.length;
