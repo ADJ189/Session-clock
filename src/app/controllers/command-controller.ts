@@ -139,7 +139,8 @@ export function filterAndGroup(
     });
   });
 
-  return { filtered, groups };
+  const orderedFiltered = groups.flatMap((g) => g.items.map((i) => i.item));
+  return { filtered: orderedFiltered, groups };
 }
 
 export class CommandController {
