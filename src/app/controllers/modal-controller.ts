@@ -219,31 +219,31 @@ let dataPanelApp: any = null;
 let dataPanelPending: Promise<void> | null = null;
 export async function openDataPanel(): Promise<void> {
   const target = document.getElementById("dataOverlay");
-  if (target) {
-    if (!dataPanelApp && !dataPanelPending) {
-      dataPanelPending = (async () => {
-        try {
-          target.innerHTML = "";
-          const { mount } = await import("svelte");
-          const { default: DataManagementDialog } = await import(
-            "../modals/DataManagementDialog.svelte"
-          );
-          if (!dataPanelApp) {
-            dataPanelApp = mount(DataManagementDialog, { target });
-          }
-        } catch (error) {
-          reportPanelLoadFailure("Data panel", error);
-        } finally {
-          dataPanelPending = null;
+  if (!target) return;
+  if (!dataPanelApp && !dataPanelPending) {
+    dataPanelPending = (async () => {
+      try {
+        target.innerHTML = "";
+        const { mount } = await import("svelte");
+        const { default: DataManagementDialog } = await import(
+          "../modals/DataManagementDialog.svelte"
+        );
+        if (!dataPanelApp) {
+          dataPanelApp = mount(DataManagementDialog, { target });
         }
-      })();
-      await dataPanelPending;
-    } else if (dataPanelPending) {
-      await dataPanelPending;
-    } else if (typeof dataPanelApp.refresh === "function") {
-      dataPanelApp.refresh();
-    }
+      } catch (error) {
+        reportPanelLoadFailure("Data panel", error);
+      } finally {
+        dataPanelPending = null;
+      }
+    })();
+    await dataPanelPending;
+  } else if (dataPanelPending) {
+    await dataPanelPending;
+  } else if (typeof dataPanelApp?.refresh === "function") {
+    dataPanelApp.refresh();
   }
+  if (!dataPanelApp) return;
   openModal("dataOverlay");
 }
 
@@ -311,6 +311,7 @@ export async function openLanguageModal(): Promise<void> {
   } else if (languagePending) {
     await languagePending;
   }
+  if (!languageApp) return;
   openModal("languageOverlay");
 }
 

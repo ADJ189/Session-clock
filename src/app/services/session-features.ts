@@ -13,7 +13,10 @@ import { setApplyingRemoteTheme } from "../renderer/canvas-engine";
 import {
   BREAK_MINUTES,
   WORK_MINUTES,
+  LONG_BREAK_MINUTES,
+  LONG_BREAK_AFTER,
   isPomPhase,
+  parseHandoffCycles,
   parseHandoffElapsed,
   parseHandoffMinutes,
 } from "../utils/handoff";
@@ -316,10 +319,13 @@ export async function openQRHandoff() {
     const s = Pom.getSettings();
     state.pw = String(s.workMins);
     state.pb = String(s.breakMins);
+    state.plb = String(s.longBreakMins);
+    state.pla = String(s.longBreakAfter);
     // Preserve where the receiver should resume, not just the durations.
     const snap = Pom.getSessionSnapshot();
     state.pp = snap.phase;
     state.pe = String(Math.round(snap.phaseElapsed));
+    state.pc = String(snap.pomCount);
   }
   const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
   if (focusInput?.value.trim()) {
@@ -346,6 +352,10 @@ export async function openQRHandoff() {
     console.error("QR handoff generation failed:", error);
   }
 
+  if (!encoded) {
+    canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
   if (label) {
     label.textContent = encoded
       ? "Scan to continue this session on another device"
@@ -357,10 +367,10 @@ export async function openQRHandoff() {
   ctx.openModal("qrOverlay");
 }
 
-export function applyHandoffState() {
+export function applyHandoffState(): boolean {
   const p = new URLSearchParams(location.search);
   if (!p.has("theme") && !p.has("ses") && !p.has("start") && !p.has("pom"))
-    return;
+    return false;
   const themeId = p.get("theme");
   if (themeId && THEME_BY_ID[themeId]) ctx.applyTheme(THEME_BY_ID[themeId], true);
   const cm = p.get("clock") as ClockMode | null;
@@ -385,32 +395,43 @@ export function applyHandoffState() {
       Pom.POMODORO_DEFAULTS.breakMins,
       BREAK_MINUTES,
     );
-    Pom.updateSettings({ workMins: pw, breakMins: pb });
+    const plb = parseHandoffMinutes(
+      p.get("plb"),
+      Pom.POMODORO_DEFAULTS.longBreakMins,
+      LONG_BREAK_MINUTES,
+    );
+    const pla = parseHandoffMinutes(
+      p.get("pla") ?? p.get("pli"),
+      Pom.POMODORO_DEFAULTS.longBreakAfter,
+      LONG_BREAK_AFTER,
+    );
+    Pom.updateSettings({
+      workMins: pw,
+      breakMins: pb,
+      longBreakMins: plb,
+      longBreakAfter: pla,
+    });
     if (!Pom.isActive()) {
       Pom.setActive(true);
       ctx?.buildPomUI();
     }
     const phase = p.get("pp");
     const phaseElapsed = parseHandoffElapsed(p.get("pe"), 0);
+    const pomCount = parseHandoffCycles(p.get("pc"), 0);
     if (isPomPhase(phase)) {
-      Pom.restoreSessionSnapshot({ active: true, phase, phaseElapsed });
+      Pom.restoreSessionSnapshot({ active: true, phase, phaseElapsed, pomCount });
     }
   }
   if (p.get("ses") === "1") {
     const elapsed = parseHandoffElapsed(p.get("elapsed"), 0);
     sessionController.setElapsed(elapsed);
     (window as any).__sessionHandoffElapsed = elapsed;
-    setTimeout(() => {
-      const btn = document.getElementById("btnStart");
-      btn?.click();
-    }, 800);
+    sessionController.startTimer();
   } else if (p.get("start") === "1") {
-    setTimeout(() => {
-      const btn = document.getElementById("btnStart");
-      btn?.click();
-    }, 800);
+    sessionController.startTimer();
   }
   history.replaceState({}, "", location.pathname);
+  return true;
 }
 
 // ── Animedoro mode ────────────────────────────────────────────────────

@@ -6,11 +6,13 @@ import type { PomPhase } from "../../types";
 import {
   BREAK_MINUTES,
   WORK_MINUTES,
+  LONG_BREAK_MINUTES,
+  LONG_BREAK_AFTER,
   clampPomodoroSetting,
   type MinuteBounds,
 } from "../../pomodoro-limits";
 
-export { BREAK_MINUTES, WORK_MINUTES };
+export { BREAK_MINUTES, WORK_MINUTES, LONG_BREAK_MINUTES, LONG_BREAK_AFTER };
 
 export const POM_PHASES: readonly PomPhase[] = ["work", "break", "longBreak"];
 
@@ -37,6 +39,20 @@ export function parseHandoffElapsed(
     return fallback;
   return value;
 }
+
+/** Parse completed-cycle count: finite, non-negative integer. */
+export function parseHandoffCycles(
+  raw: string | null,
+  fallback = 0,
+): number {
+  if (raw === null || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0)
+    return fallback;
+  return value;
+}
+
+export const parseHandoffCycleCount = parseHandoffCycles;
 
 export function isPomPhase(value: string | null): value is PomPhase {
   return value !== null && (POM_PHASES as readonly string[]).includes(value);

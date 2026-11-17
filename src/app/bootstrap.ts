@@ -761,8 +761,16 @@ export async function bootSessionClock(): Promise<void> {
     lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0]!,
     true,
   );
-  applyHandoffState();
-  sessionController.restoreSavedSession();
+  const handedOff = applyHandoffState();
+  if (handedOff) {
+    try {
+      sessionStorage.removeItem("sc_saved_session");
+    } catch {
+      // ignore
+    }
+  } else {
+    sessionController.restoreSavedSession();
+  }
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) Intel.onTabHidden();

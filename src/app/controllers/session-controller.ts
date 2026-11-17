@@ -239,7 +239,19 @@ export class SessionController {
   }
 
   restoreSavedSession(): void {
+    if (this.sessionRunning) return;
     try {
+      const search =
+        typeof window !== "undefined" && window.location?.search
+          ? window.location.search
+          : "";
+      if (search) {
+        const p = new URLSearchParams(search);
+        if (p.has("ses") || p.has("start") || p.has("pom") || p.has("theme")) {
+          sessionStorage.removeItem("sc_saved_session");
+          return;
+        }
+      }
       const raw = sessionStorage.getItem("sc_saved_session");
       if (!raw) return;
       sessionStorage.removeItem("sc_saved_session");
