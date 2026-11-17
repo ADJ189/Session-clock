@@ -457,3 +457,24 @@ test("oauthLogin ignores an unknown provider and an empty client ID", async () =
   assert.strictEqual(assignedUrl, null);
   assert.strictEqual(sessionStorage.getItem(STATE_KEY), null);
 });
+
+test("public/_headers CSP allows Spotify OAuth and Web Playback SDK origins", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const headers = await readFile(
+    new URL("../public/_headers", import.meta.url),
+    "utf8",
+  );
+  const cspLine = headers
+    .split("\n")
+    .find((l) => l.trim().startsWith("Content-Security-Policy:"));
+  assert.ok(cspLine, "Content-Security-Policy header must exist");
+
+  const csp = cspLine.trim();
+  // connect-src must allow Spotify direct token exchange and SDK websockets/APIs
+  assert.ok(csp.includes("https://accounts.spotify.com"), "accounts.spotify.com in connect-src");
+  assert.ok(csp.includes("https://*.spotify.com"), "*.spotify.com in connect-src");
+  assert.ok(csp.includes("wss://*.spotify.com"), "wss://*.spotify.com in connect-src");
+
+  // frame-src must allow Spotify SDK iframe
+  assert.ok(csp.includes("https://sdk.scdn.co"), "sdk.scdn.co in frame-src");
+});

@@ -97,3 +97,38 @@ test("the worker source is wired to the shared core", async () => {
   assert.strictEqual(source.includes("CORE.shouldDeleteCache"), true);
   assert.strictEqual(source.includes("CORE.isCacheableRequest"), true);
 });
+
+test("precache production check distinguishes stamped prod build from dev", async () => {
+  const source = await readFile(
+    new URL("../public/sw.js", import.meta.url),
+    "utf8",
+  );
+  // Stamped version (as written by vite.config.ts precacheManifestPlugin)
+  const stampedVersion = "20261117abcdef";
+  const stampedSource = source.split("__SC_BUILD_VERSION__").join(stampedVersion);
+
+  // In unstamped dev source:
+  // CACHE_VERSION is "__SC_BUILD_VERSION__" -> CORE.cacheNameFor is "session-clock-dev"
+  assert.strictEqual(core.cacheNameFor("__SC_BUILD_VERSION__"), "session-clock-dev");
+  assert.strictEqual(core.cacheNameFor("__SC_BUILD_VERSION__") !== "session-clock-dev", false);
+
+  // In stamped production source:
+  // CACHE_VERSION was replaced by stampedVersion -> CORE.cacheNameFor is "session-clock-20261117abcdef"
+  assert.strictEqual(core.cacheNameFor(stampedVersion), `session-clock-${stampedVersion}`);
+  assert.strictEqual(core.cacheNameFor(stampedVersion) !== "session-clock-dev", true);
+
+  // Verify that sw.js uses the robust production check that survives stamping
+  assert.strictEqual(
+    source.includes("CORE.cacheNameFor(CACHE_VERSION) !== FALLBACK_CACHE") ||
+      source.includes('CORE.cacheNameFor(CACHE_VERSION) !== "session-clock-dev"'),
+    true,
+  );
+  // And confirm the broken comparison literal is NOT present in the failure branch
+  assert.strictEqual(source.includes('CACHE_VERSION !== "__SC_BUILD_VERSION__"'), false);
+  // In the stamped source, the check remains intact and doesn't get rewritten into a trivial equality
+  assert.strictEqual(
+    stampedSource.includes("CORE.cacheNameFor(CACHE_VERSION) !== FALLBACK_CACHE") ||
+      stampedSource.includes('CORE.cacheNameFor(CACHE_VERSION) !== "session-clock-dev"'),
+    true,
+  );
+});
