@@ -97,6 +97,8 @@
                 class="track-toggle {t.active ? 'on' : ''}"
                 data-id={t.id}
                 title={t.active ? "Stop" : "Play"}
+                aria-label="{t.active ? 'Stop' : 'Play'} {t.name}"
+                aria-pressed={t.active}
                 disabled={t.unavailable}
                 type="button"
                 onclick={() => soundMixerController.toggleTrack(t.id)}
@@ -150,6 +152,8 @@
                 class="track-toggle {p.active ? 'on' : ''}"
                 data-id={p.id}
                 title={p.active ? "Stop" : "Play"}
+                aria-label="{p.active ? 'Stop' : 'Play'} {p.name}"
+                aria-pressed={p.active}
                 disabled={p.unavailable}
                 type="button"
                 onclick={() => soundMixerController.toggleBinaural(p.id)}

@@ -52,14 +52,14 @@
       <button
         type="button"
         class="legal-tab {activeDoc === 'privacy' ? 'active' : ''}"
-        onclick={() => (activeDoc = "privacy")}
+        onclick={() => (selectedDoc = "privacy")}
       >
         Privacy Policy
       </button>
       <button
         type="button"
         class="legal-tab {activeDoc === 'terms' ? 'active' : ''}"
-        onclick={() => (activeDoc = "terms")}
+        onclick={() => (selectedDoc = "terms")}
       >
         Terms of Service
       </button>
