@@ -132,7 +132,7 @@ export default defineConfig({
         minify: {
           compress: { dropConsole: true, dropDebugger: true },
           mangle: true,
-          codegen: false,
+          codegen: true,
         },
       },
     },
