@@ -144,7 +144,7 @@ export function getPeakHour(): number | null {
   const log = loadLog();
   if (log.length < 5) return null;
 
-  const hourBuckets = new Array(24).fill(0) as number[];
+  const hourBuckets = Array.from<number>({ length: 24 }).fill(0);
   log.forEach((e) => {
     const h = new Date(e.time).getHours();
     hourBuckets[h] += e.dur / 60000; // weight by duration

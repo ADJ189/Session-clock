@@ -465,7 +465,7 @@ export function triggerMatrixRain() {
   document.body.appendChild(cv);
   const ctx = cv.getContext("2d")!;
   const cols = Math.floor(cv.width / 14);
-  const drops = new Array(cols).fill(1);
+  const drops = Array.from<number>({ length: cols }).fill(1);
   requestAnimationFrame(() => (cv.style.opacity = "1"));
   const chars = "田由甲申甴电甶男甸甹町画甼甽甾甿畀ABCDEFabcdef0123456789";
   let frame = 0;

@@ -717,9 +717,9 @@ function wireDockEvents(el: HTMLElement): void {
   if (autosyncBtn) {
     autosyncBtn.classList.toggle("active", isAutoSyncEnabled());
     autosyncBtn.addEventListener("click", () => {
-      const next = !isAutoSyncEnabled();
-      setAutoSyncEnabled(next);
-      autosyncBtn.classList.toggle("active", next);
+      const nextSync = !isAutoSyncEnabled();
+      setAutoSyncEnabled(nextSync);
+      autosyncBtn.classList.toggle("active", nextSync);
     });
   }
 

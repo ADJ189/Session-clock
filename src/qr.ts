@@ -2,8 +2,8 @@
 // Pure TS, zero deps. Generates 25×25 matrix for URLs up to ~20 chars.
 
 // GF(256) arithmetic using number arrays (avoids Uint8Array<ArrayBuffer> issues)
-const GF_EXP: number[] = new Array(512).fill(0);
-const GF_LOG:  number[] = new Array(256).fill(0);
+const GF_EXP: number[] = Array.from<number>({ length: 512 }).fill(0);
+const GF_LOG:  number[] = Array.from<number>({ length: 256 }).fill(0);
 (function () {
   let x = 1;
   for (let i = 0; i < 255; i++) {
@@ -17,7 +17,7 @@ const gfMul = (a: number, b: number): number =>
   a === 0 || b === 0 ? 0 : GF_EXP[(GF_LOG[a]! + GF_LOG[b]!) % 255]!;
 
 function gfPolyMul(p: number[], q: number[]): number[] {
-  const r = new Array(p.length + q.length - 1).fill(0) as number[];
+  const r = Array.from<number>({ length: p.length + q.length - 1 }).fill(0);
   for (let i = 0; i < p.length; i++)
     for (let j = 0; j < q.length; j++)
       r[i + j] ^= gfMul(p[i]!, q[j]!);
@@ -32,7 +32,7 @@ function rsGeneratorPoly(n: number): number[] {
 
 function rsEncode(data: number[], nEC: number): number[] {
   const gen = rsGeneratorPoly(nEC);
-  const msg: number[] = [...data, ...new Array(nEC).fill(0)];
+  const msg: number[] = [...data, ...Array.from<number>({ length: nEC }).fill(0)];
   for (let i = 0; i < data.length; i++) {
     const coef = msg[i]!;
     if (coef !== 0)
@@ -75,8 +75,8 @@ export function buildMatrix(text: string): boolean[][] {
   const ec = rsEncode(data, 16);
   const all = [...data, ...ec];
 
-  const grid: number[][] = Array.from({length: SIZE}, () => new Array(SIZE).fill(-1));
-  const fixed: boolean[][] = Array.from({length: SIZE}, () => new Array(SIZE).fill(false));
+  const grid: number[][] = Array.from({length: SIZE}, () => Array.from<number>({ length: SIZE }).fill(-1));
+  const fixed: boolean[][] = Array.from({length: SIZE}, () => Array.from<boolean>({ length: SIZE }).fill(false));
 
   const set = (r: number, c: number, dark: boolean, fix = false) => {
     if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return;
