@@ -247,7 +247,11 @@ export class SessionController {
           : "";
       if (search) {
         const p = new URLSearchParams(search);
-        if (p.has("ses") || p.has("start") || p.has("pom") || p.has("theme")) {
+        if (
+          p.get("ses") === "1" ||
+          p.get("start") === "1" ||
+          p.get("pom") === "1"
+        ) {
           sessionStorage.removeItem("sc_saved_session");
           return;
         }

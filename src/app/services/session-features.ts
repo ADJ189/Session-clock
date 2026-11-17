@@ -6,7 +6,7 @@ import * as APIs from "../../apis";
 import { showToast } from "../ui/toast";
 import { p2 } from "../../utils";
 import { THEME_BY_ID } from "../../themes";
-import type { Theme } from "../../types";
+import type { Theme, PomodoroSettings } from "../../types";
 import type { ClockMode } from "../controllers/clock-controller";
 import { sessionController } from "../controllers/session-controller";
 import { setApplyingRemoteTheme } from "../renderer/canvas-engine";
@@ -369,8 +369,6 @@ export async function openQRHandoff() {
 
 export function applyHandoffState(): boolean {
   const p = new URLSearchParams(location.search);
-  if (!p.has("theme") && !p.has("ses") && !p.has("start") && !p.has("pom"))
-    return false;
   const themeId = p.get("theme");
   if (themeId && THEME_BY_ID[themeId]) ctx.applyTheme(THEME_BY_ID[themeId], true);
   const cm = p.get("clock") as ClockMode | null;
@@ -378,60 +376,71 @@ export function applyHandoffState(): boolean {
     ctx.setClockMode(cm);
     ctx.updateClockCanvas();
   }
-  const task = p.get("task");
-  const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
-  if (task && focusInput) {
-    focusInput.value = task;
-  }
-  if (p.get("pom") === "1") {
-    // Same bounds and defaults as setWorkMins/setBreakMins/updateSettings.
-    const pw = parseHandoffMinutes(
-      p.get("pw"),
-      Pom.POMODORO_DEFAULTS.workMins,
-      WORK_MINUTES,
-    );
-    const pb = parseHandoffMinutes(
-      p.get("pb"),
-      Pom.POMODORO_DEFAULTS.breakMins,
-      BREAK_MINUTES,
-    );
-    const plb = parseHandoffMinutes(
-      p.get("plb"),
-      Pom.POMODORO_DEFAULTS.longBreakMins,
-      LONG_BREAK_MINUTES,
-    );
-    const pla = parseHandoffMinutes(
-      p.get("pla") ?? p.get("pli"),
-      Pom.POMODORO_DEFAULTS.longBreakAfter,
-      LONG_BREAK_AFTER,
-    );
-    Pom.updateSettings({
-      workMins: pw,
-      breakMins: pb,
-      longBreakMins: plb,
-      longBreakAfter: pla,
-    });
+
+  const isPomHandoff = p.get("pom") === "1";
+  const isSesHandoff = p.get("ses") === "1";
+  const isStartHandoff = p.get("start") === "1";
+  const sessionTransferred = isPomHandoff || isSesHandoff || isStartHandoff;
+
+  if (isPomHandoff) {
+    const current = Pom.getSettings();
+    const patch: Partial<PomodoroSettings> = {};
+    if (p.has("pw") && p.get("pw") !== null && p.get("pw")!.trim() !== "") {
+      patch.workMins = parseHandoffMinutes(p.get("pw"), current.workMins, WORK_MINUTES);
+    }
+    if (p.has("pb") && p.get("pb") !== null && p.get("pb")!.trim() !== "") {
+      patch.breakMins = parseHandoffMinutes(p.get("pb"), current.breakMins, BREAK_MINUTES);
+    }
+    if (p.has("plb") && p.get("plb") !== null && p.get("plb")!.trim() !== "") {
+      patch.longBreakMins = parseHandoffMinutes(p.get("plb"), current.longBreakMins, LONG_BREAK_MINUTES);
+    }
+    const plaRaw = p.get("pla") ?? p.get("pli");
+    if (plaRaw !== null && plaRaw.trim() !== "") {
+      patch.longBreakAfter = parseHandoffMinutes(plaRaw, current.longBreakAfter, LONG_BREAK_AFTER);
+    }
+    if (Object.keys(patch).length > 0) {
+      Pom.updateSettings(patch);
+    }
     if (!Pom.isActive()) {
       Pom.setActive(true);
       ctx?.buildPomUI();
     }
     const phase = p.get("pp");
-    const phaseElapsed = parseHandoffElapsed(p.get("pe"), 0);
-    const pomCount = parseHandoffCycles(p.get("pc"), 0);
+    const snap: Partial<Pom.PomodoroSnapshot> = { active: true };
     if (isPomPhase(phase)) {
-      Pom.restoreSessionSnapshot({ active: true, phase, phaseElapsed, pomCount });
+      snap.phase = phase;
     }
+    if (p.has("pe") && p.get("pe") !== null && p.get("pe")!.trim() !== "") {
+      snap.phaseElapsed = parseHandoffElapsed(p.get("pe"), 0);
+    }
+    if (p.has("pc") && p.get("pc") !== null && p.get("pc")!.trim() !== "") {
+      snap.pomCount = parseHandoffCycles(p.get("pc"), 0);
+    }
+    Pom.restoreSessionSnapshot(snap);
   }
-  if (p.get("ses") === "1") {
+
+  if (isSesHandoff) {
     const elapsed = parseHandoffElapsed(p.get("elapsed"), 0);
     sessionController.setElapsed(elapsed);
     (window as any).__sessionHandoffElapsed = elapsed;
     sessionController.startTimer();
-  } else if (p.get("start") === "1") {
+  } else if (isStartHandoff) {
     sessionController.startTimer();
   }
-  history.replaceState({}, "", location.pathname);
-  return true;
+
+  if (sessionTransferred) {
+    const task = p.get("task");
+    const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
+    if (task && focusInput) {
+      focusInput.value = task;
+    }
+  }
+
+  if (themeId || cm || sessionTransferred) {
+    history.replaceState({}, "", location.pathname);
+  }
+
+  return sessionTransferred;
 }
 
 // ── Animedoro mode ────────────────────────────────────────────────────
