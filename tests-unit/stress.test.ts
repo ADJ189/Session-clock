@@ -8,7 +8,7 @@ installDomStubs();
 import { EventScheduler } from "../src/audio/scheduler.ts";
 import { THEMES } from "../src/themes.ts";
 import { getThemeLogo } from "../src/app/themes/theme-logos.ts";
-import { safeGet, safeSet, safeJsonGet, safeJsonSet } from "../src/storage.ts";
+import { safeSet, safeJsonGet } from "../src/storage.ts";
 import { FrameMetricsTracker } from "../src/frame-metrics.ts";
 import { clampDelta, motionScale } from "../src/animation-clock.ts";
 import { normalizePreset, parseScene } from "../src/audio/settings.ts";
