@@ -114,23 +114,28 @@ export default defineConfig({
     outDir: "dist",
     // Chrome 87+, Firefox 78+, Safari 14+, Edge 88+
     target: ["es2020", "chrome87", "firefox78", "safari14", "edge88"],
-    // esbuild's minifier is 10-100x faster than terser for builds of this
-    // size, and its `drop` option covers the console/debugger stripping
-    // terser was previously used for — no functional difference, much
-    // quicker CI/CD builds on Cloudflare Pages.
-    minify: "esbuild",
+    // Vite 8 / Rolldown ship Oxc as the default minifier, so no separate
+    // esbuild dependency is needed. Oxc's `compress` options cover the
+    // console/debugger stripping terser was previously used for — no
+    // functional difference, much quicker CI/CD builds on Cloudflare Pages.
+    minify: "oxc",
     sourcemap: false,
     chunkSizeWarningLimit: 500,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         assetFileNames: "assets/[name]-[hash][extname]",
         chunkFileNames: "assets/[name]-[hash].js",
         entryFileNames: "assets/[name]-[hash].js",
+        // Passing an object here overrides Vite's boolean "oxc" shorthand,
+        // so mirror the full minification defaults (compress + mangle)
+        // while explicitly dropping console calls and debugger statements.
+        minify: {
+          compress: { dropConsole: true, dropDebugger: true },
+          mangle: true,
+          codegen: false,
+        },
       },
     },
-  },
-  esbuild: {
-    drop: ["console", "debugger"],
   },
   server: {
     port: 5173,

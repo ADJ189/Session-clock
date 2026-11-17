@@ -3517,6 +3517,22 @@ body.light-theme .ob-icon-badge {
   background: var(--clr-accent) !important;
   color: var(--clr-on-accent, #06110c) !important;
 }
+.int-load-error {
+  grid-column: 1 / -1;
+  padding: 24px;
+  text-align: center;
+  line-height: 1.6;
+  opacity: .85;
+}
+.int-load-error button {
+  margin-left: 6px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
 
 /* Features modals — theme aware */
 .template-card {
