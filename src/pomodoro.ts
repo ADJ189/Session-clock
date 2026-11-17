@@ -2,19 +2,28 @@ import type { PomodoroSettings, PomPhase } from "./types";
 import { safeJsonGet } from "./storage";
 import { p2 } from "./utils";
 import { playChime } from "./sound";
+import {
+  BREAK_MINUTES,
+  LONG_BREAK_AFTER,
+  LONG_BREAK_MINUTES,
+  WORK_MINUTES,
+  clampPomodoroSetting,
+  type MinuteBounds,
+} from "./pomodoro-limits";
 
 const CIRC = 339.3;
 const KEY = "sc_pom";
 const COUNT_KEY = "sc_pom_count";
 
-const defaults: PomodoroSettings = {
+export const POMODORO_DEFAULTS: Readonly<PomodoroSettings> = Object.freeze({
   workMins: 25,
   breakMins: 5,
   longBreakMins: 15,
   longBreakAfter: 4,
-};
+});
 
-let settings: PomodoroSettings = { ...defaults };
+const defaults = POMODORO_DEFAULTS;
+let settings: PomodoroSettings = { ...POMODORO_DEFAULTS };
 let active = false;
 let phase: PomPhase = "work";
 let phaseStart = 0;
@@ -66,11 +75,66 @@ function loadCounts(): Record<string, number> {
     : {};
 }
 
+/** Normalise a stored/partial settings object, discarding invalid values. */
+function sanitizeSettings(raw: unknown): PomodoroSettings {
+  const source =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return {
+    workMins: clampPomodoroSetting(
+      source.workMins,
+      defaults.workMins,
+      WORK_MINUTES,
+    ),
+    breakMins: clampPomodoroSetting(
+      source.breakMins,
+      defaults.breakMins,
+      BREAK_MINUTES,
+    ),
+    longBreakMins: clampPomodoroSetting(
+      source.longBreakMins,
+      defaults.longBreakMins,
+      LONG_BREAK_MINUTES,
+    ),
+    longBreakAfter: clampPomodoroSetting(
+      source.longBreakAfter,
+      defaults.longBreakAfter,
+      LONG_BREAK_AFTER,
+    ),
+  };
+}
+
+/**
+ * Decide whether one legacy field should replace the canonical value. Only a
+ * real number can migrate, and only while the canonical value is still its
+ * default (or already equals the recovered value, e.g. after an earlier load
+ * recovered it but failed to persist).
+ */
+function recoverSetting(
+  current: number,
+  raw: unknown,
+  fallback: number,
+  bounds: MinuteBounds,
+): { value: number; recovered: boolean } {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return { value: current, recovered: false };
+  }
+  const normalized = clampPomodoroSetting(raw, fallback, bounds);
+  if (normalized === fallback) return { value: current, recovered: false };
+  if (current === fallback || current === normalized) {
+    return { value: normalized, recovered: true };
+  }
+  return { value: current, recovered: false };
+}
+
 function load() {
+  let stored: unknown = {};
   try {
-    const s = JSON.parse(localStorage.getItem(KEY) || "{}");
-    Object.assign(settings, s);
-  } catch {}
+    stored = JSON.parse(localStorage.getItem(KEY) || "{}");
+  } catch {
+    // Corrupt canonical JSON falls back to defaults, but a valid legacy value
+    // may still be recoverable from the stray key below.
+  }
+  settings = sanitizeSettings(stored);
   // One-time migration: setWorkMins()/setBreakMins() used to write to a
   // different key ('sc_pom_settings') than load() ever read from ('sc_pom'),
   // so a custom duration set through those two (now-fixed) controls
@@ -91,24 +155,24 @@ function load() {
   try {
     const stray = localStorage.getItem("sc_pom_settings");
     if (stray) {
-      const s = JSON.parse(stray) as Partial<PomodoroSettings>;
+      const s = JSON.parse(stray) as Record<string, unknown>;
       let recovered = false;
-      if (
-        typeof s.workMins === "number" &&
-        s.workMins !== defaults.workMins &&
-        settings.workMins === defaults.workMins
-      ) {
-        settings.workMins = s.workMins;
-        recovered = true;
-      }
-      if (
-        typeof s.breakMins === "number" &&
-        s.breakMins !== defaults.breakMins &&
-        settings.breakMins === defaults.breakMins
-      ) {
-        settings.breakMins = s.breakMins;
-        recovered = true;
-      }
+      const work = recoverSetting(
+        settings.workMins,
+        s.workMins,
+        defaults.workMins,
+        WORK_MINUTES,
+      );
+      settings.workMins = work.value;
+      recovered = recovered || work.recovered;
+      const brk = recoverSetting(
+        settings.breakMins,
+        s.breakMins,
+        defaults.breakMins,
+        BREAK_MINUTES,
+      );
+      settings.breakMins = brk.value;
+      recovered = recovered || brk.recovered;
       // Only drop the stray key once its recovered value (if any) is
       // safely persisted under the canonical one. persist() reports success,
       // so a blocked/quota-full write leaves the stray key in place for
@@ -240,16 +304,6 @@ export function getSettings() {
   return { ...settings };
 }
 
-function clampMinutes(
-  value: number,
-  min: number,
-  max: number,
-  fallback: number,
-): number {
-  if (!Number.isFinite(value)) return fallback;
-  return Math.max(min, Math.min(max, Math.round(value)));
-}
-
 export function updateSettings(patch: Partial<PomodoroSettings>) {
   // All public settings writes use the same bounds as setWorkMins/setBreakMins,
   // so a restored snapshot or handoff URL cannot persist an impossible timer.
@@ -257,19 +311,35 @@ export function updateSettings(patch: Partial<PomodoroSettings>) {
     workMins:
       patch.workMins === undefined
         ? settings.workMins
-        : clampMinutes(patch.workMins, 1, 120, defaults.workMins),
+        : clampPomodoroSetting(
+            patch.workMins,
+            defaults.workMins,
+            WORK_MINUTES,
+          ),
     breakMins:
       patch.breakMins === undefined
         ? settings.breakMins
-        : clampMinutes(patch.breakMins, 1, 60, defaults.breakMins),
+        : clampPomodoroSetting(
+            patch.breakMins,
+            defaults.breakMins,
+            BREAK_MINUTES,
+          ),
     longBreakMins:
       patch.longBreakMins === undefined
         ? settings.longBreakMins
-        : clampMinutes(patch.longBreakMins, 1, 120, defaults.longBreakMins),
+        : clampPomodoroSetting(
+            patch.longBreakMins,
+            defaults.longBreakMins,
+            LONG_BREAK_MINUTES,
+          ),
     longBreakAfter:
       patch.longBreakAfter === undefined
         ? settings.longBreakAfter
-        : clampMinutes(patch.longBreakAfter, 1, 12, defaults.longBreakAfter),
+        : clampPomodoroSetting(
+            patch.longBreakAfter,
+            defaults.longBreakAfter,
+            LONG_BREAK_AFTER,
+          ),
   };
   persist();
 }
@@ -290,11 +360,19 @@ export function getRemainingSeconds(): number {
   return Math.max(0, Math.round((totalMs() - elapsed) / 1000));
 }
 export function setWorkMins(mins: number) {
-  settings.workMins = clampMinutes(mins, 1, 120, defaults.workMins);
+  settings.workMins = clampPomodoroSetting(
+    mins,
+    defaults.workMins,
+    WORK_MINUTES,
+  );
   persist();
 }
 export function setBreakMins(mins: number) {
-  settings.breakMins = clampMinutes(mins, 1, 60, defaults.breakMins);
+  settings.breakMins = clampPomodoroSetting(
+    mins,
+    defaults.breakMins,
+    BREAK_MINUTES,
+  );
   persist();
 }
 
@@ -321,14 +399,21 @@ export function restoreSessionSnapshot(snap: Partial<PomodoroSnapshot>): void {
   if (typeof snap.active === "boolean") {
     setActive(snap.active);
   }
-  if (snap.phase) {
+  if (
+    snap.phase === "work" ||
+    snap.phase === "break" ||
+    snap.phase === "longBreak"
+  ) {
     phase = snap.phase;
   }
-  if (typeof snap.pomCount === "number") {
-    pomCount = snap.pomCount;
+  if (typeof snap.pomCount === "number" && Number.isFinite(snap.pomCount)) {
+    pomCount = Math.max(0, Math.round(snap.pomCount));
   }
-  if (typeof snap.phaseElapsed === "number") {
-    phaseElapsedBeforeSegment = snap.phaseElapsed;
+  if (
+    typeof snap.phaseElapsed === "number" &&
+    Number.isFinite(snap.phaseElapsed)
+  ) {
+    phaseElapsedBeforeSegment = Math.max(0, Math.round(snap.phaseElapsed));
     phaseStart = 0;
   }
   const labels: Record<PomPhase, string> = {
