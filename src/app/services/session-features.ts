@@ -428,15 +428,13 @@ export function applyHandoffState(): boolean {
     sessionController.startTimer();
   }
 
-  if (sessionTransferred) {
-    const task = p.get("task");
-    const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
-    if (task && focusInput) {
-      focusInput.value = task;
-    }
+  const task = p.get("task");
+  const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
+  if (task && focusInput) {
+    focusInput.value = task;
   }
 
-  if (themeId || cm || sessionTransferred) {
+  if (themeId || cm || sessionTransferred || task) {
     history.replaceState({}, "", location.pathname);
   }
 
