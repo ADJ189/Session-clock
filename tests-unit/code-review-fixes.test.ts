@@ -232,4 +232,66 @@ test("Review Fix 7: modal-controller guards prevent opening overlay when panel f
   );
 });
 
+test("Review Fix 10: applyHandoffState applies task independently of sessionTransferred and keeps false return", async () => {
+  const fs = await import("node:fs");
+  const sessionFeaturesSrc = fs.readFileSync(
+    "src/app/services/session-features.ts",
+    "utf8",
+  );
+
+  // 1. Task must be extracted and applied independently of sessionTransferred
+  assert.ok(
+    !/if\s*\(\s*sessionTransferred\s*\)\s*\{[^}]*focusInput\.value\s*=\s*task/.test(
+      sessionFeaturesSrc,
+    ),
+    "task assignment must not be gated by sessionTransferred",
+  );
+
+  assert.ok(
+    /const task = p\.get\("task"\);[\s\S]*focusInput\.value = task;[\s\S]*return sessionTransferred;/.test(
+      sessionFeaturesSrc,
+    ),
+    "task must be applied and return value must remain sessionTransferred",
+  );
+
+  // 2. In sessionController.restoreSavedSession, when task was applied by handoff,
+  // existing focusInput value is not overwritten by saved session
+  const g = globalThis as any;
+  const mem = new Map<string, string>();
+  g.sessionStorage = {
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => mem.set(k, String(v)),
+    removeItem: (k: string) => mem.delete(k),
+    clear: () => mem.clear(),
+  };
+
+  const focusInputEl = {
+    value: "Handoff Task",
+    tagName: "INPUT",
+  };
+  const prevGetElementById = g.document.getElementById;
+  g.document.getElementById = (id: string) => {
+    if (id === "focusInput") return focusInputEl;
+    return null;
+  };
+
+  g.sessionStorage.setItem(
+    "sc_saved_session",
+    JSON.stringify({ task: "old-task", elapsed: 12000, running: false }),
+  );
+  g.location = { search: "" };
+  g.window.location = g.location;
+
+  sessionController.setElapsed(0);
+  sessionController.restoreSavedSession();
+
+  // Elapsed was restored from save
+  assert.strictEqual(sessionController.getElapsed(), 12000);
+  // But handoff task was preserved and not overwritten with old-task
+  assert.strictEqual(focusInputEl.value, "Handoff Task");
+
+  g.document.getElementById = prevGetElementById;
+});
+
+
 
