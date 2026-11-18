@@ -264,7 +264,9 @@ export class SessionController {
 
       const dom = this.getDom();
       if (typeof data.task === "string" && data.task && dom.focusInput) {
-        dom.focusInput.value = data.task;
+        if (!dom.focusInput.value) {
+          dom.focusInput.value = data.task;
+        }
         dom.focusInputWrap?.classList.add("visible");
       }
 
