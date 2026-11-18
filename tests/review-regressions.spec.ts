@@ -66,3 +66,47 @@ test("theme class replacement preserves the switching state", async ({ page }) =
   await runCommand(page, "Sunrise");
   await expect(page.locator("body")).toHaveAttribute("data-switch-state", "true");
 });
+
+test("paused non-Pomodoro QR handoff URL sets task without starting timer", async ({ page }) => {
+  await page.goto("/?theme=zenith&clock=digital&task=Document+Review");
+  await waitForBoot(page);
+
+  await expect(page.locator("#focusInput")).toHaveValue("Document Review");
+  await expect(page.locator("body")).not.toHaveClass(/session-running/);
+  await expect(page.locator("#btnStart")).toHaveText(/Begin/);
+  await expect.poll(() => page.evaluate(() => window.location.search)).toBe("");
+});
+
+test("opening QR handoff while paused with task generates URL with task and no ses or pom flags", async ({ page }) => {
+  await page.goto("/");
+  await waitForBoot(page);
+
+  await page.locator("#focusInput").fill("Plan");
+  await runCommand(page, "QR Handoff to Mobile");
+
+  await expect(page.locator("#qrOverlay")).toBeVisible();
+  const qrUrl = page.locator("#qrUrl");
+  await expect(qrUrl).toContainText("task=Plan");
+  const urlText = (await qrUrl.textContent()) || "";
+  expect(urlText).not.toContain("ses=1");
+  expect(urlText).not.toContain("pom=1");
+  expect(urlText).not.toContain("start=1");
+});
+
+test("task-only or theme-only URLs do not discard a saved session", async ({ page }) => {
+  await page.goto("/");
+  await waitForBoot(page);
+
+  await page.evaluate(() => {
+    sessionStorage.setItem(
+      "sc_saved_session",
+      JSON.stringify({ task: "Preserved Task", elapsed: 42_000, running: false })
+    );
+  });
+
+  await page.goto("/?theme=nord");
+  await waitForBoot(page);
+
+  await expect(page.locator("#focusInput")).toHaveValue("Preserved Task");
+  await expect(page.locator("#sessionTimer")).toHaveText(/00:00:42/);
+});
