@@ -826,10 +826,27 @@ export async function bootSessionClock(): Promise<void> {
     if (el) el.textContent = text;
   });
   const todaySessions = Log.focusLogCount();
-  Features.setStatusState("idle", { todaySessions });
+  // After handoff (or session restore), the session may already be running.
+  // Derive the initial UI state from the live controller rather than
+  // unconditionally assuming "idle", which left a running handoff with an
+  // idle button and status line.
+  const initialState: "running" | "idle" = sessionController.isRunning()
+    ? "running"
+    : "idle";
+  Features.setStatusState(initialState, {
+    todaySessions,
+    pomEnabled: Pom.isActive(),
+    pomPhase: Pom.getPhase(),
+    remainingSecs: Pom.getRemainingSeconds(),
+  });
   const btnStartEl = document.getElementById("btnStart") as HTMLButtonElement | null;
   if (btnStartEl) {
-    Features.updateButtonLabels("idle", "work", false, btnStartEl);
+    Features.updateButtonLabels(
+      initialState,
+      Pom.getPhase(),
+      Pom.isActive(),
+      btnStartEl,
+    );
   }
 
   const templatesContent = document.getElementById("templatesContent");
