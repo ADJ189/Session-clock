@@ -26,6 +26,11 @@ const FILE_TRACK_SNAPSHOT: Record<
   thunder: { crossfadeSec: 4, gainTrim: 0.8 },
   night: { crossfadeSec: 3, gainTrim: 0.85 },
   birds: { crossfadeSec: 3, gainTrim: 0.85 },
+  ocean: { crossfadeSec: 3, gainTrim: 0.9 },
+  snow: { crossfadeSec: 3, gainTrim: 0.85 },
+  roofrain: { crossfadeSec: 2, gainTrim: 0.9 },
+  keyboard: { crossfadeSec: 3, gainTrim: 0.85 },
+  campfire: { crossfadeSec: 3, gainTrim: 0.85 },
 };
 
 test("sound ids, names, icons and order are unchanged", () => {

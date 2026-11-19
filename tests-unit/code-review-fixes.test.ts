@@ -293,5 +293,32 @@ test("Review Fix 10: applyHandoffState applies task independently of sessionTran
   g.document.getElementById = prevGetElementById;
 });
 
+test("Review Fix 11: bootstrap initializes status line and start button from running state after handoff", async () => {
+  const fs = await import("node:fs");
+  const bootstrapSrc = fs.readFileSync("src/app/bootstrap.ts", "utf8");
+
+  // Verify that initialState checks sessionController.isRunning() instead of hardcoded 'idle'
+  assert.ok(
+    /const initialState:\s*"running"\s*\|\s*"idle"\s*=\s*sessionController\.isRunning\(\)\s*\?\s*"running"\s*:\s*"idle";/.test(
+      bootstrapSrc,
+    ),
+    "initialState must be derived from sessionController.isRunning()",
+  );
+
+  assert.ok(
+    /Features\.setStatusState\(initialState,\s*\{[^}]*pomEnabled:\s*Pom\.isActive\(\)/.test(
+      bootstrapSrc,
+    ),
+    "Features.setStatusState must use initialState and Pom state",
+  );
+
+  assert.ok(
+    /Features\.updateButtonLabels\(\s*initialState,\s*Pom\.getPhase\(\),\s*Pom\.isActive\(\),\s*btnStartEl,?\s*\)/.test(
+      bootstrapSrc,
+    ),
+    "Features.updateButtonLabels must use initialState and Pom state",
+  );
+});
+
 
 
