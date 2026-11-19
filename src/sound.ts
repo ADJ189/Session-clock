@@ -474,23 +474,27 @@ const MAKERS: Record<
   () => { out: AudioNode; nodes: AudioNode[] } | null
 > = {
   rain: () => makeFileTrack(ctx!, "rain", () => makeSynthTrack(ctx!, "rain")),
-  roofrain: () => makeSynthTrack(ctx!, "roofrain"),
+  roofrain: () =>
+    makeFileTrack(ctx!, "roofrain", () => makeSynthTrack(ctx!, "roofrain")),
   white: () => makeSynthTrack(ctx!, "white"),
   pink: () => makeSynthTrack(ctx!, "pink"),
   brown: () => makeSynthTrack(ctx!, "brown"),
   forest: () =>
     makeFileTrack(ctx!, "forest", () => makeSynthTrack(ctx!, "forest")),
   cafe: () => makeFileTrack(ctx!, "cafe", () => makeSynthTrack(ctx!, "cafe")),
-  ocean: () => makeSynthTrack(ctx!, "ocean"),
+  ocean: () =>
+    makeFileTrack(ctx!, "ocean", () => makeSynthTrack(ctx!, "ocean")),
   fire: () => makeFileTrack(ctx!, "fire", () => makeSynthTrack(ctx!, "fire")),
   wind: () => makeFileTrack(ctx!, "wind", () => makeSynthTrack(ctx!, "wind")),
-  snow: () => makeSynthTrack(ctx!, "snow"),
-  keyboard: () => makeSynthTrack(ctx!, "keyboard"),
+  snow: () => makeFileTrack(ctx!, "snow", () => makeSynthTrack(ctx!, "snow")),
+  keyboard: () =>
+    makeFileTrack(ctx!, "keyboard", () => makeSynthTrack(ctx!, "keyboard")),
   library: () =>
     makeFileTrack(ctx!, "library", () => makeSynthTrack(ctx!, "library")),
   airplane: () => makeSynthTrack(ctx!, "airplane"),
   spaceship: () => makeSynthTrack(ctx!, "spaceship"),
-  campfire: () => makeSynthTrack(ctx!, "campfire"),
+  campfire: () =>
+    makeFileTrack(ctx!, "campfire", () => makeSynthTrack(ctx!, "campfire")),
   waves: () =>
     makeFileTrack(ctx!, "waves", () => makeSynthTrack(ctx!, "waves")),
   river: () => makeFileTrack(ctx!, "river", () => makeSynthTrack(ctx!, "river")),
