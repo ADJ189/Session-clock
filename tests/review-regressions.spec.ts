@@ -110,3 +110,13 @@ test("task-only or theme-only URLs do not discard a saved session", async ({ pag
   await expect(page.locator("#focusInput")).toHaveValue("Preserved Task");
   await expect(page.locator("#sessionTimer")).toHaveText(/00:00:42/);
 });
+
+test("running handoff initializes button with pause action and active status", async ({ page }) => {
+  await page.goto("/?theme=zenith&clock=digital&start=1");
+  await waitForBoot(page);
+
+  await expect(page.locator("body")).toHaveClass(/session-running/);
+  await expect(page.locator("#btnStart")).toHaveText(/Take a Break|Pause/);
+  await expect(page.locator("#sessionStatusLine")).not.toContainText("Ready when you are");
+});
+
