@@ -29,6 +29,10 @@ env:
   # Empty on push/PR → tests the production bundle built from the commit.
   # Set on schedule/dispatch → tests the live site.
   PLAYWRIGHT_TEST_BASE_URL: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (inputs.base_url || vars.PROD_URL || 'https://accurate-time.pages.dev') || '' }}
+  # Prevent npm ci from downloading all three browser engines (~1.5GB across jobs).
+  # Each matrix job explicitly downloads only its target browser below.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+  NODE_OPTIONS: "--max-old-space-size=4096"
 
 jobs:
   e2e:
@@ -46,10 +50,10 @@ jobs:
           - { project: mobile-webkit-emulation,   browser: webkit }   # WebKit, iPhone 13
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
@@ -68,7 +72,7 @@ jobs:
 
       - name: Upload blob report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: blob-report-${{ matrix.project }}
           path: blob-report/
@@ -76,7 +80,7 @@ jobs:
 
       - name: Upload traces / screenshots / videos (failures only)
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: failure-artifacts-${{ matrix.project }}
           path: test-results/
@@ -90,19 +94,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            package.json
+            package-lock.json
+          sparse-checkout-cone-mode: false
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
+      # Only dependencies needed for report merging; skip browser binaries
       - name: Install dependencies
         run: npm ci
 
       - name: Download blob reports
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           path: all-blob-reports
           pattern: blob-report-*
@@ -112,7 +122,7 @@ jobs:
         run: npx playwright merge-reports --reporter html ./all-blob-reports
 
       - name: Upload HTML report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
