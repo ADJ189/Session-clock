@@ -32,9 +32,8 @@ export default defineConfig({
   // One retry in CI: enough to absorb a browser-start hiccup, low enough that
   // real intermittent bugs still show up as "flaky" in the report.
   retries: isCI ? 1 : 0,
-  // Two workers keeps a shared runner responsive; browser processes can
-  // exhaust memory long before all CPU cores are busy.
-  workers: 2,
+  // Two workers locally; default to 1 on CI unless overridden by --workers to avoid CPU starvation.
+  workers: isCI ? 1 : 2,
 
   // CI: each matrix job writes a blob; the `report` job merges them into ONE
   // HTML report. Locally: a normal HTML report.
@@ -58,7 +57,14 @@ export default defineConfig({
     },
     {
       name: "desktop-webkit",
-      use: { ...devices["Desktop Safari"] },
+      use: {
+        ...devices["Desktop Safari"],
+        // Desktop Safari defaults to deviceScaleFactor: 2 (Retina). On headless Linux CI
+        // without a GPU, software rasterizing 2560x1440 backing buffers consumes 4x more CPU.
+        // Overriding to 1x keeps the 1280x720 layout while saving ~75% raster workload.
+        deviceScaleFactor: 1,
+        actionTimeout: 15_000,
+      },
       grep: /@smoke/,
     },
     {

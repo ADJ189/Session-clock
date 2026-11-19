@@ -11,9 +11,10 @@ export const isCI = !!process.env.CI;
 
 export const sharedUse = {
   baseURL,
-  trace: "retain-on-failure",
+  // In CI, only record traces/videos on retry to eliminate continuous FFmpeg encoding and snapshot CPU overhead.
+  trace: isCI ? "on-first-retry" : "retain-on-failure",
   screenshot: "only-on-failure",
-  video: "retain-on-failure",
+  video: isCI ? "on-first-retry" : "retain-on-failure",
   actionTimeout: 10_000,
   navigationTimeout: 30_000,
   // A clean, fixed environment makes failures reproducible across engines.
