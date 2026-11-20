@@ -29,9 +29,6 @@ env:
   # Empty on push/PR → tests the production bundle built from the commit.
   # Set on schedule/dispatch → tests the live site.
   PLAYWRIGHT_TEST_BASE_URL: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (inputs.base_url || vars.PROD_URL || 'https://accurate-time.pages.dev') || '' }}
-  # Prevent npm ci from downloading all three browser engines (~1.5GB across jobs).
-  # Each matrix job explicitly downloads only its target browser below.
-  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
   NODE_OPTIONS: "--max-old-space-size=4096"
 
 jobs:
@@ -78,6 +75,7 @@ jobs:
         run: npx playwright install --with-deps ${{ matrix.browser }}
         env:
           DEBIAN_FRONTEND: noninteractive
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 0
 
       - name: Install ${{ matrix.browser }} OS dependencies only (cache hit)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
