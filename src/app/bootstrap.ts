@@ -826,13 +826,15 @@ export async function bootSessionClock(): Promise<void> {
     if (el) el.textContent = text;
   });
   const todaySessions = Log.focusLogCount();
-  // After handoff (or session restore), the session may already be running.
+  // After handoff (or session restore), the session may already be running or paused.
   // Derive the initial UI state from the live controller rather than
-  // unconditionally assuming "idle", which left a running handoff with an
+  // unconditionally assuming "idle", which left a running or paused restored session with an
   // idle button and status line.
-  const initialState: "running" | "idle" = sessionController.isRunning()
+  const initialState: "running" | "paused" | "idle" = sessionController.isRunning()
     ? "running"
-    : "idle";
+    : sessionController.getElapsed() > 0
+      ? "paused"
+      : "idle";
   Features.setStatusState(initialState, {
     todaySessions,
     pomEnabled: Pom.isActive(),
