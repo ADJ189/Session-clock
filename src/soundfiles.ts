@@ -189,29 +189,9 @@ export const FILE_TRACKS: Record<string, FileTrackConfig> = {
     gainTrim: 0.85,
     proceduralFallback: true,
   },
-  // ── Additional CDN-hosted recordings — previously synth-only, now
-  // preferring the jsDelivr recording with the procedural engine as
-  // fallback, matching the architecture of every other file-backed track.
-  ocean: {
-    url: "/opus/nature/ocean.opus",
-    crossfadeSec: 3,
-    gainTrim: 0.9,
-    proceduralFallback: true,
-  },
-  snow: {
-    url: "/opus/nature/snow.opus",
-    crossfadeSec: 3,
-    gainTrim: 0.85,
-    proceduralFallback: true,
-  },
-  roofrain: {
-    url: "/opus/rain/roofrain.opus",
-    crossfadeSec: 2,
-    gainTrim: 0.9,
-    proceduralFallback: true,
-  },
+  // ── Additional CDN-hosted recordings matching Ambient-Sounds catalog ──
   keyboard: {
-    url: "/opus/places/keyboard.opus",
+    url: "/opus/things/keyboard.opus",
     crossfadeSec: 3,
     gainTrim: 0.85,
     proceduralFallback: true,

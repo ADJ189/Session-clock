@@ -3,6 +3,7 @@
 
 import { safeGet } from "./storage";
 import { THEME_FAVS_KEY, THEME_RECENTS_KEY } from "./themekeys";
+import * as Sentry from "@sentry/svelte";
 
 // Complete map of every localStorage key and what it holds
 export interface DataCategory {
@@ -259,7 +260,29 @@ export function isIncognito() {
 }
 export function setIncognito(v: boolean) {
   _incognito = v;
-  if (!v) _memoryLog.length = 0; // clear on disable
+  if (!v) {
+    _memoryLog.length = 0; // clear on disable
+    try {
+      const client = Sentry.getClient();
+      if (client && safeGet("sc_privacy") !== "1") {
+        client.getOptions().enabled = true;
+      }
+    } catch {
+      // ignore
+    }
+  } else {
+    try {
+      const replay = Sentry.getReplay?.() as { stop?: () => void } | undefined;
+      replay?.stop?.();
+      const client = Sentry.getClient();
+      if (client) {
+        client.getOptions().enabled = false;
+      }
+      void Sentry.close();
+    } catch {
+      // ignore
+    }
+  }
 }
 
 // ── Auto-clear on close ───────────────────────────────────────────────

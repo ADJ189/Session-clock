@@ -11,7 +11,8 @@ let stackEl: HTMLElement | null = null;
 
 export function mountSideStack(container: HTMLElement): void {
   stackEl = document.createElement("div");
-  stackEl.className = "sc-side-stack";
+  stackEl.className = "sc-side-stack sentry-mask";
+  stackEl.setAttribute("data-sentry-mask", "true");
   container.appendChild(stackEl);
   refresh();
   if (refreshTimer) clearInterval(refreshTimer);
@@ -27,6 +28,8 @@ export function refreshNow(): Promise<void> {
 
 async function refresh(): Promise<void> {
   if (!stackEl) return;
+  stackEl.classList.add("sentry-mask");
+  stackEl.setAttribute("data-sentry-mask", "true");
   const cards: string[] = [];
 
   if (Integrations.isGithubConnected()) cards.push(await githubCard());
@@ -55,7 +58,7 @@ async function githubCard(): Promise<string> {
     .slice(0, 6)
     .map(
       (i) =>
-        `<div class="sc-side-item">${i.type === "pr" ? "🔀" : "⭕"}
+        `<div class="sc-side-item sentry-mask" data-sentry-mask="true">${i.type === "pr" ? "🔀" : "⭕"}
       <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a>
       <span class="sc-tag">${esc(i.repo)}</span>
     </div>`,
@@ -70,7 +73,7 @@ async function notionCard(): Promise<string> {
     .slice(0, 6)
     .map(
       (t) =>
-        `<div class="sc-side-item">${t.checked ? "✅" : "⬜"} ${esc(t.title)}
+        `<div class="sc-side-item sentry-mask" data-sentry-mask="true">${t.checked ? "✅" : "⬜"} ${esc(t.title)}
       ${t.priority ? `<span class="sc-tag">${esc(t.priority)}</span>` : ""}
     </div>`,
     )
@@ -82,7 +85,7 @@ async function todoistCard(): Promise<string> {
   const tasks = await Integrations.getTodoistTasks();
   const rows = tasks
     .slice(0, 6)
-    .map((t) => `<div class="sc-side-item">⬜ ${esc(t.content)}</div>`)
+    .map((t) => `<div class="sc-side-item sentry-mask" data-sentry-mask="true">⬜ ${esc(t.content)}</div>`)
     .join("");
   return card("✅", "Todoist", rows);
 }
@@ -92,7 +95,7 @@ async function calendarCard(): Promise<string> {
   const rows = events
     .map(
       (e) =>
-        `<div class="sc-side-item">🕓 ${esc(e.summary)}
+        `<div class="sc-side-item sentry-mask" data-sentry-mask="true">🕓 ${esc(e.summary)}
       <span class="sc-tag">${esc(Integrations.formatEventTime(e.start))}</span>
     </div>`,
     )
@@ -101,5 +104,5 @@ async function calendarCard(): Promise<string> {
 }
 
 function card(icon: string, title: string, rowsHtml: string): string {
-  return `<div class="sc-side-card"><h4>${icon} ${title}</h4>${rowsHtml || '<div class="sc-side-empty">Nothing due</div>'}</div>`;
+  return `<div class="sc-side-card sentry-mask" data-sentry-mask="true"><h4>${icon} ${title}</h4>${rowsHtml || '<div class="sc-side-empty">Nothing due</div>'}</div>`;
 }
