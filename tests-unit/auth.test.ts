@@ -491,4 +491,18 @@ test("public/_headers CSP allows Spotify OAuth and Web Playback SDK origins", as
   const frameSrc = getDirectiveSources("frame-src");
   // frame-src must allow Spotify SDK iframe
   assert.ok(frameSrc.has("https://sdk.scdn.co"), "sdk.scdn.co in frame-src");
+
+  // connect-src must allow Sentry ingest origin for error and replay telemetry
+  assert.ok(
+    connectSrc.has("https://*.ingest.us.sentry.io"),
+    "*.ingest.us.sentry.io in connect-src",
+  );
+  assert.ok(
+    connectSrc.has("https://*.ingest.sentry.io"),
+    "*.ingest.sentry.io in connect-src",
+  );
+
+  const workerSrc = getDirectiveSources("worker-src");
+  // worker-src must allow blob: for Replay compression worker
+  assert.ok(workerSrc.has("blob:"), "blob: in worker-src for Replay worker");
 });

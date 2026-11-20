@@ -293,16 +293,16 @@ test("Review Fix 10: applyHandoffState applies task independently of sessionTran
   g.document.getElementById = prevGetElementById;
 });
 
-test("Review Fix 11: bootstrap initializes status line and start button from running state after handoff", async () => {
+test("Review Fix 11: bootstrap initializes status line and start button from running or paused state after handoff", async () => {
   const fs = await import("node:fs");
   const bootstrapSrc = fs.readFileSync("src/app/bootstrap.ts", "utf8");
 
-  // Verify that initialState checks sessionController.isRunning() instead of hardcoded 'idle'
+  // Verify that initialState checks sessionController.isRunning() and getElapsed() > 0 instead of hardcoded 'idle'
   assert.ok(
-    /const initialState:\s*"running"\s*\|\s*"idle"\s*=\s*sessionController\.isRunning\(\)\s*\?\s*"running"\s*:\s*"idle";/.test(
+    /const initialState:\s*"running"\s*\|\s*"paused"\s*\|\s*"idle"\s*=\s*sessionController\.isRunning\(\)\s*\?\s*"running"\s*:\s*sessionController\.getElapsed\(\)\s*>\s*0\s*\?\s*"paused"\s*:\s*"idle";/.test(
       bootstrapSrc,
     ),
-    "initialState must be derived from sessionController.isRunning()",
+    "initialState must be derived from sessionController.isRunning() and sessionController.getElapsed()",
   );
 
   assert.ok(
@@ -319,6 +319,157 @@ test("Review Fix 11: bootstrap initializes status line and start button from run
     "Features.updateButtonLabels must use initialState and Pom state",
   );
 });
+
+test("Review Fix 12: Session Replay retains masking defaults, protects integration regions, and respects Privacy Mode", async () => {
+  const fs = await import("node:fs");
+  const mainSrc = fs.readFileSync("src/main.ts", "utf8");
+  const sidetasksSrc = fs.readFileSync("src/sidetasks.ts", "utf8");
+  const displaySrc = fs.readFileSync(
+    "src/app/services/display-service.ts",
+    "utf8",
+  );
+
+  // 1. main.ts configures Replay with default text masking and media blocking, plus explicit integration mask selectors
+  assert.ok(
+    /maskAllText:\s*true/.test(mainSrc),
+    "Replay must retain maskAllText: true",
+  );
+  assert.ok(
+    /blockAllMedia:\s*true/.test(mainSrc),
+    "Replay must retain blockAllMedia: true",
+  );
+  assert.ok(
+    /\.sc-side-stack/.test(mainSrc),
+    "Replay mask selectors must include .sc-side-stack",
+  );
+  assert.ok(
+    /beforeSend\(event\)\s*\{[\s\S]*sc_privacy[\s\S]*return null;/.test(mainSrc),
+    "main.ts beforeSend must drop events when sc_privacy is active",
+  );
+
+  // 2. sidetasks.ts explicitly marks integration container, cards and items with sentry-mask and data-sentry-mask
+  assert.ok(
+    /sc-side-stack sentry-mask/.test(sidetasksSrc),
+    "sidetasks mountSideStack must add sentry-mask class to stackEl",
+  );
+  assert.ok(
+    /data-sentry-mask/.test(sidetasksSrc),
+    "sidetasks must set data-sentry-mask on integration elements",
+  );
+  assert.ok(
+    /sc-side-card sentry-mask/.test(sidetasksSrc),
+    "sidetasks card() must include sentry-mask class",
+  );
+
+  // 3. display-service.ts stops Replay, closes/disables telemetry when privacyMode is active, and resumes when off
+  assert.ok(
+    /replay\?\.stop\?\.?\(/.test(displaySrc),
+    "display-service togglePrivacy must call replay?.stop?.() when privacy is active",
+  );
+  assert.ok(
+    /client\.getOptions\(\)\.enabled\s*=\s*false/.test(displaySrc),
+    "display-service togglePrivacy must disable client options when privacy is active",
+  );
+  assert.ok(
+    /client\.getOptions\(\)\.enabled\s*=\s*true/.test(displaySrc),
+    "display-service togglePrivacy must re-enable client options when privacy is toggled off",
+  );
+});
+
+test("Review Fix 13: Content Security Policy permits Sentry ingest origins and Replay blob worker", async () => {
+  const fs = await import("node:fs");
+  const headers = fs.readFileSync("public/_headers", "utf8");
+  const cspLine = headers
+    .split("\n")
+    .find((l) => l.trim().startsWith("Content-Security-Policy:"));
+  assert.ok(cspLine, "Content-Security-Policy line must exist");
+
+  // connect-src allows both us and global ingest endpoints
+  assert.ok(
+    cspLine.includes("https://*.ingest.us.sentry.io"),
+    "connect-src must allow https://*.ingest.us.sentry.io",
+  );
+  assert.ok(
+    cspLine.includes("https://*.ingest.sentry.io"),
+    "connect-src must allow https://*.ingest.sentry.io",
+  );
+
+  // worker-src allows blob: for Replay compression worker
+  assert.ok(
+    /worker-src[^;]*blob:/.test(cspLine),
+    "worker-src must allow blob: for Replay compression worker",
+  );
+});
+
+test("Review Fix 14: Keyboard recording URL matches Ambient-Sounds catalog and ocean, snow, roofrain are synth-only", async () => {
+  const fs = await import("node:fs");
+  const { FILE_TRACKS } = await import("../src/soundfiles.ts");
+  const soundSrc = fs.readFileSync("src/sound.ts", "utf8");
+
+  // 1. keyboard uses /opus/things/keyboard.opus
+  assert.ok("keyboard" in FILE_TRACKS, "keyboard must be in FILE_TRACKS");
+  assert.strictEqual(
+    FILE_TRACKS["keyboard"]!.url,
+    "/opus/things/keyboard.opus",
+    "keyboard URL must match Ambient-Sounds catalog path",
+  );
+
+  // 2. ocean, snow, and roofrain are NOT in FILE_TRACKS
+  assert.strictEqual(
+    "ocean" in FILE_TRACKS,
+    false,
+    "ocean must not be in FILE_TRACKS (synth-only)",
+  );
+  assert.strictEqual(
+    "snow" in FILE_TRACKS,
+    false,
+    "snow must not be in FILE_TRACKS (synth-only)",
+  );
+  assert.strictEqual(
+    "roofrain" in FILE_TRACKS,
+    false,
+    "roofrain must not be in FILE_TRACKS (synth-only)",
+  );
+
+  // 3. sound.ts MAKERS dispatches ocean, snow, roofrain directly to makeSynthTrack
+  assert.ok(
+    /roofrain:\s*\(\)\s*=>\s*makeSynthTrack\(ctx!,\s*"roofrain"\)/.test(soundSrc),
+    "roofrain must use makeSynthTrack",
+  );
+  assert.ok(
+    /ocean:\s*\(\)\s*=>\s*makeSynthTrack\(ctx!,\s*"ocean"\)/.test(soundSrc),
+    "ocean must use makeSynthTrack",
+  );
+  assert.ok(
+    /snow:\s*\(\)\s*=>\s*makeSynthTrack\(ctx!,\s*"snow"\)/.test(soundSrc),
+    "snow must use makeSynthTrack",
+  );
+});
+
+test("Review Fix 15: Startup rejection handler reports boot failure to Sentry and preserves UI error handling", async () => {
+  const fs = await import("node:fs");
+  const mainSrc = fs.readFileSync("src/main.ts", "utf8");
+
+  assert.ok(
+    /function handleBootFailure\(err:\s*unknown\)\s*\{[\s\S]*Sentry\.captureException\(err\);/.test(
+      mainSrc,
+    ),
+    "handleBootFailure must call Sentry.captureException(err)",
+  );
+  assert.ok(
+    /readiness\.bootStage\s*=\s*"boot-failed";/.test(mainSrc),
+    "handleBootFailure must maintain readiness.bootStage",
+  );
+  assert.ok(
+    /window\.__bootStage\s*=\s*"boot-failed";/.test(mainSrc),
+    "handleBootFailure must maintain window.__bootStage",
+  );
+  assert.ok(
+    /window\.__scBootFail/.test(mainSrc),
+    "handleBootFailure must invoke window.__scBootFail if defined",
+  );
+});
+
 
 
 
