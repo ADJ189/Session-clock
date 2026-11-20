@@ -10,6 +10,7 @@ import { invalidateCache } from "../../renderer";
 import { CAPS, subscribeOrientation } from "../../platform";
 import { stopWeather, initWeather, getWeatherOverlay } from "../../weather";
 import { syncAnalytics, unloadAnalytics } from "../../analytics";
+import * as Sentry from "@sentry/svelte";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -137,8 +138,27 @@ export function togglePrivacy() {
     }
     onSaveSessionState();
     unloadAnalytics();
-    showToast("🔒 Privacy Mode: fonts, weather & analytics disabled");
+    try {
+      const replay = Sentry.getReplay?.() as { stop?: () => void } | undefined;
+      replay?.stop?.();
+      const client = Sentry.getClient();
+      if (client) {
+        client.getOptions().enabled = false;
+      }
+      void Sentry.close();
+    } catch {
+      // ignore
+    }
+    showToast("🔒 Privacy Mode: fonts, weather, analytics & telemetry disabled");
   } else {
+    try {
+      const client = Sentry.getClient();
+      if (client) {
+        client.getOptions().enabled = true;
+      }
+    } catch {
+      // ignore
+    }
     syncAnalytics(false);
     void initWeather(
       $("weatherIcon"),

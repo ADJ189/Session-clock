@@ -50,7 +50,7 @@
 <SettingsSection title="Privacy Mode">
   <SettingsRow
     label="Privacy Mode"
-    description="Disables weather, Google Fonts and analytics — local only"
+    description="Disables weather, Google Fonts, analytics, telemetry and error reporting — local only"
     btnId="togglePrivacyS"
     checked={privacyMode}
     badge={privacyMode ? "On" : undefined}
