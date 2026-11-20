@@ -6,9 +6,20 @@ import * as APIs from "../../apis";
 import { showToast } from "../ui/toast";
 import { p2 } from "../../utils";
 import { THEME_BY_ID } from "../../themes";
-import type { Theme } from "../../types";
+import type { Theme, PomodoroSettings } from "../../types";
 import type { ClockMode } from "../controllers/clock-controller";
 import { sessionController } from "../controllers/session-controller";
+import { setApplyingRemoteTheme } from "../renderer/canvas-engine";
+import {
+  BREAK_MINUTES,
+  WORK_MINUTES,
+  LONG_BREAK_MINUTES,
+  LONG_BREAK_AFTER,
+  isPomPhase,
+  parseHandoffCycles,
+  parseHandoffElapsed,
+  parseHandoffMinutes,
+} from "../utils/handoff";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -18,6 +29,7 @@ let bc: BroadcastChannel | null =
     : null;
 
 export function bcBroadcast(type: string, payload: Record<string, unknown> = {}) {
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin
   bc?.postMessage({ type, ...payload });
 }
 
@@ -45,9 +57,17 @@ export function initSessionFeatures(context: SessionFeaturesContext) {
 
   if (bc) {
     bc.addEventListener("message", (e: MessageEvent) => {
-      const { type } = e.data;
-      if (type === "theme" && e.data.id !== ctx.getCurrentTheme()?.id) {
-        ctx.applyTheme(THEME_BY_ID[e.data.id] ?? ctx.getCurrentTheme(), true);
+      const { type } = e.data ?? {};
+      if (type === "theme" && e.data?.id && e.data.id !== ctx.getCurrentTheme()?.id) {
+        const targetTheme = THEME_BY_ID[e.data.id];
+        if (targetTheme) {
+          setApplyingRemoteTheme(true);
+          try {
+            ctx.applyTheme(targetTheme, true);
+          } finally {
+            setApplyingRemoteTheme(false);
+          }
+        }
       }
       if (type === "session") {
         if (e.data.running && !ctx.isSessionRunning()) ctx.startSessionTimer();
@@ -299,6 +319,13 @@ export async function openQRHandoff() {
     const s = Pom.getSettings();
     state.pw = String(s.workMins);
     state.pb = String(s.breakMins);
+    state.plb = String(s.longBreakMins);
+    state.pla = String(s.longBreakAfter);
+    // Preserve where the receiver should resume, not just the durations.
+    const snap = Pom.getSessionSnapshot();
+    state.pp = snap.phase;
+    state.pe = String(Math.round(snap.phaseElapsed));
+    state.pc = String(snap.pomCount);
   }
   const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
   if (focusInput?.value.trim()) {
@@ -307,6 +334,7 @@ export async function openQRHandoff() {
 
   const params = new URLSearchParams(state).toString();
   const url = `${location.origin}${location.pathname}?${params}`;
+  const urlBytes = new TextEncoder().encode(url).length;
 
   if (urlEl) {
     urlEl.textContent = url.length > 60 ? url.slice(0, 57) + "…" : url;
@@ -314,21 +342,33 @@ export async function openQRHandoff() {
 
   const fg = currentTheme.text;
   const bg = currentTheme.baseBg[1] ?? currentTheme.baseBg[0];
-  const { drawQR } = await import("../../qr");
-  drawQR(canvas, url, fg, bg);
+  let encoded = false;
+  let maxBytes = 0;
+  try {
+    const { drawQR, QR_MAX_BYTES } = await import("../../qr");
+    maxBytes = QR_MAX_BYTES;
+    encoded = drawQR(canvas, url, fg, bg);
+  } catch (error) {
+    console.error("QR handoff generation failed:", error);
+  }
 
-  if (label)
-    label.textContent =
-      url.length > 77
-        ? "URL too long for QR — shorten task name"
-        : "Scan to continue this session on another device";
+  if (!encoded) {
+    canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (label) {
+    label.textContent = encoded
+      ? "Scan to continue this session on another device"
+      : maxBytes > 0 && urlBytes > maxBytes
+        ? `URL too long for QR (${urlBytes}/${maxBytes} bytes) — shorten task name`
+        : "Couldn't create the QR code — please try again";
+  }
 
   ctx.openModal("qrOverlay");
 }
 
-export function applyHandoffState() {
+export function applyHandoffState(): boolean {
   const p = new URLSearchParams(location.search);
-  if (!p.has("theme") && !p.has("ses") && !p.has("start")) return;
   const themeId = p.get("theme");
   if (themeId && THEME_BY_ID[themeId]) ctx.applyTheme(THEME_BY_ID[themeId], true);
   const cm = p.get("clock") as ClockMode | null;
@@ -336,26 +376,69 @@ export function applyHandoffState() {
     ctx.setClockMode(cm);
     ctx.updateClockCanvas();
   }
+
+  const isPomHandoff = p.get("pom") === "1";
+  const isSesHandoff = p.get("ses") === "1";
+  const isStartHandoff = p.get("start") === "1";
+  const sessionTransferred = isPomHandoff || isSesHandoff || isStartHandoff;
+
+  if (isPomHandoff) {
+    const current = Pom.getSettings();
+    const patch: Partial<PomodoroSettings> = {};
+    if (p.has("pw") && p.get("pw") !== null && p.get("pw")!.trim() !== "") {
+      patch.workMins = parseHandoffMinutes(p.get("pw"), current.workMins, WORK_MINUTES);
+    }
+    if (p.has("pb") && p.get("pb") !== null && p.get("pb")!.trim() !== "") {
+      patch.breakMins = parseHandoffMinutes(p.get("pb"), current.breakMins, BREAK_MINUTES);
+    }
+    if (p.has("plb") && p.get("plb") !== null && p.get("plb")!.trim() !== "") {
+      patch.longBreakMins = parseHandoffMinutes(p.get("plb"), current.longBreakMins, LONG_BREAK_MINUTES);
+    }
+    const plaRaw = p.get("pla") ?? p.get("pli");
+    if (plaRaw !== null && plaRaw.trim() !== "") {
+      patch.longBreakAfter = parseHandoffMinutes(plaRaw, current.longBreakAfter, LONG_BREAK_AFTER);
+    }
+    if (Object.keys(patch).length > 0) {
+      Pom.updateSettings(patch);
+    }
+    if (!Pom.isActive()) {
+      Pom.setActive(true);
+      ctx?.buildPomUI();
+    }
+    const phase = p.get("pp");
+    const snap: Partial<Pom.PomodoroSnapshot> = { active: true };
+    if (isPomPhase(phase)) {
+      snap.phase = phase;
+    }
+    if (p.has("pe") && p.get("pe") !== null && p.get("pe")!.trim() !== "") {
+      snap.phaseElapsed = parseHandoffElapsed(p.get("pe"), 0);
+    }
+    if (p.has("pc") && p.get("pc") !== null && p.get("pc")!.trim() !== "") {
+      snap.pomCount = parseHandoffCycles(p.get("pc"), 0);
+    }
+    Pom.restoreSessionSnapshot(snap);
+  }
+
+  if (isSesHandoff) {
+    const elapsed = parseHandoffElapsed(p.get("elapsed"), 0);
+    sessionController.setElapsed(elapsed);
+    (window as any).__sessionHandoffElapsed = elapsed;
+    sessionController.startTimer();
+  } else if (isStartHandoff) {
+    sessionController.startTimer();
+  }
+
   const task = p.get("task");
   const focusInput = document.getElementById("focusInput") as HTMLInputElement | null;
   if (task && focusInput) {
     focusInput.value = task;
   }
-  if (p.get("ses") === "1") {
-    const elapsed = Number.parseInt(p.get("elapsed") ?? "0");
-    sessionController.setElapsed(Number.isNaN(elapsed) ? 0 : elapsed);
-    (window as any).__sessionHandoffElapsed = elapsed;
-    setTimeout(() => {
-      const btn = document.getElementById("btnStart");
-      btn?.click();
-    }, 800);
-  } else if (p.get("start") === "1") {
-    setTimeout(() => {
-      const btn = document.getElementById("btnStart");
-      btn?.click();
-    }, 800);
+
+  if (themeId || cm || sessionTransferred || task) {
+    history.replaceState({}, "", location.pathname);
   }
-  history.replaceState({}, "", location.pathname);
+
+  return sessionTransferred;
 }
 
 // ── Animedoro mode ────────────────────────────────────────────────────

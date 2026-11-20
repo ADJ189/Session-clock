@@ -46,6 +46,8 @@
   }
 </script>
 
+<svelte:window onkeydown={onKeydown} />
+
 <div
   class="sc-overlay {open ? 'open' : ''}"
   {id}
@@ -53,6 +55,7 @@
   onkeydown={onKeydown}
   role="dialog"
   aria-modal="true"
+  aria-hidden={!open}
   aria-labelledby={titleId}
   tabindex="-1"
 >
@@ -72,6 +75,7 @@
       <div class="modal-header-actions">
         {#if showMinimize}
           <button
+            type="button"
             class="modal-minimize"
             id={minimizeId}
             aria-label="Minimize"
@@ -82,6 +86,7 @@
           </button>
         {/if}
         <button
+          type="button"
           class="modal-close"
           id={closeId}
           aria-label="Close"

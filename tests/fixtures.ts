@@ -1,4 +1,6 @@
 import { test as base, expect } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
 
 /**
  * Shared fixtures.
@@ -61,6 +63,20 @@ export const test = base.extend<Fixtures>({
       (url) => /^https?:$/.test(url.protocol) && url.origin !== origin,
       (route) => route.abort(),
     );
+
+    if (origin) {
+      await context.route(`${origin}/**`, (route) => {
+        const url = new URL(route.request().url());
+        let pathname = url.pathname;
+        if (pathname === "/" || pathname === "") pathname = "/index.html";
+        const cleanPath = pathname.startsWith("/") ? pathname.slice(1) : pathname;
+        const filePath = path.join(process.cwd(), "dist", cleanPath);
+        if (fs.existsSync(filePath)) {
+          return route.fulfill({ path: filePath });
+        }
+        return route.continue();
+      });
+    }
 
     if (!firstRun) {
       await page.addInitScript(() => {

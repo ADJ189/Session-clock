@@ -28,6 +28,24 @@ Session Clock uses standard three-part semantic versioning (`MAJOR.MINOR.PATCH`)
 - **Architecture checker no longer uses regex sanitization.** `scripts/check-svelte-boundaries.mjs` parses tags directly and skips comments plus raw-text element bodies (`script`, `style`, `textarea`, `title`), clearing the CodeQL incomplete multi-character sanitization alert while still detecting real duplicate IDs. Added unit coverage for raw-text bodies.
 - **Fixed-step animation accumulator precision.** Added epsilon tolerance to `FixedStepAccumulator.advance()` to prevent early loop exits caused by floating-point precision loss.
 
+## [2.0.5] — 2026-11-15
+
+### Security & Hardening
+- **Strict Content Security Policy (CSP)**: Added comprehensive CSP to `public/_headers` restricting script, connect, style, font, and frame origins.
+- **HSTS Enforcement**: Added `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` in `public/_headers`.
+- **Modernized Security Headers**: Replaced legacy `X-XSS-Protection: 1; mode=block` with `X-XSS-Protection: 0`.
+- **Pages Functions Route Validation**: Added route verification and path traversal guards to `functions/api/notion/[[path]].ts` and request bounds in `functions/api/oauth/token.ts`.
+
+### Dependencies & Tooling
+- Bumped `@playwright/test` from `1.64.1` to `1.65.0`.
+- Bumped `oxlint` from `1.89.0` to `1.91.0`.
+- Evaluated and pinned `@sveltejs/vite-plugin-svelte` to stable `6.2.4` alongside Vite `6.4.5` to prevent breaking peer requirement on Vite 8 / Rolldown.
+- Added Deno-native stress testing task (`deno task test:stress`) and unified verification (`deno task check:all`).
+
+### Added
+- **Stress & Resilience Suite (`tests-unit/stress.test.ts`)**: Automated stress tests for audio graph saturation, 103-theme cycling, storage quota handling, and frame metrics under high refresh rate / extreme stall scenarios.
+- **Display & Browser Matrix Coverage (`tests/matrix.spec.ts`)**: Comprehensive cross-resolution, cross-locale, and cross-browser configuration matrix.
+
 ## [2.0.0] — 2026-11-04
 
 Session Clock 2.0.0 marks the launch of the V2 generation: introducing a searchable Theme Library, floating action dock, calmer clock defaults, a redesigned Center-mode session panel, and comprehensive audio engine, OAuth integration, and platform stability fixes.

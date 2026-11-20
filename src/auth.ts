@@ -200,6 +200,8 @@ const OAUTH_REDIRECT_PARAMS = [
   "session_state",
   "iss",
   "authuser",
+  "scope",
+  "prompt",
 ] as const;
 
 function readSession(key: string): string | null {
@@ -525,9 +527,11 @@ export async function oauthHandleCallback(): Promise<
       );
     }
 
+    const existing = loadCredentials(pending.provider) ?? {};
     saveCredentials(pending.provider, {
+      ...existing,
       token,
-      refresh: stringField(data, "refresh_token"),
+      refresh: stringField(data, "refresh_token") || existing.refresh || "",
       expires: expiryFrom(data.expires_in),
     });
     cleanUpOAuthRedirect();
@@ -542,9 +546,14 @@ export async function oauthHandleCallback(): Promise<
 // ─────────────────────────────────────────────────────────────────────
 // Shared refresh path for every provider that issues refresh tokens
 // (Spotify, Linear, Google; GitHub/Notion/Todoist tokens don't expire).
+const _refreshInFlight = new Map<string, Promise<string | null>>();
+
 export async function ensureFreshToken(
   provider: string,
 ): Promise<string | null> {
+  const existingPromise = _refreshInFlight.get(provider);
+  if (existingPromise) return existingPromise;
+
   const creds = loadCredentials(provider);
   if (!creds?.token) return null;
   if (!creds.expires || Date.now() < Number(creds.expires) - 60_000)
@@ -560,38 +569,54 @@ export async function ensureFreshToken(
   const cfg = OAUTH_PROVIDERS[provider];
   if (!cfg) return null;
   const clientId = localStorage.getItem(cfg.clientIdKey) ?? "";
+
+  const refreshPromise = (async (): Promise<string | null> => {
+    try {
+      const res = cfg.direct
+        ? await fetch(cfg.tokenUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              grant_type: "refresh_token",
+              refresh_token: creds.refresh,
+              client_id: clientId,
+            }),
+          })
+        : await fetch(OAUTH_PROXY, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider,
+              grant_type: "refresh_token",
+              refresh_token: creds.refresh,
+            }),
+          });
+      if (!res.ok) {
+        if (res.status === 400 || res.status === 401) {
+          clearCredentials(provider);
+        }
+        return null;
+      }
+      const data = await readJson(res);
+      const token = stringField(data, "access_token");
+      if (!token) return null;
+      saveCredentials(provider, {
+        ...creds,
+        token,
+        refresh: stringField(data, "refresh_token") || creds.refresh,
+        // 1h default: a refreshed token must never be recorded as non-expiring.
+        expires: expiryFrom(data?.expires_in, 3600),
+      });
+      return token;
+    } catch {
+      return null;
+    }
+  })();
+
+  _refreshInFlight.set(provider, refreshPromise);
   try {
-    const res = cfg.direct
-      ? await fetch(cfg.tokenUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: creds.refresh,
-            client_id: clientId,
-          }),
-        })
-      : await fetch(OAUTH_PROXY, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider,
-            grant_type: "refresh_token",
-            refresh_token: creds.refresh,
-          }),
-        });
-    if (!res.ok) return null;
-    const data = await readJson(res);
-    const token = stringField(data, "access_token");
-    if (!token) return null;
-    saveCredentials(provider, {
-      token,
-      refresh: stringField(data, "refresh_token") || creds.refresh,
-      // 1h default: a refreshed token must never be recorded as non-expiring.
-      expires: expiryFrom(data?.expires_in, 3600),
-    });
-    return token;
-  } catch {
-    return null;
+    return await refreshPromise;
+  } finally {
+    _refreshInFlight.delete(provider);
   }
 }

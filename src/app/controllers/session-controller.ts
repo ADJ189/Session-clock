@@ -239,7 +239,23 @@ export class SessionController {
   }
 
   restoreSavedSession(): void {
+    if (this.sessionRunning) return;
     try {
+      const search =
+        typeof window !== "undefined" && window.location?.search
+          ? window.location.search
+          : "";
+      if (search) {
+        const p = new URLSearchParams(search);
+        if (
+          p.get("ses") === "1" ||
+          p.get("start") === "1" ||
+          p.get("pom") === "1"
+        ) {
+          sessionStorage.removeItem("sc_saved_session");
+          return;
+        }
+      }
       const raw = sessionStorage.getItem("sc_saved_session");
       if (!raw) return;
       sessionStorage.removeItem("sc_saved_session");
@@ -248,7 +264,9 @@ export class SessionController {
 
       const dom = this.getDom();
       if (typeof data.task === "string" && data.task && dom.focusInput) {
-        dom.focusInput.value = data.task;
+        if (!dom.focusInput.value) {
+          dom.focusInput.value = data.task;
+        }
         dom.focusInputWrap?.classList.add("visible");
       }
 

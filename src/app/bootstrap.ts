@@ -27,6 +27,7 @@ import * as MusicDock from "../musicdock";
 import * as SideTasks from "../sidetasks";
 import * as ThemeLib from "../themelib";
 import { THEMES, THEME_BY_ID } from "../themes";
+import { safeGet, safeSet } from "../storage";
 import { resize } from "../renderer";
 import {
   initWeather,
@@ -112,7 +113,7 @@ import {
 import { initWallpaperDrop } from "./services/wallpaper-service";
 import { startInfoStrip } from "./services/info-strip";
 
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.0.5";
 const SPLASH_MIN_MS = 1000;
 const SPLASH_FONT_GRACE_MS = 800;
 
@@ -231,7 +232,9 @@ function finishHideSplash(el: HTMLElement, t0: number) {
     }
 
     el.classList.add("splash-hide");
-    void Motion.splashExit(el, el.querySelector(".splash-mark-card"));
+    void Motion.splashExit(el, el.querySelector(".splash-mark-card")).catch(
+      () => {},
+    );
     el.addEventListener("transitionend", () => el.remove(), { once: true });
     setTimeout(() => el.remove(), 600);
   }, wait);
@@ -270,6 +273,31 @@ function wireIntegrationsMinimize(): void {
   });
 }
 
+/** Fire-and-forget refresh; the panel builder handles its own load failures,
+ *  and this catch keeps an unexpected rejection from becoming unhandled. */
+function refreshIntegrationsPanel(target: HTMLElement): void {
+  void Integrations.buildIntegrationsPanel(target, { showToast }).catch(
+    (error) => {
+      console.error("Integrations panel failed:", error);
+    },
+  );
+}
+
+/** Async UI openers are wired into void-returning callbacks (settings,
+ *  command palette, inline HTML), so attach a rejection handler here: a
+ *  failed chunk load must never surface as an unhandled promise rejection. */
+async function openDetached(
+  label: string,
+  task: Promise<unknown>,
+): Promise<void> {
+  try {
+    await task;
+  } catch (error) {
+    console.error(`${label} failed to open:`, error);
+    showToast("Couldn't load this page. Please try again.");
+  }
+}
+
 export async function bootSessionClock(): Promise<void> {
   // 1. Platform classes & haptics
   applyPlatformClasses();
@@ -301,7 +329,7 @@ export async function bootSessionClock(): Promise<void> {
   window.__scMarkAudioReady = markAudioReady;
   document.documentElement.classList.toggle(
     "force-no-backdrop-filter",
-    localStorage.getItem("sc_force_no_blur") === "1",
+    safeGet("sc_force_no_blur") === "1",
   );
 
   // 3. Audio autoplay-policy unlock
@@ -388,7 +416,11 @@ export async function bootSessionClock(): Promise<void> {
       }
       Features.setStatusState(
         sessionController.isRunning() ? "running" : "idle",
-        { pomEnabled: Pom.isActive() },
+        {
+          pomEnabled: Pom.isActive(),
+          pomPhase: Pom.getPhase(),
+          remainingSecs: Pom.getRemainingSeconds(),
+        },
       );
       showToast(text, 3500);
     },
@@ -468,11 +500,11 @@ export async function bootSessionClock(): Promise<void> {
     openModal: (id) => openModal(id),
     showToast: (msg, dur) => showToast(msg, dur),
     openThemeBuilder: () => openThemeBuilder(),
-    openQRHandoff: () => openQRHandoff(),
+    openQRHandoff: () => openDetached("QR handoff", openQRHandoff()),
     startAnimedoro: () => startAnimedoro(),
     toggleKiosk: () => toggleKiosk(),
     togglePresent: () => togglePresent(),
-    openLanguage: () => openLanguageModal(),
+    openLanguage: () => openDetached("Language panel", openLanguageModal()),
     openIntegrations: () => openIntegrations(),
     openMixer: () => {
       soundMixerController.notify();
@@ -482,8 +514,8 @@ export async function bootSessionClock(): Promise<void> {
       buildPomUI();
       openModal("pomOverlay");
     },
-    openDataPanel: () => openDataPanel(),
-    openLegalPanel: (doc) => openLegalPanel(doc),
+    openDataPanel: () => openDetached("Data panel", openDataPanel()),
+    openLegalPanel: (doc) => openDetached("Legal panel", openLegalPanel(doc)),
     getCurrentTheme: () => getCurrentTheme(),
 
     getClockMode: () => clockController.getMode(),
@@ -516,9 +548,9 @@ export async function bootSessionClock(): Promise<void> {
       (window as unknown as { __scDiagnosticsText?: () => string })
         .__scDiagnosticsText?.() ?? "",
     wireIdleListeners: (n) => wireIdleListeners(n),
-    isBreathingBreakEnabled: () => localStorage.getItem("sc_breathing_break") !== "0",
+    isBreathingBreakEnabled: () => safeGet("sc_breathing_break") !== "0",
     setBreathingBreakEnabled: (val) => {
-      localStorage.setItem("sc_breathing_break", val ? "1" : "0");
+      safeSet("sc_breathing_break", val ? "1" : "0");
     },
   });
 
@@ -591,10 +623,11 @@ export async function bootSessionClock(): Promise<void> {
     closeModal: (id) => closeModal(id),
     openSettings: (tab) => openSettings(tab),
     openThemeBuilder: () => openThemeBuilder(),
-    openQRHandoff: () => openQRHandoff(),
-    openDataPanel: () => openDataPanel(),
-    openLegalPanel: (doc) => openLegalPanel(doc),
-    openLanguageModal: () => openLanguageModal(),
+    openQRHandoff: () => openDetached("QR handoff", openQRHandoff()),
+    openDataPanel: () => openDetached("Data panel", openDataPanel()),
+    openLegalPanel: (doc) => openDetached("Legal panel", openLegalPanel(doc)),
+    openLanguageModal: () =>
+      openDetached("Language panel", openLanguageModal()),
     openIntegrations: () => openIntegrations(),
     applyTheme: (theme, instant) => applyTheme(theme, instant),
     setClockMode: (mode) => clockController.setClockMode(mode),
@@ -624,7 +657,7 @@ export async function bootSessionClock(): Promise<void> {
       });
     })
     .catch(() => {});
-  void APIs.acquireWakeLock();
+  void APIs.acquireWakeLock().catch(() => {});
 
   resize();
   let resizeRaf: number | null = null;
@@ -661,7 +694,7 @@ export async function bootSessionClock(): Promise<void> {
     try {
       const a = new AudioContext();
       void a.destination.channelCount;
-      void a.close();
+      void a.close().catch(() => {});
       return "ok";
     } catch {
       return "?";
@@ -718,18 +751,26 @@ export async function bootSessionClock(): Promise<void> {
     ?.addEventListener("click", () => ThemeLib.open());
 
   wireGithubCelebration();
-  if (localStorage.getItem("sc_parallax") !== "0") {
+  if (safeGet("sc_parallax") !== "0") {
     attachGyroParallax();
   }
   setThemePanelCollapsed(true);
 
-  const lastId = localStorage.getItem("sc_last_theme");
+  const lastId = safeGet("sc_last_theme");
   applyTheme(
     lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0]!,
     true,
   );
-  applyHandoffState();
-  sessionController.restoreSavedSession();
+  const handedOff = applyHandoffState();
+  if (handedOff) {
+    try {
+      sessionStorage.removeItem("sc_saved_session");
+    } catch {
+      // ignore
+    }
+  } else {
+    sessionController.restoreSavedSession();
+  }
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) Intel.onTabHidden();
@@ -741,12 +782,12 @@ export async function bootSessionClock(): Promise<void> {
   }, 60_000);
 
   // Weather overlay preference
-  if (localStorage.getItem("sc_weather_theme") !== "0") {
+  if (safeGet("sc_weather_theme") !== "0") {
     document.body.classList.add("weather-overlay-on");
   }
 
   setWeatherPageCallbacks(isPrivacyMode, (_code, _temp, _desc) => {
-    if (localStorage.getItem("sc_weather_theme") !== "0") {
+    if (safeGet("sc_weather_theme") !== "0") {
       const overlay = getWeatherOverlay();
       const all = ["clear", "rain", "snow", "thunder", "fog", "cloudy"];
       all.forEach((c) => document.body.classList.remove(`weather-${c}`));
@@ -767,13 +808,15 @@ export async function bootSessionClock(): Promise<void> {
     const wPill = document.getElementById("weatherPill");
     if (wIcon && wText && wPill) {
       void initWeather(wIcon, wText, wPill, isPrivacyMode, (_code, _temp, _desc) => {
-        if (localStorage.getItem("sc_weather_theme") !== "0") {
+        if (safeGet("sc_weather_theme") !== "0") {
           const overlay = getWeatherOverlay();
           const all = ["clear", "rain", "snow", "thunder", "fog", "cloudy"];
           all.forEach((c) => document.body.classList.remove(`weather-${c}`));
           if (overlay !== "none")
             document.body.classList.add(`weather-${overlay}`);
         }
+      }).catch((error) => {
+        console.error("Weather initialization failed:", error);
       });
     }
   }
@@ -783,10 +826,29 @@ export async function bootSessionClock(): Promise<void> {
     if (el) el.textContent = text;
   });
   const todaySessions = Log.focusLogCount();
-  Features.setStatusState("idle", { todaySessions });
+  // After handoff (or session restore), the session may already be running or paused.
+  // Derive the initial UI state from the live controller rather than
+  // unconditionally assuming "idle", which left a running or paused restored session with an
+  // idle button and status line.
+  const initialState: "running" | "paused" | "idle" = sessionController.isRunning()
+    ? "running"
+    : sessionController.getElapsed() > 0
+      ? "paused"
+      : "idle";
+  Features.setStatusState(initialState, {
+    todaySessions,
+    pomEnabled: Pom.isActive(),
+    pomPhase: Pom.getPhase(),
+    remainingSecs: Pom.getRemainingSeconds(),
+  });
   const btnStartEl = document.getElementById("btnStart") as HTMLButtonElement | null;
   if (btnStartEl) {
-    Features.updateButtonLabels("idle", "work", false, btnStartEl);
+    Features.updateButtonLabels(
+      initialState,
+      Pom.getPhase(),
+      Pom.isActive(),
+      btnStartEl,
+    );
   }
 
   const templatesContent = document.getElementById("templatesContent");
@@ -846,7 +908,7 @@ export async function bootSessionClock(): Promise<void> {
 
   const intContent = document.getElementById("integrationsContent");
   if (intContent) {
-    Integrations.buildIntegrationsPanel(intContent, { showToast });
+    refreshIntegrationsPanel(intContent);
   }
   wireIntegrationsMinimize();
 
@@ -860,10 +922,15 @@ export async function bootSessionClock(): Promise<void> {
     MusicDock.getProviderPref() !== "youtube" &&
     Integrations.isSpotifyConnected()
   ) {
-    void MusicDock.initSpotifyPlayback();
+    void MusicDock.initSpotifyPlayback().catch((error) => {
+      console.error("Spotify playback initialization failed:", error);
+    });
   }
 
-  if (window.location.search.includes("code=")) {
+  if (
+    window.location.search.includes("code=") ||
+    window.location.search.includes("error=")
+  ) {
     void Integrations.oauthHandleCallback()
       .then((result) => {
         if (result && !result.ok) {
@@ -879,17 +946,21 @@ export async function bootSessionClock(): Promise<void> {
             MusicDock.isMusicDeckEnabled() &&
             MusicDock.getProviderPref() !== "youtube"
           ) {
-            void MusicDock.initSpotifyPlayback().then(() =>
-              MusicDock.refreshDockConnectionState(),
-            );
+            void MusicDock.initSpotifyPlayback()
+              .then(() => MusicDock.refreshDockConnectionState())
+              .catch((error) => {
+                console.error("Spotify playback initialization failed:", error);
+              });
           }
           if (result.provider === "google") {
             MusicDock.refreshYouTubeConnectionState();
-            void SideTasks.refreshNow();
+            void SideTasks.refreshNow().catch((error) => {
+              console.error("Side tasks refresh failed:", error);
+            });
           }
         }
         if (intContent)
-          Integrations.buildIntegrationsPanel(intContent, { showToast });
+          refreshIntegrationsPanel(intContent);
       })
       .catch((err) => {
         console.error("OAuth callback error:", err);

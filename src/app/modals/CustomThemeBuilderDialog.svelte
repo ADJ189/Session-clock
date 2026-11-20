@@ -5,7 +5,7 @@
     QUICK_PICKS,
     type ThemeBuilderSnapshot,
   } from "../controllers/theme-builder-controller";
-  import { hslToHex } from "../utils/color";
+  import { hslToHex, hslToHsv } from "../utils/color";
   import { showToast } from "../ui/toast";
 
   let snapshot = $state<ThemeBuilderSnapshot>(
@@ -54,12 +54,13 @@
     ctx.fillStyle = litGrad;
     ctx.fillRect(0, 0, W, H);
 
-    // Draw current position cursor
-    const cx = (sat / 100) * W;
-    const cy = (1 - lit / 100) * H;
+    // Draw current position cursor in the picker's own HSV space.
+    const hsv = hslToHsv(sat, lit);
+    const cx = hsv.s * W;
+    const cy = (1 - hsv.v) * H;
     ctx.beginPath();
     ctx.arc(cx, cy, 7, 0, Math.PI * 2);
-    ctx.strokeStyle = lit > 50 ? "rgba(0,0,0,.6)" : "rgba(255,255,255,.9)";
+    ctx.strokeStyle = hsv.v > 0.5 ? "rgba(0,0,0,.6)" : "rgba(255,255,255,.9)";
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.beginPath();
@@ -114,9 +115,15 @@
       const r = gradCanvas.getBoundingClientRect();
       const xPct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
       const yPct = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
-      const newS = Math.round(xPct * 100);
-      const newL = Math.round((1 - yPct) * 100);
-      const hex = hslToHex(snapshot.hsl[0], newS, newL);
+      const v = 1 - yPct;
+      const s_hsv = xPct;
+      const l = v * (1 - s_hsv / 2);
+      const s_hsl = l === 0 || l === 1 ? 0 : (v - l) / Math.min(l, 1 - l);
+      const hex = hslToHex(
+        snapshot.hsl[0],
+        Math.round(s_hsl * 100),
+        Math.round(l * 100),
+      );
       themeBuilderController.setDraftColor(hex);
     };
 
@@ -343,6 +350,7 @@
             type="button"
             style="width:22px;height:22px;border-radius:50%;background:{c};border:2px solid rgba(255,255,255,.15);cursor:pointer;transition:transform .15s;flex-shrink:0;"
             title={c}
+            aria-label={c}
             onclick={() => themeBuilderController.setDraftColor(c)}
           ></button>
         {/each}
@@ -423,6 +431,7 @@
           class="saved-swatch"
           style="background:{item.draft.accent};border:none;cursor:pointer;"
           title={item.name}
+          aria-label="Load theme {item.name}"
           onclick={() => themeBuilderController.loadSaved(item)}
         ></button>
       {/each}

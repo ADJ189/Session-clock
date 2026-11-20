@@ -66,6 +66,7 @@ interface SpeechRecognitionLike extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
+  onstart: ((e: Event) => void) | null;
   onresult: ((e: SpeechRecognitionResultEventLike) => void) | null;
   onerror: ((e: Event) => void) | null;
   onend: ((e: Event) => void) | null;
@@ -132,6 +133,7 @@ interface Window {
   __scBootFail?: (reason: string, isFatal?: boolean) => void;
   __scBootOk?: () => void;
   __scLat?: number;
+  __scLon?: number;
   __uiSounds?: ScUiSounds;
   __scFps?: () => number;
   __scTier?: () => string;

@@ -563,20 +563,20 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
     drawCandy(t);
     drawParticles(dt, t);
   },
-  nordic(dt, t) {
+  nordic(_dt, _t) {
     drawNordic();
   },
   midnight(dt, t) {
     drawMidnight(dt, t);
     drawParticles(dt, t);
   },
-  lemon(dt, t) {
+  lemon(_dt, _t) {
     drawLemon();
   },
-  blueprint(dt, t) {
+  blueprint(_dt, t) {
     drawBlueprint(t);
   },
-  commonroom(dt, t) {
+  commonroom(_dt, t) {
     drawCommonRoom(t);
   },
   severance(dt, t) {
@@ -1498,7 +1498,7 @@ function termGenLine(): string {
   return `${addr}  ${bytes}  |${ascii}|`;
 }
 
-function drawTerminal(dt: number, t: Theme) {
+function drawTerminal(dt: number, _t: Theme) {
   // Scroll new hex lines
   termLastTick += dt;
   if (termLastTick > 0.08) {
@@ -1609,7 +1609,7 @@ function drawBlueprint(t: Theme) {
   c.fillRect(0, scanY - 16, W, 32);
 }
 
-function drawCommonRoom(t: Theme) {
+function drawCommonRoom(_t: Theme) {
   // Warm ember glow from bottom — like a fireplace
   const g = c.createRadialGradient(
     W * 0.5,
@@ -1776,7 +1776,7 @@ function drawMediaBg(t: Theme) {
   c.fillRect(0, 0, W, H);
 }
 
-function drawMatrix(dt: number, t: Theme) {
+function drawMatrix(dt: number, _t: Theme) {
   // Flow: rain fades trail less (faster, denser) and brightens
   const trailAlpha = Math.max(0.025, 0.06 - _flowIntensity * 0.03);
   c.fillStyle = `rgba(0,10,0,${trailAlpha})`;
@@ -1832,7 +1832,12 @@ function drawF1Streaks(t: Theme, speedMult: number) {
     if (p[o] > W + 20) {
       p[o] = -20;
       p[o + 1] = rnd(H);
+    } else if (p[o] < -20) {
+      p[o] = W + 20;
+      p[o + 1] = rnd(H);
     }
+    if (p[o + 1] < -20) p[o + 1] = H + 20;
+    else if (p[o + 1] > H + 20) p[o + 1] = -20;
     const len = p[o + 4] * 22;
     const gr = c.createLinearGradient(p[o] - len, 0, p[o], 0);
     gr.addColorStop(0, "transparent");
@@ -1855,7 +1860,7 @@ function drawSymbol(id: string, t: Theme) {
 }
 
 const SYMBOLS: Record<string, (t: Theme) => void> = {
-  supernatural(t) {
+  supernatural(_t) {
     const cx = W * 0.5,
       cy = H * 0.58,
       R = Math.min(W, H) * 0.16,
@@ -1891,7 +1896,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     c.stroke();
     c.restore();
   },
-  mentalist(t) {
+  mentalist(_t) {
     const cx = W * 0.5,
       cy = H * 0.52,
       R = Math.min(W, H) * 0.13,
@@ -1913,7 +1918,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     c.stroke();
     c.restore();
   },
-  dark(t) {
+  dark(_t) {
     const cx = W * 0.5,
       cy = H * 0.56,
       R = Math.min(W, H) * 0.14,
@@ -1940,7 +1945,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     }
     c.restore();
   },
-  breakingbad(t) {
+  breakingbad(_t) {
     const cx = W * 0.5,
       cy = H * 0.56,
       R = Math.min(W, H) * 0.1,
@@ -1950,7 +1955,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     [
       { sym: "Br", num: "35", wt: "79.9", x: -R * 1.22 },
       { sym: "Ba", num: "56", wt: "137.3", x: R * 0.12 },
-    ].forEach(({ sym, num, wt, x }) => {
+    ].forEach(({ sym, num: _num, wt: _wt, x }) => {
       const hi = sym === "Br" ? "#7ec800" : "#b8f040";
       c.save();
       c.translate(x, 0);
@@ -1968,7 +1973,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     });
     c.restore();
   },
-  strangerthings(t) {
+  strangerthings(_t) {
     const cx = W * 0.5,
       cy = H * 0.55,
       R = Math.min(W, H) * 0.13,
@@ -2007,7 +2012,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     }
     c.restore();
   },
-  interstellar(t) {
+  interstellar(_t) {
     const cx = W * 0.5,
       cy = H * 0.54,
       R = Math.min(W, H) * 0.15,
@@ -2030,7 +2035,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     c.fill();
     c.restore();
   },
-  dune(t) {
+  dune(_t) {
     const cx = W * 0.5,
       cy = H * 0.55,
       R = Math.min(W, H) * 0.1,
@@ -2050,7 +2055,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     });
     c.restore();
   },
-  matrix(t) {
+  matrix(_t) {
     const cx = W * 0.5,
       cy = H * 0.64,
       R = Math.min(W, H) * 0.044,
@@ -2079,7 +2084,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     });
     c.restore();
   },
-  bladerunner(t) {
+  bladerunner(_t) {
     const cx = W * 0.5,
       cy = H * 0.38,
       R = Math.min(W, H) * 0.1,
@@ -2099,7 +2104,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     c.stroke();
     c.restore();
   },
-  inception(t) {
+  inception(_t) {
     const cx = W * 0.5,
       cy = H * 0.57,
       R = Math.min(W, H) * 0.1,
@@ -2128,7 +2133,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     c.stroke();
     c.restore();
   },
-  godfather(t) {
+  godfather(_t) {
     const cx = W * 0.42,
       cy = H * 0.6,
       R = Math.min(W, H) * 0.1,
@@ -2155,7 +2160,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     }
     c.restore();
   },
-  sopranos(t) {
+  sopranos(_t) {
     const cx = W * 0.5,
       cy = H * 0.5,
       R = Math.min(W, H) * 0.18,
@@ -2381,7 +2386,7 @@ const SYMBOLS: Record<string, (t: Theme) => void> = {
     c.fill();
     c.restore();
   },
-  madmen(t) {
+  madmen(_t) {
     if (!shouldDrawGlow()) return;
     c.save();
     c.globalAlpha = 0.02 + Math.random() * 0.02;
@@ -2940,7 +2945,7 @@ const mrGlitchLines: Array<{
 }> = [];
 let mrGlitchTimer = 0;
 
-function drawMrRobot(dt: number, t: Theme) {
+function drawMrRobot(dt: number, _t: Theme) {
   // Scanline base
   c.fillStyle = "rgba(0,180,60,.015)";
   for (let y = 0; y < H; y += 2) c.fillRect(0, y, W, 1);
@@ -3048,7 +3053,7 @@ function drawOppenheimer(dt: number, t: Theme) {
 }
 
 // ── The Bear — kitchen aesthetic ──────────────────────────────────────
-function drawTheBear(dt: number, t: Theme) {
+function drawTheBear(_dt: number, _t: Theme) {
   // Subtle warm vignette from top (kitchen light)
   if (shouldDrawGlow()) {
     const tg = c.createLinearGradient(0, 0, 0, H * 0.5);
@@ -3089,7 +3094,7 @@ const CGA = [
 ];
 let bitGlitchTimer = 0;
 
-function draw8Bit(dt: number, t: Theme) {
+function draw8Bit(dt: number, _t: Theme) {
   // CGA pixel grid overlay
   if (getTier() === "low") return;
   bitGlitchTimer += dt;
@@ -3128,7 +3133,7 @@ interface Ember {
 const embers: Ember[] = [];
 let emberTimer = 0;
 
-function drawPhoenix(dt: number, t: Theme) {
+function drawPhoenix(dt: number, _t: Theme) {
   emberTimer += dt;
   // Spawn embers from base
   if (emberTimer > 0.04) {
@@ -3240,7 +3245,7 @@ function initCyberRain() {
   }
 }
 
-function drawCyberpunk(dt: number, t: Theme) {
+function drawCyberpunk(_dt: number, _t: Theme) {
   if (W === 0) return;
   if (!cyberRainInit || cyberRain[0]?.y === undefined) {
     cyberRainInit = false;
@@ -3362,7 +3367,7 @@ const STAR_COUNT = 280;
 const starPool = new Float32Array(STAR_COUNT * 4);
 let stars2001Init = false;
 
-function drawHAL9000(dt: number, t: Theme) {
+function drawHAL9000(dt: number, _t: Theme) {
   if (!stars2001Init) {
     stars2001Init = true;
     for (let i = 0; i < STAR_COUNT; i++) {
@@ -3458,7 +3463,7 @@ interface TenetParticle {
 const tenetParticles: TenetParticle[] = [];
 let tenetInit = false;
 
-function drawTenet(dt: number, t: Theme) {
+function drawTenet(_dt: number, _t: Theme) {
   if (!tenetInit) {
     tenetInit = true;
     for (let i = 0; i < 80; i++) {
@@ -3542,7 +3547,7 @@ let dragonTimer = 0;
 
 const FLAME_COLS = ["#ff2200", "#ff6600", "#ff9900", "#ffcc00", "#ff4400"];
 
-function drawDragonFire(dt: number, t: Theme) {
+function drawDragonFire(dt: number, _t: Theme) {
   dragonTimer += dt;
 
   // Spawn flames from upper area (dragon breathing from above)
@@ -3938,7 +3943,7 @@ interface AOTDust {
 const aotDust: AOTDust[] = [];
 let aotInit = false;
 
-function drawAttackOnTitan(dt: number, t: Theme) {
+function drawAttackOnTitan(_dt: number, _t: Theme) {
   if (!aotInit) {
     aotInit = true;
     for (let i = 0; i < 60; i++) {
@@ -4031,7 +4036,7 @@ const DN_CHARS = "LIGHT YAGAMI L KIRA JUSTICE DEATH NOTE 死 神 夜神月".spli
   " ",
 );
 
-function drawDeathNote(dt: number, t: Theme) {
+function drawDeathNote(dt: number, _t: Theme) {
   dnTimer += dt;
   if (dnTimer > 0.18 && dnLetters.length < 35) {
     dnTimer = 0;
@@ -4139,7 +4144,7 @@ interface Astrophage {
 }
 const astrophages: Astrophage[] = [];
 
-function drawHailMary(dt: number, t: Theme) {
+function drawHailMary(dt: number, _t: Theme) {
   if (!hmInit) {
     hmInit = true;
     for (let i = 0; i < HM_STAR_COUNT; i++) {
@@ -4218,7 +4223,7 @@ function drawHailMary(dt: number, t: Theme) {
 // ── EVANGELION — AT Field hexagons + NERV UI + orange sky ────────────
 let evaHexPhase = 0;
 
-function drawEvangelion(dt: number, t: Theme) {
+function drawEvangelion(dt: number, _t: Theme) {
   evaHexPhase += dt * 0.4;
 
   // AT Field hex grid — faint, rotates slowly
@@ -4284,7 +4289,7 @@ interface AkiraRainDrop {
 const akiraRain: AkiraRainDrop[] = [];
 let akiraRainInit = false;
 
-function drawAkira(dt: number, t: Theme) {
+function drawAkira(dt: number, _t: Theme) {
   if (!akiraRainInit) {
     akiraRainInit = true;
     for (let i = 0; i < 80; i++) {
@@ -4369,7 +4374,7 @@ function drawAkira(dt: number, t: Theme) {
 // ── BETTER CALL SAUL — desert heat shimmer + golden hour dust ────────
 let bcsInit = false;
 const bcsDust = new Float32Array(120 * 4); // x,y,vx,alpha
-function drawBetterCallSaul(dt: number, t: Theme) {
+function drawBetterCallSaul(dt: number, _t: Theme) {
   if (!bcsInit) {
     bcsInit = true;
     for (let i = 0; i < 120; i++) {
@@ -4418,7 +4423,7 @@ function drawBetterCallSaul(dt: number, t: Theme) {
 
 // ── PEAKY BLINDERS — industrial Birmingham smoke + razor light ────────
 let pbSmoke = 0;
-function drawPeakyBlinders(dt: number, t: Theme) {
+function drawPeakyBlinders(dt: number, _t: Theme) {
   pbSmoke += dt * 0.4;
   if (shouldDrawGlow()) {
     // Industrial smoke columns rising
@@ -4455,7 +4460,7 @@ function drawPeakyBlinders(dt: number, t: Theme) {
 // ── THE WIRE — Baltimore streetlight + rain ───────────────────────────
 const wireRain = new Float32Array(60 * 3); // x,y,speed
 let wireInit = false;
-function drawTheWire(dt: number, t: Theme) {
+function drawTheWire(_dt: number, _t: Theme) {
   if (!wireInit) {
     wireInit = true;
     for (let i = 0; i < 60; i++) {
@@ -4501,7 +4506,7 @@ function drawTheWire(dt: number, t: Theme) {
 
 // ── SUCCESSION — corporate marble + subtle light ──────────────────────
 let succTick = 0;
-function drawSuccession(dt: number, t: Theme) {
+function drawSuccession(dt: number, _t: Theme) {
   succTick += dt;
   if (!shouldDrawGlow()) return;
   // Very subtle marble vein — two slow diagonal lines
@@ -4525,7 +4530,7 @@ function drawSuccession(dt: number, t: Theme) {
 // ── LOST — ocean depth + jungle light shafts ─────────────────────────
 let lostTick = 0;
 const lostShafts = [0.2, 0.4, 0.6, 0.75, 0.88];
-function drawLost(dt: number, t: Theme) {
+function drawLost(dt: number, _t: Theme) {
   lostTick += dt;
   if (!shouldDrawGlow()) return;
   // Underwater light shafts
@@ -4567,7 +4572,7 @@ interface SakuraPetal {
 }
 const sakuraPetals: SakuraPetal[] = [];
 let shogunInit = false;
-function drawShogun(dt: number, t: Theme) {
+function drawShogun(_dt: number, _t: Theme) {
   if (!shogunInit) {
     shogunInit = true;
     for (let i = 0; i < 18; i++) {
@@ -4621,7 +4626,7 @@ function drawShogun(dt: number, t: Theme) {
 
 // ── FALLOUT — wasteland green phosphor + radiation pulse ──────────────
 let falloutTick = 0;
-function drawFallout(dt: number, t: Theme) {
+function drawFallout(dt: number, _t: Theme) {
   falloutTick += dt;
   if (shouldDrawGlow()) {
     // Pip-Boy green scan line
@@ -4654,7 +4659,7 @@ function drawFallout(dt: number, t: Theme) {
 // ── FUTURAMA — space city skyline + warp stars ───────────────────────
 const futStars = new Float32Array(200 * 3); // x,y,speed
 let futInit = false;
-function drawFuturama(dt: number, t: Theme) {
+function drawFuturama(_dt: number, _t: Theme) {
   if (!futInit) {
     futInit = true;
     for (let i = 0; i < 200; i++) {
@@ -4710,7 +4715,7 @@ function drawFuturama(dt: number, t: Theme) {
 
 // ── FAMILY GUY — Quahog night + Drunken Clam neon ───────────────────
 let fgTick = 0;
-function drawFamilyGuy(dt: number, t: Theme) {
+function drawFamilyGuy(dt: number, _t: Theme) {
   fgTick += dt;
   if (!shouldDrawGlow()) return;
   // Warm house window lights — deterministic
@@ -4748,7 +4753,7 @@ function drawFamilyGuy(dt: number, t: Theme) {
 let rmPortalAngle = 0;
 const rmParticles = new Float32Array(60 * 4); // x,y,vx,vy
 let rmInit = false;
-function drawRickMorty(dt: number, t: Theme) {
+function drawRickMorty(dt: number, _t: Theme) {
   if (!rmInit) {
     rmInit = true;
     for (let i = 0; i < 60; i++) {
@@ -4805,7 +4810,7 @@ function drawRickMorty(dt: number, t: Theme) {
 
 // ── THE SIMPSONS — Springfield sky + yellow glow ─────────────────────
 let simpTick = 0;
-function drawSimpsons(dt: number, t: Theme) {
+function drawSimpsons(dt: number, _t: Theme) {
   simpTick += dt;
   if (!shouldDrawGlow()) return;
   // Clouds slowly drifting — Springfield daytime feel
@@ -4846,7 +4851,7 @@ function drawSimpsons(dt: number, t: Theme) {
 // ── SOUTH PARK — Colorado blizzard + snow drift ───────────────────────
 const spSnow = new Float32Array(150 * 3); // x,y,speed
 let spInit = false;
-function drawSouthPark(dt: number, t: Theme) {
+function drawSouthPark(_dt: number, _t: Theme) {
   if (!spInit) {
     spInit = true;
     for (let i = 0; i < 150; i++) {
@@ -4886,7 +4891,7 @@ function drawSouthPark(dt: number, t: Theme) {
 
 // ── THE BOONDOCKS — golden hour suburbs + warm glow ──────────────────
 let bdTick = 0;
-function drawBoondocks(dt: number, t: Theme) {
+function drawBoondocks(dt: number, _t: Theme) {
   bdTick += dt;
   if (!shouldDrawGlow()) return;
   // Suburban tree line silhouette
@@ -4922,7 +4927,7 @@ function drawBoondocks(dt: number, t: Theme) {
 
 // ── ARCHER — ISIS office + purple glass ──────────────────────────────
 let arTick = 0;
-function drawArcher(dt: number, t: Theme) {
+function drawArcher(dt: number, _t: Theme) {
   arTick += dt;
   if (!shouldDrawGlow()) return;
   // Office building glass — horizontal venetian blind lines
@@ -4957,7 +4962,7 @@ function drawArcher(dt: number, t: Theme) {
 
 // ── BOB'S BURGERS — Ocean Avenue + teal warmth ───────────────────────
 let bbTick = 0;
-function drawBobsBurgers(dt: number, t: Theme) {
+function drawBobsBurgers(dt: number, _t: Theme) {
   bbTick += dt;
   if (!shouldDrawGlow()) return;
   // Gentle ocean waves at bottom
@@ -5105,7 +5110,7 @@ export function runTransition(type: string, cb: () => void) {
   // without throwing (for example, a silent abort after a tab switch).
   _transWatchdog = setTimeout(
     () => fail(new Error("Transition watchdog expired")),
-    4000,
+    6500,
   );
 
   try {

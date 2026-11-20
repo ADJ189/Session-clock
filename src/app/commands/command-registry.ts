@@ -263,30 +263,31 @@ function registerCmdPaletteItems(ctx: CommandRegistryContext) {
     });
   });
 
-  type CmdActionTuple = [id: string, icon: string, name: string, desc: string, action: () => void];
+  type CmdActionTuple = [id: string, icon: string, name: string, desc: string, tag: "action" | "setting", action: () => void];
   const actions: CmdActionTuple[] = [
-    ["start", "▶", "Start Session Timer", "Begin tracking focus time (Space)", () => { if (!ctx.sessionRunning()) ctx.startSession(); }],
-    ["pause", "⏸", "Pause Session Timer", "Temporarily pause the timer (Space)", () => { if (ctx.sessionRunning()) ctx.pauseSession(); }],
-    ["reset", "↺", "Reset Session Timer", "Zero the timer and session count (R)", () => ctx.resetSession()],
-    ["pom-toggle", "🍅", "Toggle Pomodoro Mode", "Switch between stopwatch & interval timer (P)", () => ctx.togglePomodoro()],
-    ["zen-toggle", "🧘", "Zen Mode", "Distraction-free study with breathing rings (Z)", () => ctx.toggleZen()],
-    ["fullscreen", "🖥️", "Fullscreen / Kiosk Mode", "Hide browser chrome and maximize (F)", () => ctx.toggleKiosk()],
-    ["sound-mixer", "🎛️", "Open Sound Mixer", "Blend 12 ambient sounds + binaural beats (M)", () => ctx.openModal("soundOverlay")],
-    ["theme-builder", "✨", "Custom Theme Builder", "Create, preview and save your own themes (G)", () => ctx.openThemeBuilder()],
-    ["shortcuts", "⌨️", "Keyboard Shortcuts", "View all hotkeys (?)", () => ctx.openModal("kbOverlay")],
-    ["settings-gen", "⚙️", "Settings: General", "Time format, position, weather, auto-start", () => ctx.openSettings("general")],
-    ["settings-sound", "🔊", "Settings: Sound", "Default mix, crossfade, spatial audio", () => ctx.openSettings("sound")],
-    ["settings-focus", "🎯", "Settings: Focus", "Pomodoro intervals, focus lock delay, breaks", () => ctx.openSettings("focus")],
-    ["settings-display", "🖥️", "Settings: Display", "Clock face, calm mode, scanlines, blur, grain", () => ctx.openSettings("display")],
-    ["settings-privacy", "🛡️", "Settings: Privacy & Data", "Export data, incognito sessions, auto-clear", () => ctx.openSettings("privacy")],
-    ["handoff", "📱", "QR Handoff to Mobile", "Continue current session on phone or tablet", () => ctx.openQRHandoff()],
-    ["privacy-toggle", "🛡️", "Toggle Privacy Mode", "Disable weather, sync & fonts", () => ctx.togglePrivacy()],
-    ["language", "🌐", "Language", "Change UI language (8 languages)", () => ctx.openLanguageModal()],
+    ["start", "▶", "Start Session Timer", "Begin tracking focus time (Space)", "action", () => { if (!ctx.sessionRunning()) ctx.startSession(); }],
+    ["pause", "⏸", "Pause Session Timer", "Temporarily pause the timer (Space)", "action", () => { if (ctx.sessionRunning()) ctx.pauseSession(); }],
+    ["reset", "↺", "Reset Session Timer", "Zero the timer and session count (R)", "action", () => ctx.resetSession()],
+    ["pom-toggle", "🍅", "Toggle Pomodoro Mode", "Switch between stopwatch & interval timer (P)", "action", () => ctx.togglePomodoro()],
+    ["zen-toggle", "🧘", "Zen Mode", "Distraction-free study with breathing rings (Z)", "action", () => ctx.toggleZen()],
+    ["fullscreen", "🖥️", "Fullscreen / Kiosk Mode", "Hide browser chrome and maximize (F)", "action", () => ctx.toggleKiosk()],
+    ["sound-mixer", "🎛️", "Open Sound Mixer", "Blend 12 ambient sounds + binaural beats (M)", "action", () => ctx.openModal("soundOverlay")],
+    ["theme-builder", "✨", "Custom Theme Builder", "Create, preview and save your own themes (G)", "action", () => ctx.openThemeBuilder()],
+    ["shortcuts", "⌨️", "Keyboard Shortcuts", "View all hotkeys (?)", "action", () => ctx.openModal("kbOverlay")],
+    ["settings-gen", "⚙️", "Settings: General", "Time format, position, weather, auto-start", "setting", () => ctx.openSettings("general")],
+    ["settings-sound", "🔊", "Settings: Sound", "Default mix, crossfade, spatial audio", "setting", () => ctx.openSettings("sound")],
+    ["settings-focus", "🎯", "Settings: Focus", "Pomodoro intervals, focus lock delay, breaks", "setting", () => ctx.openSettings("focus")],
+    ["settings-display", "🖥️", "Settings: Display", "Clock face, calm mode, scanlines, blur, grain", "setting", () => ctx.openSettings("display")],
+    ["settings-privacy", "🛡️", "Settings: Privacy & Data", "Export data, incognito sessions, auto-clear", "setting", () => ctx.openSettings("privacy")],
+    ["handoff", "📱", "QR Handoff to Mobile", "Continue current session on phone or tablet", "action", () => ctx.openQRHandoff()],
+    ["privacy-toggle", "🛡️", "Toggle Privacy Mode", "Disable weather, sync & fonts", "action", () => ctx.togglePrivacy()],
+    ["language", "🌐", "Language", "Change UI language (8 languages)", "action", () => ctx.openLanguageModal()],
     [
       "random",
       "🎲",
       "Random Theme",
       "Shuffle to a random theme",
+      "action",
       () => {
         const t = THEMES[Math.floor(Math.random() * THEMES.length)]!;
         ctx.applyTheme(t);
@@ -294,13 +295,13 @@ function registerCmdPaletteItems(ctx: CommandRegistryContext) {
     ],
   ];
 
-  actions.forEach(([id, icon, name, desc, action]) => {
+  actions.forEach(([id, icon, name, desc, tag, action]) => {
     items.push({
       id: `action:${id}`,
       name,
       desc,
       icon,
-      tag: "action",
+      tag,
       action,
     });
   });

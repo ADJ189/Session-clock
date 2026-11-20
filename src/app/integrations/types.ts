@@ -22,7 +22,7 @@ export interface IntegrationsService {
   isGithubConnected: () => boolean;
   disconnectAll: (id: IntegrationId) => void;
   spotifyLogin: (clientId: string) => Promise<void> | void;
-  googleLogin: (clientId: string) => Promise<void> | void;
+  googleLogin: (clientId: string, target?: "youtube" | "gcal") => Promise<void> | void;
   oauthLogin: (provider: string, clientId: string) => Promise<void> | void;
   saveGCalCredentials: (apiKey: string, calendarId?: string) => void;
   saveNotionCredentials: (token: string, dbId: string) => void;

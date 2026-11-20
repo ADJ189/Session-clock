@@ -69,15 +69,17 @@ import {
   DEFAULT_GOOGLE_CLIENT_ID,
 } from "./authconfig";
 import { mount, unmount } from "svelte";
-import IntegrationsPanel from "./app/integrations/IntegrationsPanel.svelte";
 import type { IntegrationsService } from "./app/integrations/types";
+import { createSerializedMounter } from "./app/services/sequential-mount";
 import {
   clearCredentials as clear,
   ensureFreshToken,
   GOOGLE_CLIENT_ID_KEY,
   loadCredentials as load,
   OAUTH_PROVIDERS,
+  oauthHandleCallback as authHandleCallback,
   oauthLogin,
+  type OAuthCallbackResult,
   redirectUri,
   saveCredentials as save,
 } from "./auth";
@@ -86,7 +88,6 @@ import {
 // Re-export it so existing `Integrations.*` call sites keep working.
 export {
   ensureFreshToken,
-  oauthHandleCallback,
   oauthLogin,
   type OAuthCallbackResult,
 } from "./auth";
@@ -153,7 +154,7 @@ export async function spotifyNowPlaying(): Promise<{
         headers: { Authorization: `Bearer ${token}` },
       },
     );
-    if (res.status === 204) return null;
+    if (!res.ok || res.status === 204) return null;
     const d = await res.json();
     return {
       track: d.item?.name ?? "—",
@@ -176,13 +177,95 @@ export async function spotifyNowPlaying(): Promise<{
 // provider. Callers that need to resume something afterward (the
 // YouTube library panel, the calendar side-card) do it in main.ts's
 // oauthHandleCallback().then() handler, not inline after the call.
-export const googleLogin = (clientId: string) => oauthLogin("google", clientId);
+export const GOOGLE_AUTH_TARGET_KEY = "sc_google_auth_target";
+
+// Before the YouTube/Calendar split, a single `google` token was enough to
+// mean "connected" for both features. New-format accounts also store an
+// explicit marker (`youtube.connected` / `gcal.oauth`), so an account with
+// only the legacy token would look disconnected after upgrading. This marker
+// makes the backfill one-time, and only runs when neither new marker exists —
+// an explicit disconnect (which removes the token itself) is never undone.
+export const LEGACY_GOOGLE_MIGRATION_KEY = "sc_google_legacy_migration_v1";
+
+export function migrateLegacyGoogleConnection(): void {
+  try {
+    if (localStorage.getItem(LEGACY_GOOGLE_MIGRATION_KEY) === "1") return;
+  } catch {
+    // Storage blocked: load() below also returns null, so there is nothing to
+    // migrate and no marker can be written. Do not throw during module use.
+  }
+
+  const google = load("google");
+  const youtube = load("youtube");
+  const gcal = load("gcal");
+  if (
+    google?.token &&
+    youtube?.connected !== "true" &&
+    gcal?.oauth !== "true"
+  ) {
+    // A legacy account could have used either feature with the shared token.
+    // Keep any Calendar fields (API key/calendar id) the user already saved.
+    save("youtube", { ...youtube, connected: "true" });
+    save("gcal", { ...gcal, oauth: "true" });
+  }
+  try {
+    localStorage.setItem(LEGACY_GOOGLE_MIGRATION_KEY, "1");
+  } catch {
+    // The migration is idempotent; it will simply retry next load.
+  }
+}
+
+export async function googleLogin(
+  clientId: string,
+  target: "youtube" | "gcal" = "youtube",
+): Promise<void> {
+  try {
+    sessionStorage.setItem(GOOGLE_AUTH_TARGET_KEY, target);
+  } catch {
+    /* private browsing / quota */
+  }
+  return oauthLogin("google", clientId);
+}
+
+export async function oauthHandleCallback(): Promise<OAuthCallbackResult | null> {
+  const result = await authHandleCallback();
+  if (result && result.ok && result.provider === "google") {
+    let target: string | null = null;
+    try {
+      target = sessionStorage.getItem(GOOGLE_AUTH_TARGET_KEY);
+      sessionStorage.removeItem(GOOGLE_AUTH_TARGET_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (target === "gcal") {
+      const existing = load("gcal") ?? {};
+      save("gcal", { ...existing, oauth: "true" });
+    } else {
+      save("youtube", { connected: "true" });
+    }
+  }
+  return result;
+}
+
 export function isGoogleConnected(): boolean {
+  migrateLegacyGoogleConnection();
   return !!load("google")?.token;
 }
 
 export function disconnectGoogle() {
   clear("google");
+  clear("youtube");
+  const gcal = load("gcal");
+  if (gcal?.oauth) {
+    // YouTube relies on the shared Google token, but a Calendar API key is an
+    // independent credential. Keep it when the user had both configured.
+    if (gcal.apiKey) {
+      const { oauth: _oauth, ...rest } = gcal;
+      save("gcal", rest);
+    } else {
+      clear("gcal");
+    }
+  }
   localStorage.removeItem(GOOGLE_CLIENT_ID_KEY);
   localStorage.removeItem(LEGACY_GOOGLE_CLIENT_SECRET_KEY); // see comment on the const above
 }
@@ -199,7 +282,9 @@ function ensureFreshGoogleToken(): Promise<string | null> {
 // 2. YOUTUBE (via the shared Google connection above)
 // ─────────────────────────────────────────────────────────────────────
 export function isYouTubeConnected(): boolean {
-  return isGoogleConnected();
+  migrateLegacyGoogleConnection();
+  if (!isGoogleConnected()) return false;
+  return load("youtube")?.connected === "true";
 }
 
 // Signed-in user's own YouTube library, via the official YouTube Data
@@ -287,8 +372,12 @@ export async function youtubeGetMyPlaylists(
 export function saveGCalCredentials(apiKey: string, calendarId = "primary") {
   save("gcal", { apiKey, calendarId });
 }
-export function isGCalConnected() {
-  return !!load("gcal")?.apiKey || isGoogleConnected();
+export function isGCalConnected(): boolean {
+  migrateLegacyGoogleConnection();
+  const gcal = load("gcal");
+  if (gcal?.apiKey) return true;
+  if (gcal?.oauth === "true" && isGoogleConnected()) return true;
+  return false;
 }
 
 export interface CalEvent {
@@ -307,9 +396,10 @@ export async function getUpcomingEvents(maxResults = 5): Promise<CalEvent[]> {
   try {
     let url: string;
     let headers: Record<string, string> = {};
-    const oauthToken = isGoogleConnected()
-      ? await ensureFreshGoogleToken()
-      : null;
+    const oauthToken =
+      load("gcal")?.oauth === "true" && isGoogleConnected()
+        ? await ensureFreshGoogleToken()
+        : null;
     if (oauthToken) {
       url = `https://www.googleapis.com/calendar/v3/calendars/${calId}/events?timeMin=${now}&timeMax=${future}&maxResults=${maxResults}&singleEvents=true&orderBy=startTime`;
       headers = { Authorization: `Bearer ${oauthToken}` };
@@ -384,7 +474,7 @@ export async function getNotionTasks(): Promise<NotionTask[]> {
         Authorization: `Bearer ${creds.token}`,
       },
       body: JSON.stringify({
-        filter: { property: "Status", checkbox: { equals: false } },
+        filter: { property: "Done", checkbox: { equals: false } },
         sorts: [{ property: "Priority", direction: "descending" }],
         page_size: 10,
       }),
@@ -523,12 +613,20 @@ export function getConnectionStatus(): Record<IntegrationId, boolean> {
 
 export function disconnectAll(id: IntegrationId) {
   if (id === "youtube") {
-    disconnectGoogle();
+    clear("youtube");
+    // Calendar only shares the Google OAuth credential when its own oauth
+    // marker is set. An API-key-only calendar does not use that token and must
+    // not keep it alive after YouTube disconnects.
+    if (load("gcal")?.oauth !== "true") {
+      disconnectGoogle();
+    }
     return;
   }
   if (id === "gcal") {
     clear("gcal");
-    disconnectGoogle();
+    if (!isYouTubeConnected()) {
+      disconnectGoogle();
+    }
     return;
   }
   clear(id);
@@ -543,21 +641,33 @@ export interface IntegrationPanelCallbacks {
   showToast: (msg: string, dur?: number) => void;
 }
 
-let activeIntMount: ReturnType<typeof mount> | null = null;
+const integrationMounter = createSerializedMounter();
 
-export function buildIntegrationsPanel(
+function renderIntegrationsFallback(
   container: HTMLElement,
   cb: IntegrationPanelCallbacks,
-) {
-  if (activeIntMount) {
-    try {
-      unmount(activeIntMount);
-    } catch {}
-    activeIntMount = null;
-  }
+): void {
   container.className = "int-grid";
   while (container.firstChild) container.removeChild(container.firstChild);
+  const message = document.createElement("p");
+  message.className = "int-load-error";
+  message.textContent = "Couldn't load integrations. ";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Retry";
+  retry.addEventListener("click", () => {
+    void buildIntegrationsPanel(container, cb).catch((error) => {
+      console.error("Integrations panel retry failed:", error);
+    });
+  });
+  message.appendChild(retry);
+  container.appendChild(message);
+}
 
+export async function buildIntegrationsPanel(
+  container: HTMLElement,
+  cb: IntegrationPanelCallbacks,
+): Promise<void> {
   const service: IntegrationsService = {
     cb,
     isSpotifyConnected,
@@ -583,8 +693,27 @@ export function buildIntegrationsPanel(
     googleClientIdKey: GOOGLE_CLIENT_ID_KEY,
   };
 
-  activeIntMount = mount(IntegrationsPanel, {
-    target: container,
-    props: { service },
-  });
+  await integrationMounter.run(
+    {
+      load: () => import("./app/integrations/IntegrationsPanel.svelte"),
+      mount: (module, target) =>
+        mount(module.default, { target, props: { service } }),
+      unmount: (instance) => {
+        void unmount(instance as Parameters<typeof unmount>[0]);
+      },
+      prepare: (target) => {
+        target.className = "int-grid";
+        while (target.firstChild) target.removeChild(target.firstChild);
+      },
+      onError: (error, hasActive) => {
+        console.error("Failed to load the integrations panel:", error);
+        cb.showToast("Couldn't load integrations — reload to retry");
+        // A previously mounted panel still works; replacing it with an error
+        // would remove a working UI. Only render the retry fallback when there
+        // is nothing intact to keep.
+        if (!hasActive) renderIntegrationsFallback(container, cb);
+      },
+    },
+    container,
+  );
 }

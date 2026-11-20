@@ -189,6 +189,19 @@ export const FILE_TRACKS: Record<string, FileTrackConfig> = {
     gainTrim: 0.85,
     proceduralFallback: true,
   },
+  // ── Additional CDN-hosted recordings matching Ambient-Sounds catalog ──
+  keyboard: {
+    url: "/opus/things/keyboard.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.85,
+    proceduralFallback: true,
+  },
+  campfire: {
+    url: "/opus/nature/campfire.opus",
+    crossfadeSec: 3,
+    gainTrim: 0.85,
+    proceduralFallback: true,
+  },
 };
 
 export function isFileBackedTrack(id: string): boolean {
@@ -251,6 +264,10 @@ function registerLoopPlayer(player: GaplessLoopPlayer): void {
   const rafTick = () => {
     if (activeLoopPlayers.size === 0) {
       sharedRaf = 0;
+      if (sharedInterval) {
+        clearInterval(sharedInterval);
+        sharedInterval = 0;
+      }
       return;
     }
     activeLoopPlayers.forEach((p) => p.tick());
@@ -635,23 +652,15 @@ class GaplessLoopPlayer {
       // same escape hatch monochrome's crossfadeToNext falls back to.
     }
     if (!scheduled) {
-      const startedAt = performance.now();
-      const manualFade = () => {
-        if (this.stopped) return;
-        const progress = Math.min(
-          1,
-          (performance.now() - startedAt) / (dur * 1000),
-        );
-        const t = progress * (Math.PI / 2);
-        try {
-          fromGain.gain.value = Math.cos(t);
-          toGain.gain.value = Math.sin(t);
-        } catch {
-          return;
-        }
-        if (progress < 1) requestAnimationFrame(manualFade);
-      };
-      requestAnimationFrame(manualFade);
+      try {
+        fromGain.gain.setValueAtTime(fromGain.gain.value, now);
+        fromGain.gain.linearRampToValueAtTime(0, now + dur);
+        toGain.gain.setValueAtTime(toGain.gain.value, now);
+        toGain.gain.linearRampToValueAtTime(1, now + dur);
+      } catch {
+        fromGain.gain.value = 0;
+        toGain.gain.value = 1;
+      }
     }
 
     this.crossfadeSwapHandle = window.setTimeout(

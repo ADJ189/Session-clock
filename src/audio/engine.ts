@@ -183,7 +183,7 @@ class VoiceScope {
       this.nodes.delete(source);
     };
     try {
-      source.onended = release;
+      source.addEventListener("ended", release, { once: true });
     } catch {
       // Older engines may not expose onended; stop() still disconnects.
     }
@@ -221,7 +221,7 @@ class VoiceScope {
 
 interface StartRecord {
   node: AudioScheduledSourceNode;
-  when: number;
+  delay?: number;
   offset?: number;
 }
 
@@ -295,7 +295,7 @@ class Rig {
     lfo.gain.connect(target);
     this.starts.push({
       node: lfo.oscillator,
-      when: this.ctx.currentTime + 0.01,
+      delay: 0.01,
     });
   }
 
@@ -306,7 +306,7 @@ class Rig {
       phase: this.rng.range(0, seconds * 0.8),
     });
     this.scope.trackSource(source);
-    this.starts.push({ node: source, when: this.ctx.currentTime + 0.01, offset: phase });
+    this.starts.push({ node: source, delay: 0.01, offset: phase });
 
     const node = chainFilters(this.ctx, source, options.filters ?? []);
     const gain = this.scope.track(makeGain(this.ctx, options.gain ?? 0.2));
@@ -330,7 +330,7 @@ class Rig {
 
     this.starts.push({
       node: oscillator,
-      when: this.ctx.currentTime + 0.01,
+      delay: 0.01,
     });
     return oscillator;
   }
@@ -355,16 +355,17 @@ class Rig {
       pan?: number;
     } = {},
   ): void {
+    const targetPan = options.pan ?? this.rng.pm(0.5);
     const t = createToneTransient(this.ctx, time, {
       frequency,
       endFrequency: options.endFrequency,
       duration,
       gain,
       type: options.type ?? "sine",
-      pan: options.pan ?? this.rng.pm(0.5),
+      pan: targetPan,
     });
     t.gain.disconnect();
-    const pan = this.scope.track(makePanner(this.ctx, options.pan ?? 0));
+    const pan = this.scope.track(makePanner(this.ctx, targetPan));
     t.gain.connect(pan);
     pan.connect(this.out);
     this.scope.trackSource(t.oscillator);
@@ -440,15 +441,16 @@ class Rig {
     this.started = true;
     for (const record of this.starts) {
       try {
+        const startTime = this.ctx.currentTime + (record.delay ?? 0.01);
         if (record.offset != null) {
           // Only buffer sources take an offset; they are the only records
           // that set one, so the narrowing is safe.
           (record.node as AudioBufferSourceNode).start(
-            record.when,
+            startTime,
             record.offset,
           );
         } else {
-          record.node.start(record.when);
+          record.node.start(startTime);
         }
       } catch {
         // A single failed source must not stop the rest of the layer.

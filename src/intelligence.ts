@@ -30,9 +30,19 @@ function loadLog(): LogEntry[] {
 export function getStreak(): StreakData {
   const fallback: StreakData = { current: 0, best: 0, lastDate: "" };
   const v = safeJsonGet<unknown>(STREAK_KEY, null);
-  return v && typeof v === "object" && !Array.isArray(v)
-    ? { ...fallback, ...(v as Partial<StreakData>) }
-    : fallback;
+  const data: StreakData =
+    v && typeof v === "object" && !Array.isArray(v)
+      ? { ...fallback, ...(v as Partial<StreakData>) }
+      : fallback;
+  if (!data.lastDate) return data;
+  const today = new Date().toDateString();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yday = yesterday.toDateString();
+  if (data.lastDate !== today && data.lastDate !== yday) {
+    return { ...data, current: 0 };
+  }
+  return data;
 }
 
 export function updateStreak(): StreakData {
@@ -134,7 +144,7 @@ export function getPeakHour(): number | null {
   const log = loadLog();
   if (log.length < 5) return null;
 
-  const hourBuckets = new Array(24).fill(0) as number[];
+  const hourBuckets = Array.from<number>({ length: 24 }).fill(0);
   log.forEach((e) => {
     const h = new Date(e.time).getHours();
     hourBuckets[h] += e.dur / 60000; // weight by duration

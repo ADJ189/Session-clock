@@ -67,13 +67,15 @@ class UiStateStore {
 
   update(patch: Partial<AppUiState>): void {
     let changed = false;
+    const nextState = { ...this.state };
     for (const key of Object.keys(patch) as (keyof AppUiState)[]) {
       if (patch[key] !== undefined && this.state[key] !== patch[key]) {
-        (this.state as unknown as Record<string, unknown>)[key] = patch[key];
+        (nextState as unknown as Record<string, unknown>)[key] = patch[key];
         changed = true;
       }
     }
     if (changed) {
+      this.state = nextState;
       this.notify();
     }
   }
