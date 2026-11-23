@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
-    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/node": "^26.6.5",
     "oxlint": "^1.94.0",
     "svelte": "^5.58.0",
