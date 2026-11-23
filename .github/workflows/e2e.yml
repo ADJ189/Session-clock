@@ -29,6 +29,7 @@ env:
   # Empty on push/PR → tests the production bundle built from the commit.
   # Set on schedule/dispatch → tests the live site.
   PLAYWRIGHT_TEST_BASE_URL: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (inputs.base_url || vars.PROD_URL || 'https://accurate-time.pages.dev') || '' }}
+  NODE_OPTIONS: "--max-old-space-size=4096"
 
 jobs:
   e2e:
@@ -39,17 +40,17 @@ jobs:
       fail-fast: false # one engine failing must not hide the others
       matrix:
         include:
-          - { project: desktop-chromium,          browser: chromium } # Blink
-          - { project: desktop-firefox,           browser: firefox }  # Gecko
-          - { project: desktop-webkit,            browser: webkit }   # WebKit
-          - { project: mobile-chromium-emulation, browser: chromium } # Blink, Pixel 7
-          - { project: mobile-webkit-emulation,   browser: webkit }   # WebKit, iPhone 13
+          - { project: desktop-chromium,          browser: chromium, workers: 2 } # Blink
+          - { project: desktop-firefox,           browser: firefox,  workers: 2 } # Gecko
+          - { project: desktop-webkit,            browser: webkit,   workers: 1 } # WebKit (1 worker prevents CPU thrashing on 2-core Linux runners)
+          - { project: mobile-chromium-emulation, browser: chromium, workers: 2 } # Blink, Pixel 7
+          - { project: mobile-webkit-emulation,   browser: webkit,   workers: 1 } # WebKit, iPhone 13 (1 worker prevents CPU thrashing on 2-core Linux runners)
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
@@ -57,18 +58,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Only the engine this job needs (not all three) — faster and smaller.
-      # Browser binaries are intentionally NOT cached: Playwright advises
-      # against it, since restoring costs about as much as downloading.
-      - name: Install ${{ matrix.browser }}
+      # Cache the Playwright browser binaries so matrix jobs don't re-download 75-130MB archives each run.
+      - name: Cache Playwright browser binaries
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-${{ matrix.browser }}-
+
+      # If cache miss: install browser binary + system dependencies via apt.
+      # If cache hit: only install system OS packages (apt-get), skipping the heavy browser download.
+      - name: Install ${{ matrix.browser }} with dependencies (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps ${{ matrix.browser }}
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 0
+
+      - name: Install ${{ matrix.browser }} OS dependencies only (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser }}
+        env:
+          DEBIAN_FRONTEND: noninteractive
 
       - name: Run tests (${{ matrix.project }})
-        run: npx playwright test --project=${{ matrix.project }}
+        run: npx playwright test --project=${{ matrix.project }} --workers=${{ matrix.workers || 1 }}
 
       - name: Upload blob report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: blob-report-${{ matrix.project }}
           path: blob-report/
@@ -76,7 +96,7 @@ jobs:
 
       - name: Upload traces / screenshots / videos (failures only)
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: failure-artifacts-${{ matrix.project }}
           path: test-results/
@@ -90,19 +110,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            package.json
+            package-lock.json
+          sparse-checkout-cone-mode: false
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
+      # Only dependencies needed for report merging; skip browser binaries
       - name: Install dependencies
         run: npm ci
 
       - name: Download blob reports
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           path: all-blob-reports
           pattern: blob-report-*
@@ -112,7 +138,7 @@ jobs:
         run: npx playwright merge-reports --reporter html ./all-blob-reports
 
       - name: Upload HTML report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/

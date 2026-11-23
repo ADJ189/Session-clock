@@ -7,6 +7,25 @@
 export const onRequest: PagesFunction = async (ctx) => {
   const url = new URL(ctx.request.url);
   const path = url.pathname.replace(/^\/api\/notion\//, '');
+
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(path);
+  } catch {
+    return new Response(JSON.stringify({ error: 'invalid_or_forbidden_path' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
+
+  // Guard against path traversal, empty paths, or non-Notion endpoint abuse
+  if (!path || decodedPath.includes('..') || decodedPath.includes('\\') || !/^(databases|pages|blocks|users|search)(\/|$)/.test(decodedPath)) {
+    return new Response(JSON.stringify({ error: 'invalid_or_forbidden_path' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
+
   const upstream = `https://api.notion.com/v1/${path}${url.search}`;
 
   const init: RequestInit = {
@@ -21,7 +40,15 @@ export const onRequest: PagesFunction = async (ctx) => {
     init.body = await ctx.request.text();
   }
 
-  const res = await fetch(upstream, init);
+  let res: Response;
+  try {
+    res = await fetch(upstream, init);
+  } catch {
+    return new Response(JSON.stringify({ error: 'upstream_unreachable' }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    });
+  }
   const data = await res.text();
   return new Response(data, {
     status: res.status,

@@ -190,8 +190,14 @@
         type="button"
         class="int-connect-btn"
         onclick={async (e) => {
-          (e.currentTarget as HTMLButtonElement).textContent = "Connecting…";
-          await service.googleLogin(service.defaultGoogleClientId);
+          const btn = e.currentTarget as HTMLButtonElement;
+          const orig = btn.textContent;
+          btn.textContent = "Connecting…";
+          try {
+            await service.googleLogin(service.defaultGoogleClientId, "youtube");
+          } finally {
+            btn.textContent = orig;
+          }
         }}
       >
         Connect Google for YouTube
@@ -231,8 +237,14 @@
             service.cb.showToast("Enter a Client ID first");
             return;
           }
-          (e.currentTarget as HTMLButtonElement).textContent = "Connecting…";
-          await service.googleLogin(id);
+          const btn = e.currentTarget as HTMLButtonElement;
+          const orig = btn.textContent;
+          btn.textContent = "Connecting…";
+          try {
+            await service.googleLogin(id, "youtube");
+          } finally {
+            btn.textContent = orig;
+          }
         }}
       >
         Connect Google for YouTube
@@ -266,8 +278,14 @@
         type="button"
         class="int-connect-btn"
         onclick={async (e) => {
-          (e.currentTarget as HTMLButtonElement).textContent = "Connecting…";
-          await service.googleLogin(service.defaultGoogleClientId);
+          const btn = e.currentTarget as HTMLButtonElement;
+          const orig = btn.textContent;
+          btn.textContent = "Connecting…";
+          try {
+            await service.googleLogin(service.defaultGoogleClientId, "gcal");
+          } finally {
+            btn.textContent = orig;
+          }
         }}
       >
         Connect Google for Calendar

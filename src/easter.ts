@@ -47,6 +47,15 @@ export function initEaster(
 
 function setupKonami() {
   window.addEventListener("keydown", (e) => {
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
     if (e.key === KONAMI[konamiIdx]) {
       konamiIdx++;
       if (konamiIdx === KONAMI.length) {
@@ -220,10 +229,23 @@ const KEYWORD_ACTIONS: Record<string, () => void> = {
   tetsuo: () => {
     triggerAkiraBlast();
   },
+  sidereal: () => {
+    const on = toggleSiderealMode();
+    _showToast(on ? "🔭 Sidereal Time mode on" : "🔭 Sidereal Time mode off", 3000);
+  },
 };
 
 function setupKeywordDetector() {
   window.addEventListener("keydown", (e) => {
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key.length === 1)
       typedBuffer = (typedBuffer + e.key.toLowerCase()).slice(-15);
@@ -443,7 +465,7 @@ export function triggerMatrixRain() {
   document.body.appendChild(cv);
   const ctx = cv.getContext("2d")!;
   const cols = Math.floor(cv.width / 14);
-  const drops = new Array(cols).fill(1);
+  const drops = Array.from<number>({ length: cols }).fill(1);
   requestAnimationFrame(() => (cv.style.opacity = "1"));
   const chars = "田由甲申甴电甶男甸甹町画甼甽甾甿畀ABCDEFabcdef0123456789";
   let frame = 0;
@@ -742,13 +764,13 @@ export function isSiderealMode() {
   return siderealMode;
 }
 
-export function getSiderealTime(lat: number): string {
+export function getSiderealTime(lon: number): string {
   // Greenwich Mean Sidereal Time calculation
   const now = new Date();
   const J2000 = new Date("2000-01-01T12:00:00Z");
   const D = (now.getTime() - J2000.getTime()) / 86400000; // days since J2000
   const GMST_h = (18.697374558 + 24.06570982441908 * D) % 24;
-  const LMST_h = (((GMST_h + lat / 15) % 24) + 24) % 24;
+  const LMST_h = (((GMST_h + lon / 15) % 24) + 24) % 24;
   const h = Math.floor(LMST_h);
   const m = Math.floor((LMST_h - h) * 60);
   const s = Math.floor(((LMST_h - h) * 60 - m) * 60);

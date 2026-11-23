@@ -383,9 +383,8 @@ export function bindHoldToConfirm(
     opts.onCancel?.();
   };
 
-  const start = (e: PointerEvent) => {
+  const startHold = () => {
     if (active || (btn as HTMLButtonElement).disabled) return;
-    e.preventDefault();
     active = true;
     btn.classList.add("holding");
     startT = performance.now();
@@ -393,10 +392,27 @@ export function bindHoldToConfirm(
     raf = requestAnimationFrame(step);
   };
 
+  const start = (e: PointerEvent) => {
+    e.preventDefault();
+    startHold();
+  };
+
   btn.addEventListener("pointerdown", start);
   btn.addEventListener("pointerup", cancel);
   btn.addEventListener("pointerleave", cancel);
   btn.addEventListener("pointercancel", cancel);
+  btn.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      if (e.repeat) return;
+      e.preventDefault();
+      startHold();
+    }
+  });
+  btn.addEventListener("keyup", (e: KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      cancel();
+    }
+  });
   // Suppress the synthetic click most browsers fire after pointerup so a
   // completed or cancelled hold never *also* triggers a plain onclick
   // handler wired to the same button elsewhere.

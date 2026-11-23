@@ -457,3 +457,52 @@ test("oauthLogin ignores an unknown provider and an empty client ID", async () =
   assert.strictEqual(assignedUrl, null);
   assert.strictEqual(sessionStorage.getItem(STATE_KEY), null);
 });
+
+test("public/_headers CSP allows Spotify OAuth and Web Playback SDK origins", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const headers = await readFile(
+    new URL("../public/_headers", import.meta.url),
+    "utf8",
+  );
+  const cspLine = headers
+    .split("\n")
+    .find((l) => l.trim().startsWith("Content-Security-Policy:"));
+  assert.ok(cspLine, "Content-Security-Policy header must exist");
+
+  const cspValue = cspLine.replace(/^Content-Security-Policy:\s*/i, "").trim();
+  const directives = cspValue
+    .split(";")
+    .map((d) => d.trim())
+    .filter(Boolean);
+
+  const getDirectiveSources = (name: string): Set<string> => {
+    const directive = directives.find((d) => d.startsWith(`${name} `) || d === name);
+    assert.ok(directive, `${name} directive must exist`);
+    const [, ...sources] = directive.split(/\s+/);
+    return new Set(sources);
+  };
+
+  const connectSrc = getDirectiveSources("connect-src");
+  // connect-src must allow Spotify direct token exchange and SDK websockets/APIs
+  assert.ok(connectSrc.has("https://accounts.spotify.com"), "accounts.spotify.com in connect-src");
+  assert.ok(connectSrc.has("https://*.spotify.com"), "*.spotify.com in connect-src");
+  assert.ok(connectSrc.has("wss://*.spotify.com"), "wss://*.spotify.com in connect-src");
+
+  const frameSrc = getDirectiveSources("frame-src");
+  // frame-src must allow Spotify SDK iframe
+  assert.ok(frameSrc.has("https://sdk.scdn.co"), "sdk.scdn.co in frame-src");
+
+  // connect-src must allow Sentry ingest origin for error and replay telemetry
+  assert.ok(
+    connectSrc.has("https://*.ingest.us.sentry.io"),
+    "*.ingest.us.sentry.io in connect-src",
+  );
+  assert.ok(
+    connectSrc.has("https://*.ingest.sentry.io"),
+    "*.ingest.sentry.io in connect-src",
+  );
+
+  const workerSrc = getDirectiveSources("worker-src");
+  // worker-src must allow blob: for Replay compression worker
+  assert.ok(workerSrc.has("blob:"), "blob: in worker-src for Replay worker");
+});

@@ -14,6 +14,7 @@ import {
   getQualityMode,
   tickFps,
   getPerfDiagnostics,
+  shouldRenderFull,
 } from "../src/perf.ts";
 
 beforeEach(() => {
@@ -72,6 +73,15 @@ test("applyBatterySaver temporarily lowers tier to low without persisting", () =
   applyBatterySaver(false);
   assert.strictEqual(isBatterySaverActive(), false);
   assert.strictEqual(getTier(), "high");
+});
+
+test("low tier does not skip twice on top of the renderer's frame throttle", () => {
+  setTier("low");
+  // renderFrame already returns on two of every three low-tier frames; every
+  // frame that reaches the draw code must therefore do full work.
+  for (let i = 0; i < 9; i++) {
+    assert.strictEqual(shouldRenderFull(), true);
+  }
 });
 
 test("tickFps records frame timestamps and getPerfDiagnostics reports metrics", () => {

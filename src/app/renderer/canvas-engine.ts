@@ -241,15 +241,17 @@ export function renderFrame(ts: number) {
   }
 
   const tier = getTier();
+  const modalThrottled = document.body.classList.contains("modal-open");
   if (tier === "low") {
     rafSkip = (rafSkip + 1) % 3;
     if (rafSkip !== 0) {
+      if (!modalThrottled && !fpsPaused) {
+        tickFps(ts, 0);
+      }
       requestAnimationFrame(renderFrame);
       return;
     }
   }
-
-  const modalThrottled = document.body.classList.contains("modal-open");
   if (modalThrottled) {
     if (ts - modalFrameTs < MODAL_FRAME_MS) {
       requestAnimationFrame(renderFrame);
@@ -362,9 +364,9 @@ export function renderFrame(ts: number) {
     window.__checkMidnight?.();
 
     if (Easter.isSiderealMode()) {
-      const lat = (window as unknown as { __scLat?: number }).__scLat ?? 0;
+      const lon = (window as unknown as { __scLon?: number }).__scLon ?? 0;
       const el = document.getElementById("sessionStatusLine");
-      if (el) el.textContent = Easter.getSiderealTime(lat);
+      if (el) el.textContent = Easter.getSiderealTime(lon);
     } else if (sessionRunning && Pom.isActive()) {
       const phase = Pom.getPhase();
       const rem = Pom.getRemainingSeconds();
@@ -704,7 +706,7 @@ export function drawSegDigit(
     ctx2.fillRect(x, y + t + g, t, ih);
   });
   drawSeg(segs[6]!, () => {
-    ctx2.fillRect(x + t + g, y + t + g * 3 + ih, iw, t);
+    ctx2.fillRect(x + t + g, y + t + g * 2 + ih, iw, t);
   });
 }
 
@@ -729,7 +731,7 @@ export function renderSegment(hr: string, min: string, sec: string) {
     : [hr[0]!, hr[1]!, min[0]!, min[1]!, sec[0]!, sec[1]!];
   const colonCount = secondsHidden ? 1 : 2;
   const totalW =
-    digits.length * dw + (digits.length - 1) * gap + colonCount * colonW;
+    digits.length * dw + colonCount * colonW + (digits.length + colonCount - 1) * gap;
   let ox = (el.width - totalW) / 2,
     oy = (el.height - dh) / 2;
   digits.forEach((d, i) => {

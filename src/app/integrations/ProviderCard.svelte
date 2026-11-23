@@ -33,7 +33,7 @@
     type="button"
     class="int-card-header"
     aria-expanded={open}
-    aria-label={name}
+    aria-label="{name} — {connected ? 'Connected' : 'Not connected'}"
     aria-describedby="betaTagProvider_{id}"
     onclick={ontoggle}
   >

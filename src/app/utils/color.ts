@@ -108,3 +108,19 @@ export const hslToHex = (h: number, s: number, l: number): string => {
   };
   return "#" + f(0) + f(8) + f(4);
 };
+
+/**
+ * Convert HSL (percent channels) to the HSV values a saturation/value picker
+ * maps to. The picker's x axis is HSV saturation and its y axis is HSV value,
+ * so the cursor must be positioned from these, not from HSL saturation and
+ * lightness — otherwise a click and the drawn cursor disagree.
+ */
+export const hslToHsv = (
+  s: number,
+  l: number,
+): { s: number; v: number } => {
+  const sn = Math.min(100, Math.max(0, s)) / 100;
+  const ln = Math.min(100, Math.max(0, l)) / 100;
+  const v = ln + sn * Math.min(ln, 1 - ln);
+  return { s: v === 0 ? 0 : 2 * (1 - ln / v), v };
+};

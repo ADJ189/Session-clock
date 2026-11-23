@@ -54,13 +54,16 @@ export function generateShareCard(opts: ShareCardOptions, download = true): HTML
 
   // ── Theme pill
   c.font = '500 14px Inter, system-ui, sans-serif';
+  const pillText = opts.themeName.toUpperCase();
+  const textW = c.measureText(pillText).width;
+  const pillW = Math.max(120, textW + 28);
   c.fillStyle = opts.accentColor + '22';
-  roundRect(c, 72, 86, 120, 26, 13);
+  roundRect(c, 72, 86, pillW, 26, 13);
   c.fill();
   c.fillStyle = opts.accentColor;
   c.globalAlpha = 0.8;
   c.textAlign = 'center';
-  c.fillText(opts.themeName.toUpperCase(), 132, 103);
+  c.fillText(pillText, 72 + pillW / 2, 103);
   c.globalAlpha = 1;
 
   // ── Big focus time
@@ -190,7 +193,12 @@ function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number,
 
 function darkenHex(hex: string, amount: number): string {
   if (!hex.startsWith('#')) return hex;
-  const n = parseInt(hex.slice(1), 16);
+  let raw = hex;
+  if (raw.length === 4) {
+    raw = '#' + raw[1] + raw[1] + raw[2] + raw[2] + raw[3] + raw[3];
+  }
+  const n = Number.parseInt(raw.slice(1), 16);
+  if (Number.isNaN(n)) return hex;
   const r = Math.max(0, Math.round(((n >> 16) & 0xff) * (1 - amount)));
   const g = Math.max(0, Math.round(((n >> 8)  & 0xff) * (1 - amount)));
   const b = Math.max(0, Math.round(( n        & 0xff) * (1 - amount)));

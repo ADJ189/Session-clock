@@ -164,7 +164,7 @@ export class EventScheduler {
     }
     const now = this.ctx.currentTime;
     const horizon = now + this.lookahead;
-    for (const [id, task] of Array.from(this.tasks.entries())) {
+    for (const [id, task] of this.tasks.entries()) {
       this.dropMissedEvents(task, now);
       let guard = 0;
       while (task.nextAt <= horizon && guard++ < MAX_EVENTS_PER_TICK) {

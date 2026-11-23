@@ -480,14 +480,14 @@ test.describe("Center mode session panel", () => {
           const range = document.createRange();
           range.selectNodeContents(el);
           const content = range.getBoundingClientRect();
-          const box = el.getBoundingClientRect();
+          const elBox = el.getBoundingClientRect();
           const style = getComputedStyle(el);
           const innerLeft =
-            box.left +
+            elBox.left +
             parseFloat(style.paddingLeft) +
             parseFloat(style.borderLeftWidth);
           const innerRight =
-            box.right -
+            elBox.right -
             parseFloat(style.paddingRight) -
             parseFloat(style.borderRightWidth);
           return (

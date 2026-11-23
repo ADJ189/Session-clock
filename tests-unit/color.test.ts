@@ -5,6 +5,7 @@ import {
   hexToRgb,
   hexToHsl,
   hslToHex,
+  hslToHsv,
   relativeLuminance,
   onAccentInk,
   VALID_COLOR,
@@ -48,4 +49,13 @@ test("color: VALID_COLOR regex checks", () => {
   assert.ok(VALID_COLOR.test("rgba(0, 0, 0, 0.5)"));
   assert.ok(!VALID_COLOR.test("javascript:alert(1)"));
   assert.ok(!VALID_COLOR.test("red"));
+});
+
+test("color: hslToHsv maps the HSV picker axes correctly", () => {
+  assert.deepStrictEqual(hslToHsv(100, 50), { s: 1, v: 1 });
+  assert.deepStrictEqual(hslToHsv(0, 100), { s: 0, v: 1 });
+  assert.deepStrictEqual(hslToHsv(0, 0), { s: 0, v: 0 });
+  const mid = hslToHsv(50, 50); // HSL 50/50/50 → HSV 2/3, 3/4
+  assert.ok(Math.abs(mid.s - 2 / 3) < 1e-9);
+  assert.ok(Math.abs(mid.v - 0.75) < 1e-9);
 });

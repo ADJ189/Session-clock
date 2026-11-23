@@ -47,10 +47,19 @@ let refreshTimer = 0;
 let weatherRequestId = 0;
 
 // ── Circadian sun math ────────────────────────────────────────────────
+export interface SunTimes {
+  rise: number;
+  set: number;
+  noon: number;
+  /** Offset used to build these clock minutes (forecast location, or browser). */
+  tzOffsetMins: number;
+}
+
 export function calcSunTimes(
   lat: number,
   lon: number,
-): { rise: number; set: number; noon: number } {
+  tzOffsetMins?: number,
+): SunTimes {
   const now = new Date();
   const dayOfYear = Math.floor(
     (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000,
@@ -60,26 +69,41 @@ export function calcSunTimes(
     9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
   const decl = (23.45 * Math.sin(B) * Math.PI) / 180;
   const latRad = (lat * Math.PI) / 180;
+  const tzOffset = tzOffsetMins ?? -now.getTimezoneOffset();
   const cosHa = -Math.tan(latRad) * Math.tan(decl);
-  if (cosHa < -1) return { rise: 0, set: 1440, noon: 720 };
-  if (cosHa > 1) return { rise: 720, set: 720, noon: 720 };
+  if (cosHa < -1) return { rise: 0, set: 1440, noon: 720, tzOffsetMins: tzOffset };
+  if (cosHa > 1) return { rise: 720, set: 720, noon: 720, tzOffsetMins: tzOffset };
   const ha = (Math.acos(cosHa) * 180) / Math.PI;
-  const tzOffset = -now.getTimezoneOffset();
   const solarNoon = 720 - 4 * lon - eqTime + tzOffset;
   return {
     rise: solarNoon - 4 * ha,
     set: solarNoon + 4 * ha,
     noon: solarNoon,
+    tzOffsetMins: tzOffset,
   };
 }
 
-export function getCircadianWarmth(sunTimes: {
-  rise: number;
-  set: number;
-  noon: number;
-}): number {
-  const now = new Date();
-  const minuteOfDay = now.getHours() * 60 + now.getMinutes();
+/**
+ * Minutes since midnight for the same clock the sun times were calculated in.
+ * When a forecast location offset is available, convert the current instant
+ * to that offset instead of assuming the browser's timezone.
+ */
+export function getSunMinuteOfDay(
+  now: Date = new Date(),
+  tzOffsetMins?: number,
+): number {
+  if (typeof tzOffsetMins === "number" && Number.isFinite(tzOffsetMins)) {
+    const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    return ((utcMinutes + tzOffsetMins) % 1440 + 1440) % 1440;
+  }
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+export function getCircadianWarmth(
+  sunTimes: Pick<SunTimes, "rise" | "set"> & { tzOffsetMins?: number },
+  now: Date = new Date(),
+): number {
+  const minuteOfDay = getSunMinuteOfDay(now, sunTimes.tzOffsetMins);
   const { rise, set } = sunTimes;
   if (minuteOfDay < rise || minuteOfDay > set) return 1;
   if (minuteOfDay < rise + 90) return 1 - (minuteOfDay - rise) / 90;
@@ -89,7 +113,7 @@ export function getCircadianWarmth(sunTimes: {
 }
 
 // Stored for external access
-let sunTimes: { rise: number; set: number; noon: number } | null = null;
+let sunTimes: SunTimes | null = null;
 let _currentWeatherCode: number | null = null;
 let _currentTemp: number | null = null;
 let _currentLocation: { lat: number; lon: number; name?: string } | null = null;
@@ -210,6 +234,7 @@ export async function getCityName(lat: number, lon: number): Promise<string> {
 // ── Main weather fetch ─────────────────────────────────────────────────
 /** The subset of the Open-Meteo /v1/forecast response this module reads. */
 interface WeatherData {
+  utc_offset_seconds?: number;
   current: {
     weathercode: number;
     temperature_2m: number;
@@ -323,6 +348,7 @@ export async function initWeather(
     if (privacyCheck()) return;
     sunTimes = calcSunTimes(lat, lon);
     window.__scLat = lat;
+    window.__scLon = lon;
     _currentLocation = { lat, lon, name: _currentLocation?.name };
     _lastFetchFailed = false;
     // Guards against the user switching location again (GPS, then a quick
@@ -333,7 +359,10 @@ export async function initWeather(
 
     try {
       const data = await fetchWeatherDataWithRetry(lat, lon);
-      if (myRequestId !== weatherRequestId) return; // a newer location fetch has since started
+      if (myRequestId !== weatherRequestId || privacyCheck()) return; // a newer location fetch or privacy mode started
+      if (typeof data.utc_offset_seconds === "number") {
+        sunTimes = calcSunTimes(lat, lon, data.utc_offset_seconds / 60);
+      }
       const cur = data.current;
       _currentWeatherCode = cur.weathercode;
       _currentTemp = Math.round(cur.temperature_2m);
@@ -346,14 +375,15 @@ export async function initWeather(
 
       // Parse hourly (next 24h)
       const hourly = data.hourly;
-      const nowIdx =
+      const rawIdx =
         hourly?.time?.findIndex((t: string) => new Date(t) > new Date()) ?? 0;
+      const nowIdx = rawIdx >= 0 ? rawIdx : 0;
       _hourlyForecast = hourly
         ? hourly.time
             .slice(nowIdx, nowIdx + 24)
             .map((t: string, i: number) => ({
               time: t,
-              temp: Math.round(hourly.temperature_2m[nowIdx + i]),
+              temp: Math.round(hourly.temperature_2m[nowIdx + i] ?? 0),
               code: hourly.weathercode[nowIdx + i],
             }))
         : [];

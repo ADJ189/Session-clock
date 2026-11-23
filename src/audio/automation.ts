@@ -86,7 +86,9 @@ export function curveParam(
   if (!param || curve.length < 2) return false;
   if (!Number.isFinite(now) || !Number.isFinite(durationSec)) return false;
   if (durationSec <= 0) return false;
-  holdParam(param, now);
+  try {
+    param.cancelScheduledValues(now);
+  } catch {}
   try {
     param.setValueCurveAtTime(curve, now, durationSec);
     return true;

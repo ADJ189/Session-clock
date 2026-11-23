@@ -239,25 +239,25 @@ export function buildTemplatesUI(container: HTMLElement, onSelect: TemplateCb) {
   grid.style.cssText =
     "display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:18px;";
 
-  SESSION_TEMPLATES.forEach((t) => {
+  SESSION_TEMPLATES.forEach((tmpl) => {
     const card = document.createElement("button");
     card.className = "template-card";
 
     const iconEl = document.createElement("div");
     iconEl.className = "template-icon";
-    iconEl.textContent = t.icon;
+    iconEl.textContent = tmpl.icon;
     const nameEl = document.createElement("div");
     nameEl.className = "template-name";
-    nameEl.textContent = t.name;
+    nameEl.textContent = tmpl.name;
     const descEl = document.createElement("div");
     descEl.className = "template-desc";
-    descEl.textContent = t.desc;
+    descEl.textContent = tmpl.desc;
     const metaEl = document.createElement("div");
     metaEl.className = "template-meta";
-    metaEl.textContent = `${t.durationMins}min · ${t.breakMins}min break`;
+    metaEl.textContent = `${tmpl.durationMins}min · ${tmpl.breakMins}min break`;
 
     card.append(iconEl, nameEl, descEl, metaEl);
-    card.addEventListener("click", () => onSelect(t));
+    card.addEventListener("click", () => onSelect(tmpl));
     grid.appendChild(card);
   });
 
@@ -900,6 +900,11 @@ export function tickCountdown() {
   _countdownCb(`⏳ ${_countdownLabel} — ${parts.join(" ")}`, false);
 }
 
+function toLocalDatetimeString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function buildCountdownUI(
   container: HTMLElement,
   onSet: (label: string, target: Date) => void,
@@ -926,7 +931,7 @@ export function buildCountdownUI(
   // Default to end of today
   const now = new Date();
   now.setHours(23, 59, 0, 0);
-  dateInput.value = now.toISOString().slice(0, 16);
+  dateInput.value = toLocalDatetimeString(now);
 
   // Quick presets
   const presets = document.createElement("div");
@@ -944,16 +949,16 @@ export function buildCountdownUI(
       "padding:5px 12px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:inherit;font-size:.62rem;cursor:pointer;";
     btn.textContent = label;
     btn.addEventListener("click", () => {
-      const t = new Date();
+      const targetDate = new Date();
       if (mins === -1) {
-        t.setHours(23, 59, 0, 0);
+        targetDate.setHours(23, 59, 0, 0);
       } else if (mins === -2) {
-        t.setDate(t.getDate() + 1);
-        t.setHours(9, 0, 0, 0);
+        targetDate.setDate(targetDate.getDate() + 1);
+        targetDate.setHours(9, 0, 0, 0);
       } else {
-        t.setMinutes(t.getMinutes() + mins);
+        targetDate.setMinutes(targetDate.getMinutes() + mins);
       }
-      dateInput.value = t.toISOString().slice(0, 16);
+      dateInput.value = toLocalDatetimeString(targetDate);
       if (!labelInput.value) labelInput.value = label;
     });
     presets.appendChild(btn);
@@ -1080,7 +1085,7 @@ function updateWorldClockDisplay(wrap: HTMLElement, tzs: string[]) {
   wrap.innerHTML = "";
   const now = new Date();
   tzs.forEach((tz) => {
-    const preset = TIMEZONE_PRESETS.find(([t]) => t === tz);
+    const preset = TIMEZONE_PRESETS.find(([tzKey]) => tzKey === tz);
     const flag = preset?.[2] ?? "🌐";
     const city = preset?.[1] ?? tz.split("/")[1]?.replace("_", " ") ?? tz;
 
@@ -1116,7 +1121,7 @@ function updateWorldClockDisplay(wrap: HTMLElement, tzs: string[]) {
       "font-size:.7rem;opacity:.25;background:none;border:none;color:inherit;cursor:pointer;padding:2px 6px;";
     removeBtn.textContent = "✕";
     removeBtn.addEventListener("click", () => {
-      const cur = getWorldClocks().filter((t) => t !== tz);
+      const cur = getWorldClocks().filter((savedTz) => savedTz !== tz);
       saveWorldClocks(cur);
       const parent = wrap.parentElement;
       if (parent) buildWorldClockUI(parent);
@@ -1217,6 +1222,7 @@ export interface VoiceCommand {
 
 let _voiceActive = false;
 let _voiceRecog: SpeechRecognitionLike | null = null;
+let _voiceOnStateChange: ((active: boolean) => void) | null = null;
 
 export function isVoiceActive() {
   return _voiceActive;
@@ -1266,23 +1272,29 @@ export function initVoiceTimer(
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return false;
 
+  _voiceOnStateChange = onStateChange;
   _voiceRecog = new SR();
   _voiceRecog.continuous = false;
   _voiceRecog.interimResults = false;
   _voiceRecog.lang = "en-US";
 
-  _voiceRecog.onresult = (e) => {
-    const transcript = e.results[0]?.[0]?.transcript ?? "";
+  _voiceRecog.addEventListener("start", () => {
+    _voiceActive = true;
+    _voiceOnStateChange?.(true);
+  });
+  _voiceRecog.addEventListener("result", (e: Event) => {
+    const re = e as unknown as SpeechRecognitionResultEventLike;
+    const transcript = re.results?.[0]?.[0]?.transcript ?? "";
     if (transcript) onCommand(parseVoiceCommand(transcript));
-  };
-  _voiceRecog.onerror = () => {
+  });
+  _voiceRecog.addEventListener("error", () => {
     _voiceActive = false;
-    onStateChange(false);
-  };
-  _voiceRecog.onend = () => {
+    _voiceOnStateChange?.(false);
+  });
+  _voiceRecog.addEventListener("end", () => {
     _voiceActive = false;
-    onStateChange(false);
-  };
+    _voiceOnStateChange?.(false);
+  });
   return true;
 }
 
@@ -1291,8 +1303,10 @@ export function startVoiceListening() {
   try {
     _voiceRecog.start();
     _voiceActive = true;
+    _voiceOnStateChange?.(true);
   } catch {
     _voiceActive = false;
+    _voiceOnStateChange?.(false);
   }
 }
 
@@ -1302,6 +1316,7 @@ export function stopVoiceListening() {
     _voiceRecog.stop();
   } catch {}
   _voiceActive = false;
+  _voiceOnStateChange?.(false);
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -19,7 +19,16 @@ export function readFocusLog(): LogEntry[] {
   if (raw == null) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed as LogEntry[];
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (e: unknown): e is LogEntry =>
+          typeof e === "object" &&
+          e !== null &&
+          Number.isFinite((e as LogEntry).time) &&
+          Number.isFinite((e as LogEntry).dur) &&
+          (e as LogEntry).dur > 0,
+      );
+    }
   } catch {
     /* fall through to repair */
   }
@@ -48,7 +57,7 @@ const save = writeFocusLog;
  * when another tab records a newer session.
  */
 export function record(task: string, durMs: number): LogEntry | null {
-  if (durMs < 5000) return null;
+  if (!Number.isFinite(durMs) || durMs < 5000) return null;
   const entry = {
     time: Date.now(),
     task: task || "Untitled session",

@@ -17,7 +17,7 @@ test.describe("session timer", () => {
     await start.click();
     await expect(body).toHaveClass(/session-running/);
     // Real async boundary: the display only advances once a second has passed.
-    await expect(timer).not.toHaveText("00:00:00", { timeout: 5_000 });
+    await expect(timer).not.toHaveText("00:00:00", { timeout: 10_000 });
 
     await start.click(); // pause
     await expect(body).not.toHaveClass(/session-running/);

@@ -31,18 +31,28 @@ function cacheKey(track: string, artist: string, durationSec: number): string {
   return `${track.toLowerCase()}::${artist.toLowerCase()}::${Math.round(durationSec)}`;
 }
 
-/** Parses standard LRC `[mm:ss.xx] text` lines into a sorted line list. */
-function parseLrc(lrc: string): LyricLine[] {
+/** Parses standard LRC `[mm:ss.xx] text` lines (including multi-timestamp lines) into a sorted line list. */
+export function parseLrc(lrc: string): LyricLine[] {
   const lines: LyricLine[] = [];
-  const re = /\[(\d{2}):(\d{2}(?:\.\d{1,3})?)\](.*)/g;
-  for (const line of lrc.split("\n")) {
-    re.lastIndex = 0;
-    const m = re.exec(line);
-    if (!m) continue;
-    const min = Number(m[1]);
-    const sec = Number(m[2]);
-    const text = (m[3] ?? "").trim();
-    if (text) lines.push({ time: min * 60 + sec, text });
+  const tagRe = /\[(\d{2}):(\d{2}(?:\.\d{1,3})?)\]/g;
+  for (const rawLine of lrc.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const timestamps: number[] = [];
+    tagRe.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = tagRe.exec(line)) !== null) {
+      const min = Number(m[1]);
+      const sec = Number(m[2]);
+      timestamps.push(min * 60 + sec);
+    }
+    if (timestamps.length === 0) continue;
+    const text = line.replace(tagRe, "").trim();
+    if (text) {
+      for (const time of timestamps) {
+        lines.push({ time, text });
+      }
+    }
   }
   return lines.sort((a, b) => a.time - b.time);
 }

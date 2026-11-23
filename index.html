@@ -597,7 +597,8 @@
     <link rel="icon" href="/logo.png" type="image/png" />
     <link rel="icon" href="/icon-512.png" sizes="512x512" type="image/png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <meta property="og:image" content="/og-preview.svg" />
+    <link rel="canonical" href="https://sessionclock.com/" />
+    <meta property="og:image" content="https://sessionclock.com/preview.png" />
     <meta property="og:url" content="https://accurate-time.pages.dev/" />
     <meta property="og:site_name" content="Session Clock" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -606,7 +607,7 @@
       name="twitter:description"
       content="A cinematic focus timer with 103 animated themes, Pomodoro, and an ambient sound mixer."
     />
-    <meta name="twitter:image" content="/og-preview.svg" />
+    <meta name="twitter:image" content="https://sessionclock.com/preview.png" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
@@ -1028,6 +1029,7 @@
           <h2>Session Templates</h2>
           <button
             class="modal-close"
+            aria-label="Close"
             onclick="
               document
                 .getElementById('templatesOverlay')
@@ -1048,6 +1050,7 @@
           <h2>⏳ Deadline Countdown</h2>
           <button
             class="modal-close"
+            aria-label="Close"
             onclick="
               document
                 .getElementById('countdownOverlay')
@@ -1068,6 +1071,7 @@
           <h2>🌍 World Clock</h2>
           <button
             class="modal-close"
+            aria-label="Close"
             onclick="
               document
                 .getElementById('worldClockOverlay')

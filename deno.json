@@ -11,6 +11,8 @@
     "lint": "deno run -A node_modules/oxlint/bin/oxlint .",
     "test": "deno test -A --no-check tests-unit",
     "test:unit": "deno test -A --no-check tests-unit",
+    "test:stress": "deno test -A --no-check tests-unit/stress.test.ts",
+    "check:all": "deno run -A scripts/check-svelte-boundaries.mjs && deno test -A --no-check tests-unit",
     "test:e2e": "deno run -A node_modules/@playwright/test/cli.js test",
     "test:e2e:chromium": "deno run -A node_modules/@playwright/test/cli.js test --project=desktop-chromium",
     "test:e2e:firefox": "deno run -A node_modules/@playwright/test/cli.js test --project=desktop-firefox",
